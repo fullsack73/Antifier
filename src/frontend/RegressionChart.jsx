@@ -52,9 +52,9 @@ function RegressionChart({ data, regression, ticker }) {
         margin: { t: 50, b: 100, l: 50, r: 50 },
         showlegend: true,
         legend: {
-          x: 1,
+          x: 0,
           y: 1,
-          xanchor: "right",
+          xanchor: "left",
           yanchor: "top",
           font: { color: "#e5e7eb" },
           bgcolor: "rgba(30, 41, 59, 0.8)",
