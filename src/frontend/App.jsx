@@ -15,7 +15,6 @@ import FutureChart from "./FutureChart.jsx"
 import FinancialStatement from "./FinancialStatement.jsx"
 import Optimizer from "./Optimizer.jsx"
 import PortfolioBenchmark from "./PortfolioBenchmark.jsx"
-// import PortfolioInput from "./PortfolioInput.jsx"
 import "./App.css"
 
 function AppContent() {

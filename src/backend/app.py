@@ -53,10 +53,8 @@ def validate_date_range(start_date, end_date):
     except Exception as e:
         raise ValueError(f"Invalid date format. Please use YYYY-MM-DD format")
 
-# maybe go with sliding window approach, but for now this is good
 def generate_regression_data(ticker="", start_date=None, end_date=None, future_days=0):
     try:
-        # default to 3 months to 'yesterday'. otherwise yfinance might start to fuck up
         if start_date and end_date:
             start_date, end_date = validate_date_range(start_date, end_date)
         else:
