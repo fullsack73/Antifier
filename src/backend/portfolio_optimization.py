@@ -96,34 +96,10 @@ def list_saved_portfolios():
         return []
     return sorted(p.stem for p in RESULTS_DIR.glob("*.json"))
 
-def sanitize_tickers(tickers):
-    """Sanitize ticker symbols for yfinance compatibility with special case handling."""
-    special_mappings = {
-        'BRK.B': 'BRK-B',
-        'BF.B': 'BF-B',
-    }
-    
-    sanitized = []
-    for ticker in tickers:
-        if ticker in special_mappings:
-            sanitized.append(special_mappings[ticker])
-            logger.info(f"Applied special mapping: {ticker} -> {special_mappings[ticker]}")
-        else:
-            sanitized.append(ticker.replace('.', '-'))
-    
-    return sanitized
-
 @cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache
 def get_stock_data(tickers, start_date, end_date, progress_callback=None):
     """Fetch stock data for given tickers and date range using chunked batch processing."""
     logger.info(f"GET_STOCK_DATA: Starting fetch for {len(tickers)} tickers")
-    
-    # Sanitize tickers first
-    original_tickers = tickers.copy()
-    tickers = sanitize_tickers(tickers)
-    sanitized_changes = set(original_tickers) - set(tickers)
-    if sanitized_changes:
-        logger.info(f"GET_STOCK_DATA: Sanitized {len(sanitized_changes)} ticker symbols")
     
     all_series = []
     
@@ -233,83 +209,6 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None):
         logger.error(f"GET_STOCK_DATA: Error combining chunks: {e}")
         return pd.DataFrame()
 
-def _exponential_smoothing_forecast(prices, alpha=0.3):
-    """Fast exponential smoothing forecast."""
-    if len(prices) < 2:
-        return 0.05
-    
-    # Simple exponential smoothing
-    smoothed = [prices[0]]
-    for i in range(1, len(prices)):
-        smoothed.append(alpha * prices[i] + (1 - alpha) * smoothed[i-1])
-    
-    # Calculate trend from last 30 days
-    recent_data = smoothed[-30:] if len(smoothed) >= 30 else smoothed
-    if len(recent_data) < 2:
-        return 0.05
-    
-    # Linear trend extrapolation
-    x = np.arange(len(recent_data))
-    slope, intercept, _, _, _ = linregress(x, recent_data)
-    
-    # Project 252 days ahead (1 year)
-    future_price = slope * (len(recent_data) + 252) + intercept
-    current_price = recent_data[-1]
-    
-    if current_price <= 0:
-        return 0.05
-    
-    return (future_price / current_price) - 1
-
-def _linear_trend_forecast(prices):
-    """Fast linear trend forecast."""
-    if len(prices) < 10:
-        return 0.05
-    
-    # Use last 90 days for trend analysis
-    recent_prices = prices[-90:] if len(prices) >= 90 else prices
-    x = np.arange(len(recent_prices)).reshape(-1, 1)
-    y = recent_prices
-    
-    try:
-        model = LinearRegression()
-        model.fit(x, y)
-        
-        # Predict 252 days ahead
-        future_x = np.array([[len(recent_prices) + 252]])
-        future_price = model.predict(future_x)[0]
-        current_price = recent_prices[-1]
-        
-        if current_price <= 0:
-            return 0.05
-        
-        return (future_price / current_price) - 1
-    except:
-        return 0.05
-
-def _historical_volatility_adjusted_forecast(prices):
-    """Historical mean with volatility adjustment."""
-    if len(prices) < 30:
-        return 0.05
-    
-    returns = np.diff(prices) / prices[:-1]
-    returns = returns[~np.isnan(returns)]  # Remove NaN values
-    
-    if len(returns) < 10:
-        return 0.05
-    
-    mean_return = np.mean(returns)
-    volatility = np.std(returns)
-    
-    # Annualized return with volatility adjustment
-    annual_return = mean_return * 252
-    
-    # Apply volatility penalty for very volatile stocks
-    if volatility > 0.05:  # 5% daily volatility threshold
-        annual_return *= 0.8  # Reduce expected return for high volatility
-    
-    return annual_return
-
 # NOTE: 모델 객체를 캐시하지 않음 - 메모리 누수 방지를 위해 forecast 결과만 캐시
 def _train_and_select_model(ticker, ticker_data):
     """Train ML models and select best performer for a single ticker.
@@ -355,7 +254,7 @@ def _train_and_select_model(ticker, ticker_data):
         gc.collect()
 
 @cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache for predictions
-def _ml_forecast_single_ticker(ticker, ticker_data, use_lightweight=False):
+def _ml_forecast_single_ticker(ticker, ticker_data):
     """Forecast returns for single ticker using ML models with caching.
     
     NOTE: forecast 결과값만 캐시됩니다. 모델 객체는 사용 후 즉시 해제됩니다.
@@ -368,21 +267,7 @@ def _ml_forecast_single_ticker(ticker, ticker_data, use_lightweight=False):
             logger.warning(f"Insufficient data for {ticker}: {len(prices)} points")
             return ticker, 0.08
         
-        # For lightweight mode, use fast forecasting
-        if use_lightweight:
-            valid_prices = prices[~np.isnan(prices)]
-            
-            # Use ensemble of lightweight methods
-            exp_forecast = _exponential_smoothing_forecast(valid_prices)
-            trend_forecast = _linear_trend_forecast(valid_prices)
-            vol_forecast = _historical_volatility_adjusted_forecast(valid_prices)
-            
-            forecast_value = (0.4 * exp_forecast + 0.3 * trend_forecast + 0.3 * vol_forecast)
-            forecast_value = np.clip(forecast_value, -0.5, 1.0)
-            
-            return ticker, forecast_value
-        
-        # ML mode: train and select best model
+        # Train and select best model
         best_model, metrics = _train_and_select_model(ticker, ticker_data)
         
         if best_model is None:
@@ -413,13 +298,12 @@ def _ml_forecast_single_ticker(ticker, ticker_data, use_lightweight=False):
         logger.error(f"ML forecasting failed for {ticker}: {e}")
         return ticker, 0.02
 
-def ml_forecast_returns(data, use_lightweight=False, batch_size=20, progress_callback=None):
+def ml_forecast_returns(data, batch_size=20, progress_callback=None):
     """
     Forecast expected returns using ML models with memory-efficient batch processing.
     
     Args:
         data: DataFrame with stock prices (dates as index, tickers as columns)
-        use_lightweight: If True, use fast ensemble methods; if False, use full ML models
         batch_size: Number of tickers to process in each batch (메모리 관리용)
         progress_callback: Optional callback(current, total, message)
     
@@ -427,15 +311,14 @@ def ml_forecast_returns(data, use_lightweight=False, batch_size=20, progress_cal
         pandas Series with expected annual returns for each ticker
     """
     start_time = time.time()
-    method = "ML" if not use_lightweight else "LIGHTWEIGHT"
-    logger.info(f"Starting BATCH {method} forecasting for {len(data.columns)} tickers")
+    logger.info(f"Starting BATCH ML forecasting for {len(data.columns)} tickers")
     
     # 메모리 효율을 위해 worker 수 제한 (LSTM/TensorFlow가 프로세스당 많은 메모리 사용)
     # ThreadPoolExecutor 사용 - ProcessPoolExecutor는 TensorFlow와 함께 사용 시 
     # 각 프로세스마다 TF가 로드되어 메모리 폭발
     import os
     max_workers = min(os.cpu_count() or 4, len(data.columns), 4)  # 최대 4로 제한
-    logger.info(f"Using {max_workers} parallel workers for {method} forecasting (memory-safe mode)")
+    logger.info(f"Using {max_workers} parallel workers for ML forecasting (memory-safe mode)")
     
     import multiprocessing as mp
     from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -464,7 +347,7 @@ def ml_forecast_returns(data, use_lightweight=False, batch_size=20, progress_cal
                     # Pass data as ready-values (DataFrame/Series)
                     # Note: Passing large DataFrames across processes has pickling overhead.
                     # Since we batch, it is manageable.
-                    future = executor.submit(_ml_forecast_single_ticker, ticker, data[ticker], use_lightweight)
+                    future = executor.submit(_ml_forecast_single_ticker, ticker, data[ticker])
                     future_to_ticker[future] = ticker
                 
                 for future in as_completed(future_to_ticker):
@@ -473,7 +356,7 @@ def ml_forecast_returns(data, use_lightweight=False, batch_size=20, progress_cal
                         result_ticker, forecast_value = future.result()
                         forecasts[result_ticker] = forecast_value
                     except Exception as exc:
-                        logger.error(f"{method} forecasting exception for {ticker}: {exc}")
+                        logger.error(f"ML forecasting exception for {ticker}: {exc}")
                         forecasts[ticker] = 0.08
             
             # 배치 완료 후 메모리 정리
@@ -503,7 +386,7 @@ def ml_forecast_returns(data, use_lightweight=False, batch_size=20, progress_cal
                     pass
         
         elapsed_time = time.time() - start_time
-        logger.info(f"BATCH {method} forecasting completed in {elapsed_time:.2f}s for {len(forecasts)} tickers")
+        logger.info(f"BATCH ML forecasting completed in {elapsed_time:.2f}s for {len(forecasts)} tickers")
         
         # Log cache performance
         cache = get_cache()
@@ -515,23 +398,9 @@ def ml_forecast_returns(data, use_lightweight=False, batch_size=20, progress_cal
         return pd.Series(forecasts)
         
     except Exception as e:
-        logger.error(f"ML forecasting failed critically: {e}. Using lightweight ensemble fallback.")
-        # Fallback: 경량 앙상블 방식으로 직접 예측
-        forecasts = {}
-        for ticker in data.columns:
-            try:
-                prices = data[ticker].values
-                valid_prices = prices[~np.isnan(prices)]
-                if len(valid_prices) >= 10:
-                    exp_forecast = _exponential_smoothing_forecast(valid_prices)
-                    trend_forecast = _linear_trend_forecast(valid_prices)
-                    vol_forecast = _historical_volatility_adjusted_forecast(valid_prices)
-                    forecast_value = (0.4 * exp_forecast + 0.3 * trend_forecast + 0.3 * vol_forecast)
-                    forecasts[ticker] = np.clip(forecast_value, -0.5, 1.0)
-                else:
-                    forecasts[ticker] = 0.05
-            except Exception:
-                forecasts[ticker] = 0.05
+        logger.error(f"ML forecasting failed critically: {e}. Returning default forecasts.")
+        # Return default forecast values
+        forecasts = {ticker: 0.05 for ticker in data.columns}
         return pd.Series(forecasts)
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
@@ -661,9 +530,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         # Handle potential NaNs
         mu = mu.fillna(0)
     else:
-        # Calculate expected returns using ML-based forecasting with fallback to lightweight
+        # Calculate expected returns using ML-based forecasting
         logger.info(f"Starting ML forecasting (Ex-Ante) for {len(data.columns)} tickers")
-        mu = ml_forecast_returns(data, use_lightweight=False, progress_callback=ml_callback)
+        mu = ml_forecast_returns(data, progress_callback=ml_callback)
     logger.info(f"ML forecasting completed. Got forecasts for {len(mu)} tickers: {list(mu.index)}")
     
     # Check for any missing tickers
