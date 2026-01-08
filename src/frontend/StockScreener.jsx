@@ -141,7 +141,7 @@ const StockScreener = () => {
 
     return (
         <div className="stock-screener-container">
-            <h1 className="screener-title">{t('stockScreener.stock_screener')}</h1>
+            <h2 className="page-header">{t('stockScreener.stock_screener')}</h2>
 
             <div className="screener-controls-card">
                 <div className="control-header">

@@ -177,7 +177,7 @@ const Optimizer = () => {
 
   return (
     <div className="optimizer-container">
-      <h2>{t("optimizer.title")}</h2>
+      <h2 className="page-header">{t("optimizer.title")}</h2>
       <div className="optimizer-actions-row" style={{ marginBottom: "1rem" }}>
         <button className="optimizer-secondary-button" type="button" onClick={triggerPortfolioUpload}>
           {t("optimizer.loadPortfolio", "Load JSON")}

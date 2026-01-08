@@ -7,7 +7,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
 
     return (
         <>
-            <button 
+            <button
                 className={`menu-toggle ${isOpen ? 'hidden' : ''}`}
                 onClick={onToggle}
                 aria-label="Toggle menu"
@@ -16,11 +16,11 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
             </button>
             <div className={`sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
-                    <h2>{t('navigation.stock')}</h2>
+                    <h2>Antifier</h2>
                     <button className="close-button" onClick={onToggle}>×</button>
                 </div>
                 <nav className="sidebar-nav">
-                    <button 
+                    <button
                         className={`nav-item ${activeView === 'stock' ? 'active' : ''}`}
                         onClick={() => {
                             onViewChange('stock');
@@ -30,7 +30,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                         <img src="/stock-data-transparent.png" className="icon" alt="Stock" />
                         {t('navigation.stock')}
                     </button>
-                    <button 
+                    <button
                         className={`nav-item ${activeView === 'hedge' ? 'active' : ''}`}
                         onClick={() => {
                             onViewChange('hedge');
@@ -40,7 +40,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                         <img src="/hedge-transparent.png" className="icon" alt="Hedge" />
                         {t('navigation.hedge')}
                     </button>
-                    <button 
+                    <button
                         className={`nav-item ${activeView === 'financial' ? 'active' : ''}`}
                         onClick={() => {
                             onViewChange('financial');
@@ -50,7 +50,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                         <img src="/finincial-statement-transparent.png" className="icon" alt="Financial" />
                         {t('navigation.financial')}
                     </button>
-                    <button 
+                    <button
                         className={`nav-item ${activeView === 'optimizer' ? 'active' : ''}`}
                         onClick={() => {
                             onViewChange('optimizer');
@@ -60,7 +60,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                         <img src="/portfolio-transparent.png" className="icon" alt="Optimizer" />
                         {t('navigation.optimizer')}
                     </button>
-                    <button 
+                    <button
                         className={`nav-item ${activeView === 'benchmark' ? 'active' : ''}`}
                         onClick={() => {
                             onViewChange('benchmark');

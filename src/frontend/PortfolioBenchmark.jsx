@@ -26,7 +26,7 @@ const PortfolioBenchmark = () => {
     reader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target.result)
-        
+
         // Validate portfolio structure
         if (!parsed || typeof parsed !== "object") {
           throw new Error(t("benchmark.invalidFile"))
@@ -34,7 +34,7 @@ const PortfolioBenchmark = () => {
         if (!parsed.weights || !parsed.prices) {
           throw new Error(t("benchmark.missingFields"))
         }
-        
+
         setPortfolio(parsed)
         setError(null)
       } catch (err) {
@@ -47,7 +47,7 @@ const PortfolioBenchmark = () => {
       setPortfolio(null)
     }
     reader.readAsText(file)
-    
+
     // Reset input to allow same file upload again
     e.target.value = ""
   }
@@ -66,7 +66,7 @@ const PortfolioBenchmark = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     // Validate inputs
     if (!portfolio) {
       setError(t("benchmark.noPortfolio"))
@@ -105,7 +105,7 @@ const PortfolioBenchmark = () => {
   return (
     <div className="optimizer-container">
       <div className="optimizer-header">
-        <h1>{t("benchmark.title")}</h1>
+        <h2 className="page-header">{t("benchmark.title")}</h2>
       </div>
 
       <form className="optimizer-form" onSubmit={handleSubmit}>
@@ -124,7 +124,7 @@ const PortfolioBenchmark = () => {
             onClick={triggerFileUpload}
             className="optimizer-input optimizer-file-button"
           >
-            {portfolio 
+            {portfolio
               ? `✓ ${portfolio.portfolio_id || t("benchmark.portfolioLoaded")}`
               : t("benchmark.chooseFile")}
           </button>
@@ -187,7 +187,7 @@ const PortfolioBenchmark = () => {
       {benchmarkData && !loading && (
         <div className="benchmark-results">
           <h2 className="optimizer-section-title">{t("benchmark.resultsTitle")}</h2>
-          
+
           {/* Chart */}
           <div className="charts-container">
             <div className="chart-wrapper">

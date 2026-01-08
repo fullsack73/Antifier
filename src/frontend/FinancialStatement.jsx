@@ -151,7 +151,7 @@ const FinancialStatement = () => {
     return (
         <div className="financial-analysis-container">
             <div className="financial-header">
-                <h1>{t('financial.title')}</h1>
+                <h2 className="page-header">{t('financial.title')}</h2>
             </div>
 
             <div className="financial-controls-wrapper">

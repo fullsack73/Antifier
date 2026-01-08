@@ -52,16 +52,7 @@ const HedgeAnalysis = () => {
 
     return (
         <div className="hedge-analysis">
-            <h2 style={{
-                fontSize: '2rem',
-                fontWeight: '700',
-                marginBottom: '2rem',
-                textAlign: 'center',
-                background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text'
-            }}>{t('hedge.title')}</h2>
+            <h2 className="page-header">{t('hedge.title')}</h2>
 
             <form onSubmit={handleSubmit} className="hedge-form">
                 <div className="hedge-form-grid">
