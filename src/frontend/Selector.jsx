@@ -27,7 +27,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <span className="icon">📈</span>
+                        <img src="/stock-data-transparent.png" className="icon" alt="Stock" />
                         {t('navigation.stock')}
                     </button>
                     <button 
@@ -37,7 +37,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <span className="icon">🔄</span>
+                        <img src="/hedge-transparent.png" className="icon" alt="Hedge" />
                         {t('navigation.hedge')}
                     </button>
                     <button 
@@ -47,7 +47,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <span className="icon">📄</span>
+                        <img src="/finincial-statement-transparent.png" className="icon" alt="Financial" />
                         {t('navigation.financial')}
                     </button>
                     <button 
@@ -57,7 +57,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <span className="icon">⚙️</span>
+                        <img src="/portfolio-transparent.png" className="icon" alt="Optimizer" />
                         {t('navigation.optimizer')}
                     </button>
                     <button 
@@ -67,7 +67,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <span className="icon">📊</span>
+                        <img src="/benchmark-transparent.png" className="icon" alt="Benchmark" />
                         {t('navigation.benchmark')}
                     </button>
                 </nav>

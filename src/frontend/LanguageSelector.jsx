@@ -14,12 +14,12 @@ const LanguageSelector = ({ isOpen }) => {
     const currentFlag = currentLanguage === 'en' ? '🇺🇸' : '🇰🇷';
 
     return (
-        <button 
+        <button
             className={`language-toggle ${isOpen ? 'hidden' : ''}`}
             onClick={toggleLanguage}
             aria-label="Toggle language"
         >
-            {currentFlag}
+            <img src="/lang-transparent.png" className="icon" alt="Language" />
         </button>
     );
 };

@@ -140,6 +140,12 @@ body {
   transform: translateX(-100%);
 }
 
+.language-toggle .icon {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+
 /* Sidebar Styles */
 .sidebar {
   width: 280px;
@@ -235,7 +241,9 @@ body {
 }
 
 .nav-item .icon {
-  font-size: 1.25rem;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
   opacity: 0.9;
 }
 

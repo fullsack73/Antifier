@@ -20,6 +20,7 @@ from cache_manager import (
 )
 from ticker_lists import get_ticker_group
 from forecast_models import ModelSelector, ARIMA, LSTMModel, XGBoostModel
+from lightweight_forecast import lightweight_ensemble_forecast
 
 # Configure logging for this module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -257,23 +258,29 @@ def _train_and_select_model(ticker, ticker_data):
 def _ml_forecast_single_ticker(ticker, ticker_data):
     """Forecast returns for single ticker using ML models with caching.
     
+    Falls back to lightweight forecasting when insufficient data for ML training.
+    
     NOTE: forecast 결과값만 캐시됩니다. 모델 객체는 사용 후 즉시 해제됩니다.
     """
     try:
         prices = ticker_data.values
+        valid_prices = prices[~np.isnan(prices)]
         
-        # Validate data
-        if len(prices) < 10:
-            logger.warning(f"Insufficient data for {ticker}: {len(prices)} points")
-            return ticker, 0.08
+        # Validate data - use lightweight mode if insufficient data for ML
+        if len(valid_prices) < 100:
+            logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ML)")
+            forecast_value = lightweight_ensemble_forecast(valid_prices)
+            return ticker, forecast_value
         
         # Train and select best model
         best_model, metrics = _train_and_select_model(ticker, ticker_data)
         
         if best_model is None:
-            # No fallback in ML-only mode; return default small prior
-            logger.warning(f"ML training failed for {ticker}, no fallback (ML-only mode)")
-            return ticker, 0.02
+            # Fallback to lightweight forecast
+            logger.warning(f"ML training failed for {ticker}, using lightweight forecast")
+            valid_prices = prices[~np.isnan(prices)]
+            forecast_value = lightweight_ensemble_forecast(valid_prices)
+            return ticker, forecast_value
         
         # Get forecast from best model
         try:
@@ -295,8 +302,13 @@ def _ml_forecast_single_ticker(ticker, ticker_data):
             gc.collect()
             
     except Exception as e:
-        logger.error(f"ML forecasting failed for {ticker}: {e}")
-        return ticker, 0.02
+        logger.error(f"ML forecasting failed for {ticker}: {e}, using lightweight forecast")
+        try:
+            valid_prices = ticker_data.values[~np.isnan(ticker_data.values)]
+            forecast_value = lightweight_ensemble_forecast(valid_prices)
+            return ticker, forecast_value
+        except:
+            return ticker, 0.05
 
 def ml_forecast_returns(data, batch_size=20, progress_callback=None):
     """
@@ -398,9 +410,19 @@ def ml_forecast_returns(data, batch_size=20, progress_callback=None):
         return pd.Series(forecasts)
         
     except Exception as e:
-        logger.error(f"ML forecasting failed critically: {e}. Returning default forecasts.")
-        # Return default forecast values
-        forecasts = {ticker: 0.05 for ticker in data.columns}
+        logger.error(f"ML forecasting failed critically: {e}. Using lightweight ensemble fallback.")
+        # Fallback: 경량 앙상블 방식으로 직접 예측
+        forecasts = {}
+        for ticker in data.columns:
+            try:
+                prices = data[ticker].values
+                valid_prices = prices[~np.isnan(prices)]
+                if len(valid_prices) >= 10:
+                    forecasts[ticker] = lightweight_ensemble_forecast(valid_prices)
+                else:
+                    forecasts[ticker] = 0.05
+            except Exception:
+                forecasts[ticker] = 0.05
         return pd.Series(forecasts)
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
