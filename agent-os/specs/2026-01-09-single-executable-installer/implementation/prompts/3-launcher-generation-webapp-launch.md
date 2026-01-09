@@ -15,8 +15,8 @@ We're continuing our implementation of Single Executable Installer by implementi
     - Limit to 2-8 critical tests maximum
   - [ ] 3.2 Create launcher script generator
     - Generate platform-specific launcher scripts:
-      - macOS/Linux: `launch-financeiq.sh`
-      - Windows: `launch-financeiq.bat`
+      - macOS/Linux: `launch-antifier.sh`
+      - Windows: `launch-antifier.bat`
     - Make scripts executable (chmod +x on Unix)
     - Store scripts in webapp root
   - [ ] 3.3 Implement macOS/Linux launcher script

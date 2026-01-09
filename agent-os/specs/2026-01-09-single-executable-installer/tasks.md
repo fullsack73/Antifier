@@ -13,40 +13,40 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
 **Assigned implementer:** api-engineer
 **Dependencies:** None
 
-- [ ] 1.0 Complete installer orchestration script
-  - [ ] 1.1 Write 2-8 focused tests for installer core functionality
+- [x] 1.0 Complete installer orchestration script
+  - [x] 1.1 Write 2-8 focused tests for installer core functionality
     - Test platform detection (OS identification)
     - Test Node.js validation (presence check)
     - Test Vite check and installation logic
     - Test Python detection logic
     - Test configuration file generation and parsing
     - Limit to 2-8 critical tests maximum
-  - [ ] 1.2 Create main installer script (`tools/installer.py`)
+  - [x] 1.2 Create main installer script (`tools/installer.py`)
     - Implement CLI interface with progress messages
     - Add command-line argument parsing for installation options
     - Create main installation flow orchestration
     - Reference: `cache_warmer.py` for initialization patterns
-  - [ ] 1.3 Implement platform detection module
+  - [x] 1.3 Implement platform detection module
     - Detect macOS, Windows, or Linux
     - Identify Linux distribution (Ubuntu/Debian, RHEL/Fedora, etc.)
     - Return platform-specific configuration
-  - [ ] 1.4 Implement Node.js/Vite validation
+  - [x] 1.4 Implement Node.js/Vite validation
     - Check Node.js installation via `node --version`
     - Exit with error message if Node.js not found
     - Check Vite global installation via `npm list -g vite`
     - Install Vite globally if missing with user notification
-  - [ ] 1.5 Implement Python detection and installation
+  - [x] 1.5 Implement Python detection and installation
     - Check for Python 3.x via `python --version` or `python3 --version`
     - Validate Python version is 3.8 or higher
     - If missing, trigger platform-specific Python installer:
       - macOS: Display instructions for Homebrew or python.org
       - Windows: Download and execute Python installer
       - Linux: Use apt/yum/dnf based on distribution
-  - [ ] 1.6 Implement disk space and permission checks
+  - [x] 1.6 Implement disk space and permission checks
     - Validate sufficient disk space (estimate 2GB minimum)
     - Check write permissions in installation directory
     - Provide clear error messages if checks fail
-  - [ ] 1.7 Ensure installer core tests pass
+  - [x] 1.7 Ensure installer core tests pass
     - Run ONLY the 2-8 tests written in 1.1
     - Verify platform detection works correctly
     - Verify prerequisite checks function properly
@@ -66,30 +66,30 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
 **Assigned implementer:** api-engineer
 **Dependencies:** Task Group 1
 
-- [ ] 2.0 Complete environment setup and dependency installation
-  - [ ] 2.1 Write 2-8 focused tests for environment setup
+- [x] 2.0 Complete environment setup and dependency installation
+  - [x] 2.1 Write 2-8 focused tests for environment setup
     - Test venv creation process
     - Test pip package installation with mock packages
     - Test npm package installation with mock packages
     - Test error handling for network failures
     - Test error handling for corrupted requirements files
     - Limit to 2-8 critical tests maximum
-  - [ ] 2.2 Implement Python venv creation
+  - [x] 2.2 Implement Python venv creation
     - Create `.venv` directory in webapp root
     - Execute `python -m venv .venv` with error handling
     - Verify venv creation success
-  - [ ] 2.3 Implement Python package installation
+  - [x] 2.3 Implement Python package installation
     - Activate venv (platform-specific activation)
     - Install pip packages from `requirements-pypi.txt`
     - Parse and display installation progress
     - Handle network errors with retry logic (exponential backoff)
     - Log installed package versions to config
-  - [ ] 2.4 Implement frontend dependency installation
+  - [x] 2.4 Implement frontend dependency installation
     - Run `npm install` in webapp root
     - Display npm installation progress
     - Handle network errors with retry logic
     - Log installed package versions from package-lock.json
-  - [ ] 2.5 Implement configuration file management
+  - [x] 2.5 Implement configuration file management
     - Create `config.json` in webapp root or `.installer/` directory
     - Store installation metadata:
       - Installation date/time (ISO format)
@@ -99,12 +99,12 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
       - Installed package versions (Python + npm)
       - Last update timestamp
     - Reference config.json structure from spec
-  - [ ] 2.6 Implement update detection logic
+  - [x] 2.6 Implement update detection logic
     - Read existing config.json if present
     - Compare installed versions with current requirements
     - Offer to update outdated packages
     - Preserve user data during updates
-  - [ ] 2.7 Ensure environment setup tests pass
+  - [x] 2.7 Ensure environment setup tests pass
     - Run ONLY the 2-8 tests written in 2.1
     - Verify venv creation works
     - Verify package installation logic handles errors
@@ -124,20 +124,20 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
 **Assigned implementer:** api-engineer
 **Dependencies:** Task Group 2
 
-- [ ] 3.0 Complete launcher generation and post-installation
-  - [ ] 3.1 Write 2-8 focused tests for launcher functionality
+- [x] 3.0 Complete launcher generation and post-installation
+  - [x] 3.1 Write 2-8 focused tests for launcher functionality
     - Test launcher script generation for each platform
     - Test launcher script content validation
     - Test webapp launch sequence logic
     - Test browser opening logic
     - Limit to 2-8 critical tests maximum
-  - [ ] 3.2 Create launcher script generator
+  - [x] 3.2 Create launcher script generator
     - Generate platform-specific launcher scripts:
-      - macOS/Linux: `launch-financeiq.sh`
-      - Windows: `launch-financeiq.bat`
+      - macOS/Linux: `launch-antifier.sh`
+      - Windows: `launch-antifier.bat`
     - Make scripts executable (chmod +x on Unix)
     - Store scripts in webapp root
-  - [ ] 3.3 Implement macOS/Linux launcher script
+  - [x] 3.3 Implement macOS/Linux launcher script
     - Shell script that:
       - Activates venv: `source .venv/bin/activate`
       - Starts Flask backend: `python src/backend/app.py &`
@@ -145,18 +145,18 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
       - Starts frontend: `npm run dev &`
       - Opens browser to `http://localhost:5173`
       - Reference: README_old.md lines 52-82 for startup commands
-  - [ ] 3.4 Implement Windows launcher script
+  - [x] 3.4 Implement Windows launcher script
     - Batch/PowerShell script that:
       - Activates venv: `.venv\Scripts\activate.bat`
       - Starts Flask backend in new window
       - Starts frontend in new window
       - Opens browser to `http://localhost:5173`
-  - [ ] 3.5 Implement post-installation launcher
+  - [x] 3.5 Implement post-installation launcher
     - After successful installation, automatically:
       - Execute generated launcher script
       - Display success message with URLs
       - Provide instructions for future manual launches
-  - [ ] 3.6 Implement webapp launch logic
+  - [x] 3.6 Implement webapp launch logic
     - Start Flask backend process
     - Poll port 5000 until Flask is ready (max 30s timeout)
     - Start Vite frontend process
@@ -164,7 +164,7 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
       - macOS: `open http://localhost:5173`
       - Linux: `xdg-open http://localhost:5173`
       - Windows: `start http://localhost:5173`
-  - [ ] 3.7 Ensure launcher tests pass
+  - [x] 3.7 Ensure launcher tests pass
     - Run ONLY the 2-8 tests written in 3.1
     - Verify launcher scripts generate correctly for each platform
     - Verify launch sequence logic is sound
@@ -186,28 +186,28 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
 **Assigned implementer:** api-engineer
 **Dependencies:** Task Groups 1-3
 
-- [ ] 4.0 Complete PyInstaller build configuration
-  - [ ] 4.1 Create PyInstaller spec file
+- [x] 4.0 Complete PyInstaller build configuration
+  - [x] 4.1 Create PyInstaller spec file
     - Define entry point: `tools/installer.py`
     - Include data files: `requirements-pypi.txt`, `package.json`
     - Configure one-file bundling with --onefile option
     - Embed all resources within executable (no external data files)
     - Set appropriate console mode
     - Ensure executable is self-contained for GitHub release distribution
-  - [ ] 4.2 Create build scripts for each platform
+  - [x] 4.2 Create build scripts for each platform
     - `build-macos.sh`: Build script for macOS executable
     - `build-windows.bat`: Build script for Windows executable
     - `build-linux.sh`: Build script for Linux executable
-  - [ ] 4.3 Configure platform-specific builds
-    - macOS: Generate `financeiq-installer-macos` executable
-    - Windows: Generate `financeiq-installer-windows.exe` executable
-    - Linux: Generate `financeiq-installer-linux` executable
-  - [ ] 4.4 Test executable builds
+  - [x] 4.3 Configure platform-specific builds
+    - macOS: Generate `antifier-installer-macos` executable
+    - Windows: Generate `antifier-installer-windows.exe` executable
+    - Linux: Generate `antifier-installer-linux` executable
+  - [x] 4.4 Test executable builds
     - Build each platform executable
     - Verify executables run without errors
     - Verify bundled resources are accessible
     - Test on clean systems (no Python installed)
-  - [ ] 4.5 Create build documentation
+  - [x] 4.5 Create build documentation
     - Document build process in `tools/BUILD.md`
     - Include prerequisites for building
     - Include build commands for each platform
@@ -229,19 +229,19 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
 **Assigned implementer:** testing-engineer
 **Dependencies:** Task Groups 1-4
 
-- [ ] 5.0 Review existing tests and fill critical gaps only
-  - [ ] 5.1 Review tests from Task Groups 1-3
+- [x] 5.0 Review existing tests and fill critical gaps only
+  - [x] 5.1 Review tests from Task Groups 1-3
     - Review the 2-8 tests written for installer core (Task 1.1)
     - Review the 2-8 tests written for environment setup (Task 2.1)
     - Review the 2-8 tests written for launcher functionality (Task 3.1)
     - Total existing tests: approximately 6-24 tests
-  - [ ] 5.2 Analyze test coverage gaps for installer feature only
+  - [x] 5.2 Analyze test coverage gaps for installer feature only
     - Identify critical installation workflows lacking test coverage
     - Focus on integration between task groups
     - Focus on end-to-end installation scenarios
     - Prioritize error handling paths (network failures, permission issues)
     - Do NOT assess entire application test coverage
-  - [ ] 5.3 Write up to 10 additional strategic tests maximum
+  - [x] 5.3 Write up to 10 additional strategic tests maximum
     - Add maximum of 10 new integration tests for critical gaps:
       - Full installation flow end-to-end test (happy path)
       - Installation with missing Python test
@@ -253,7 +253,7 @@ Note: This spec focuses on Python scripting and build tooling rather than databa
       - Launcher script execution test
     - Do NOT write comprehensive coverage for all edge cases
     - Skip performance tests unless business-critical
-  - [ ] 5.4 Run installer feature tests only
+  - [x] 5.4 Run installer feature tests only
     - Run ONLY tests related to installer feature (tests from 1.1, 2.1, 3.1, and 5.3)
     - Expected total: approximately 16-34 tests maximum
     - Do NOT run entire application test suite

@@ -1,10 +1,10 @@
 # Specification: Single Executable Installer
 
 ## Goal
-Create platform-specific executable installers (macOS, Windows, Linux) that automate the complete setup of the FinanceIQ webapp, including Python environment creation, dependency installation, and post-installation launch, enabling users to run the application with a single executable.
+Create platform-specific executable installers (macOS, Windows, Linux) that automate the complete setup of the Antifier webapp, including Python environment creation, dependency installation, and post-installation launch, enabling users to run the application with a single executable.
 
 ## User Stories
-- As a new user, I want to install the FinanceIQ webapp by running a single executable, so that I don't have to manually set up Python, install packages, or configure environments
+- As a new user, I want to install the Antifier webapp by running a single executable, so that I don't have to manually set up Python, install packages, or configure environments
 - As a user with Node.js, I want the installer to validate my Node.js installation and set up Vite if needed, so that my system is ready to run the webapp
 - As a user, I want the webapp to launch automatically after installation completes, so that I can start using it immediately
 - As a user, I want to update dependencies by re-running the installer, so that I can keep the webapp up-to-date without manual intervention
@@ -100,7 +100,7 @@ No visual assets provided - CLI-based terminal interface.
 - Include requirements-pypi.txt and package.json in bundled resources
 - Use PyInstaller's --onefile option to create single self-contained executable
 - Embed all required files as resources within the executable
-- Create separate builds: `financeiq-installer-macos`, `financeiq-installer-windows.exe`, `financeiq-installer-linux`
+- Create separate builds: `antifier-installer-macos`, `antifier-installer-windows.exe`, `antifier-installer-linux`
 
 ### Error Handling
 - Missing Node.js: Display error message with installation instructions and exit

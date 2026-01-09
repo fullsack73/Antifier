@@ -19,9 +19,9 @@ We're continuing our implementation of Single Executable Installer by implementi
     - `build-windows.bat`: Build script for Windows executable
     - `build-linux.sh`: Build script for Linux executable
   - [ ] 4.3 Configure platform-specific builds
-    - macOS: Generate `financeiq-installer-macos` executable
-    - Windows: Generate `financeiq-installer-windows.exe` executable
-    - Linux: Generate `financeiq-installer-linux` executable
+    - macOS: Generate `antifier-installer-macos` executable
+    - Windows: Generate `antifier-installer-windows.exe` executable
+    - Linux: Generate `antifier-installer-linux` executable
   - [ ] 4.4 Test executable builds
     - Build each platform executable
     - Verify executables run without errors

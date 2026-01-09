@@ -1,7 +1,7 @@
 # Product Mission
 
 ## Pitch
-FinanceIQ is a financial analysis webapp that helps investors and traders automate qualitative and quantitative stock analysis by providing intelligent visualization, forecasting, and portfolio optimization tools.
+Antifier is a financial analysis webapp that helps investors and traders automate qualitative and quantitative stock analysis by providing intelligent visualization, forecasting, and portfolio optimization tools.
 
 ## Users
 
@@ -28,7 +28,7 @@ FinanceIQ is a financial analysis webapp that helps investors and traders automa
 ### Manual Financial Analysis is Time-Consuming and Error-Prone
 Investors spend countless hours gathering stock data, creating visualizations, performing regressions, and analyzing financial statements across multiple platforms and spreadsheets. This fragmented workflow leads to inconsistent analysis, missed opportunities, and decision fatigue.
 
-**Our Solution:** FinanceIQ consolidates the entire financial analysis workflow into a single, intelligent platform that automates data collection, visualization, forecasting, and portfolio optimization—reducing analysis time by up to 80% while increasing accuracy.
+**Our Solution:** Antifier consolidates the entire financial analysis workflow into a single, intelligent platform that automates data collection, visualization, forecasting, and portfolio optimization—reducing analysis time by up to 80% while increasing accuracy.
 
 ## Differentiators
 
