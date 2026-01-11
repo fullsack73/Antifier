@@ -35,14 +35,14 @@
 ### 📊 Stock Analysis & Visualization
 - Interactive historical stock price charts with customizable date ranges
 - Multi-ticker comparison and analysis
-- Linear regression and trend analysis using LightGBM
+- LightGBM-powered regression and trend analysis
 - Future price predictions with configurable forecast periods
 
 ### 💼 Portfolio Management
-- Portfolio optimization using Modern Portfolio Theory
-- Efficient frontier calculation and visualization
-- Risk-return analysis with customizable parameters
-- Benchmark performance comparison against market indices
+- Portfolio optimization using Modern Portfolio Theory with ML-based return forecasting
+- Automated model selection (ARIMA, LSTM, XGBoost) for expected returns prediction
+- Efficient frontier calculation with optimal weight allocation
+- Risk-return analysis with customizable parameters and constraints
 
 ### 🔍 Stock Screening & Filtering
 - Custom financial metric filters (P/E, P/B, ROE, etc.)
@@ -51,6 +51,7 @@
 - Financial statement analysis with key ratios
 
 ### 📉 Advanced Analysis Tools
+- Portfolio benchmarking against S&P 500 and risk-free assets
 - Hedge analysis and pairs trading strategies
 - Statistical correlation and regression analysis
 - Technical indicators and pattern recognition
@@ -156,7 +157,8 @@ Open your browser to `http://localhost:5173`
 
 **Backend:**
 - Flask 3.1+ (Python web framework)
-- LightGBM for machine learning
+- Machine Learning: LightGBM (regression), ARIMA, LSTM, XGBoost (forecasting)
+- PyPortfolioOpt for Modern Portfolio Theory optimization
 - Pandas for data manipulation
 - NumPy/SciPy for numerical computation
 - yfinance for stock data retrieval
@@ -191,30 +193,6 @@ antifier/
 
 ---
 
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-# Run all tests
-python -m pytest tests/ -v
-
-# Run installer tests only
-python -m unittest tests.test_installer
-
-# Run with coverage
-pip install coverage
-coverage run -m pytest tests/
-coverage report -m
-```
-
-**Current Test Coverage:**
-- 41 installer tests (100% passing)
-- Unit tests for all backend modules
-- Integration tests for critical workflows
-
----
-
 ## 📚 Documentation
 
 - **User Guide**: See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) *(coming soon)*
@@ -226,7 +204,7 @@ coverage report -m
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how you can help:
+Any kind of contributions are welcome! Here's how you can help:
 
 1. **Fork the repository**
 2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
@@ -276,17 +254,9 @@ SOFTWARE.
 ## 🙏 Acknowledgments
 
 - **Data Sources**: Financial data provided by [Yahoo Finance](https://finance.yahoo.com/)
-- **Machine Learning**: Powered by [LightGBM](https://github.com/microsoft/LightGBM)
+- **Machine Learning**: Powered by [LightGBM](https://github.com/microsoft/LightGBM), [XGBoost](https://xgboost.readthedocs.io/), ARIMA, and LSTM
+- **Optimization**: [PyPortfolioOpt](https://pypi.org/project/pyportfolioopt/) for Modern Portfolio Theory
 - **Visualization**: Charts rendered with [Plotly.js](https://plotly.com/javascript/)
-- **Icons & Badges**: [Shields.io](https://shields.io/)
-
----
-
-## 📞 Contact & Support
-
-- **Issues**: [GitHub Issues](https://github.com/yourusername/antifier/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/antifier/discussions)
-- **Email**: support@antifier.com *(coming soon)*
 
 ---
 
@@ -302,13 +272,3 @@ Antifier is not a registered investment advisor and does not provide financial a
 - The developers and contributors are not liable for any financial losses
 
 **Use at your own risk.**
-
----
-
-<div align="center">
-
-**Made with ❤️ by the Antifier Team**
-
-⭐ Star us on GitHub if you find this useful!
-
-</div>
