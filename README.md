@@ -12,6 +12,10 @@
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [Documentation](#-documentation) • [Contributing](#-contributing)
 
+---
+
+**Languages:** 🇺🇸 English | [🇰🇷 한국어](README.ko.md)
+
 </div>
 
 ---
@@ -19,6 +23,8 @@
 ## 🎯 Overview
 
 **Antifier** is a comprehensive financial analysis webapp that helps investors and traders make data-driven investment decisions by automating quantitative stock analysis, predictive forecasting, and portfolio optimization.
+
+The name 'Antifier' comes from Korean slang 'Ant', which is used for referring small investors.
 
 ### Why Antifier?
 
