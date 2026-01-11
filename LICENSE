@@ -1,21 +1,101 @@
-MIT License
+Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
 
 Copyright (c) 2026 Antifier Contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This work is licensed under the Creative Commons Attribution-NonCommercial 4.0 
+International License. To view a copy of this license, visit:
+http://creativecommons.org/licenses/by-nc/4.0/ 
+or send a letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+=============================================================================
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+TERMS AND CONDITIONS
+
+1. DEFINITIONS
+
+   a. "Adapted Material" means material subject to Copyright and Similar Rights 
+      that is derived from or based upon the Licensed Material and in which the 
+      Licensed Material is translated, altered, arranged, transformed, or 
+      otherwise modified.
+
+   b. "Licensed Material" means the artistic or literary work, database, or 
+      other material to which the Licensor applied this Public License.
+
+   c. "NonCommercial" means not primarily intended for or directed towards 
+      commercial advantage or monetary compensation.
+
+2. SCOPE
+
+   a. License grant:
+      Subject to the terms and conditions of this Public License, the Licensor 
+      hereby grants You a worldwide, royalty-free, non-sublicensable, 
+      non-exclusive, irrevocable license to exercise the Licensed Rights in the 
+      Licensed Material to:
+      
+      - reproduce and Share the Licensed Material, in whole or in part, for 
+        NonCommercial purposes only; and
+      - produce, reproduce, and Share Adapted Material for NonCommercial 
+        purposes only.
+
+   b. Exceptions and Limitations:
+      For the avoidance of doubt, where Exceptions and Limitations apply to 
+      Your use, this Public License does not apply, and You do not need to 
+      comply with its terms and conditions.
+
+3. LICENSE CONDITIONS
+
+   a. Attribution:
+      If You Share the Licensed Material (including in modified form), You must:
+      
+      - retain identification of the creator(s) of the Licensed Material and 
+        any others designated to receive attribution;
+      - a copyright notice;
+      - a notice that refers to this Public License;
+      - a notice that refers to the disclaimer of warranties;
+      - a URI or hyperlink to the Licensed Material to the extent reasonably 
+        practicable.
+
+   b. NonCommercial:
+      You may not use the Licensed Material for commercial purposes.
+
+4. DISCLAIMER OF WARRANTIES AND LIMITATION OF LIABILITY
+
+   a. UNLESS OTHERWISE SEPARATELY UNDERTAKEN BY THE LICENSOR, TO THE EXTENT 
+      POSSIBLE, THE LICENSOR OFFERS THE LICENSED MATERIAL AS-IS AND 
+      AS-AVAILABLE, AND MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY KIND 
+      CONCERNING THE LICENSED MATERIAL, WHETHER EXPRESS, IMPLIED, STATUTORY, 
+      OR OTHER.
+
+   b. TO THE EXTENT POSSIBLE, IN NO EVENT WILL THE LICENSOR BE LIABLE TO YOU 
+      ON ANY LEGAL THEORY FOR ANY SPECIAL, INDIRECT, INCIDENTAL, CONSEQUENTIAL, 
+      PUNITIVE, EXEMPLARY, OR OTHER LOSSES, COSTS, EXPENSES, OR DAMAGES ARISING 
+      OUT OF THIS PUBLIC LICENSE OR USE OF THE LICENSED MATERIAL.
+
+=============================================================================
+
+ADDITIONAL RESTRICTIONS FOR ANTIFIER
+
+1. PROHIBITED COMMERCIAL USES
+   
+   Commercial use includes, but is not limited to:
+   - Selling the software or any derivatives
+   - Using the software as part of a commercial service
+   - Charging fees for access to the software
+   - Monetizing deployments through advertisements or subscriptions
+   - Using the software in business operations for profit
+
+2. DATA PROVIDER COMPLIANCE
+   
+   Users must comply with all third-party data provider terms of service, 
+   including but not limited to Yahoo Finance Terms of Service, which prohibit 
+   commercial use of their data.
+
+3. PERMISSION FOR COMMERCIAL USE
+   
+   Commercial use requires explicit written permission from the copyright 
+   holder. Contact the project maintainers for licensing inquiries.
+
+=============================================================================
+
+For the complete Creative Commons Attribution-NonCommercial 4.0 International 
+license, please visit: https://creativecommons.org/licenses/by-nc/4.0/legalcode

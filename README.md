@@ -4,7 +4,7 @@
 
 **Intelligent Financial Analysis & Portfolio Optimization Platform**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Node.js 16+](https://img.shields.io/badge/node-16+-green.svg)](https://nodejs.org/)
 [![React 19](https://img.shields.io/badge/react-19-61dafb.svg)](https://reactjs.org/)
@@ -59,7 +59,23 @@
 
 ---
 
-## 🚀 Installation
+## � Prerequisites
+
+Before installing Antifier, ensure you have the following installed on your system:
+
+- **Python 3.8+**: Required for backend processing and installer
+  - Download from [python.org](https://www.python.org/downloads/)
+  - Verify: `python --version` or `python3 --version`
+
+- **Node.js 16+**: Required for frontend development server
+  - Download from [nodejs.org](https://nodejs.org/)
+  - Verify: `node --version`
+
+These are required for both the one-click installer and manual installation methods.
+
+---
+
+## �🚀 Installation
 
 ### Option 1: One-Click Installer (Recommended)
 
@@ -223,31 +239,27 @@ Any kind of contributions are welcome! Here's how you can help:
 
 ## 📄 License
 
-This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0)**.
 
-```
-MIT License
+### You are free to:
 
-Copyright (c) 2026 Antifier Contributors
+- **Share** — copy and redistribute the material in any medium or format
+- **Adapt** — remix, transform, and build upon the material
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+### Under the following terms:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+- **Attribution** — You must give appropriate credit, provide a link to the license, and indicate if changes were made
+- **NonCommercial** — You may not use the material for commercial purposes
+- **No additional restrictions** — You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+### Important Notes:
+
+- This software is provided for **personal, educational, and research purposes only**
+- Commercial use, including but not limited to selling the software, using it in commercial services, or monetizing deployments, is **strictly prohibited** without explicit written permission
+- You must comply with all third-party data provider terms of service (especially Yahoo Finance)
+
+For the full license text, see the [LICENSE](LICENSE) file or visit:
+https://creativecommons.org/licenses/by-nc/4.0/
 
 ---
 
