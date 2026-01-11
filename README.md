@@ -26,7 +26,6 @@
 - **🤖 Intelligent Automation**: Machine learning-powered forecasting and regression analysis
 - **📈 Real-Time Insights**: Interactive charts with historical data and future predictions
 - **🎯 Portfolio Optimization**: Modern Portfolio Theory implementation with efficient frontier analysis
-- **🌐 Multi-Language Support**: Full internationalization (English, Korean)
 - **⚡ Fast & Responsive**: React frontend with Flask backend for seamless performance
 
 ---
@@ -141,35 +140,6 @@ Open your browser to `http://localhost:5173`
 3. **View Analysis**: Explore charts, trends, and predictions
 4. **Optimize Portfolio**: Add stocks to portfolio and run optimization
 5. **Review Results**: Analyze efficient frontier and optimal allocations
-
-### Example Workflows
-
-**Analyzing a Stock:**
-```
-1. Enter ticker (e.g., "AAPL")
-2. Set date range (e.g., 2020-01-01 to 2025-12-31)
-3. View price chart and regression line
-4. Generate 30-day forecast
-5. Review financial ratios
-```
-
-**Building an Optimal Portfolio:**
-```
-1. Navigate to Portfolio Optimization
-2. Add multiple tickers (e.g., AAPL, MSFT, GOOGL)
-3. Set risk-free rate and target return
-4. Run optimization algorithm
-5. View efficient frontier and recommended weights
-```
-
-**Screening Stocks:**
-```
-1. Navigate to Stock Screener
-2. Select stock universe (S&P 500, Dow Jones, etc.)
-3. Apply filters (P/E < 20, ROE > 15%, etc.)
-4. Review filtered results
-5. Analyze individual stocks from results
-```
 
 ---
 
