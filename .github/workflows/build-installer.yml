@@ -1,0 +1,153 @@
+name: Build Installer Executables
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            output_name: antifier-installer-linux
+            build_script: ./tools/build-linux.sh
+          - os: windows-latest
+            output_name: antifier-installer-windows.exe
+            build_script: tools\build-windows.bat
+          - os: macos-latest
+            output_name: antifier-installer-macos
+            build_script: ./tools/build-macos.sh
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Make build script executable (Unix)
+        if: runner.os != 'Windows'
+        run: chmod +x ${{ matrix.build_script }}
+
+      - name: Build installer
+        run: ${{ matrix.build_script }}
+
+      - name: Verify build output
+        shell: bash
+        run: |
+          if [ -f "dist/${{ matrix.output_name }}" ]; then
+            echo "✅ Build successful: dist/${{ matrix.output_name }}"
+            ls -lh dist/${{ matrix.output_name }}
+          else
+            echo "❌ Build failed: dist/${{ matrix.output_name }} not found"
+            exit 1
+          fi
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output_name }}
+          path: dist/${{ matrix.output_name }}
+          retention-days: 30
+
+  test:
+    name: Test installers
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: antifier-installer-linux
+          - os: windows-latest
+            artifact_name: antifier-installer-windows.exe
+          - os: macos-latest
+            artifact_name: antifier-installer-macos
+
+    steps:
+      - name: Download installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+
+      - name: Make installer executable (Unix)
+        if: runner.os != 'Windows'
+        run: chmod +x ${{ matrix.artifact_name }}
+
+      - name: Test installer --help
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            ./${{ matrix.artifact_name }} --help
+          else
+            ./${{ matrix.artifact_name }} --help
+          fi
+
+      - name: Verify installer runs
+        run: echo "✅ Installer executed successfully on ${{ runner.os }}"
+
+  release:
+    name: Create GitHub Release
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./installers
+
+      - name: Display structure of downloaded files
+        run: ls -R ./installers
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            installers/antifier-installer-linux/antifier-installer-linux
+            installers/antifier-installer-windows.exe/antifier-installer-windows.exe
+            installers/antifier-installer-macos/antifier-installer-macos
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Antifier Installer Release
+            
+            Self-contained installers for all platforms. No Python or dependencies required!
+            
+            ### Downloads
+            - **macOS**: `antifier-installer-macos`
+            - **Windows**: `antifier-installer-windows.exe`
+            - **Linux**: `antifier-installer-linux`
+            
+            ### Usage
+            1. Download the installer for your platform
+            2. Make it executable (Unix: `chmod +x antifier-installer-*`)
+            3. Run it: `./antifier-installer-macos` (or double-click on Windows)
+            
+            ### Requirements
+            - Node.js 16+ (installer will check and guide you)
+            - Internet connection (for downloading packages)
+            
+            The installer will automatically:
+            - Set up Python virtual environment
+            - Install all Python dependencies
+            - Install all npm dependencies
+            - Create launcher scripts
+            - Launch the webapp
