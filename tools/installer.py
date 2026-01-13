@@ -174,6 +174,68 @@ class SystemValidator:
             return True
         except (PermissionError, OSError):
             return False
+    
+    def check_cpp_compiler(self) -> bool:
+        """Check if C++ compiler is installed (Windows only)"""
+        if platform.system() != "Windows":
+            return True
+            
+        # method 1: check for cl.exe (Visual C++ compiler)
+        if shutil.which('cl'):
+            return True
+            
+        # method 2: check using vswhere
+        try:
+            program_files = os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)")
+            vswhere = Path(program_files) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+            
+            if vswhere.exists():
+                result = subprocess.run(
+                    [str(vswhere), "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return True
+        except Exception:
+            pass
+            
+        return False
+
+    def install_cpp_compiler(self) -> bool:
+        """Install Visual Studio Build Tools via winget"""
+        print("📦 Installing Visual Studio Build Tools...")
+        print("   This will open a UAC prompt. Please accept it.")
+        
+        try:
+            # Check if winget is available
+            if not shutil.which('winget'):
+                print("❌ Error: winget not found. Please install Visual Studio Build Tools manually.")
+                print("   Download: https://visualstudio.microsoft.com/visual-cpp-build-tools/")
+                return False
+                
+            # Install VS Build Tools with C++ workload
+            # Microsoft.VisualStudio.2022.BuildTools is the ID
+            cmd = [
+                'winget', 'install',
+                '--id', 'Microsoft.VisualStudio.2022.BuildTools',
+                '--silent', 
+                '--override', '--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+            ]
+            
+            print(f"   Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, shell=True)
+            
+            if result.returncode == 0:
+                print("✅ Visual Studio Build Tools installed successfully")
+                return True
+            else:
+                print(f"❌ Error: Installation failed with code {result.returncode}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error during installation: {e}")
+            return False
 
 
 class ConfigManager:
@@ -833,6 +895,24 @@ class Installer:
         print("  ✅ Write permissions verified")
         
         print("✅ All prerequisites validated")
+
+        # Check C++ Compiler (Windows only)
+        if self.platform.system == "Windows":
+            print("  Checking C++ compiler...")
+            if not self.validator.check_cpp_compiler():
+                print("⚠️  Warning: C++ compiler not found")
+                print("   Some Python packages (like pmdarima) require a C++ compiler to install.")
+                
+                print("\n❓ Do you want to install Visual Studio Build Tools? (y/n): ", end='')
+                if input().strip().lower() in ['y', 'yes']:
+                    if not self.validator.install_cpp_compiler():
+                        print("⚠️  Compiler installation failed. You may need to install it manually.")
+                        print("   https://visualstudio.microsoft.com/visual-cpp-build-tools/")
+                else:
+                    print("⚠️  Skipping compiler installation. Installation may fail.")
+            else:
+                print("  ✅ C++ compiler detected")
+            
         return True
     
     def _print_python_install_instructions(self):
