@@ -297,8 +297,8 @@ class VenvManager:
             return True
         
         try:
-            # Determine Python command
-            python_cmd = 'python3' if shutil.which('python3') else 'python'
+            # Use the current Python interpreter to create the venv
+            python_cmd = sys.executable
             
             self.log(f"Creating venv with: {python_cmd} -m venv {self.venv_path}")
             
