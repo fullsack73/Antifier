@@ -69,7 +69,7 @@ The name 'Antifier' comes from Korean slang 'Ant', which is used for referring s
 
 Before installing Antifier, ensure you have the following installed on your system:
 
-- **Python 3.8+**: Required for backend processing and installer
+- **Python 3.9+**: Required for backend processing and installer
   - Download from [python.org](https://www.python.org/downloads/)
   - Verify: `python --version` or `python3 --version`
 
