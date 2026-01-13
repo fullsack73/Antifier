@@ -19,10 +19,16 @@ else:  # Linux and other Unix
 project_root = Path(SPECPATH).parent
 
 # Data files to include in the executable
-# These are the requirements files needed for package installation
+# Bundle the entire application (src/, package.json, etc.)
 datas = [
     (str(project_root / 'requirements-pypi.txt'), '.'),
     (str(project_root / 'package.json'), '.'),
+    (str(project_root / 'package-lock.json'), '.'),
+    (str(project_root / 'vite.config.js'), '.'),
+    (str(project_root / 'index.html'), '.'),
+    (str(project_root / 'eslint.config.js'), '.'),
+    (str(project_root / 'src'), 'src'),  # Bundle entire src directory
+    (str(project_root / 'public'), 'public'),  # Bundle public directory
 ]
 
 block_cipher = None

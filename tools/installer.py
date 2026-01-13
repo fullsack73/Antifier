@@ -877,6 +877,54 @@ class Installer:
         
         return metadata
     
+    def extract_application_files(self) -> bool:
+        """Extract bundled application files to installation directory"""
+        print("\n📦 Extracting application files...")
+        
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # Running from PyInstaller bundle - extract files
+            bundle_dir = Path(sys._MEIPASS)
+            
+            # List of files/directories to extract
+            items_to_extract = [
+                'src',
+                'public', 
+                'package.json',
+                'package-lock.json',
+                'vite.config.js',
+                'index.html',
+                'eslint.config.js'
+            ]
+            
+            for item_name in items_to_extract:
+                source = bundle_dir / item_name
+                dest = self.install_dir / item_name
+                
+                if not source.exists():
+                    self.log(f"Skipping {item_name} (not found in bundle)")
+                    continue
+                
+                try:
+                    if source.is_dir():
+                        self.log(f"Copying directory: {item_name}")
+                        if dest.exists():
+                            shutil.rmtree(dest)
+                        shutil.copytree(source, dest)
+                    else:
+                        self.log(f"Copying file: {item_name}")
+                        shutil.copy2(source, dest)
+                    
+                    print(f"  ✅ Extracted {item_name}")
+                except Exception as e:
+                    print(f"  ⚠️  Warning: Could not extract {item_name}: {e}")
+            
+            print("  ✅ Application files extracted")
+            return True
+        else:
+            # Running from source - files already in place
+            print("  ℹ️  Running from source, files already in place")
+            return True
+    
     def check_for_updates(self) -> bool:
         """Check if this is an update installation"""
         existing_config = self.config_manager.read_config()
@@ -908,14 +956,18 @@ class Installer:
         if not self.validate_prerequisites():
             return False
         
-        # Step 3: Check for existing installation
-        is_update = self.check_for_updates()
+        # Step 3: Check for updates
+        self.check_for_updates()
         
-        # Step 4: Create virtual environment
+        # Step 4: Extract application files (if running from bundled executable)
+        if not self.extract_application_files():
+            print("\n⚠️  Warning: Could not extract all application files")
+        
+        # Step 5: Create virtual environment
         if not self.venv_manager.create_venv():
             return False
         
-        # Step 5: Install Python packages
+        # Step 6: Install Python packages
         requirements_file = get_bundled_resource_path("requirements-pypi.txt")
         if not requirements_file.exists():
             # Fallback: try install_dir location
@@ -925,12 +977,12 @@ class Installer:
             print("\n⚠️  Warning: Python package installation failed")
             print("   You may need to install packages manually")
         
-        # Step 6: Install npm packages
+        # Step 7: Install npm packages
         if not self.package_installer.install_npm_packages():
             print("\n⚠️  Warning: npm package installation failed")
             print("   You may need to install packages manually")
         
-        # Step 7: Get installed package versions
+        # Step 8: Get installed package versions
         print("\n📊 Collecting package information...")
         python_packages = self.package_installer.get_installed_python_packages()
         npm_packages = self.package_installer.get_installed_npm_packages()
@@ -938,7 +990,7 @@ class Installer:
         print(f"  ✅ Tracked {len(python_packages)} Python packages")
         print(f"  ✅ Tracked {len(npm_packages)} npm packages")
         
-        # Step 8: Create/update configuration metadata
+        # Step 9: Create/update configuration metadata
         print("\n📝 Updating installation metadata...")
         _, nodejs_version = self.validator.check_nodejs()
         _, python_version = self.validator.check_python()
@@ -953,13 +1005,13 @@ class Installer:
         if self.config_manager.create_config(metadata):
             print("✅ Configuration file updated")
         
-        # Step 9: Generate launcher script
+        # Step 10: Generate launcher script
         try:
             self.launcher_generator.generate_launcher()
         except Exception as e:
             print(f"⚠️  Warning: Could not generate launcher script: {e}")
         
-        # Step 10: Launch webapp
+        # Step 11: Launch webapp
         print("\n✅ Environment setup completed successfully!")
         print("\nLaunching webapp for the first time...")
         
