@@ -288,6 +288,8 @@ class PackageInstaller:
     def install_python_packages(self, requirements_file: Path, max_retries: int = 3) -> bool:
         """Install Python packages from requirements file with retry logic"""
         print(f"\n📦 Installing Python packages from {requirements_file.name}...")
+        print("  ℹ️  This may take 15-30 minutes (TensorFlow, PyTorch are large packages)")
+        print("  Please be patient - the installer is working...")
         
         if not requirements_file.exists():
             print(f"  ❌ Error: Requirements file not found: {requirements_file}")
@@ -299,19 +301,27 @@ class PackageInstaller:
             try:
                 self.log(f"Attempt {attempt}/{max_retries}: Running pip install")
                 
-                result = subprocess.run(
-                    pip_cmd + ['install', '-r', str(requirements_file)],
-                    capture_output=True,
+                # Use Popen to show real-time output instead of capture_output
+                process = subprocess.Popen(
+                    pip_cmd + ['install', '-r', str(requirements_file), '--progress-bar', 'on'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
                     text=True,
-                    timeout=600,  # 10 minutes timeout
-                    cwd=str(self.install_dir)
+                    cwd=str(self.install_dir),
+                    bufsize=1
                 )
                 
-                if result.returncode == 0:
+                # Print output in real-time
+                for line in process.stdout:
+                    print(f"  {line.rstrip()}")
+                
+                return_code = process.wait(timeout=1800)  # 30 minutes timeout
+                
+                if return_code == 0:
                     print(f"  ✅ Python packages installed successfully")
                     return True
                 else:
-                    print(f"  ⚠️  Attempt {attempt} failed: {result.stderr[:200]}")
+                    print(f"  ⚠️  Attempt {attempt} failed with return code {return_code}")
                     
                     if attempt < max_retries:
                         wait_time = 2 ** attempt  # Exponential backoff
@@ -778,17 +788,7 @@ class Installer:
             return False
         print(f"  ✅ Node.js {nodejs_version} detected")
         
-        # Check Vite
-        print("  Checking Vite installation...")
-        vite_installed = self.validator.check_vite()
-        if not vite_installed:
-            print("  ⚠️  Vite not found globally")
-            if not self.validator.install_vite():
-                print("  ❌ Error: Failed to install Vite")
-                return False
-            print("  ✅ Vite installed successfully")
-        else:
-            print("  ✅ Vite already installed")
+        # Note: Vite will be installed locally via npm install (no global installation needed)
         
         # Check Python
         print("  Checking Python installation...")
