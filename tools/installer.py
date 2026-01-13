@@ -12,6 +12,22 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 
 
+def get_bundled_resource_path(relative_path: str) -> Path:
+    """Get path to bundled resource file (for PyInstaller executables)
+    
+    When running from PyInstaller executable, files are extracted to sys._MEIPASS temp directory.
+    Otherwise, use the normal path relative to the script.
+    """
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        # Running from PyInstaller bundle
+        base_path = Path(sys._MEIPASS)
+    else:
+        # Running from source
+        base_path = Path(__file__).parent.parent
+    
+    return base_path / relative_path
+
+
 class InstallerError(Exception):
     """Custom exception for installer errors"""
     pass
@@ -900,7 +916,11 @@ class Installer:
             return False
         
         # Step 5: Install Python packages
-        requirements_file = self.install_dir / "requirements-pypi.txt"
+        requirements_file = get_bundled_resource_path("requirements-pypi.txt")
+        if not requirements_file.exists():
+            # Fallback: try install_dir location
+            requirements_file = self.install_dir / "requirements-pypi.txt"
+        
         if not self.package_installer.install_python_packages(requirements_file):
             print("\n⚠️  Warning: Python package installation failed")
             print("   You may need to install packages manually")
