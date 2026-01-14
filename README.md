@@ -121,7 +121,7 @@ The installer automatically:
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/yourusername/antifier.git
+git clone https://github.com/fullsack73/Antifier .
 cd antifier
 ```
 
