@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from pypfopt import EfficientFrontier, risk_models, expected_returns, objective_functions
+from pypfopt import EfficientFrontier, risk_models, expected_returns, objective_functions, BlackLittermanModel, black_litterman
 from pypfopt.risk_models import CovarianceShrinkage
 import warnings
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
@@ -19,7 +19,7 @@ from cache_manager import (
     cache_forecast_key, cache_portfolio_key
 )
 from ticker_lists import get_ticker_group
-from forecast_models import ModelSelector, ARIMA, LSTMModel, XGBoostModel
+from forecast_models import EnsemblePredictor
 from lightweight_forecast import lightweight_ensemble_forecast
 
 # Configure logging for this module
@@ -211,11 +211,10 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None):
         return pd.DataFrame()
 
 # NOTE: 모델 객체를 캐시하지 않음 - 메모리 누수 방지를 위해 forecast 결과만 캐시
-def _train_and_select_model(ticker, ticker_data):
-    """Train ML models and select best performer for a single ticker.
-    
-    WARNING: 모델 객체는 캐시하지 않습니다. 메모리 누수를 방지하기 위해
-    forecast 결과만 별도로 캐시됩니다.
+def _generate_ensemble_prediction(ticker, ticker_data):
+    """
+    Train ensemble models and generate prediction for a single ticker.
+    Returns dictionary with expected_return and uncertainty.
     """
     try:
         prices = ticker_data.values
@@ -223,44 +222,39 @@ def _train_and_select_model(ticker, ticker_data):
         # Validate data
         if len(prices) < 100:
             logger.warning(f"Insufficient data for ML training on {ticker}: {len(prices)} points")
-            return None, None
+            return None
         
         valid_prices = prices[~np.isnan(prices)]
         if len(valid_prices) < 100:
             logger.warning(f"Too many NaN values for {ticker}")
-            return None, None
+            return None
         
-        # Split into train/validation
-        train_size = int(len(valid_prices) * 0.8)
-        train_data = valid_prices[:train_size]
-        val_data = valid_prices[train_size:]
-        
-        # Use ModelSelector to find best model
+        # Use EnsemblePredictor
         start_time = time.time()
-        selector = ModelSelector()
-        best_model, metrics = selector.select_best_model(train_data, val_data)
+        predictor = EnsemblePredictor()
+        predictor.train_all(valid_prices)
+        prediction = predictor.predict()
         elapsed = time.time() - start_time
         
-        logger.info(f"ML Model Selection for {ticker}: {metrics['model_name']} "
-                   f"(R²={metrics['r2']:.4f}, RMSE={metrics['rmse']:.6f}) "
+        logger.info(f"Ensemble Prediction for {ticker}: "
+                   f"Return={prediction['expected_return']:.4f}, "
+                   f"Uncertainty={prediction['uncertainty']:.4f} "
                    f"in {elapsed:.2f}s")
         
-        return best_model, metrics
+        return prediction
         
     except Exception as e:
-        logger.error(f"ML model training failed for {ticker}: {e}")
-        return None, None
+        logger.error(f"Ensemble forecasting failed for {ticker}: {e}")
+        return None
     finally:
-        # 명시적 메모리 해제
         gc.collect()
 
 @cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache for predictions
 def _ml_forecast_single_ticker(ticker, ticker_data):
-    """Forecast returns for single ticker using ML models with caching.
+    """Forecast returns for single ticker using Ensemble models with caching.
     
-    Falls back to lightweight forecasting when insufficient data for ML training.
-    
-    NOTE: forecast 결과값만 캐시됩니다. 모델 객체는 사용 후 즉시 해제됩니다.
+    Falls back to lightweight forecasting when insufficient data.
+    Returns dictionary with expected_return and uncertainty.
     """
     try:
         prices = ticker_data.values
@@ -270,45 +264,23 @@ def _ml_forecast_single_ticker(ticker, ticker_data):
         if len(valid_prices) < 100:
             logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ML)")
             forecast_value = lightweight_ensemble_forecast(valid_prices)
-            return ticker, forecast_value
+            return ticker, {'expected_return': forecast_value, 'uncertainty': 0.05}
         
-        # Train and select best model
-        best_model, metrics = _train_and_select_model(ticker, ticker_data)
+        # Generate ensemble prediction
+        prediction = _generate_ensemble_prediction(ticker, ticker_data)
         
-        if best_model is None:
+        if prediction is None:
             # Fallback to lightweight forecast
             logger.warning(f"ML training failed for {ticker}, using lightweight forecast")
-            valid_prices = prices[~np.isnan(prices)]
             forecast_value = lightweight_ensemble_forecast(valid_prices)
-            return ticker, forecast_value
+            return ticker, {'expected_return': forecast_value, 'uncertainty': 0.05}
         
-        # Get forecast from best model
-        try:
-            if isinstance(best_model, ARIMA):
-                expected_return, volatility = best_model.forecast(prices[~np.isnan(prices)])
-                logger.info(f"ARIMA forecast for {ticker}: return={expected_return:.4f}, vol={volatility:.4f}")
-                return ticker, expected_return
-            elif isinstance(best_model, (LSTMModel, XGBoostModel)):
-                forecast = best_model.forecast()
-                logger.info(f"{metrics['model_name']} forecast for {ticker}: {forecast:.4f}")
-                return ticker, forecast
-            else:
-                # Fallback
-                logger.warning(f"Unknown model type for {ticker}, using default")
-                return ticker, 0.08
-        finally:
-            # 모델 객체 명시적 해제 - 메모리 누수 방지
-            del best_model
-            gc.collect()
-            
-    except Exception as e:
-        logger.error(f"ML forecasting failed for {ticker}: {e}, using lightweight forecast")
-        try:
-            valid_prices = ticker_data.values[~np.isnan(ticker_data.values)]
-            forecast_value = lightweight_ensemble_forecast(valid_prices)
-            return ticker, forecast_value
-        except:
-            return ticker, 0.05
+        return ticker, prediction
+        
+    finally:
+        gc.collect()
+
+
 
 def ml_forecast_returns(data, batch_size=20, progress_callback=None):
     """
@@ -320,14 +292,12 @@ def ml_forecast_returns(data, batch_size=20, progress_callback=None):
         progress_callback: Optional callback(current, total, message)
     
     Returns:
-        pandas Series with expected annual returns for each ticker
+        tuple: (forecasts_series, uncertainties_series)
     """
     start_time = time.time()
     logger.info(f"Starting BATCH ML forecasting for {len(data.columns)} tickers")
     
     # 메모리 효율을 위해 worker 수 제한 (LSTM/TensorFlow가 프로세스당 많은 메모리 사용)
-    # ThreadPoolExecutor 사용 - ProcessPoolExecutor는 TensorFlow와 함께 사용 시 
-    # 각 프로세스마다 TF가 로드되어 메모리 폭발
     import os
     max_workers = min(os.cpu_count() or 4, len(data.columns), 4)  # 최대 4로 제한
     logger.info(f"Using {max_workers} parallel workers for ML forecasting (memory-safe mode)")
@@ -339,6 +309,7 @@ def ml_forecast_returns(data, batch_size=20, progress_callback=None):
     ctx = mp.get_context('spawn')
 
     forecasts = {}
+    uncertainties = {}
     tickers = list(data.columns)
     total_batches = (len(tickers) + batch_size - 1) // batch_size
     
@@ -351,25 +322,28 @@ def ml_forecast_returns(data, batch_size=20, progress_callback=None):
             
             logger.info(f"Processing batch {batch_idx + 1}/{total_batches} ({len(batch_tickers)} tickers)")
             
-            # ProcessPoolExecutor for true parallelism (CPU-bound ML training)
-            # max_workers capped at 4 to prevent OOM
+            # ProcessPoolExecutor for true parallelism
             with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
                 future_to_ticker = {}
                 for ticker in batch_tickers:
-                    # Pass data as ready-values (DataFrame/Series)
-                    # Note: Passing large DataFrames across processes has pickling overhead.
-                    # Since we batch, it is manageable.
                     future = executor.submit(_ml_forecast_single_ticker, ticker, data[ticker])
                     future_to_ticker[future] = ticker
                 
                 for future in as_completed(future_to_ticker):
                     ticker = future_to_ticker[future]
                     try:
-                        result_ticker, forecast_value = future.result()
-                        forecasts[result_ticker] = forecast_value
+                        result_ticker, prediction_result = future.result()
+                        # Handle old return type (float) vs new (dict) for safety during transition
+                        if isinstance(prediction_result, dict):
+                            forecasts[result_ticker] = prediction_result.get('expected_return', 0.05)
+                            uncertainties[result_ticker] = prediction_result.get('uncertainty', 0.05)
+                        else:
+                            forecasts[result_ticker] = float(prediction_result)
+                            uncertainties[result_ticker] = 0.05
                     except Exception as exc:
                         logger.error(f"ML forecasting exception for {ticker}: {exc}")
                         forecasts[ticker] = 0.08
+                        uncertainties[ticker] = 0.05
             
             # 배치 완료 후 메모리 정리
             gc.collect()
@@ -407,23 +381,56 @@ def ml_forecast_returns(data, batch_size=20, progress_callback=None):
                    f"L2={cache_stats['hit_ratios']['l2']:.1%}, "
                    f"Overall={cache_stats['hit_ratios']['overall']:.1%}")
         
-        return pd.Series(forecasts)
+        return pd.Series(forecasts), pd.Series(uncertainties)
         
     except Exception as e:
         logger.error(f"ML forecasting failed critically: {e}. Using lightweight ensemble fallback.")
         # Fallback: 경량 앙상블 방식으로 직접 예측
         forecasts = {}
+        uncertainties = {}
         for ticker in data.columns:
             try:
                 prices = data[ticker].values
                 valid_prices = prices[~np.isnan(prices)]
                 if len(valid_prices) >= 10:
-                    forecasts[ticker] = lightweight_ensemble_forecast(valid_prices)
+                    val = lightweight_ensemble_forecast(valid_prices)
+                    forecasts[ticker] = val
+                    uncertainties[ticker] = 0.05
                 else:
                     forecasts[ticker] = 0.05
+                    uncertainties[ticker] = 0.05
             except Exception:
                 forecasts[ticker] = 0.05
-        return pd.Series(forecasts)
+                uncertainties[ticker] = 0.05
+        return pd.Series(forecasts), pd.Series(uncertainties)
+
+
+def get_market_caps(tickers):
+    """Fetch market capitalizations for tickers using yfinance."""
+    mcaps = {}
+    try:
+        logger.info(f"Fetching market caps for {len(tickers)} tickers")
+        batch_size = 50
+        for i in range(0, len(tickers), batch_size):
+            batch = tickers[i:i+batch_size]
+            try:
+                tickers_str = " ".join(batch)
+                yf_tickers = yf.Tickers(tickers_str)
+                for ticker in batch:
+                    try:
+                        # info access can be slow.
+                        info = yf_tickers.tickers[ticker].info
+                        mc = info.get("marketCap") or info.get("totalAssets")
+                        if mc:
+                            mcaps[ticker] = float(mc)
+                    except Exception:
+                        pass
+            except Exception as e:
+                logger.error(f"Batch info fetch failed: {e}")
+    except Exception as e:
+        logger.error(f"Market cap fetch failed: {e}")
+    return mcaps
+
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
@@ -551,23 +558,83 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         mu = pd.Series(cagr_series)
         # Handle potential NaNs
         mu = mu.fillna(0)
+        
+        # Filter the historical data to align with the tickers that have a forecast
+        aligned_data = data[mu.index]
+        # Calculate covariance matrix on the aligned data (standard historical)
+        S = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
+        
     else:
         # Calculate expected returns using ML-based forecasting
-        logger.info(f"Starting ML forecasting (Ex-Ante) for {len(data.columns)} tickers")
-        mu = ml_forecast_returns(data, progress_callback=ml_callback)
-    logger.info(f"ML forecasting completed. Got forecasts for {len(mu)} tickers: {list(mu.index)}")
-    
-    # Check for any missing tickers
-    missing_tickers = set(data.columns) - set(mu.index)
-    if missing_tickers:
-        logger.warning(f"Missing forecasts for {len(missing_tickers)} tickers: {list(missing_tickers)}")
-    
-    # Filter the historical data to align with the tickers that have a forecast
-    aligned_data = data[mu.index]
-    logger.info(f"Aligned data contains {len(aligned_data.columns)} tickers for optimization")
+        logger.info(f"Starting ML forecasting (Ex-Ante) with Black-Litterman for {len(data.columns)} tickers")
+        mu_views, uncertainties = ml_forecast_returns(data, progress_callback=ml_callback)
+        logger.info(f"ML forecasting completed. Got views for {len(mu_views)} tickers.")
+        
+        # Link views to data
+        aligned_data = data[mu_views.index]
+        logger.info(f"Aligned data contains {len(aligned_data.columns)} tickers for optimization")
 
-    # Calculate covariance matrix on the aligned data
-    S = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
+        # Base covariance matrix (Historical)
+        S_hist = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
+        
+        # Black-Litterman Optimization
+        try:
+            # 1. Market Caps (for Market Prior)
+            mcaps = get_market_caps(list(mu_views.index))
+            
+            # 2. Market Implied Risk Aversion (Delta)
+            market_ticker = "^GSPC"
+            try:
+                market_data = yf.download(market_ticker, start=start_date, end=end_date, progress=False)
+                # Handle MultiIndex in yfinance 0.2+
+                if isinstance(market_data.columns, pd.MultiIndex):
+                    # Try to find Adj Close for ticker
+                    if "Adj Close" in market_data.columns and market_ticker in market_data["Adj Close"].columns:
+                         market_prices = market_data["Adj Close"][market_ticker]
+                    else:
+                         market_prices = market_data.iloc[:, 0] # Fallback
+                elif "Adj Close" in market_data.columns:
+                    market_prices = market_data["Adj Close"]
+                else:
+                    market_prices = market_data.iloc[:, 0]
+                
+                market_prices = market_prices.dropna()
+                
+                if market_prices.empty:
+                     logger.warning("Market prices empty. Using default delta=2.5")
+                     delta = 2.5
+                else:
+                     delta = black_litterman.market_implied_risk_aversion(market_prices, risk_free_rate=risk_free_rate)
+                     logger.info(f"Market implied risk aversion (delta): {delta:.4f}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch market prices for delta: {e}. Using delta=2.5")
+                delta = 2.5
+            
+            if mcaps:
+                logger.info("Applying Black-Litterman with Market Prior")
+                market_prior = black_litterman.market_implied_prior_returns(mcaps, delta, S_hist, risk_free_rate=risk_free_rate)
+                
+                # Omega (Uncertainty matrix) - using forecast uncertainty
+                uncertainties = uncertainties.reindex(mu_views.index).fillna(0.05)
+                omega = np.diag(uncertainties ** 2)
+                
+                # Create BL Model
+                bl = BlackLittermanModel(S_hist, pi=market_prior, absolute_views=mu_views, omega=omega, risk_aversion=delta)
+                
+                mu = bl.bl_returns()
+                S = bl.bl_cov() # Posterior covariance
+                logger.info("Black-Litterman optimization successful.")
+            else:
+                 logger.warning("No market caps available. Fallback to Mean-Variance with ML views.")
+                 mu = mu_views
+                 S = S_hist
+        except Exception as e:
+            logger.error(f"Black-Litterman failed: {e}. Fallback to Mean-Variance with ML views.")
+            mu = mu_views
+            S = S_hist
+
+    # mu and S are now set for EfficientFrontier
+
 
     # Initialize Efficient Frontier
     ef = EfficientFrontier(mu, S, weight_bounds=(0, max_asset_weight))

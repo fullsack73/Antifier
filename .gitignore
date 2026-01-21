@@ -27,3 +27,4 @@ __pycache__
 vite.config.js
 .cache
 .venv
+agent-os/*
