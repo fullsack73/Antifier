@@ -300,6 +300,24 @@ class VenvManager:
             # Use the current Python interpreter to create the venv
             python_cmd = sys.executable
             
+            # If running as compiled executable (PyInstaller), we can't use sys.executable
+            if getattr(sys, 'frozen', False):
+                self.log("Running as frozen executable, searching for system Python...")
+                found = False
+                # Try python first on Windows as it's the standard command
+                candidates = ['python', 'python3'] if platform.system() == "Windows" else ['python3', 'python']
+                
+                for cmd in candidates:
+                    if shutil.which(cmd):
+                        python_cmd = cmd
+                        found = True
+                        break
+                
+                if not found:
+                    print("  ❌ Error: Could not find system Python to create virtual environment")
+                    print("  Please ensure Python is installed and in your PATH")
+                    return False
+
             self.log(f"Creating venv with: {python_cmd} -m venv {self.venv_path}")
             
             result = subprocess.run(
