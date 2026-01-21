@@ -29,6 +29,7 @@ datas = [
     (str(project_root / 'eslint.config.js'), '.'),
     (str(project_root / 'src'), 'src'),  # Bundle entire src directory
     (str(project_root / 'public'), 'public'),  # Bundle public directory
+    (str(project_root / '*.csv'), '.'),  # Bundle all CSV files
 ]
 
 block_cipher = None

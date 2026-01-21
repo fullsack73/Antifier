@@ -1001,6 +1001,11 @@ class Installer:
                 'index.html',
                 'eslint.config.js'
             ]
+
+            # Find all CSV files in bundle
+            csv_files = list(bundle_dir.glob('*.csv'))
+            for csv_file in csv_files:
+                 items_to_extract.append(csv_file.name)
             
             for item_name in items_to_extract:
                 source = bundle_dir / item_name
