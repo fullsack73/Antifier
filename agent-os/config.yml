@@ -1,0 +1,6 @@
+version: 2.0.5
+last_compiled: 2025-11-14 12:19:47
+profile: default
+multi_agent_mode: false
+single_agent_mode: true
+single_agent_tool: copilot
