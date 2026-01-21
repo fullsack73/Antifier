@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 
 
+
 def get_bundled_resource_path(relative_path: str) -> Path:
     """Get path to bundled resource file (for PyInstaller executables)
     
@@ -26,6 +27,13 @@ def get_bundled_resource_path(relative_path: str) -> Path:
         base_path = Path(__file__).parent.parent
     
     return base_path / relative_path
+
+
+def get_npm_command() -> List[str]:
+    """Get platform-specific npm command"""
+    if platform.system() == "Windows":
+        return ["npm.cmd"]
+    return ["npm"]
 
 
 class InstallerError(Exception):
@@ -109,7 +117,7 @@ class SystemValidator:
         """Check if Vite is globally installed"""
         try:
             result = subprocess.run(
-                ['npm', 'list', '-g', 'vite'],
+                get_npm_command() + ['list', '-g', 'vite'],
                 capture_output=True,
                 text=True,
                 timeout=10
@@ -124,7 +132,7 @@ class SystemValidator:
         print("📦 Installing Vite globally...")
         try:
             result = subprocess.run(
-                ['npm', 'install', '-g', 'vite'],
+                get_npm_command() + ['install', '-g', 'vite'],
                 capture_output=True,
                 text=True,
                 timeout=60
@@ -452,7 +460,7 @@ class PackageInstaller:
                 self.log(f"Attempt {attempt}/{max_retries}: Running npm install")
                 
                 result = subprocess.run(
-                    ['npm', 'install'],
+                    get_npm_command() + ['install'],
                     capture_output=True,
                     text=True,
                     timeout=600,  # 10 minutes timeout
@@ -758,7 +766,7 @@ class WebappLauncher:
         try:
             # Start Vite in background
             self.vite_process = subprocess.Popen(
-                ['npm', 'run', 'dev'],
+                get_npm_command() + ['run', 'dev'],
                 cwd=str(self.install_dir),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
