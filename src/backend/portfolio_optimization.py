@@ -7,16 +7,11 @@ from datetime import datetime, timedelta
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from pypfopt import EfficientFrontier, risk_models, expected_returns, objective_functions, BlackLittermanModel, black_litterman
-from pypfopt.risk_models import CovarianceShrinkage
-import warnings
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-from scipy.stats import expon, linregress
-from sklearn.linear_model import LinearRegression
+from pypfopt import EfficientFrontier, risk_models, objective_functions, BlackLittermanModel, black_litterman
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import gc
 from cache_manager import (
-    get_cache, cached, cache_stock_data_key, 
-    cache_forecast_key, cache_portfolio_key
+    get_cache, cached
 )
 from ticker_lists import get_ticker_group
 from forecast_models import EnsemblePredictor
@@ -161,7 +156,6 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None):
         if chunk_data.empty:
             logger.info(f"GET_STOCK_DATA: Fallback to individual fetch for chunk {chunk_idx+1}")
             individual_data = {}
-            import os
             max_workers = min(32, len(chunk))
             
             def _fetch_single_safe(ticker):

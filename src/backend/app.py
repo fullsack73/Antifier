@@ -3,20 +3,16 @@ from flask_cors import CORS
 import numpy as np
 import yfinance as yf
 from datetime import datetime, timedelta
-from sklearn.linear_model import LinearRegression
 from hedge_analysis import analyze_hedge_relationship
 from portfolio_benchmark import calculate_portfolio_benchmark
 
 import lightgbm as lgb
-import pandas as pd
-import psutil
 from financial_statement import get_financial_ratios, get_financial_statements
 from portfolio_optimization import (
     optimize_portfolio,
     load_portfolio_result,
     list_saved_portfolios
 )
-from ticker_lists import get_ticker_group
 from stock_screener import search_stocks
 
 

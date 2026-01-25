@@ -2,7 +2,7 @@ import logging
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from cache_manager import cached, get_cache
+from cache_manager import cached
 from ticker_lists import get_ticker_group
 import time
 

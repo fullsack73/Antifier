@@ -53,7 +53,7 @@ class ARIMA():
                 )
             
             # Forecast next 252 days (1 year) of log returns
-            forecast_log_returns, conf_int = model.predict(
+            forecast_log_returns, _ = model.predict(
                 n_periods=252,
                 return_conf_int=True
             )
@@ -117,7 +117,7 @@ class LSTMModel():
         self.dropout = dropout
         self.model = None
         self.scaler_X = None
-        self.scaler_y = None
+        self.scaler_X = None
         
     def cleanup(self):
         """명시적 메모리 해제 - 사용 후 반드시 호출하세요."""
@@ -130,7 +130,7 @@ class LSTMModel():
             except Exception:
                 pass
         self.scaler_X = None
-        self.scaler_y = None
+        self.scaler_X = None
         
     def __del__(self):
         """소멸자에서 cleanup 호출"""
@@ -171,7 +171,7 @@ class LSTMModel():
             
             # Scale data
             self.scaler_X = StandardScaler()
-            self.scaler_y = StandardScaler()
+            self.scaler_X = StandardScaler()
             scaled_returns = self.scaler_X.fit_transform(log_returns)
             
             # Create sequences

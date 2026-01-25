@@ -6,8 +6,7 @@ over a specified time period. It calculates historical performance metrics and a
 """
 
 import yfinance as yf
-from datetime import datetime, timedelta
-import numpy as np
+from datetime import datetime
 
 
 def calculate_portfolio_benchmark(portfolio_data, budget, start_date, end_date, risk_free_rate):

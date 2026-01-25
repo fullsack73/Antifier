@@ -10,8 +10,8 @@ import gzip
 import os
 import logging
 import threading
-from functools import wraps, lru_cache
-from typing import Any, Optional, Dict, Tuple
+from functools import wraps
+from typing import Any, Optional, Dict
 import pandas as pd
 import numpy as np
 import psutil
@@ -391,16 +391,4 @@ def cached(l1_ttl: int = 900, l2_ttl: int = 3600, key_func=None):
     return decorator
 
 # Convenience functions for common cache operations
-def cache_stock_data_key(tickers, start_date, end_date):
-    """Generate cache key for stock data"""
-    tickers_str = "_".join(sorted(tickers)) if isinstance(tickers, (list, tuple)) else str(tickers)
-    return f"stock_data_{tickers_str}_{start_date}_{end_date}"
 
-def cache_forecast_key(ticker, method="prophet"):
-    """Generate cache key for forecast results"""
-    return f"forecast_{method}_{ticker}_{int(time.time() // 3600)}"  # Hour-based key
-
-def cache_portfolio_key(tickers, start_date, end_date, method="lightweight"):
-    """Generate cache key for portfolio optimization"""
-    tickers_hash = hashlib.md5("_".join(sorted(tickers)).encode()).hexdigest()[:8]
-    return f"portfolio_{method}_{tickers_hash}_{start_date}_{end_date}"
