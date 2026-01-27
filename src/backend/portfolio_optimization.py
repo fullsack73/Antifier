@@ -24,6 +24,20 @@ logger = logging.getLogger(__name__)
 RESULTS_DIR = Path("logs/portfolio_results")
 
 
+def worker_initializer():
+    """Initialize worker process environment to restrict threading."""
+    import os
+    # Force single-threaded execution for libraries in worker processes
+    # to prevent CPU oversubscription when running many workers.
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
+    os.environ['TF_NUM_INTEROP_THREADS'] = '1'
+    # Also for numexpr if used by pandas/numpy
+    os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
+
 def _ensure_results_dir():
     """Create persistence directory if it does not exist."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -276,13 +290,13 @@ def _ml_forecast_single_ticker(ticker, ticker_data):
 
 
 
-def ml_forecast_returns(data, batch_size=20, progress_callback=None):
+def ml_forecast_returns(data, batch_size=50, progress_callback=None):
     """
     Forecast expected returns using ML models with memory-efficient batch processing.
     
     Args:
         data: DataFrame with stock prices (dates as index, tickers as columns)
-        batch_size: Number of tickers to process in each batch (메모리 관리용)
+        batch_size: Number of tickers to process in each batch (Increased for throughput)
         progress_callback: Optional callback(current, total, message)
     
     Returns:
@@ -291,10 +305,16 @@ def ml_forecast_returns(data, batch_size=20, progress_callback=None):
     start_time = time.time()
     logger.info(f"Starting BATCH ML forecasting for {len(data.columns)} tickers")
     
-    # 메모리 효율을 위해 worker 수 제한 (LSTM/TensorFlow가 프로세스당 많은 메모리 사용)
+    # ProcessPool Tuning (Task 2)
+    # Since we restricted inner-model threading (Task 1), we can safely use more workers
     import os
-    max_workers = min(os.cpu_count() or 4, len(data.columns), 4)  # 최대 4로 제한
-    logger.info(f"Using {max_workers} parallel workers for ML forecasting (memory-safe mode)")
+    cpu_count = os.cpu_count() or 4
+    # Reserve 1 core for OS/Main process to keep system responsive
+    usable_cores = max(1, cpu_count - 1)
+    # Cap at 16 to prevent diminishing returns from excessive process management
+    max_workers = min(usable_cores, len(data.columns), 16)
+    
+    logger.info(f"Using {max_workers} parallel workers for ML forecasting (Optimized process pool)")
     
     import multiprocessing as mp
     from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -317,7 +337,7 @@ def ml_forecast_returns(data, batch_size=20, progress_callback=None):
             logger.info(f"Processing batch {batch_idx + 1}/{total_batches} ({len(batch_tickers)} tickers)")
             
             # ProcessPoolExecutor for true parallelism
-            with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx) as executor:
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx, initializer=worker_initializer) as executor:
                 future_to_ticker = {}
                 for ticker in batch_tickers:
                     future = executor.submit(_ml_forecast_single_ticker, ticker, data[ticker])

@@ -153,6 +153,15 @@ class LSTMModel():
         """
         try:
             import tensorflow as tf
+            # Force single-threaded execution for TensorFlow in this process
+            # This is crucial when running multiple LSTM trainings in parallel processes
+            try:
+                tf.config.threading.set_intra_op_parallelism_threads(1)
+                tf.config.threading.set_inter_op_parallelism_threads(1)
+            except Exception:
+                # Configuration might fail if TF is already initialized, which is expected/okay
+                pass
+
             from tensorflow import keras
             from sklearn.preprocessing import StandardScaler
             
@@ -335,7 +344,8 @@ class XGBoostModel:
                 max_depth=5,
                 learning_rate=0.1,
                 random_state=42,
-                verbosity=0
+                verbosity=0,
+                n_jobs=1
             )
             self.model.fit(X, y)
             
