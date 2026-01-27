@@ -162,56 +162,11 @@ const FinancialStatement = () => {
                         onChange={(e) => setTicker(e.target.value.toUpperCase())}
                         placeholder={t('ticker.placeholder')}
                     />
+                    <div style={{ height: '10px' }}></div>
                     <button type="submit" className="ticker-search-btn" disabled={loading}>
                         {loading ? t('common.loading') : t('financial.fetch_data')}
                     </button>
                 </form>
-
-                <div className="view-controls">
-                    <div className="toggle-group">
-                        <button
-                            className={`toggle-btn ${view === 'summary' ? 'active' : ''}`}
-                            onClick={() => setView('summary')}
-                        >
-                            Summary
-                        </button>
-                        <button
-                            className={`toggle-btn ${view === 'income' ? 'active' : ''}`}
-                            onClick={() => setView('income')}
-                        >
-                            Income Statement
-                        </button>
-                        <button
-                            className={`toggle-btn ${view === 'balance' ? 'active' : ''}`}
-                            onClick={() => setView('balance')}
-                        >
-                            Balance Sheet
-                        </button>
-                        <button
-                            className={`toggle-btn ${view === 'cash' ? 'active' : ''}`}
-                            onClick={() => setView('cash')}
-                        >
-                            Cash Flow
-                        </button>
-                    </div>
-
-                    {view !== 'summary' && (
-                        <div className="toggle-group">
-                            <button
-                                className={`toggle-btn ${frequency === 'annual' ? 'active' : ''}`}
-                                onClick={() => setFrequency('annual')}
-                            >
-                                Annual
-                            </button>
-                            <button
-                                className={`toggle-btn ${frequency === 'quarterly' ? 'active' : ''}`}
-                                onClick={() => setFrequency('quarterly')}
-                            >
-                                Quarterly
-                            </button>
-                        </div>
-                    )}
-                </div>
             </div>
 
             {error && <div className="error-message">{t('common.error')}: {error}</div>}
