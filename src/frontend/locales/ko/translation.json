@@ -69,6 +69,11 @@
   "optimizer": {
     "title": "포트폴리오 최적화",
     "tickerGroup": "티커 그룹",
+    "modelStrategy": "모델 전략",
+    "bl": "블랙-리터만 (기본)",
+    "ensemble": "딥러닝 앙상블",
+    "lightweight": "경량 예측",
+    "mpt": "고전적 포트폴리오 이론",
     "startDate": "시작 날짜",
     "endDate": "종료 날짜",
     "riskFreeRate": "무위험 이자율 (%)",

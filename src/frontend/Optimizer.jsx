@@ -7,6 +7,7 @@ import axios from "axios"
 const Optimizer = () => {
   const { t } = useTranslation()
   const [tickerGroup, setTickerGroup] = useState("SP500")
+  const [modelStrategy, setModelStrategy] = useState("BL")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [riskFreeRate, setRiskFreeRate] = useState("2")
@@ -119,7 +120,8 @@ const Optimizer = () => {
         risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
         target_return: targetReturn ? Number.parseFloat(targetReturn) / 100 : null,
         risk_tolerance: riskTolerance ? Number.parseFloat(riskTolerance) / 100 : null,
-        request_id: requestId
+        request_id: requestId,
+        model_strategy: modelStrategy
       }
 
       if (tickerGroup === "CUSTOM") {
@@ -206,6 +208,22 @@ const Optimizer = () => {
             </select>
             {tickerGroup === "CUSTOM" && <input type="file" accept=".csv" onChange={handleFileUpload} />}
           </div>
+
+          <div className="optimizer-form-group">
+            <label htmlFor="modelStrategy">{t("optimizer.modelStrategy")}</label>
+            <select
+              id="modelStrategy"
+              className="optimizer-select"
+              value={modelStrategy}
+              onChange={(e) => setModelStrategy(e.target.value)}
+            >
+              <option value="BL">{t("optimizer.bl")}</option>
+              <option value="Ensemble">{t("optimizer.ensemble")}</option>
+              <option value="Lightweight">{t("optimizer.lightweight")}</option>
+              <option value="MPT">{t("optimizer.mpt")}</option>
+            </select>
+          </div>
+
           <div className="optimizer-form-group">
             <label>{t("optimizer.startDate")}</label>
             <input

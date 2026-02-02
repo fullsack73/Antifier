@@ -10,7 +10,7 @@
 
 5. [X] **Stock Screener with Custom Filters** — Allow users to screen stocks from predefined groups (S&P 500, Dow Jones) or custom ticker lists using configurable financial metric filters (P/E, P/B, ROE, etc.) to identify investment opportunities. `L`
 
-6. [ ] **Portfolio Optimization Engine** — Optimize portfolio allocation using Modern Portfolio Theory and the Efficient Frontier, calculating optimal weights based on user-defined risk tolerance, target returns, and risk-free rate assumptions. `XL`
+6. [X] **Portfolio Optimization Engine** — Optimize portfolio allocation using Modern Portfolio Theory and the Efficient Frontier, calculating optimal weights based on user-defined risk tolerance, target returns, and risk-free rate assumptions. `XL`
 
 7. [X] **Hedge Analysis & Pairs Trading** — Analyze statistical relationships between two stocks using correlation and regression analysis to identify potential hedging opportunities and pairs trading strategies. `M`
 

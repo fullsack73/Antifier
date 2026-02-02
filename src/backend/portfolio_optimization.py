@@ -450,7 +450,7 @@ def get_market_caps(tickers):
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
                        target_return=None, risk_tolerance=None, portfolio_id=None,
                        persist_result=False, load_if_available=False, progress_callback=None,
-                       l2_gamma=0.05, max_asset_weight=0.2):
+                       l2_gamma=0.05, max_asset_weight=0.2, model_strategy="BL"):
     """Optimize portfolio and optionally persist or reuse saved results."""
     # Log cache performance at start of optimization
     cache = get_cache()
@@ -516,50 +516,47 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     def ml_callback(current, total, message):
         _weighted_progress(30, 90, current, total, message)
 
-    # Determine if we are doing Ex-Post (Historical) or Ex-Ante (Future) analysis
-    # If end_date is significantly in the past (> 90 days), assume Ex-Post analysis
+    # Strategy Selection & Execution
+    mu = None
+    S = None
+    
+    # Check for legacy Ex-Post condition (backtesting far in past)
     is_ex_post = False
     try:
-        # Handle string or datetime input
         if isinstance(end_date, str):
             end_dt = datetime.strptime(end_date, '%Y-%m-%d')
         else:
             end_dt = end_date
-            
         if end_dt < datetime.now() - timedelta(days=90):
             is_ex_post = True
-            logger.info(f"Optimization end date {end_dt.date()} is >90 days in the past. Switching to Ex-Post (Historical) Optimization.")
     except Exception as e:
         logger.warning(f"Could not parse date for Ex-Post check: {e}")
 
-    if is_ex_post:
-        logger.info("Using Historical CAGR for Ex-Post Optimization")
+    # Determine effective strategy
+    effective_strategy = model_strategy
+    if is_ex_post and effective_strategy == "BL":
+        logger.info("Switching 'BL' to 'MPT' (Historical) due to ex-post date range.")
+        effective_strategy = "MPT"
         
-        # Calculate CAGR (Geometric Mean) instead of Arithmetic Mean
-        # Formula: (End_Price / Start_Price) ^ (252 / Days) - 1
-        # This penalizes volatility drag compared to arithmetic mean
+    logger.info(f"Executing Strategy: {effective_strategy}")
+
+    if effective_strategy in ["MPT", "CLASSIC_MPT"]:
+        # --- Classic MPT Strategy ---
+        logger.info("Using Historical CAGR for MPT Optimization")
         cagr_series = {}
         for ticker in data.columns:
             try:
-                # Get valid price series
                 prices = data[ticker].dropna()
                 if len(prices) >= 2:
                     start_price = prices.iloc[0]
                     end_price = prices.iloc[-1]
-                    
                     if start_price > 0:
-                        # Calculate total return
                         total_return = end_price / start_price
-                        
-                        # Calculate years elapsed (using business days approx)
                         years = len(prices) / 252.0
-                        
-                        # Calculate CAGR
                         if total_return > 0 and years > 0:
                             cagr = (total_return ** (1 / years)) - 1
                         else:
-                            cagr = -0.99 # Effectively -100%
-                            
+                            cagr = -0.99
                         cagr_series[ticker] = cagr
                     else:
                         cagr_series[ticker] = 0.0
@@ -569,29 +566,48 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 logger.warning(f"Failed to calculate CAGR for {ticker}: {e}")
                 cagr_series[ticker] = 0.0
                 
-        mu = pd.Series(cagr_series)
-        # Handle potential NaNs
-        mu = mu.fillna(0)
-        
-        # Filter the historical data to align with the tickers that have a forecast
+        mu = pd.Series(cagr_series).fillna(0)
+        # Filter aligned data
         aligned_data = data[mu.index]
-        # Calculate covariance matrix on the aligned data (standard historical)
         S = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
+
+    elif effective_strategy in ["Lightweight", "LIGHTWEIGHT"]:
+        # --- Lightweight Strategy ---
+        logger.info("Using Lightweight Ensemble Forecast")
+        forecasts = {}
+        for i, ticker in enumerate(data.columns):
+            if i % 10 == 0:
+                ml_callback(i, len(data.columns), f"Lightweight forecasting {i}/{len(data.columns)}")
+            try:
+                prices = data[ticker].dropna().values
+                val = lightweight_ensemble_forecast(prices)
+                forecasts[ticker] = val
+            except Exception as e:
+                logger.warning(f"Lightweight forecast failed for {ticker}: {e}")
+                forecasts[ticker] = 0.05
         
+        mu = pd.Series(forecasts).fillna(0.0)
+        aligned_data = data[mu.index]
+        S = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
+
+    elif effective_strategy in ["Ensemble", "DEEP_LEARNING"]:
+        # --- Deep Learning Ensemble Strategy ---
+        logger.info("Using Deep Learning Ensemble (Direct ML Views)")
+        mu_views, _ = ml_forecast_returns(data, progress_callback=ml_callback)
+        mu = mu_views
+        aligned_data = data[mu.index]
+        S = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
+
     else:
-        # Calculate expected returns using ML-based forecasting
+        # --- Black-Litterman Strategy (Default) ---
         logger.info(f"Starting ML forecasting (Ex-Ante) with Black-Litterman for {len(data.columns)} tickers")
         mu_views, uncertainties = ml_forecast_returns(data, progress_callback=ml_callback)
         logger.info(f"ML forecasting completed. Got views for {len(mu_views)} tickers.")
         
         # Link views to data
         aligned_data = data[mu_views.index]
-        logger.info(f"Aligned data contains {len(aligned_data.columns)} tickers for optimization")
-
-        # Base covariance matrix (Historical)
         S_hist = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
         
-        # Black-Litterman Optimization
         try:
             # 1. Market Caps (for Market Prior)
             mcaps = get_market_caps(list(mu_views.index))

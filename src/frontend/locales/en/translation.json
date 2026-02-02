@@ -69,6 +69,11 @@
   "optimizer": {
     "title": "Portfolio Optimizer",
     "tickerGroup": "Ticker Group",
+    "modelStrategy": "Model Strategy",
+    "bl": "Black-Litterman (Default)",
+    "ensemble": "Deep Learning Ensemble",
+    "lightweight": "Lightweight Prediction",
+    "mpt": "Classic MPT",
     "startDate": "Start Date",
     "endDate": "End Date",
     "riskFreeRate": "Risk-Free Rate (%)",

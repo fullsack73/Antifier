@@ -17,5 +17,9 @@ export default defineConfig({
     },
     // free version ngrok. again, couldn't afford a paid version
     allowedHosts: ['gannet-included-jolly.ngrok-free.app']
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom'
   }
 })

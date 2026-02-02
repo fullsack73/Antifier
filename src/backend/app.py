@@ -330,6 +330,7 @@ def optimize_portfolio_endpoint():
     persist_result = bool(data.get('persist_result'))
     load_if_available = bool(data.get('load_if_available'))
     request_id = data.get('request_id')
+    model_strategy = data.get('model_strategy', 'BL')
 
     if not request_id:
         return jsonify({"error": "request_id is required"}), 400
@@ -355,7 +356,8 @@ def optimize_portfolio_endpoint():
                 portfolio_id=params['portfolio_id'],
                 persist_result=params['persist_result'],
                 load_if_available=params['load_if_available'],
-                progress_callback=progress_adapter
+                progress_callback=progress_adapter,
+                model_strategy=params.get('model_strategy', 'BL')
             )
 
             if "error" in result:
@@ -375,7 +377,8 @@ def optimize_portfolio_endpoint():
         'ticker_group': ticker_group, 'tickers': tickers, 'start_date': start_date, 
         'end_date': end_date, 'risk_free_rate': risk_free_rate, 'target_return': target_return,
         'risk_tolerance': risk_tolerance, 'portfolio_id': portfolio_id, 
-        'persist_result': persist_result, 'load_if_available': load_if_available
+        'persist_result': persist_result, 'load_if_available': load_if_available,
+        'model_strategy': model_strategy
     }
     thread = threading.Thread(target=background_optimization, args=(request_id, params))
     thread.daemon = True
