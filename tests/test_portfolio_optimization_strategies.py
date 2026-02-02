@@ -70,6 +70,13 @@ def mock_dependencies():
         # Setup specific returns
         mock_get_stock_data.return_value = pd.DataFrame() # Overridden in tests
         
+        # Configure Black Litterman Mock returns
+        mock_bl_instance = mock_bl.return_value
+        mock_bl_instance.bl_returns.return_value = pd.Series([0.1, 0.12], index=["AAPL", "GOOG"])
+        mock_bl_instance.bl_cov.return_value = pd.DataFrame(
+            [[0.04, 0.02], [0.02, 0.04]], index=["AAPL", "GOOG"], columns=["AAPL", "GOOG"]
+        )
+
         yield {
             "get_stock_data": mock_get_stock_data,
             "lightweight": mock_lightweight,
@@ -80,8 +87,40 @@ def mock_dependencies():
             "bl": mock_bl
         }
 
-def test_strategy_default_bl(mock_data, mock_dependencies):
+def test_optimize_bl_lightweight(mock_data, mock_dependencies):
+    """Test BL + Lightweight combination."""
     mock_dependencies["get_stock_data"].return_value = mock_data
+    mock_dependencies["lightweight"].return_value = 0.08
+    mock_dependencies["market_caps"].return_value = {"AAPL": 1e12, "GOOG": 1e12}
+    
+    end_date = datetime.now().strftime("%Y-%m-%d")
+    start_date = (datetime.now() - timedelta(days=200)).strftime("%Y-%m-%d")
+
+    result = portfolio_optimization.optimize_portfolio(
+        start_date=start_date, 
+        end_date=end_date, 
+        risk_free_rate=0.02, 
+        tickers=["AAPL", "GOOG"],
+        forecast_method="LIGHTWEIGHT",
+        optimization_method="BL"
+    )
+    
+    # Assertions
+    assert isinstance(result, dict)
+    assert result["weights"] == {"AAPL": 0.6, "GOOG": 0.4}
+    
+    # Verify Forecast Method Calls
+    assert mock_dependencies["lightweight"].call_count >= 2 # Once per ticker
+    mock_dependencies["ml_forecast"].assert_not_called()
+    
+    # Verify Optimization Method Calls
+    mock_dependencies["bl"].assert_called()
+
+
+def test_optimize_bl_deep_learning(mock_data, mock_dependencies):
+    """Test BL + Deep Learning combination."""
+    mock_dependencies["get_stock_data"].return_value = mock_data
+    # Mock ML forecast return (mu, uncertainties)
     mock_dependencies["ml_forecast"].return_value = (
         pd.Series([0.1, 0.12], index=["AAPL", "GOOG"]), 
         pd.Series([0.05, 0.05], index=["AAPL", "GOOG"])
@@ -91,29 +130,67 @@ def test_strategy_default_bl(mock_data, mock_dependencies):
     end_date = datetime.now().strftime("%Y-%m-%d")
     start_date = (datetime.now() - timedelta(days=200)).strftime("%Y-%m-%d")
 
-    result = portfolio_optimization.optimize_portfolio(start_date=start_date, end_date=end_date, risk_free_rate=0.02, tickers=["AAPL", "GOOG"])
+    result = portfolio_optimization.optimize_portfolio(
+        start_date=start_date, 
+        end_date=end_date, 
+        risk_free_rate=0.02, 
+        tickers=["AAPL", "GOOG"],
+        forecast_method="DEEP_LEARNING",
+        optimization_method="BL"
+    )
     
-    # Check result structure
+    # Assertions
     assert isinstance(result, dict)
-    assert "weights" in result
-    assert result["weights"] == {"AAPL": 0.6, "GOOG": 0.4}
+    
+    # Verify Forecast Method Calls
+    mock_dependencies["ml_forecast"].assert_called_once()
+    mock_dependencies["lightweight"].assert_not_called()
+    
+    # Verify Optimization Method Calls
+    mock_dependencies["bl"].assert_called()
 
-def test_strategy_mpt_avoids_ml(mock_data, mock_dependencies):
+
+def test_optimize_mpt_lightweight(mock_data, mock_dependencies):
+    """Test MPT + Lightweight combination."""
     mock_dependencies["get_stock_data"].return_value = mock_data
+    mock_dependencies["lightweight"].return_value = 0.08
     
     end_date = datetime.now().strftime("%Y-%m-%d")
     start_date = (datetime.now() - timedelta(days=200)).strftime("%Y-%m-%d")
 
-    result = portfolio_optimization.optimize_portfolio(start_date=start_date, end_date=end_date, risk_free_rate=0.02, tickers=["AAPL", "GOOG"], model_strategy="MPT")
+    result = portfolio_optimization.optimize_portfolio(
+        start_date=start_date, 
+        end_date=end_date, 
+        risk_free_rate=0.02, 
+        tickers=["AAPL", "GOOG"],
+        forecast_method="LIGHTWEIGHT",
+        optimization_method="MPT"
+    )
     
-    # Check result structure
+    # Assertions
     assert isinstance(result, dict)
-    assert "weights" in result
-    # We rely on previous verification that code path ensures no ML usage for MPT
-    # And successful return implies no crash
+    
+    # Verify Forecast Method Calls
+    assert mock_dependencies["lightweight"].call_count >= 2
+    mock_dependencies["ml_forecast"].assert_not_called()
+    
+    # Verify Optimization Method Calls
+    # BL should NOT be called for MPT
+    mock_dependencies["bl"].assert_not_called()
+    
+    # Verify Efficient Frontier received forecast returns directly
+    # Get arguments passed to EfficientFrontier constructor
+    call_args = mock_dependencies["ef"].call_args
+    assert call_args is not None
+    # Check that the first argument (mu) has values matching lightweight forecast (0.08)
+    mu_arg = call_args[0][0]
+    assert np.allclose(mu_arg.values, [0.08, 0.08])
 
-def test_strategy_ensemble(mock_data, mock_dependencies):
+
+def test_optimize_mpt_deep_learning(mock_data, mock_dependencies):
+    """Test MPT + Deep Learning combination."""
     mock_dependencies["get_stock_data"].return_value = mock_data
+    # Mock ML forecast return
     mock_dependencies["ml_forecast"].return_value = (
         pd.Series([0.15, 0.18], index=["AAPL", "GOOG"]), 
         pd.Series([0.05, 0.05], index=["AAPL", "GOOG"])
@@ -122,44 +199,28 @@ def test_strategy_ensemble(mock_data, mock_dependencies):
     end_date = datetime.now().strftime("%Y-%m-%d")
     start_date = (datetime.now() - timedelta(days=200)).strftime("%Y-%m-%d")
 
-    result = portfolio_optimization.optimize_portfolio(start_date=start_date, end_date=end_date, risk_free_rate=0.02, tickers=["AAPL", "GOOG"], model_strategy="Ensemble")
-    
-    assert isinstance(result, dict)
-    assert "weights" in result
-
-def test_strategy_lightweight_integration(mock_data, mock_dependencies):
-    """Test A: Integration test for Lightweight option ensuring it returns a valid result structure."""
-    mock_dependencies["get_stock_data"].return_value = mock_data
-    mock_dependencies["lightweight"].return_value = 0.08
-    
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=200)).strftime("%Y-%m-%d")
-
-    result = portfolio_optimization.optimize_portfolio(start_date=start_date, end_date=end_date, risk_free_rate=0.02, tickers=["AAPL", "GOOG"], model_strategy="Lightweight")
-    
-    # Check result structure
-    assert isinstance(result, dict)
-    assert "weights" in result
-    assert "return" in result
-    assert "risk" in result
-    assert "sharpe_ratio" in result
-    assert result["weights"] == {"AAPL": 0.6, "GOOG": 0.4}
-
-def test_strategy_invalid_fallback(mock_data, mock_dependencies):
-    """Test B: Boundary test for invalid model_strategy input (should fallback to BL)."""
-    mock_dependencies["get_stock_data"].return_value = mock_data
-    mock_dependencies["ml_forecast"].return_value = (
-        pd.Series([0.1, 0.12], index=["AAPL", "GOOG"]), 
-        pd.Series([0.05, 0.05], index=["AAPL", "GOOG"])
+    result = portfolio_optimization.optimize_portfolio(
+        start_date=start_date, 
+        end_date=end_date, 
+        risk_free_rate=0.02, 
+        tickers=["AAPL", "GOOG"],
+        forecast_method="DEEP_LEARNING",
+        optimization_method="MPT"
     )
-    mock_dependencies["market_caps"].return_value = {"AAPL": 1e12, "GOOG": 1e12}
     
-    end_date = datetime.now().strftime("%Y-%m-%d")
-    start_date = (datetime.now() - timedelta(days=200)).strftime("%Y-%m-%d")
-
-    result = portfolio_optimization.optimize_portfolio(start_date=start_date, end_date=end_date, risk_free_rate=0.02, tickers=["AAPL", "GOOG"], model_strategy="UNKNOWN_STRATEGY")
-    
-    # Should fall back to BL default -> result should be valid
+    # Assertions
     assert isinstance(result, dict)
-    assert "weights" in result
-    assert result["weights"] == {"AAPL": 0.6, "GOOG": 0.4}
+    
+    # Verify Forecast Method Calls
+    mock_dependencies["ml_forecast"].assert_called_once()
+    mock_dependencies["lightweight"].assert_not_called()
+    
+    # Verify Optimization Method Calls
+    mock_dependencies["bl"].assert_not_called()
+    
+    # Verify Efficient Frontier received ML forecast
+    call_args = mock_dependencies["ef"].call_args
+    mu_arg = call_args[0][0]
+    # ML forecast returns 0.15 and 0.18
+    assert mu_arg["AAPL"] == 0.15
+    assert mu_arg["GOOG"] == 0.18

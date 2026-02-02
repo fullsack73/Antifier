@@ -7,7 +7,8 @@ import axios from "axios"
 const Optimizer = () => {
   const { t } = useTranslation()
   const [tickerGroup, setTickerGroup] = useState("SP500")
-  const [modelStrategy, setModelStrategy] = useState("BL")
+  const [forecastMethod, setForecastMethod] = useState("LIGHTWEIGHT")
+  const [optimizationMethod, setOptimizationMethod] = useState("BL")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [riskFreeRate, setRiskFreeRate] = useState("2")
@@ -121,7 +122,8 @@ const Optimizer = () => {
         target_return: targetReturn ? Number.parseFloat(targetReturn) / 100 : null,
         risk_tolerance: riskTolerance ? Number.parseFloat(riskTolerance) / 100 : null,
         request_id: requestId,
-        model_strategy: modelStrategy
+        forecast_method: forecastMethod,
+        optimization_method: optimizationMethod
       }
 
       if (tickerGroup === "CUSTOM") {
@@ -210,17 +212,28 @@ const Optimizer = () => {
           </div>
 
           <div className="optimizer-form-group">
-            <label htmlFor="modelStrategy">{t("optimizer.modelStrategy")}</label>
+            <label htmlFor="forecastMethod">{t("optimizer.forecastMethod", "Forecast Method")}</label>
             <select
-              id="modelStrategy"
+              id="forecastMethod"
               className="optimizer-select"
-              value={modelStrategy}
-              onChange={(e) => setModelStrategy(e.target.value)}
+              value={forecastMethod}
+              onChange={(e) => setForecastMethod(e.target.value)}
             >
-              <option value="BL">{t("optimizer.bl")}</option>
-              <option value="Ensemble">{t("optimizer.ensemble")}</option>
-              <option value="Lightweight">{t("optimizer.lightweight")}</option>
-              <option value="MPT">{t("optimizer.mpt")}</option>
+              <option value="LIGHTWEIGHT">{t("optimizer.lightweight", "Lightweight Prediction")}</option>
+              <option value="DEEP_LEARNING">{t("optimizer.ensemble", "Deep Learning Ensemble")}</option>
+            </select>
+          </div>
+
+          <div className="optimizer-form-group">
+            <label htmlFor="optimizationMethod">{t("optimizer.optimizationMethod", "Optimization Method")}</label>
+            <select
+              id="optimizationMethod"
+              className="optimizer-select"
+              value={optimizationMethod}
+              onChange={(e) => setOptimizationMethod(e.target.value)}
+            >
+              <option value="BL">{t("optimizer.bl", "Black-Litterman")}</option>
+              <option value="MPT">{t("optimizer.mpt", "Mean-Variance (MPT)")}</option>
             </select>
           </div>
 

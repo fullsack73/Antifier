@@ -450,7 +450,8 @@ def get_market_caps(tickers):
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
                        target_return=None, risk_tolerance=None, portfolio_id=None,
                        persist_result=False, load_if_available=False, progress_callback=None,
-                       l2_gamma=0.05, max_asset_weight=0.2, model_strategy="BL"):
+                       l2_gamma=0.05, max_asset_weight=0.2, 
+                       forecast_method="LIGHTWEIGHT", optimization_method="BL"):
     """Optimize portfolio and optionally persist or reuse saved results."""
     # Log cache performance at start of optimization
     cache = get_cache()
@@ -532,17 +533,20 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     except Exception as e:
         logger.warning(f"Could not parse date for Ex-Post check: {e}")
 
-    # Determine effective strategy
-    effective_strategy = model_strategy
-    if is_ex_post and effective_strategy == "BL":
+    # --- DECOUPLED STRATEGY SELECTION ---
+    if is_ex_post and optimization_method == "BL":
         logger.info("Switching 'BL' to 'MPT' (Historical) due to ex-post date range.")
-        effective_strategy = "MPT"
+        forecast_method = "HISTORICAL"
+        optimization_method = "MPT"
         
-    logger.info(f"Executing Strategy: {effective_strategy}")
+    logger.info(f"Executing: Forecast={forecast_method}, Optimization={optimization_method}")
 
-    if effective_strategy in ["MPT", "CLASSIC_MPT"]:
-        # --- Classic MPT Strategy ---
-        logger.info("Using Historical CAGR for MPT Optimization")
+    # --- Phase 1: Forecasting ---
+    mu_forecast = None
+    uncertainties = None
+    
+    if forecast_method in ["HISTORICAL", "MPT", "CLASSIC_MPT"]:
+        logger.info("Using Historical CAGR for Forecasting")
         cagr_series = {}
         for ticker in data.columns:
             try:
@@ -550,31 +554,24 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 if len(prices) >= 2:
                     start_price = prices.iloc[0]
                     end_price = prices.iloc[-1]
-                    if start_price > 0:
-                        total_return = end_price / start_price
-                        years = len(prices) / 252.0
-                        if total_return > 0 and years > 0:
-                            cagr = (total_return ** (1 / years)) - 1
-                        else:
-                            cagr = -0.99
-                        cagr_series[ticker] = cagr
+                    years = len(prices) / 252.0
+                    if start_price > 0 and end_price > 0 and years > 0:
+                        cagr = (end_price / start_price) ** (1 / years) - 1
                     else:
-                        cagr_series[ticker] = 0.0
+                        cagr = -0.99 
+                    cagr_series[ticker] = cagr
                 else:
                     cagr_series[ticker] = 0.0
             except Exception as e:
                 logger.warning(f"Failed to calculate CAGR for {ticker}: {e}")
                 cagr_series[ticker] = 0.0
-                
-        mu = pd.Series(cagr_series).fillna(0)
-        # Filter aligned data
-        aligned_data = data[mu.index]
-        S = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
-
-    elif effective_strategy in ["Lightweight", "LIGHTWEIGHT"]:
-        # --- Lightweight Strategy ---
+        
+        mu_forecast = pd.Series(cagr_series).fillna(0)
+    
+    elif forecast_method in ["LIGHTWEIGHT", "Lightweight"]:
         logger.info("Using Lightweight Ensemble Forecast")
         forecasts = {}
+        uncertainties_dict = {}
         for i, ticker in enumerate(data.columns):
             if i % 10 == 0:
                 ml_callback(i, len(data.columns), f"Lightweight forecasting {i}/{len(data.columns)}")
@@ -582,86 +579,95 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 prices = data[ticker].dropna().values
                 val = lightweight_ensemble_forecast(prices)
                 forecasts[ticker] = val
+                uncertainties_dict[ticker] = 0.05
             except Exception as e:
                 logger.warning(f"Lightweight forecast failed for {ticker}: {e}")
                 forecasts[ticker] = 0.05
+                uncertainties_dict[ticker] = 0.05
         
-        mu = pd.Series(forecasts).fillna(0.0)
-        aligned_data = data[mu.index]
-        S = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
-
-    elif effective_strategy in ["Ensemble", "DEEP_LEARNING"]:
-        # --- Deep Learning Ensemble Strategy ---
-        logger.info("Using Deep Learning Ensemble (Direct ML Views)")
-        mu_views, _ = ml_forecast_returns(data, progress_callback=ml_callback)
-        mu = mu_views
-        aligned_data = data[mu.index]
-        S = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
-
+        mu_forecast = pd.Series(forecasts).fillna(0.0)
+        uncertainties = pd.Series(uncertainties_dict).fillna(0.05)
+        
+    elif forecast_method in ["DEEP_LEARNING", "Ensemble"]:
+        logger.info("Using Deep Learning Ensemble Forecast")
+        mu_forecast, uncertainties = ml_forecast_returns(data, progress_callback=ml_callback)
+    
     else:
-        # --- Black-Litterman Strategy (Default) ---
-        logger.info(f"Starting ML forecasting (Ex-Ante) with Black-Litterman for {len(data.columns)} tickers")
-        mu_views, uncertainties = ml_forecast_returns(data, progress_callback=ml_callback)
-        logger.info(f"ML forecasting completed. Got views for {len(mu_views)} tickers.")
-        
-        # Link views to data
-        aligned_data = data[mu_views.index]
-        S_hist = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
-        
+        logger.warning(f"Unknown forecast method '{forecast_method}', defaulting to Lightweight")
+        # Fallback to lightweight
+        forecasts = {}
+        uncertainties_dict = {}
+        for ticker in data.columns:
+            prices = data[ticker].dropna().values
+            val = lightweight_ensemble_forecast(prices)
+            forecasts[ticker] = val
+            uncertainties_dict[ticker] = 0.05
+        mu_forecast = pd.Series(forecasts).fillna(0.0)
+        uncertainties = pd.Series(uncertainties_dict).fillna(0.05)
+
+    # Calculate Historical Covariance (Base for all)
+    aligned_data = data[mu_forecast.index]
+    S_hist = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
+
+    # --- Phase 2: Optimization ---
+    mu = mu_forecast
+    S = S_hist
+    
+    if optimization_method in ["BL", "Black-Litterman"]:
+        logger.info("Applying Black-Litterman Optimization")
         try:
-            # 1. Market Caps (for Market Prior)
-            mcaps = get_market_caps(list(mu_views.index))
+            # If uncertainties missing (e.g. from Historical), set default
+            if uncertainties is None:
+                uncertainties = pd.Series({t: 0.05 for t in mu.index})
             
-            # 2. Market Implied Risk Aversion (Delta)
+            # 1. Market Caps
+            mcaps = get_market_caps(list(mu.index))
+            
+            # 2. Delta
             market_ticker = "^GSPC"
             try:
                 market_data = yf.download(market_ticker, start=start_date, end=end_date, progress=False)
-                # Handle MultiIndex in yfinance 0.2+
+                # Handle YF MultiIndex
                 if isinstance(market_data.columns, pd.MultiIndex):
-                    # Try to find Adj Close for ticker
-                    if "Adj Close" in market_data.columns and market_ticker in market_data["Adj Close"].columns:
+                     if "Adj Close" in market_data.columns and market_ticker in market_data["Adj Close"].columns:
                          market_prices = market_data["Adj Close"][market_ticker]
-                    else:
-                         market_prices = market_data.iloc[:, 0] # Fallback
+                     else:
+                         market_prices = market_data.iloc[:, 0]
                 elif "Adj Close" in market_data.columns:
                     market_prices = market_data["Adj Close"]
                 else:
                     market_prices = market_data.iloc[:, 0]
                 
                 market_prices = market_prices.dropna()
-                
                 if market_prices.empty:
-                     logger.warning("Market prices empty. Using default delta=2.5")
                      delta = 2.5
                 else:
                      delta = black_litterman.market_implied_risk_aversion(market_prices, risk_free_rate=risk_free_rate)
                      logger.info(f"Market implied risk aversion (delta): {delta:.4f}")
             except Exception as e:
-                logger.warning(f"Failed to fetch market prices for delta: {e}. Using delta=2.5")
+                logger.warning(f"Delta calculation failed: {e}. Using delta=2.5")
                 delta = 2.5
             
             if mcaps:
                 logger.info("Applying Black-Litterman with Market Prior")
                 market_prior = black_litterman.market_implied_prior_returns(mcaps, delta, S_hist, risk_free_rate=risk_free_rate)
                 
-                # Omega (Uncertainty matrix) - using forecast uncertainty
-                uncertainties = uncertainties.reindex(mu_views.index).fillna(0.05)
-                omega = np.diag(uncertainties ** 2)
+                curr_uncertainties = uncertainties.reindex(mu.index).fillna(0.05)
+                omega = np.diag(curr_uncertainties ** 2)
                 
-                # Create BL Model
-                bl = BlackLittermanModel(S_hist, pi=market_prior, absolute_views=mu_views, omega=omega, risk_aversion=delta)
-                
+                bl = BlackLittermanModel(S_hist, pi=market_prior, absolute_views=mu, omega=omega, risk_aversion=delta)
                 mu = bl.bl_returns()
-                S = bl.bl_cov() # Posterior covariance
+                S = bl.bl_cov()
                 logger.info("Black-Litterman optimization successful.")
             else:
-                 logger.warning("No market caps available. Fallback to Mean-Variance with ML views.")
-                 mu = mu_views
-                 S = S_hist
+                logger.warning("No market caps available for BL. Fallback to Mean-Variance with Forecast.")
         except Exception as e:
-            logger.error(f"Black-Litterman failed: {e}. Fallback to Mean-Variance with ML views.")
-            mu = mu_views
-            S = S_hist
+             logger.error(f"Black-Litterman failed: {e}. Fallback to Mean-Variance with Forecast.")
+             
+    elif optimization_method in ["MPT", "Mean-Variance", "Classic MPT"]:
+        logger.info("Applying Mean-Variance Optimization")
+        # mu and S are already set to forecast and S_hist
+        pass
 
     # mu and S are now set for EfficientFrontier
 
