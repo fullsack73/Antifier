@@ -104,7 +104,8 @@
 
 /* Body */
 body {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+  /* English/Num: IBM Plex Sans, Korean: Pretendard */
+  font-family: "IBM Plex Sans", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   line-height: 1.6;
