@@ -127,9 +127,7 @@ jobs:
           prerelease: false
           generate_release_notes: true
           body: |
-            ## Antifier Installer Release
-            
-            Self-contained installers for all platforms. No Python or dependencies required!
+            ## Antifier Installer
             
             ### Downloads
             - **macOS**: `antifier-installer-macos`
