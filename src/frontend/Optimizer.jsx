@@ -17,6 +17,7 @@ const Optimizer = () => {
   const [optimizedPortfolio, setOptimizedPortfolio] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [errorDetails, setErrorDetails] = useState(null)
   const [investmentAmount, setInvestmentAmount] = useState("")
   const [allocation, setAllocation] = useState(null)
   const [customTickers, setCustomTickers] = useState([])
@@ -107,6 +108,7 @@ const Optimizer = () => {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    setErrorDetails(null)
     setOptimizedPortfolio(null)
     setAllocation(null)
     setProgress({ percentage: 0, message: t("common.starting", "Starting...") })
@@ -173,7 +175,13 @@ const Optimizer = () => {
 
     } catch (err) {
       console.error(err)
-      setError(err.response ? err.response.data.error : "An error occurred starting optimization")
+      if (err.response && err.response.data) {
+        setError(err.response.data.error || "An error occurred starting optimization")
+        setErrorDetails(err.response.data.details || null)
+      } else {
+        setError("An error occurred starting optimization")
+        setErrorDetails(err.message)
+      }
       setOptimizedPortfolio(null)
       setLoading(false)
     }
@@ -238,8 +246,9 @@ const Optimizer = () => {
           </div>
 
           <div className="optimizer-form-group">
-            <label>{t("optimizer.startDate")}</label>
+            <label htmlFor="startDate">{t("optimizer.startDate")}</label>
             <input
+              id="startDate"
               className="optimizer-input"
               type="date"
               value={startDate}
@@ -248,8 +257,9 @@ const Optimizer = () => {
             />
           </div>
           <div className="optimizer-form-group">
-            <label>{t("optimizer.endDate")}</label>
+            <label htmlFor="endDate">{t("optimizer.endDate")}</label>
             <input
+              id="endDate"
               className="optimizer-input"
               type="date"
               value={endDate}
@@ -258,9 +268,10 @@ const Optimizer = () => {
             />
           </div>
           <div className="optimizer-form-group">
-            <label>{t("optimizer.riskFreeRate")}</label>
+            <label htmlFor="riskFreeRate">{t("optimizer.riskFreeRate")}</label>
             <div className="input-with-symbol">
               <input
+                id="riskFreeRate"
                 className="optimizer-input"
                 type="number"
                 value={riskFreeRate}
@@ -271,9 +282,10 @@ const Optimizer = () => {
             </div>
           </div>
           <div className="optimizer-form-group">
-            <label>{t("optimizer.targetReturn")}</label>
+            <label htmlFor="targetReturn">{t("optimizer.targetReturn")}</label>
             <div className="input-with-symbol">
               <input
+                id="targetReturn"
                 className="optimizer-input"
                 type="number"
                 value={targetReturn}
@@ -283,9 +295,10 @@ const Optimizer = () => {
             </div>
           </div>
           <div className="optimizer-form-group">
-            <label>{t("optimizer.riskTolerance")}</label>
+            <label htmlFor="riskTolerance">{t("optimizer.riskTolerance")}</label>
             <div className="input-with-symbol">
               <input
+                id="riskTolerance"
                 className="optimizer-input"
                 type="number"
                 value={riskTolerance}
@@ -331,7 +344,17 @@ const Optimizer = () => {
         </div>
       </form>
 
-      {error && <div className="optimizer-error">{error}</div>}
+      {error && (
+        <div className="optimizer-error" style={{ padding: '1rem', backgroundColor: '#fee2e2', border: '1px solid #ef4444', borderRadius: '6px', color: '#991b1b', marginBottom: '1rem' }}>
+          <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{t("common.error", "Error")}</div>
+          <div>{error}</div>
+          {errorDetails && (
+            <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', opacity: 0.9, whiteSpace: 'pre-wrap' }}>
+              {errorDetails}
+            </div>
+          )}
+        </div>
+      )}
 
       {optimizedPortfolio && (
         <>

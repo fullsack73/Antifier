@@ -1,5 +1,6 @@
 import json
 import logging
+import hashlib
 from pathlib import Path
 import time
 from datetime import datetime, timedelta
@@ -8,6 +9,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from pypfopt import EfficientFrontier, risk_models, objective_functions, BlackLittermanModel, black_litterman
+from pypfopt.exceptions import OptimizationError
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import gc
 from cache_manager import (
@@ -447,26 +449,24 @@ def get_market_caps(tickers):
 
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
-def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
-                       target_return=None, risk_tolerance=None, portfolio_id=None,
-                       persist_result=False, load_if_available=False, progress_callback=None,
-                       l2_gamma=0.05, max_asset_weight=0.2, 
-                       forecast_method="LIGHTWEIGHT", optimization_method="BL"):
-    """Optimize portfolio and optionally persist or reuse saved results."""
-    # Log cache performance at start of optimization
-    cache = get_cache()
-    cache_stats = cache.stats()
-    logger.info(f"CACHE PERFORMANCE: L1 Hit: {cache_stats['hit_ratios']['l1']:.1%}, L2 Hit: {cache_stats['hit_ratios']['l2']:.1%}, Overall: {cache_stats['hit_ratios']['overall']:.1%}")
-    logger.info(f"CACHE MEMORY: {cache_stats['l1_cache']['memory_usage_mb']:.1f}MB / {cache_stats['l1_cache']['memory_limit_mb']:.1f}MB ({cache_stats['l1_cache']['memory_utilization']:.1%})")
-    
-    # Short-circuit if saved result should be reused
-    if portfolio_id and load_if_available:
-        saved_result = load_portfolio_result(portfolio_id)
-        if saved_result:
-            logger.info(f"Returning previously saved result for {portfolio_id}")
-            return saved_result
 
-    # Get tickers from the selected group or use the provided list
+def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_method, progress_callback=None):
+    """Generate cache key for pipeline, excluding progress callback."""
+    if tickers:
+        tickers_str = ",".join(sorted(tickers))
+    else:
+        tickers_str = "None"
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}"
+    return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
+
+@cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
+def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, forecast_method, progress_callback=None):
+    """
+    Pipeline for Data Fetching, Cleaning, and Forecasting.
+    Decoupled from optimization constraints to enable 'Warm Start'.
+    """
+    logger.info("Executing data_and_forecast_pipeline (Refreshed/Cold Start)")
+    
     if tickers:
         pass
     elif ticker_group:
@@ -474,7 +474,6 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     else:
         raise ValueError("Either ticker_group or tickers must be provided.")
 
-    # Define weighted progress callback wrapper
     def _weighted_progress(stage_start, stage_end, current, total, message):
         if progress_callback and total > 0:
             stage_range = stage_end - stage_start
@@ -482,106 +481,62 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             global_progress = stage_start + normalized
             progress_callback(global_progress, 100, message)
 
-    # Fetch data with comprehensive logging
     logger.info(f"PIPELINE STAGE 1: Attempting to fetch data for {len(tickers)} tickers")
-    logger.info(f"Initial ticker list: {tickers[:10]}{'...' if len(tickers) > 10 else ''}")
-    
-    # Adapter for fetching (0-30%)
     def fetch_callback(current, total, message):
         _weighted_progress(0, 30, current, total, message)
-
+        
     data = get_stock_data(tickers, start_date, end_date, progress_callback=fetch_callback)
-    logger.info(f"PIPELINE STAGE 1 RESULT: Fetched data shape: {data.shape}")
-    logger.info(f"Fetched data columns: {list(data.columns)[:10]}{'...' if len(data.columns) > 10 else ''}")
-
-    # Check if data is empty after fetching
+    
     if data.empty:
-        logger.warning("Could not fetch any valid data for the given tickers and date range. Aborting optimization.")
+        logger.warning("Could not fetch any valid data.")
         return {
             "error": "Could not fetch any valid data for the given tickers and date range."
         }
     
-    # Data cleaning stage
-    logger.info(f"PIPELINE STAGE 2: Data cleaning - before dropna: {len(data.columns)} columns")
     data = data.dropna(axis=1, how='all')
-    logger.info(f"PIPELINE STAGE 2 RESULT: After dropna: {len(data.columns)} columns")
+    final_tickers = data.columns.tolist()
     
-    dropped_tickers = set(tickers) - set(data.columns)
-    if dropped_tickers:
-        logger.warning(f"DROPPED DURING DATA CLEANING: {len(dropped_tickers)} tickers: {list(dropped_tickers)[:10]}{'...' if len(dropped_tickers) > 10 else ''}")
-    
-    tickers = data.columns.tolist()
-    logger.info(f"PIPELINE STAGE 2 FINAL: Proceeding with {len(tickers)} tickers for forecasting")
-
-    # Adapter for ML Forecasting (30-90%)
     def ml_callback(current, total, message):
         _weighted_progress(30, 90, current, total, message)
 
-    # Strategy Selection & Execution
-    mu = None
-    S = None
-    
-    # Check for legacy Ex-Post condition (backtesting far in past)
-    is_ex_post = False
-    try:
-        if isinstance(end_date, str):
-            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-        else:
-            end_dt = end_date
-        if end_dt < datetime.now() - timedelta(days=90):
-            is_ex_post = True
-    except Exception as e:
-        logger.warning(f"Could not parse date for Ex-Post check: {e}")
-
-    # --- DECOUPLED STRATEGY SELECTION ---
-    if is_ex_post and optimization_method == "BL":
-        logger.info("Switching 'BL' to 'MPT' (Historical) due to ex-post date range.")
-        forecast_method = "HISTORICAL"
-        optimization_method = "MPT"
-        
-    logger.info(f"Executing: Forecast={forecast_method}, Optimization={optimization_method}")
-
-    # --- Phase 1: Forecasting ---
     mu_forecast = None
     uncertainties = None
     
     if forecast_method in ["HISTORICAL", "MPT", "CLASSIC_MPT"]:
         logger.info("Using Historical CAGR for Forecasting")
         cagr_series = {}
-        for ticker in data.columns:
+        for ticker in final_tickers:
             try:
                 prices = data[ticker].dropna()
                 if len(prices) >= 2:
                     start_price = prices.iloc[0]
                     end_price = prices.iloc[-1]
                     years = len(prices) / 252.0
-                    if start_price > 0 and end_price > 0 and years > 0:
-                        cagr = (end_price / start_price) ** (1 / years) - 1
-                    else:
-                        cagr = -0.99 
+                    cagr = (end_price / start_price) ** (1 / years) - 1 if (start_price>0 and end_price>0 and years>0) else -0.99
                     cagr_series[ticker] = cagr
                 else:
                     cagr_series[ticker] = 0.0
-            except Exception as e:
-                logger.warning(f"Failed to calculate CAGR for {ticker}: {e}")
+            except Exception:
                 cagr_series[ticker] = 0.0
-        
         mu_forecast = pd.Series(cagr_series).fillna(0)
     
     elif forecast_method in ["LIGHTWEIGHT", "Lightweight"]:
         logger.info("Using Lightweight Ensemble Forecast")
         forecasts = {}
         uncertainties_dict = {}
-        for i, ticker in enumerate(data.columns):
+        for i, ticker in enumerate(final_tickers):
             if i % 10 == 0:
-                ml_callback(i, len(data.columns), f"Lightweight forecasting {i}/{len(data.columns)}")
+                ml_callback(i, len(final_tickers), f"Lightweight forecasting {i}/{len(final_tickers)}")
             try:
                 prices = data[ticker].dropna().values
-                val = lightweight_ensemble_forecast(prices)
+                valid_prices = prices[~np.isnan(prices)]
+                if len(valid_prices) > 0:
+                    val = lightweight_ensemble_forecast(valid_prices)
+                else:
+                    val = 0.05
                 forecasts[ticker] = val
                 uncertainties_dict[ticker] = 0.05
-            except Exception as e:
-                logger.warning(f"Lightweight forecast failed for {ticker}: {e}")
+            except Exception:
                 forecasts[ticker] = 0.05
                 uncertainties_dict[ticker] = 0.05
         
@@ -594,51 +549,124 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     
     else:
         logger.warning(f"Unknown forecast method '{forecast_method}', defaulting to Lightweight")
-        # Fallback to lightweight
         forecasts = {}
         uncertainties_dict = {}
-        for ticker in data.columns:
+        for ticker in final_tickers:
             prices = data[ticker].dropna().values
-            val = lightweight_ensemble_forecast(prices)
+            valid_prices = prices[~np.isnan(prices)]
+            val = lightweight_ensemble_forecast(valid_prices) if len(valid_prices)>0 else 0.05
             forecasts[ticker] = val
             uncertainties_dict[ticker] = 0.05
         mu_forecast = pd.Series(forecasts).fillna(0.0)
         uncertainties = pd.Series(uncertainties_dict).fillna(0.05)
 
-    # Calculate Historical Covariance (Base for all)
     aligned_data = data[mu_forecast.index]
     S_hist = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
-
-    # --- Phase 2: Optimization ---
-    mu = mu_forecast
-    S = S_hist
     
+    latest_prices = {}
+    for ticker in final_tickers:
+        try:
+            series = data[ticker].dropna()
+            if not series.empty:
+                latest_prices[ticker] = float(series.iloc[-1])
+        except Exception:
+            pass
+            
+    return {
+        "mu": mu_forecast,
+        "S": S_hist,
+        "tickers": final_tickers,
+        "uncertainties": uncertainties,
+        "latest_prices": latest_prices
+    }
+
+def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
+                       target_return=None, risk_tolerance=None, portfolio_id=None,
+                       persist_result=False, load_if_available=False, progress_callback=None,
+                       l2_gamma=0.05, max_asset_weight=0.2, 
+                       forecast_method="LIGHTWEIGHT", optimization_method="BL"):
+    """Optimize portfolio and optionally persist or reuse saved results."""
+    # Log cache performance at start of optimization
+    cache = get_cache()
+    try:
+        cache_stats = cache.stats()
+        if 'l1_cache' in cache_stats:
+            logger.info(f"CACHE MEMORY: {cache_stats['l1_cache'].get('memory_usage_mb', 0):.1f}MB")
+    except Exception:
+        pass
+    
+    # Short-circuit if saved result should be reused (Persistence Layer)
+    if portfolio_id and load_if_available:
+        saved_result = load_portfolio_result(portfolio_id)
+        if saved_result:
+            logger.info(f"Returning previously saved result for {portfolio_id}")
+            return saved_result
+
+    # 1. Determine Forecast Method (Handle Ex-Post overrides)
+    is_ex_post = False
+    try:
+        if isinstance(end_date, str):
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+        else:
+            end_dt = end_date
+        if isinstance(end_dt, datetime) and end_dt < datetime.now() - timedelta(days=90):
+            is_ex_post = True
+    except Exception as e:
+        logger.warning(f"Could not parse date for Ex-Post check: {e}")
+
+    if is_ex_post and optimization_method == "BL":
+        logger.info("Switching 'BL' to 'MPT' (Historical) due to ex-post date range.")
+        forecast_method = "HISTORICAL"
+        optimization_method = "MPT"
+        
+    logger.info(f"Executing: Forecast={forecast_method}, Optimization={optimization_method}")
+
+    # 2. Run Cached Pipeline (Data & Forecasting)
+    try:
+        pipeline_result = data_and_forecast_pipeline(
+            start_date, end_date, ticker_group, tickers, forecast_method, 
+            progress_callback=progress_callback
+        )
+    except Exception as e:
+        logger.error(f"Pipeline execution failed: {e}")
+        return {"error": f"Pipeline execution failed: {str(e)}"}
+
+    if "error" in pipeline_result:
+        return pipeline_result
+
+    mu = pipeline_result["mu"]
+    S = pipeline_result["S"]
+    uncertainties = pipeline_result["uncertainties"]
+    final_tickers = pipeline_result["tickers"]
+    latest_prices = pipeline_result.get("latest_prices", {})
+
+    # 3. Apply Optimization Logic (BL or MPT)
     if optimization_method in ["BL", "Black-Litterman"]:
         logger.info("Applying Black-Litterman Optimization")
         try:
-            # If uncertainties missing (e.g. from Historical), set default
+            # If uncertainties missing, set default
             if uncertainties is None:
                 uncertainties = pd.Series({t: 0.05 for t in mu.index})
             
-            # 1. Market Caps
+            # Market Caps
             mcaps = get_market_caps(list(mu.index))
             
-            # 2. Delta
+            # Delta from Market
             market_ticker = "^GSPC"
             try:
-                market_data = yf.download(market_ticker, start=start_date, end=end_date, progress=False)
-                # Handle YF MultiIndex
-                if isinstance(market_data.columns, pd.MultiIndex):
-                     if "Adj Close" in market_data.columns and market_ticker in market_data["Adj Close"].columns:
-                         market_prices = market_data["Adj Close"][market_ticker]
-                     else:
+                market_data = yf.download(market_ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
+                if isinstance(market_data.columns, pd.MultiIndex): 
+                    if 'Close' in market_data.columns.get_level_values(0):
+                         market_prices = market_data['Close']
+                    else:
                          market_prices = market_data.iloc[:, 0]
-                elif "Adj Close" in market_data.columns:
-                    market_prices = market_data["Adj Close"]
+                elif 'Close' in market_data.columns:
+                    market_prices = market_data['Close']
                 else:
                     market_prices = market_data.iloc[:, 0]
-                
+
                 market_prices = market_prices.dropna()
+                
                 if market_prices.empty:
                      delta = 2.5
                 else:
@@ -650,12 +678,12 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             
             if mcaps:
                 logger.info("Applying Black-Litterman with Market Prior")
-                market_prior = black_litterman.market_implied_prior_returns(mcaps, delta, S_hist, risk_free_rate=risk_free_rate)
+                market_prior = black_litterman.market_implied_prior_returns(mcaps, delta, S, risk_free_rate=risk_free_rate)
                 
                 curr_uncertainties = uncertainties.reindex(mu.index).fillna(0.05)
                 omega = np.diag(curr_uncertainties ** 2)
                 
-                bl = BlackLittermanModel(S_hist, pi=market_prior, absolute_views=mu, omega=omega, risk_aversion=delta)
+                bl = BlackLittermanModel(S, pi=market_prior, absolute_views=mu, omega=omega, risk_aversion=delta)
                 mu = bl.bl_returns()
                 S = bl.bl_cov()
                 logger.info("Black-Litterman optimization successful.")
@@ -666,82 +694,70 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
              
     elif optimization_method in ["MPT", "Mean-Variance", "Classic MPT"]:
         logger.info("Applying Mean-Variance Optimization")
-        # mu and S are already set to forecast and S_hist
         pass
 
-    # mu and S are now set for EfficientFrontier
+    # 4. Efficient Frontier Optimization
+    try:
+        ef = EfficientFrontier(mu, S, weight_bounds=(0, max_asset_weight))
 
+        # Add L2 regularization
+        if l2_gamma > 0:
+            ef.add_objective(objective_functions.L2_reg, gamma=l2_gamma)
 
-    # Initialize Efficient Frontier
-    ef = EfficientFrontier(mu, S, weight_bounds=(0, max_asset_weight))
+        # Set optimization objective
+        if target_return:
+            ef.efficient_return(target_return)
+        elif risk_tolerance:
+            ef.efficient_risk(risk_tolerance)
+        else:
+            ef.max_sharpe(risk_free_rate=risk_free_rate)
 
-    # Add L2 regularization
-    if l2_gamma > 0:
-        ef.add_objective(objective_functions.L2_reg, gamma=l2_gamma)
+        # Get optimized weights
+        weights = ef.clean_weights()
+        
+        # Filter out assets with near-zero weight
+        final_weights = {ticker: weight for ticker, weight in weights.items() if weight > 1e-4}
 
-    # Set optimization objective
-    if target_return:
-        ef.efficient_return(target_return)
-    elif risk_tolerance:
-        ef.efficient_risk(risk_tolerance)
-    else:
-        ef.max_sharpe()
+        # Get performance metrics
+        performance = ef.portfolio_performance(risk_free_rate=risk_free_rate)
+        # performance: (return, volatility, sharpe)
+        
+        # Filter prices
+        final_prices = {t: latest_prices.get(t, 0.0) for t in final_weights.keys()}
 
-    # Get optimized weights
-    weights = ef.clean_weights()
-    
-    # Filter out assets with near-zero weight
-    final_weights = {ticker: weight for ticker, weight in weights.items() if weight > 1e-4}
-
-    # Get performance metrics
-    performance = ef.portfolio_performance(risk_free_rate=risk_free_rate)
-    optimized_return = performance[0]
-    optimized_std_dev = performance[1]
-    optimized_sharpe_ratio = performance[2]
-
-    # Get the latest prices for the tickers in the final portfolio
-    latest_prices = {}
-    if final_weights:
-        final_tickers = list(final_weights.keys())
-        logger.info(f"Fetching latest prices for {len(final_tickers)} final tickers.")
-
-        for ticker in final_tickers:
-            try:
-                ticker_obj = yf.Ticker(ticker)
-                # Fetching history for the last 2 days to get the most recent closing price
-                hist = ticker_obj.history(period="2d", auto_adjust=True)
-                if not hist.empty and 'Close' in hist.columns:
-                    latest_prices[ticker] = hist['Close'].iloc[-1]
-                    logger.info(f"Successfully fetched latest price for {ticker}: {latest_prices[ticker]:.2f}")
-                else:
-                    logger.warning(f"Could not retrieve latest price for {ticker}. It might be delisted or data is unavailable.")
-            except Exception as e:
-                logger.error(f"An error occurred while fetching the latest price for {ticker}: {e}")
-
-
-    result_payload = {
-        "weights": final_weights,
-        "return": optimized_return,
-        "risk": optimized_std_dev,
-        "sharpe_ratio": optimized_sharpe_ratio,
-        "prices": latest_prices
-    }
-
-    if portfolio_id and persist_result:
-        metadata = {
-            "start_date": str(start_date),
-            "end_date": str(end_date),
-            "risk_free_rate": risk_free_rate,
-            "ticker_group": ticker_group,
-            "tickers": tickers,
-            "target_return": target_return,
-            "risk_tolerance": risk_tolerance,
-            "l2_gamma": l2_gamma,
-            "max_asset_weight": max_asset_weight
+        result_payload = {
+            "weights": final_weights,
+            "return": performance[0],
+            "risk": performance[1],
+            "sharpe_ratio": performance[2],
+            "prices": final_prices
         }
-        save_portfolio_result(portfolio_id, result_payload, metadata)
-        result_payload["portfolio_id"] = portfolio_id
-    elif persist_result and not portfolio_id:
-        logger.warning("persist_result is True but portfolio_id is missing; skipping save")
 
-    return result_payload
+        if portfolio_id and persist_result:
+            metadata = {
+                "start_date": str(start_date),
+                "end_date": str(end_date),
+                "risk_free_rate": risk_free_rate,
+                "ticker_group": ticker_group,
+                "tickers": tickers,
+                "target_return": target_return,
+                "risk_tolerance": risk_tolerance,
+                "l2_gamma": l2_gamma,
+                "max_asset_weight": max_asset_weight
+            }
+            save_portfolio_result(portfolio_id, result_payload, metadata)
+            result_payload["portfolio_id"] = portfolio_id
+        
+        return result_payload
+
+    except OptimizationError as e:
+        logger.warning(f"pypfopt OptimizationError: {e}")
+        return {
+            "error": "Infeasible constraints. The portfolio cannot achieve the 'Target Return' with the current constraints.",
+            "details": str(e)
+        }
+    except Exception as e:
+        logger.error(f"General Optimization Exception: {e}")
+        return {
+            "error": f"Optimization failed: {str(e)}"
+        }
