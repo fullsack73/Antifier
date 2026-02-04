@@ -421,6 +421,7 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None):
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
+@cached(l1_ttl=86400, l2_ttl=604800)  # 24 hours L1, 7 days L2 (Market caps change slowly)
 def get_market_caps(tickers):
     """Fetch market capitalizations for tickers using yfinance."""
     mcaps = {}
@@ -446,6 +447,37 @@ def get_market_caps(tickers):
     except Exception as e:
         logger.error(f"Market cap fetch failed: {e}")
     return mcaps
+
+
+@cached(l1_ttl=3600, l2_ttl=86400)
+def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate):
+    """Calculate market implied risk aversion (delta) for S&P 500."""
+    market_ticker = "^GSPC"
+    try:
+        # Use simple caching for standard S&P500 fetch
+        market_data = yf.download(market_ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
+        
+        if isinstance(market_data.columns, pd.MultiIndex): 
+            if 'Close' in market_data.columns.get_level_values(0):
+                    market_prices = market_data['Close']
+            else:
+                    market_prices = market_data.iloc[:, 0]
+        elif 'Close' in market_data.columns:
+            market_prices = market_data['Close']
+        else:
+            market_prices = market_data.iloc[:, 0]
+
+        market_prices = market_prices.dropna()
+        
+        if market_prices.empty:
+                return 2.5
+        
+        delta = black_litterman.market_implied_risk_aversion(market_prices, risk_free_rate=risk_free_rate)
+        logger.info(f"Market implied risk aversion (delta): {delta:.4f}")
+        return float(delta)
+    except Exception as e:
+        logger.warning(f"Delta calculation failed: {e}. Using delta=2.5")
+        return 2.5
 
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
@@ -652,29 +684,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             mcaps = get_market_caps(list(mu.index))
             
             # Delta from Market
-            market_ticker = "^GSPC"
-            try:
-                market_data = yf.download(market_ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
-                if isinstance(market_data.columns, pd.MultiIndex): 
-                    if 'Close' in market_data.columns.get_level_values(0):
-                         market_prices = market_data['Close']
-                    else:
-                         market_prices = market_data.iloc[:, 0]
-                elif 'Close' in market_data.columns:
-                    market_prices = market_data['Close']
-                else:
-                    market_prices = market_data.iloc[:, 0]
-
-                market_prices = market_prices.dropna()
-                
-                if market_prices.empty:
-                     delta = 2.5
-                else:
-                     delta = black_litterman.market_implied_risk_aversion(market_prices, risk_free_rate=risk_free_rate)
-                     logger.info(f"Market implied risk aversion (delta): {delta:.4f}")
-            except Exception as e:
-                logger.warning(f"Delta calculation failed: {e}. Using delta=2.5")
-                delta = 2.5
+            delta = get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate)
             
             if mcaps:
                 logger.info("Applying Black-Litterman with Market Prior")
