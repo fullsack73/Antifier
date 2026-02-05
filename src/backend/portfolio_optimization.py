@@ -546,6 +546,38 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
              logger.warning(f"DEBUG: Tickers with large values: {cols_large}")
     except Exception as e:
         logger.error(f"DEBUG: Data check failed: {e}")
+
+    # --- START: STRICT TIMEFRAME / LIVENESS CHECK ---
+    # Drop assets that stopped trading early (Delisted/Stale).
+    # This prevents 0.0 or flat-filled prices which cause Infinity in returns.
+    try:
+        ts_end = pd.Timestamp(end_date)
+        # Allow 14 days of buffer (for holidays or slight delays in data source)
+        staleness_cutoff = ts_end - pd.Timedelta(days=14)
+        
+        stale_tickers = []
+        for ticker in data.columns:
+            last_valid = data[ticker].last_valid_index()
+            # If no data at all, or last data point is before cutoff => DEAD
+            if last_valid is None or last_valid < staleness_cutoff:
+                cutoff_str = staleness_cutoff.date()
+                last_str = last_valid.date() if last_valid else "None"
+                logger.warning(f"Dropping {ticker}: Last data {last_str} < Cutoff {cutoff_str} (Likely DELISTED)")
+                stale_tickers.append(ticker)
+        
+        if stale_tickers:
+            data = data.drop(columns=stale_tickers)
+            logger.info(f"Liveness Check: Dropped {len(stale_tickers)} stale tickers.")
+
+        if data.empty:
+            logger.error("No valid tickers remaining after Liveness Check.")
+            return {
+                "error": f"All tickers were dropped because they stopped trading before {end_date}."
+            }
+    except Exception as e:
+         logger.error(f"Error during Liveness Check: {e}")
+    # --- END: STRICT TIMEFRAME CHECK ---
+
     # Sanitization: Replace infinity with NaN to prevent overflow in covariance calculation
     data = data.replace([np.inf, -np.inf], np.nan)
     data = data.dropna(axis=1, how='all')
@@ -574,6 +606,8 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
             except Exception:
                 cagr_series[ticker] = 0.0
         mu_forecast = pd.Series(cagr_series).fillna(0)
+        # Fix for NoneType error: Ensure uncertainties is initialized for HISTORICAL mode
+        uncertainties = pd.Series({t: 0.0 for t in final_tickers})
     
     elif forecast_method in ["LIGHTWEIGHT", "Lightweight"]:
         logger.info("Using Lightweight Ensemble Forecast")
@@ -726,23 +760,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             logger.info(f"Returning previously saved result for {portfolio_id}")
             return saved_result
 
-    # 1. Determine Forecast Method (Handle Ex-Post overrides)
-    is_ex_post = False
-    try:
-        if isinstance(end_date, str):
-            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-        else:
-            end_dt = end_date
-        if isinstance(end_dt, datetime) and end_dt < datetime.now() - timedelta(days=90):
-            is_ex_post = True
-    except Exception as e:
-        logger.warning(f"Could not parse date for Ex-Post check: {e}")
-
-    if is_ex_post and optimization_method == "BL":
-        logger.info("Switching 'BL' to 'MPT' (Historical) due to ex-post date range.")
-        forecast_method = "HISTORICAL"
-        optimization_method = "MPT"
-        
+    # 1. Determine Forecast Method (User Choice Respected)
     logger.info(f"Executing: Forecast={forecast_method}, Optimization={optimization_method}")
 
     # 2. Run Cached Pipeline (Data & Forecasting)
