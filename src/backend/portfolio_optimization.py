@@ -1,6 +1,7 @@
 import json
 import logging
 import hashlib
+import re
 from pathlib import Path
 import time
 from datetime import datetime, timedelta
@@ -618,6 +619,22 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        l2_gamma=0.05, max_asset_weight=0.2, 
                        forecast_method="LIGHTWEIGHT", optimization_method="BL"):
     """Optimize portfolio and optionally persist or reuse saved results."""
+    
+    # Sanitization: Cleanse tickers if provided (fixes RTF/formatting issues)
+    if tickers:
+        cleaned_tickers = []
+        for t in tickers:
+            # Remove whitespace and trailing backslashes (common in RTF)
+            t_clean = t.strip().rstrip('\\')
+            # Validate: Allow alphanumeric, dots, dashes, carets
+            if t_clean and re.match(r'^[A-Z0-9\.\-\^]+$', t_clean, re.IGNORECASE):
+                cleaned_tickers.append(t_clean)
+            else:
+                logger.warning(f"Ignoring invalid ticker format: '{t}'")
+        tickers = cleaned_tickers
+        if not tickers and not ticker_group:
+             return {"error": "No valid tickers found after sanitization."}
+
     # Log cache performance at start of optimization
     cache = get_cache()
     try:

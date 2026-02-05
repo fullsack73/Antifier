@@ -32,7 +32,10 @@ const Optimizer = () => {
         const tickers = text
           .split("\n")
           .map((t) => t.trim())
-          .filter((t) => t)
+          // Sanitize input: Remove RTF artifacts (\...) and ensuring valid characters
+          .filter((t) => t && !t.startsWith('\\') && !t.startsWith('{') && !t.startsWith('}')) 
+          .map(t => t.replace(/\\$/, '')) // Remove trailing backslashes
+          .filter(t => /^[A-Z0-9.\-^]+$/i.test(t)) // Allow only valid ticker characters
         setCustomTickers(tickers)
       }
       reader.readAsText(file)
