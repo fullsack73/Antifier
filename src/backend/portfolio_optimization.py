@@ -2,9 +2,13 @@ import json
 import logging
 import hashlib
 import re
+import warnings
 from pathlib import Path
 import time
 from datetime import datetime, timedelta
+
+# Silence Protobuf warnings from TensorFlow/Google libraries
+warnings.filterwarnings("ignore", message=".*Protobuf gencode version.*")
 
 import yfinance as yf
 import pandas as pd
@@ -526,6 +530,24 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
             "error": "Could not fetch any valid data for the given tickers and date range."
         }
     
+
+    # DEBUG: Check for large values in data that might cause overflow
+    # Use max() to check magnitude without triggering overflow if possible, or just strict check
+    try:
+        data_max = data.max().max()
+        data_min = data.min().min()
+        logger.info(f"DEBUG: Data range: Min={data_min}, Max={data_max}")
+        if data_max > 1e15 or data_min < -1e15:
+             logger.warning(f"DEBUG: Extremely large values detected in price data!")
+             cols_large = []
+             for col in data.columns:
+                 if data[col].max() > 1e15 or data[col].min() < -1e15:
+                     cols_large.append(col)
+             logger.warning(f"DEBUG: Tickers with large values: {cols_large}")
+    except Exception as e:
+        logger.error(f"DEBUG: Data check failed: {e}")
+    # Sanitization: Replace infinity with NaN to prevent overflow in covariance calculation
+    data = data.replace([np.inf, -np.inf], np.nan)
     data = data.dropna(axis=1, how='all')
     final_tickers = data.columns.tolist()
     
@@ -593,7 +615,60 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         mu_forecast = pd.Series(forecasts).fillna(0.0)
         uncertainties = pd.Series(uncertainties_dict).fillna(0.05)
 
+    # DEBUG: Check Forecasts
+    if mu_forecast is not None:
+         logger.info(f"DEBUG: Forecast stats: Min={mu_forecast.min()}, Max={mu_forecast.max()}")
+         if np.isinf(mu_forecast).any() or (mu_forecast.abs() > 1e6).any():
+             logger.error("DEBUG: mu_forecast contains INF or huge values!")
+             logger.error(f"DEBUG: Bad forecasts: {mu_forecast[np.isinf(mu_forecast) | (mu_forecast.abs() > 1e6)]}")
+         # Sanitize Forecasts
+         mu_forecast = mu_forecast.replace([np.inf, -np.inf], 0.0)
+         mu_forecast = mu_forecast.clip(lower=-1.0, upper=10.0) # Clip unreasonable returns
+
     aligned_data = data[mu_forecast.index]
+
+    # DEBUG: Check aligned data before covariance
+    logger.info(f"DEBUG: aligned_data shape: {aligned_data.shape}")
+    
+    # 1. Replace 0.0 with NaN (Price of 0 causes Division by Zero in returns)
+    aligned_data = aligned_data.replace(0.0, np.nan)
+    
+    # 2. Fill gaps (Forward fill then Backward fill)
+    aligned_data = aligned_data.ffill().bfill()
+    
+    # 3. Check for specific bad values
+    if np.isinf(aligned_data.values).any():
+         logger.error("DEBUG: aligned_data contains INF values even after cleanup!")
+         aligned_data = aligned_data.replace([np.inf, -np.inf], np.nan).dropna(axis=1)
+
+    # 4. Check for remaining NaNs and drop columns (tickers) that are broken
+    if aligned_data.isna().any().any():
+        logger.warning("DEBUG: aligned_data contains NaNs. Dropping bad columns.")
+        aligned_data = aligned_data.dropna(axis=1)
+
+    # Ensure no large values in aligned_data (Price data)
+    cols_to_drop = []
+    for col in aligned_data.columns:
+        if aligned_data[col].max() > 1e8: 
+            logger.warning(f"DEBUG: Dropping {col} due to suspicious price > 1e8: {aligned_data[col].max()}")
+            cols_to_drop.append(col)
+    
+    # Re-align everything based on the survived columns
+    valid_columns = [c for c in aligned_data.columns if c not in cols_to_drop]
+    aligned_data = aligned_data[valid_columns]
+    
+    # Ensure mu_forecast and uncertainties match the valid columns
+    common_tickers = [t for t in mu_forecast.index if t in valid_columns]
+    
+    aligned_data = aligned_data[common_tickers]
+    mu_forecast = mu_forecast[common_tickers]
+    uncertainties = uncertainties[common_tickers]
+    final_tickers = common_tickers
+
+    if aligned_data.empty:
+        logger.error("All tickers were dropped due to data quality issues.")
+        raise ValueError("No valid data remaining after sanitization.")
+
     S_hist = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
     
     latest_prices = {}
@@ -696,6 +771,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             # If uncertainties missing, set default
             if uncertainties is None:
                 uncertainties = pd.Series({t: 0.05 for t in mu.index})
+            
+            # Ensure uncertainties are positive to prevent divide-by-zero
+            uncertainties = uncertainties.clip(lower=1e-4)
             
             # Market Caps
             mcaps = get_market_caps(list(mu.index))
