@@ -550,51 +550,6 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
     data = data.replace([np.inf, -np.inf], np.nan)
     data = data.dropna(axis=1, how='all')
     final_tickers = data.columns.tolist()
-
-    # STRICT DATA INTEGRITY CHECK (User Requested Full Coverage)
-    # Ensure assets are alive for the FULL requested duration (Start to End).
-    # This prevents delisted assets (zeros/NaNs at end) or IPOs (zeros/NaNs at start) from breaking normalization.
-    try:
-        ts_start = pd.Timestamp(start_date)
-        ts_end = pd.Timestamp(end_date)
-        # Tolerance buffer (e.g. 15 days) for holidays/weekend mismatch
-        tolerance = pd.Timedelta(days=15)
-        
-        valid_tickers_integrity = []
-        for ticker in final_tickers:
-            series = data[ticker]
-            first_valid = series.first_valid_index()
-            last_valid = series.last_valid_index()
-            
-            if first_valid is None or last_valid is None:
-                logger.warning(f"Dropping {ticker}: No valid data points found.")
-                continue
-                
-            # Check Start Coverage
-            if first_valid > ts_start + tolerance:
-                logger.warning(f"Dropping {ticker}: Data starts too late ({first_valid.date()} > {ts_start.date()}). Asset did not exist at start.")
-                continue
-                
-            # Check End Coverage (Crucial for Delisted Assets)
-            if last_valid < ts_end - tolerance:
-                logger.warning(f"Dropping {ticker}: Data ends too early ({last_valid.date()} < {ts_end.date()}). Asset likely DELISTED or stale.")
-                continue
-            
-            valid_tickers_integrity.append(ticker)
-        
-        if len(valid_tickers_integrity) < len(final_tickers):
-            logger.info(f"Integrity Check: Dropped {len(final_tickers) - len(valid_tickers_integrity)} tickers due to incomplete timeframe.")
-            final_tickers = valid_tickers_integrity
-            data = data[final_tickers]
-            
-        if data.empty:
-            return {
-                "error": "No tickers survived the strict data integrity check. Ensure assets existed for the full duration."
-            }
-            
-    except Exception as e:
-        logger.error(f"Error during Data Integrity Check: {e}")
-        # Build resilience: if check fails, proceed but log heavily
     
     def ml_callback(current, total, message):
         _weighted_progress(30, 90, current, total, message)
