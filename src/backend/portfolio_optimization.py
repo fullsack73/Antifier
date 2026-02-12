@@ -487,17 +487,17 @@ def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
 
-def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_method, progress_callback=None):
+def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=252, progress_callback=None):
     """Generate cache key for pipeline, excluding progress callback."""
     if tickers:
         tickers_str = ",".join(sorted(tickers))
     else:
         tickers_str = "None"
-    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}"
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}"
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
-def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, forecast_method, progress_callback=None):
+def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=252, progress_callback=None):
     """
     Pipeline for Data Fetching, Cleaning, and Forecasting.
     Decoupled from optimization constraints to enable 'Warm Start'.
@@ -610,7 +610,7 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         uncertainties = pd.Series({t: 0.0 for t in final_tickers})
     
     elif forecast_method in ["LIGHTWEIGHT", "Lightweight"]:
-        logger.info("Using Lightweight Ensemble Forecast")
+        logger.info(f"Using Lightweight Ensemble Forecast (Horizon={forecast_horizon})")
         forecasts = {}
         uncertainties_dict = {}
         for i, ticker in enumerate(final_tickers):
@@ -620,7 +620,7 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
                 prices = data[ticker].dropna().values
                 valid_prices = prices[~np.isnan(prices)]
                 if len(valid_prices) > 0:
-                    val = lightweight_ensemble_forecast(valid_prices)
+                    val = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon)
                 else:
                     val = 0.05
                 forecasts[ticker] = val
@@ -634,6 +634,7 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         
     elif forecast_method in ["DEEP_LEARNING", "Ensemble"]:
         logger.info("Using Deep Learning Ensemble Forecast")
+        # TODO: Update ml_forecast_returns to accept horizon if needed, currently usually 1 year
         mu_forecast, uncertainties = ml_forecast_returns(data, progress_callback=ml_callback)
     
     else:
@@ -643,7 +644,7 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         for ticker in final_tickers:
             prices = data[ticker].dropna().values
             valid_prices = prices[~np.isnan(prices)]
-            val = lightweight_ensemble_forecast(valid_prices) if len(valid_prices)>0 else 0.05
+            val = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon) if len(valid_prices)>0 else 0.05
             forecasts[ticker] = val
             uncertainties_dict[ticker] = 0.05
         mu_forecast = pd.Series(forecasts).fillna(0.0)
@@ -725,8 +726,9 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
                        target_return=None, risk_tolerance=None, portfolio_id=None,
                        persist_result=False, load_if_available=False, progress_callback=None,
-                       l2_gamma=0.05, max_asset_weight=0.2, 
-                       forecast_method="LIGHTWEIGHT", optimization_method="BL"):
+                       l2_gamma=0.05, max_asset_weight=0.2,
+                       forecast_method="LIGHTWEIGHT", optimization_method="BL",
+                       forecast_horizon=252, bl_tau=0.05):
     """Optimize portfolio and optionally persist or reuse saved results."""
     
     # Sanitization: Cleanse tickers if provided (fixes RTF/formatting issues)
@@ -767,6 +769,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     try:
         pipeline_result = data_and_forecast_pipeline(
             start_date, end_date, ticker_group, tickers, forecast_method, 
+            forecast_horizon=forecast_horizon,
             progress_callback=progress_callback
         )
     except Exception as e:
@@ -806,7 +809,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 curr_uncertainties = uncertainties.reindex(mu.index).fillna(0.05)
                 omega = np.diag(curr_uncertainties ** 2)
                 
-                bl = BlackLittermanModel(S, pi=market_prior, absolute_views=mu, omega=omega, risk_aversion=delta)
+                bl = BlackLittermanModel(S, pi=market_prior, absolute_views=mu, omega=omega, risk_aversion=delta, tau=bl_tau)
                 mu = bl.bl_returns()
                 S = bl.bl_cov()
                 logger.info("Black-Litterman optimization successful.")

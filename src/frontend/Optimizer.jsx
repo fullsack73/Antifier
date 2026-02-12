@@ -21,6 +21,9 @@ const Optimizer = () => {
   const [investmentAmount, setInvestmentAmount] = useState("")
   const [allocation, setAllocation] = useState(null)
   const [customTickers, setCustomTickers] = useState([])
+  const [forecastHorizon, setForecastHorizon] = useState("252")
+  const [blTau, setBlTau] = useState("0.05")
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const portfolioFileInputRef = useRef(null)
 
   const handleFileUpload = (e) => {
@@ -128,7 +131,9 @@ const Optimizer = () => {
         risk_tolerance: riskTolerance ? Number.parseFloat(riskTolerance) / 100 : null,
         request_id: requestId,
         forecast_method: forecastMethod,
-        optimization_method: optimizationMethod
+        optimization_method: optimizationMethod,
+        forecast_horizon: Number.parseInt(forecastHorizon),
+        bl_tau: Number.parseFloat(blTau)
       }
 
       if (tickerGroup === "CUSTOM") {
@@ -196,6 +201,9 @@ const Optimizer = () => {
       <div className="optimizer-actions-row" style={{ marginBottom: "1rem" }}>
         <button className="optimizer-secondary-button" type="button" onClick={triggerPortfolioUpload}>
           {t("optimizer.loadPortfolio", "Load JSON")}
+        </button>
+        <button className="optimizer-secondary-button" type="button" onClick={() => setShowAdvanced(true)}>
+          {t("optimizer.advancedSettings", "Advanced Settings")}
         </button>
         <input
           type="file"
@@ -308,11 +316,57 @@ const Optimizer = () => {
                 onChange={(e) => setRiskTolerance(e.target.value)}
                 placeholder="e.g., 15"
               />
+
             </div>
           </div>
           <button type="submit" className="optimizer-submit-button" disabled={loading}>
             {loading ? t("common.processing", "Processing...") : t("optimizer.submit")}
           </button>
+
+          {showAdvanced && (
+            <div className="optimizer-modal-overlay" onClick={() => setShowAdvanced(false)}>
+              <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
+                <div className="optimizer-modal-header">
+                  <h3 className="optimizer-modal-title">{t("optimizer.advancedSettings", "Advanced Settings")}</h3>
+                  <button type="button" className="optimizer-modal-close" onClick={() => setShowAdvanced(false)}>×</button>
+                </div>
+                <div className="optimizer-modal-body">
+                  <div className="optimizer-form-group">
+                    <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
+                    <input
+                      id="forecastHorizon"
+                      className="optimizer-input"
+                      type="number"
+                      value={forecastHorizon}
+                      onChange={(e) => setForecastHorizon(e.target.value)}
+                      placeholder="252"
+                    />
+                  </div>
+
+                  {optimizationMethod === "BL" && (
+                    <div className="optimizer-form-group">
+                      <label htmlFor="blTau" title="A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.">{t("optimizer.blTau", "Black-Litterman Tau")}</label>
+                      <input
+                        id="blTau"
+                        className="optimizer-input"
+                        type="number"
+                        step="0.01"
+                        value={blTau}
+                        onChange={(e) => setBlTau(e.target.value)}
+                        placeholder="0.05"
+                      />
+                      <small style={{ display: 'block', marginTop: '4px', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                        {t("optimizer.blTauHelp", "Confidence in market equilibrium: Lower = Higher Confidence")}
+                      </small>
+                    </div>
+                  )}
+                </div>
+                <div className="optimizer-modal-footer">
+                  <button type="button" className="optimizer-secondary-button" onClick={() => setShowAdvanced(false)}>{t("common.done", "Done")}</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {loading && progress && (
             <div className="optimizer-progress-container" style={{

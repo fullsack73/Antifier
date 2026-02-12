@@ -20,12 +20,13 @@ class ARIMA():
         self.seasonal = seasonal
         self.suppress_warnings = suppress_warnings
     
-    def forecast(self, prices):
+    def forecast(self, prices, horizon=252):
         """
         Forecast annual log return and volatility using ARIMA model.
         
         Args:
             prices: Array-like of historical prices
+            horizon: Forecast horizon in days (default: 252)
             
         Returns:
             tuple: (expected_annual_log_return, annual_volatility)
@@ -52,9 +53,9 @@ class ARIMA():
                     max_p=3, max_q=3, max_d=2
                 )
             
-            # Forecast next 252 days (1 year) of log returns
+            # Forecast 'horizon' days of log returns
             forecast_log_returns, _ = model.predict(
-                n_periods=252,
+                n_periods=horizon,
                 return_conf_int=True
             )
             
@@ -64,7 +65,7 @@ class ARIMA():
             
             # Calculate annual volatility from daily log returns std dev
             forecast_std = np.std(forecast_log_returns)
-            annual_volatility = forecast_std * np.sqrt(252)
+            annual_volatility = forecast_std * np.sqrt(252) # Volatility is usually annualized regardless of horizon
             
             # Ensure minimum volatility
             annual_volatility = max(annual_volatility, 0.01)
@@ -80,9 +81,9 @@ class ARIMA():
                 x = np.arange(len(log_prices)).reshape(-1, 1)
                 slope, intercept, _, _, _ = linregress(x.flatten(), log_prices)
                 
-                # Predict future log price (252 days out)
+                # Predict future log price (horizon days out)
                 current_log_price = log_prices[-1]
-                future_log_price = slope * (len(log_prices) + 252) + intercept
+                future_log_price = slope * (len(log_prices) + horizon) + intercept
                 
                 # Expected log return
                 expected_log_return = future_log_price - current_log_price

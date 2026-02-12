@@ -1929,3 +1929,77 @@ h2 {
   margin-top: var(--spacing-2xl);
 }
 */
+/* ============================================================================
+   19. MODALS (Added)
+   ============================================================================ */
+.optimizer-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5); /* Dimmed background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000; /* High z-index */
+  backdrop-filter: blur(4px);
+}
+
+.optimizer-modal-content {
+  background-color: var(--color-bg-elevated, #252b45);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 500px;
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--color-border);
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.optimizer-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--spacing-md);
+}
+
+.optimizer-modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.optimizer-modal-close {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.25rem;
+  transition: color 0.2s;
+}
+
+.optimizer-modal-close:hover {
+  color: var(--color-text-primary);
+}
+
+.optimizer-modal-body {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.optimizer-modal-footer {
+  margin-top: var(--spacing-xl);
+  display: flex;
+  justify-content: flex-end;
+}
