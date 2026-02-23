@@ -22,6 +22,7 @@ const Optimizer = () => {
   const [allocation, setAllocation] = useState(null)
   const [customTickers, setCustomTickers] = useState([])
   const [forecastHorizon, setForecastHorizon] = useState("252")
+  const [minHistory, setMinHistory] = useState("100")
   const [blTau, setBlTau] = useState("0.05")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const portfolioFileInputRef = useRef(null)
@@ -133,6 +134,7 @@ const Optimizer = () => {
         forecast_method: forecastMethod,
         optimization_method: optimizationMethod,
         forecast_horizon: Number.parseInt(forecastHorizon),
+        min_history: Number.parseInt(minHistory),
         bl_tau: Number.parseFloat(blTau)
       }
 
@@ -340,6 +342,18 @@ const Optimizer = () => {
                       value={forecastHorizon}
                       onChange={(e) => setForecastHorizon(e.target.value)}
                       placeholder="252"
+                    />
+                  </div>
+
+                  <div className="optimizer-form-group">
+                    <label htmlFor="minHistory" title="Minimum number of historical data points required for a ticker to be included.">{t("optimizer.minHistory", "Min. Data History (Days)")}</label>
+                    <input
+                      id="minHistory"
+                      className="optimizer-input"
+                      type="number"
+                      value={minHistory}
+                      onChange={(e) => setMinHistory(e.target.value)}
+                      placeholder="100"
                     />
                   </div>
 

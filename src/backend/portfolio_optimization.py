@@ -487,17 +487,17 @@ def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
 
-def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=252, progress_callback=None):
+def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=252, min_history=100, progress_callback=None):
     """Generate cache key for pipeline, excluding progress callback."""
     if tickers:
         tickers_str = ",".join(sorted(tickers))
     else:
         tickers_str = "None"
-    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}"
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}"
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
-def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=252, progress_callback=None):
+def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=252, min_history=100, progress_callback=None):
     """
     Pipeline for Data Fetching, Cleaning, and Forecasting.
     Decoupled from optimization constraints to enable 'Warm Start'.
@@ -530,6 +530,25 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
             "error": "Could not fetch any valid data for the given tickers and date range."
         }
     
+    # --- START: MINIMUM HISTORY CHECK ---
+    # Drop assets with insufficient data points (User Configurable)
+    if min_history > 0:
+        valid_counts = data.count()
+        insufficient_tickers = valid_counts[valid_counts < min_history].index.tolist()
+        
+        if insufficient_tickers:
+            logger.info(f"Dropped {len(insufficient_tickers)} tickers due to insufficient history (<{min_history} points): {insufficient_tickers}")
+            data = data.drop(columns=insufficient_tickers)
+            # Update tickers list to reflect drops (though data columns are the source of truth)
+            if tickers:
+                tickers = [t for t in tickers if t not in insufficient_tickers]
+            
+        if data.empty:
+            logger.warning(f"All tickers dropped due to insufficient history (<{min_history} points).")
+            return {
+                "error": f"All selected tickers have less than {min_history} days of data in the selected period."
+            }
+    # --- END: MINIMUM HISTORY CHECK ---
 
     # DEBUG: Check for large values in data that might cause overflow
     # Use max() to check magnitude without triggering overflow if possible, or just strict check
@@ -728,7 +747,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        persist_result=False, load_if_available=False, progress_callback=None,
                        l2_gamma=0.05, max_asset_weight=0.2,
                        forecast_method="LIGHTWEIGHT", optimization_method="BL",
-                       forecast_horizon=252, bl_tau=0.05):
+                       forecast_horizon=252, min_history=100, bl_tau=0.05):
     """Optimize portfolio and optionally persist or reuse saved results."""
     
     # Sanitization: Cleanse tickers if provided (fixes RTF/formatting issues)
@@ -770,6 +789,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         pipeline_result = data_and_forecast_pipeline(
             start_date, end_date, ticker_group, tickers, forecast_method, 
             forecast_horizon=forecast_horizon,
+            min_history=min_history,
             progress_callback=progress_callback
         )
     except Exception as e:

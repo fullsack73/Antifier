@@ -365,6 +365,7 @@ def optimize_portfolio_endpoint():
     
     # Advanced settings
     forecast_horizon = int(data.get('forecast_horizon', 252))
+    min_history = int(data.get('min_history', 100))
     bl_tau = float(data.get('bl_tau', 0.05))
 
     if not request_id:
@@ -395,6 +396,7 @@ def optimize_portfolio_endpoint():
                 forecast_method=params.get('forecast_method', 'LIGHTWEIGHT'),
                 optimization_method=params.get('optimization_method', 'BL'),
                 forecast_horizon=params.get('forecast_horizon', 252),
+                min_history=params.get('min_history', 100),
                 bl_tau=params.get('bl_tau', 0.05)
             )
 
@@ -417,7 +419,8 @@ def optimize_portfolio_endpoint():
         'risk_tolerance': risk_tolerance, 'portfolio_id': portfolio_id, 
         'persist_result': persist_result, 'load_if_available': load_if_available,
         'forecast_method': forecast_method, 'optimization_method': optimization_method,
-        'forecast_horizon': forecast_horizon, 'bl_tau': bl_tau
+        'forecast_horizon': forecast_horizon, 'bl_tau': bl_tau,
+        'min_history': min_history
     }
     thread = threading.Thread(target=background_optimization, args=(request_id, params))
     thread.daemon = True
