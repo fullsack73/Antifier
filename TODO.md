@@ -1,6 +1,3 @@
-- [X] 일정 기간 학습 모델 그대로 두고 리턴 리스크만 조정해서 다시 뽑을 수 있게 하기(재사용성) 
-- [ ] Black-Litterman 수치 커스텀 가능하게 만들기 
-- [X] 기술스택, 목표 등등 스펙 최신화
-- [X] MPT-BL 선택 가능하게 만들기 
-- [X] 선택 가능한 옵션으로 경량예측 추가하기
-- [X] 폰트 이쁜거 찾아서 그걸로 통일
+- [ ] drop tickers with n<252 when optimize
+- [ ] fix stock screener to accept custom .csv files
+- [ ] make regress use LSTM?
