@@ -6,7 +6,9 @@ from datetime import datetime, timedelta
 from hedge_analysis import analyze_hedge_relationship
 from portfolio_benchmark import calculate_portfolio_benchmark
 
-import lightgbm as lgb
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Input
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from financial_statement import get_financial_ratios, get_financial_statements
 from portfolio_optimization import (
     optimize_portfolio,
@@ -84,19 +86,42 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
             print(f"Not enough data for {ticker} after feature engineering. Consider a longer date range.")
             return {}
             
-        # Prepare data for regression
+        # Prepare data for regression        
         feature_columns = ['Time', 'MA7', 'MA21', 'Lag1', 'Volume']
-        X = df[feature_columns]
-        y = df['Price_Change'].values  # Predict the change, not the absolute price
+        X = df[feature_columns].values
         
-        # Fit LightGBM model
-        model = lgb.LGBMRegressor(n_estimators=100, learning_rate=0.1, num_leaves=31, verbose=-1)
-        model.fit(X, y)
+        # Target variable: Price Change
+        y = df['Price_Change'].values.reshape(-1, 1) # Predict the change, not the absolute price
+        
+        # Scale data
+        # Use Standard Scaler for Price Change to center around 0
+        scaler_X = MinMaxScaler(feature_range=(0, 1))
+        scaler_y = StandardScaler()
+        
+        X_scaled = scaler_X.fit_transform(X)
+        y_scaled = scaler_y.fit_transform(y)
+        
+        # Reshape for LSTM: (samples, time_steps, features)
+        X_reshaped = X_scaled.reshape((X_scaled.shape[0], 1, X_scaled.shape[1]))
+        
+        # Build LSTM model
+        model = Sequential()
+        model.add(Input(shape=(1, X_scaled.shape[1])))
+        model.add(LSTM(50, activation='tanh')) 
+        model.add(Dense(1)) # Linear activation by default
+        model.compile(optimizer='adam', loss='mse')
+        
+        # Fit model
+        model.fit(X_reshaped, y_scaled, epochs=50, verbose=0)
         
         # Generate regression line based on predicted changes
-        predicted_changes = model.predict(X)
-        # The regression line is the cumulative sum of predicted changes, starting from the first close price
-        regression_line = df['Close'].iloc[0] + np.cumsum(predicted_changes)
+        predicted_changes_scaled = model.predict(X_reshaped)
+        predicted_changes = scaler_y.inverse_transform(predicted_changes_scaled).flatten()
+        
+        # The regression line is the cumulative sum of predicted changes, starting from the price before the first prediction
+        # Since we dropped the first row, df['Lag1'].iloc[0] is the Close price of the dropped row (t-1)
+        initial_price = df['Lag1'].iloc[0]
+        regression_line = initial_price + np.cumsum(predicted_changes)
         
         # Convert to date:value format
         dates = df.index.strftime('%Y-%m-%d').tolist()
@@ -108,29 +133,34 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
         company_name = info.get('longName', ticker)
 
         future_predictions = {}
-        if future_days > 0 and not X.empty:
+        if future_days > 0 and not X_reshaped.size == 0:
             last_known_price = df['Close'].iloc[-1]
             last_date = df.index[-1]
             
             # Use the last row of features as the starting point for future predictions
+            # We work with actual values first, then scale them for prediction
             last_features = df[feature_columns].iloc[-1:].copy()
 
             for i in range(future_days):
+                # Scale input for prediction
+                last_features_scaled = scaler_X.transform(last_features.values)
+                last_features_reshaped = last_features_scaled.reshape((1, 1, last_features_scaled.shape[1]))
+                
                 # Predict the change for the next day
-                predicted_change = model.predict(last_features)[0]
+                predicted_change_scaled = model.predict(last_features_reshaped, verbose=0)
+                predicted_change = scaler_y.inverse_transform(predicted_change_scaled)[0][0]
                 
                 # Calculate the new price
                 next_price = last_known_price + predicted_change
                 
                 # Update features for the next iteration
                 next_date = last_date + timedelta(days=i + 1)
+                
+                # Update DataFrame for features (simpler to keep using DataFrame for column mapping)
                 last_features['Time'] += 1
                 last_features['Lag1'] = last_known_price
                 
-                # For MAs, we'd ideally re-calculate based on a rolling window of prices.
-                # This is a simplification; for more accuracy, we'd append the new price and re-calculate.
-                # For this implementation, we'll keep them constant from the last known value,
-                # as re-calculating them properly requires a more complex setup.
+                # For MAs, we keeps them constant as per original simplification
                 
                 # Store prediction
                 future_predictions[next_date.strftime('%Y-%m-%d')] = float(next_price)
