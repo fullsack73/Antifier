@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from hedge_analysis import analyze_hedge_relationship
 from portfolio_benchmark import calculate_portfolio_benchmark
 
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Input
+
+from forecast_models import LSTMPriceModel, LightGBMPriceModel, ARIMAPriceModel
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from financial_statement import get_financial_ratios, get_financial_statements
 from portfolio_optimization import (
@@ -51,7 +51,7 @@ def validate_date_range(start_date, end_date):
     except Exception as e:
         raise ValueError(f"Invalid date format. Please use YYYY-MM-DD format")
 
-def generate_regression_data(ticker="", start_date=None, end_date=None, future_days=0):
+def generate_regression_data(ticker="", start_date=None, end_date=None, future_days=0, model_type='LSTM'):
     try:
         if start_date and end_date:
             start_date, end_date = validate_date_range(start_date, end_date)
@@ -59,7 +59,7 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
             end_date = datetime.now() - timedelta(days=1)
             start_date = end_date - timedelta(days=90)
         
-        print(f"Fetching {ticker} data from {start_date} to {end_date}")
+        print(f"Fetching {ticker} data from {start_date} to {end_date} using {model_type}")
         
         # fetch stock data
         stock = yf.Ticker(ticker)
@@ -104,15 +104,17 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
         # Reshape for LSTM: (samples, time_steps, features)
         X_reshaped = X_scaled.reshape((X_scaled.shape[0], 1, X_scaled.shape[1]))
         
-        # Build LSTM model
-        model = Sequential()
-        model.add(Input(shape=(1, X_scaled.shape[1])))
-        model.add(LSTM(50, activation='tanh')) 
-        model.add(Dense(1)) # Linear activation by default
-        model.compile(optimizer='adam', loss='mse')
-        
+        # Select and train model
+        input_shape = (1, X_scaled.shape[1])
+        if model_type == 'LightGBM':
+            model = LightGBMPriceModel()
+        elif model_type == 'ARIMA':
+            model = ARIMAPriceModel()
+        else:
+            model = LSTMPriceModel(input_shape)
+
         # Fit model
-        model.fit(X_reshaped, y_scaled, epochs=50, verbose=0)
+        model.fit(X_reshaped, y_scaled)
         
         # Generate regression line based on predicted changes
         predicted_changes_scaled = model.predict(X_reshaped)
@@ -147,6 +149,7 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
                 last_features_reshaped = last_features_scaled.reshape((1, 1, last_features_scaled.shape[1]))
                 
                 # Predict the change for the next day
+                # wrappers should handle X_reshaped (3D) and return scaled prediction
                 predicted_change_scaled = model.predict(last_features_reshaped, verbose=0)
                 predicted_change = scaler_y.inverse_transform(predicted_change_scaled)[0][0]
                 
@@ -241,6 +244,8 @@ def get_data():
     end_date = request.args.get('end_date')
     include_regression = request.args.get('regression', 'false').lower() == 'true'
     future_days_str = request.args.get('future_days', '0')
+    model_type = request.args.get('model', 'LSTM')
+    
     try:
         future_days = int(future_days_str)
         if future_days < 0:
@@ -249,8 +254,9 @@ def get_data():
         future_days = 0 # Default to 0 if conversion fails
 
     if include_regression:
-        data = generate_regression_data(ticker, start_date, end_date, future_days=future_days)
+        data = generate_regression_data(ticker, start_date, end_date, future_days=future_days, model_type=model_type)
     else:
+        # Default data gen doesn't use model
         data = generate_data(ticker, start_date, end_date)
 
     return jsonify(data)

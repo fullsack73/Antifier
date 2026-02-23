@@ -6,6 +6,7 @@ import i18n from "./config/i18n"
 import StockChart from "./StockChart.jsx"
 import DateInput from "./DateInput.jsx"
 import TickerInput from "./TickerInput.jsx"
+import ModelSelector from "./ModelSelector.jsx"
 import RegressionChart from "./RegressionChart.jsx"
 import Selector from "./Selector.jsx"
 import HedgeAnalysis from "./Hedge.jsx"
@@ -22,6 +23,7 @@ function AppContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [ticker, setTicker] = useState("AAPL")
+  const [modelType, setModelType] = useState("LSTM")
   const [companyName, setCompanyName] = useState("Apple Inc.")
   const [showChart, setShowChart] = useState(false)
   const [regressionData, setRegressionData] = useState(null)
@@ -51,7 +53,7 @@ function AppContent() {
     setLoading(true)
     setError(null)
 
-    let url = `/api/get-data?ticker=${ticker}&regression=true&future_days=${futureDays}`
+    let url = `/api/get-data?ticker=${ticker}&regression=true&future_days=${futureDays}&model=${modelType}`
     if (appStartDate && appEndDate) {
       url += `&start_date=${appStartDate}&end_date=${appEndDate}`
     }
@@ -101,7 +103,7 @@ function AppContent() {
 
     return () => clearTimeout(debounceTimeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appStartDate, appEndDate, ticker, futureDays])
+  }, [appStartDate, appEndDate, ticker, futureDays, modelType])
 
   // Initial date setup
   useEffect(() => {
@@ -158,6 +160,7 @@ function AppContent() {
             <h1>{t("regression.title")}</h1>
             <div className="controls-container">
               <TickerInput onTickerChange={handleTickerChange} initialTicker="AAPL" />
+              <ModelSelector onModelChange={setModelType} initialModel={modelType} />
               <DateInput onDateRangeChange={handleDateRangeChange} />
               <FutureDateInput onFutureDaysChange={handleFutureDaysChange} initialDays={futureDays} />
             </div>

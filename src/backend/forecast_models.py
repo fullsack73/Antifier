@@ -3,6 +3,10 @@ import numpy as np
 import logging
 from scipy.stats import linregress
 import warnings
+import lightgbm as lgb
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense, Input
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 logger = logging.getLogger(__name__)
 
@@ -471,3 +475,63 @@ class EnsemblePredictor:
             'uncertainty': float(std_prediction),
             'components': component_results
         }
+
+class LSTMPriceModel:
+    def __init__(self, input_shape):
+        self.model = Sequential()
+        self.model.add(Input(shape=input_shape))
+        self.model.add(LSTM(50, activation='tanh'))
+        self.model.add(Dense(1))
+        self.model.compile(optimizer='adam', loss='mse')
+
+    def fit(self, X, y, epochs=50, verbose=0):
+        # X is already reshaped to 3D in app.py before calling, or we handle it here?
+        # Let's assume input_shape passed in __init__ matches X.shape[1:]
+        self.model.fit(X, y, epochs=epochs, verbose=verbose)
+
+    def predict(self, X, verbose=0):
+        return self.model.predict(X, verbose=verbose)
+
+class LightGBMPriceModel:
+    def __init__(self):
+        self.model = lgb.LGBMRegressor(n_estimators=100, learning_rate=0.1, verbose=-1)
+
+    def fit(self, X, y):
+        # LightGBM expects 2D array. If X is 3D (from LSTM logic), flatten it.
+        if len(X.shape) == 3:
+            X = X.reshape(X.shape[0], X.shape[2])
+        self.model.fit(X, y.ravel())
+
+    def predict(self, X, verbose=0):
+        if len(X.shape) == 3:
+            X = X.reshape(X.shape[0], X.shape[2])
+        return self.model.predict(X).reshape(-1, 1)
+
+class ARIMAPriceModel:
+    def __init__(self):
+        self.model = None
+
+    def fit(self, X, y):
+        # We use X as exogenous variables
+        # If X is 3D, flatten it
+        if len(X.shape) == 3:
+            X = X.reshape(X.shape[0], X.shape[2])
+        
+        # Suppress warnings and fit
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            # auto_arima is computationally expensive, so we use some faster settings
+            self.model = auto_arima(y.ravel(), exogenous=X, 
+                                  seasonal=False, 
+                                  stepwise=True,
+                                  suppress_warnings=True,
+                                  error_action='ignore',
+                                  max_p=3, max_q=3)
+
+    def predict(self, X, verbose=0):
+        if len(X.shape) == 3:
+            X = X.reshape(X.shape[0], X.shape[2])
+            
+        # Predict n_periods based on X length
+        n_periods = X.shape[0]
+        return self.model.predict(n_periods=n_periods, X=X).values.reshape(-1, 1)
