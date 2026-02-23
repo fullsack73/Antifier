@@ -2099,6 +2099,7 @@ h2 {
 /* Reduce gap if needed to align with DateInput */
 .control-column input,
 .control-column select {
-  height: 48px; /* Force consistent height */
   box-sizing: border-box;
+  /* Match DateInput height by ensuring consistent line-height and padding */
+  line-height: normal; 
 }
