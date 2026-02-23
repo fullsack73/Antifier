@@ -534,4 +534,4 @@ class ARIMAPriceModel:
             
         # Predict n_periods based on X length
         n_periods = X.shape[0]
-        return self.model.predict(n_periods=n_periods, X=X).values.reshape(-1, 1)
+        return self.model.predict(n_periods=n_periods, X=X).reshape(-1, 1)
