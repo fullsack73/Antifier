@@ -444,6 +444,22 @@ h2 {
   min-width: 200px;
 }
 
+/* Control Column (mirrors date-input-container) */
+.control-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Ensure children take full width */
+.control-column .ticker-input-container {
+  width: 100%;
+  min-width: 0; /* Reset min-width to avoid flexbox overflow issues */
+  flex: 0 0 auto;
+}
+
 .date-input-group {
   display: flex;
   flex-direction: column;
@@ -517,6 +533,14 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%; /* Ensure full width */
+}
+
+/* Ensure container takes full space if needed in flex context */
+.ticker-input-container {
+  flex: 1;
+  min-width: 200px;
+  width: 100%;
 }
 
 .ticker-input-group label {
@@ -540,6 +564,7 @@ h2 {
   text-transform: uppercase;
 }
 
+
 .ticker-input-group input:focus {
   outline: none;
   border-color: var(--accent-blue);
@@ -549,6 +574,40 @@ h2 {
 
 .ticker-input-group input:hover {
   border-color: rgba(59, 130, 246, 0.5);
+}
+
+.ticker-input-group select {
+  padding: 12px 16px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  font-family: "IBM Plex Sans", "Pretendard", sans-serif;
+  text-transform: uppercase;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 12px;
+  cursor: pointer;
+}
+
+.ticker-input-group select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background-color: rgba(15, 23, 42, 0.7);
+}
+
+.ticker-input-group select:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.ticker-input-group select option {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .ticker-input-container button {
@@ -2002,4 +2061,44 @@ h2 {
   margin-top: var(--spacing-xl);
   display: flex;
   justify-content: flex-end;
+}
+/* Column wrapper for vertically stacked inputs */
+.control-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Ensure children take full width */
+.control-column .ticker-input-container {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  /* Reset previous styles that might force fixed width */
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+/* Ensure model selector aligns */
+.control-column .model-selector-container {
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+/* Override App.css for precise alignment */
+.control-column {
+  margin-top: 0;
+  padding-top: 0;
+}
+.control-column .ticker-input-container,
+.control-column .model-selector-container {
+  margin-top: 0;
+}
+/* Reduce gap if needed to align with DateInput */
+.control-column input,
+.control-column select {
+  height: 48px; /* Force consistent height */
+  box-sizing: border-box;
 }

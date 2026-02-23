@@ -10,6 +10,9 @@
     "start": "Start Date",
     "end": "End Date"
   },
+  "model": {
+    "select": "Select AI Model"
+  },
   "regression": {
     "title": "Stock Data Visualization",
     "updateChart": "Update Chart",
@@ -47,6 +50,9 @@
     "label": "Enter Stock Symbol",
     "placeholder": "e.g., AAPL, MSFT, GOOGL",
     "submit": "Show Stock Data"
+  },
+  "model": { 
+    "select": "Select AI Model"
   },
   "future": {
     "days_to_predict": "Days to Predict",

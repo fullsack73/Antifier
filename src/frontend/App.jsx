@@ -159,8 +159,10 @@ function AppContent() {
           <>
             <h1>{t("regression.title")}</h1>
             <div className="controls-container">
-              <TickerInput onTickerChange={handleTickerChange} initialTicker="AAPL" />
-              <ModelSelector onModelChange={setModelType} initialModel={modelType} />
+              <div className="control-column">
+                <TickerInput onTickerChange={handleTickerChange} initialTicker="AAPL" />
+                <ModelSelector onModelChange={setModelType} initialModel={modelType} />
+              </div>
               <DateInput onDateRangeChange={handleDateRangeChange} />
               <FutureDateInput onFutureDaysChange={handleFutureDaysChange} initialDays={futureDays} />
             </div>

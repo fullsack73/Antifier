@@ -10,6 +10,9 @@
     "start": "시작 날짜",
     "end": "종료 날짜"
   },
+  "model": {
+    "select": "AI 모델 선택"
+  },
   "regression": {
     "title": "주가 데이터 시각화",
     "updateChart": "차트 업데이트",
@@ -47,6 +50,9 @@
     "label": "주식 심볼 입력",
     "placeholder": "예: AAPL, MSFT, GOOGL",
     "submit": "주식 데이터 표시"
+  },
+  "model": { 
+    "select": "AI 모델 선택" 
   },
   "future": {
     "days_to_predict": "예측일",
