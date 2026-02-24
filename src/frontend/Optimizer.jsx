@@ -581,7 +581,7 @@ const Optimizer = () => {
                           <td>${price.toFixed(2)}</td>
                           <td>{fractional ? shares.toFixed(4) : shares}</td>
                           <td>${amount.toFixed(2)}</td>
-                          <td style={{ textAlign: 'center' }}>
+                          <td style={{ textAlign: 'left' }}>
                             <label className="toggle-switch toggle-switch-sm">
                               <input
                                 type="checkbox"
