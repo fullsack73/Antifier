@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
 
@@ -121,6 +121,13 @@ const Optimizer = () => {
 
     setAllocation({ items: entries, remainingCash: Math.max(0, remaining) })
   }
+
+  // Auto-calculate allocation when fractional settings change
+  useEffect(() => {
+    if (allocation) {
+      handleAllocation()
+    }
+  }, [allowFractional, fractionalOverrides, investmentAmount, optimizedPortfolio])
 
   const handleDownloadPortfolio = () => {
     if (!optimizedPortfolio) return
