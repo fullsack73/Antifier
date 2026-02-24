@@ -99,7 +99,11 @@
     "ticker": "Ticker",
     "investmentAmount": "Investment Amount",
     "shares": "Shares",
-    "custom": "Custom"
+    "price": "Price",
+    "custom": "Custom",
+    "allowFractional": "Allow Fractional Shares",
+    "remainingCash": "Remaining Cash",
+    "integerShareNote": "Shares are rounded to whole units. Remaining capital is redistributed by weight priority."
   },
   "stockScreener": {
     "stock_screener": "Stock Screener",

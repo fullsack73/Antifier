@@ -25,6 +25,7 @@ const Optimizer = () => {
   const [minHistory, setMinHistory] = useState("100")
   const [blTau, setBlTau] = useState("0.05")
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [allowFractional, setAllowFractional] = useState(false)
   const portfolioFileInputRef = useRef(null)
 
   const handleFileUpload = (e) => {
@@ -50,15 +51,54 @@ const Optimizer = () => {
     if (!investmentAmount || !optimizedPortfolio || !optimizedPortfolio.weights) return
 
     const totalInvestment = Number.parseFloat(investmentAmount)
-    const allocated = Object.entries(optimizedPortfolio.weights).map(([ticker, weight]) => {
-      const amount = totalInvestment * weight
-      // Assuming we can get price data, for now we'll use a placeholder
-      // In a real scenario, you'd fetch current prices for each ticker
-      const price = optimizedPortfolio.prices?.[ticker] ?? 1 // Placeholder price
-      const shares = amount / price
-      return { ticker, amount, shares }
+    const weights = optimizedPortfolio.weights
+    const prices = optimizedPortfolio.prices || {}
+
+    if (allowFractional) {
+      // Fractional mode: simple weight-based split
+      const allocated = Object.entries(weights).map(([ticker, weight]) => {
+        const price = prices[ticker] ?? 1
+        const amount = totalInvestment * weight
+        const shares = amount / price
+        return { ticker, weight, price, amount, shares }
+      })
+      setAllocation({ items: allocated, remainingCash: 0 })
+      return
+    }
+
+    // Integer-share mode with weight-proportional redistribution
+    // Step 1: Floor allocation
+    const entries = Object.entries(weights).map(([ticker, weight]) => {
+      const price = prices[ticker] ?? 1
+      const idealAmount = totalInvestment * weight
+      const idealShares = idealAmount / price
+      const floorShares = Math.floor(idealShares)
+      return { ticker, weight, price, shares: floorShares, amount: floorShares * price }
     })
-    setAllocation(allocated)
+
+    // Step 2: Calculate remaining capital
+    let spent = entries.reduce((sum, e) => sum + e.amount, 0)
+    let remaining = totalInvestment - spent
+
+    // Step 3: Weight-proportional redistribution of remaining capital
+    // Try to buy additional whole shares, prioritizing by weight (descending)
+    let changed = true
+    while (changed && remaining > 0) {
+      changed = false
+      // Sort by weight descending so higher-weight tickers get priority
+      const sorted = [...entries].sort((a, b) => b.weight - a.weight)
+      for (const entry of sorted) {
+        if (entry.price <= remaining) {
+          entry.shares += 1
+          entry.amount = entry.shares * entry.price
+          remaining -= entry.price
+          changed = true
+          break // restart the loop to re-evaluate from highest weight
+        }
+      }
+    }
+
+    setAllocation({ items: entries, remainingCash: remaining })
   }
 
   const handleDownloadPortfolio = () => {
@@ -481,6 +521,17 @@ const Optimizer = () => {
                   placeholder={t("optimizer.enterBudget")}
                 />
               </div>
+              <div className="optimizer-form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label htmlFor="allowFractional" style={{ margin: 0 }}>
+                  {t("optimizer.allowFractional", "Allow Fractional Shares")}
+                </label>
+                <input
+                  id="allowFractional"
+                  type="checkbox"
+                  checked={allowFractional}
+                  onChange={(e) => setAllowFractional(e.target.checked)}
+                />
+              </div>
               <button onClick={handleAllocation} className="optimizer-submit-button">
                 {t("optimizer.calculate")}
               </button>
@@ -493,22 +544,37 @@ const Optimizer = () => {
                   <thead>
                     <tr>
                       <th>{t("optimizer.ticker")}</th>
-                      <th>{t("optimizer.investmentAmount")}</th>
+                      <th>{t("optimizer.price", "Price")}</th>
                       <th>{t("optimizer.shares")}</th>
+                      <th>{t("optimizer.investmentAmount")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {allocation
+                    {allocation.items
                       .filter(({ ticker }) => optimizedPortfolio.weights[ticker] > 0.0001)
-                      .map(({ ticker, amount, shares }) => (
+                      .map(({ ticker, price, amount, shares }) => (
                         <tr key={ticker}>
                           <td>{ticker}</td>
+                          <td>${price.toFixed(2)}</td>
+                          <td>{allowFractional ? shares.toFixed(4) : shares}</td>
                           <td>${amount.toFixed(2)}</td>
-                          <td>{shares.toFixed(4)}</td>
                         </tr>
                       ))}
+                    {!allowFractional && allocation.remainingCash > 0.01 && (
+                      <tr style={{ fontStyle: 'italic', opacity: 0.8 }}>
+                        <td>{t("optimizer.remainingCash", "Remaining Cash")}</td>
+                        <td>—</td>
+                        <td>—</td>
+                        <td>${allocation.remainingCash.toFixed(2)}</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
+                {!allowFractional && (
+                  <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                    {t("optimizer.integerShareNote", "Shares are rounded to whole units. Remaining capital is redistributed by weight priority.")}
+                  </small>
+                )}
               </div>
             )}
           </div>
