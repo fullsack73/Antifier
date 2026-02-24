@@ -102,8 +102,11 @@
     "price": "주가",
     "custom": "사용자 지정",
     "allowFractional": "소수점 주식 허용",
+    "allowFractionalAll": "전체 소수점 허용",
+    "fractional": "소수점",
     "remainingCash": "잔여 현금",
-    "integerShareNote": "주식 수는 정수 단위로 반올림됩니다. 잔여 자본은 비중 우선순위로 재분배됩니다."
+    "integerShareNote": "주식 수는 정수 단위로 반올림됩니다. 잔여 자본은 비중 우선순위로 재분배됩니다.",
+    "hybridNote": "종목별로 소수점 거래를 설정하세요. 정수 전용 종목은 내림 처리되며, 여유 자본은 소수점 가능 종목에 재분배됩니다."
   },
   "stockScreener": {
     "stock_screener": "주식 찾기",

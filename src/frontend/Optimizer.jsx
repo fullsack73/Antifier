@@ -26,6 +26,7 @@ const Optimizer = () => {
   const [blTau, setBlTau] = useState("0.05")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [allowFractional, setAllowFractional] = useState(false)
+  const [fractionalOverrides, setFractionalOverrides] = useState({})
   const portfolioFileInputRef = useRef(null)
 
   const handleFileUpload = (e) => {
@@ -47,6 +48,19 @@ const Optimizer = () => {
     }
   }
 
+  // Determine per-ticker fractional eligibility
+  const isTickerFractional = (ticker) => fractionalOverrides[ticker] ?? allowFractional
+
+  const handleToggleFractional = (ticker) => {
+    setFractionalOverrides(prev => ({ ...prev, [ticker]: !isTickerFractional(ticker) }))
+  }
+
+  const handleAllowFractionalChange = (checked) => {
+    setAllowFractional(checked)
+    // Reset per-ticker overrides so they all follow the global toggle
+    setFractionalOverrides({})
+  }
+
   const handleAllocation = () => {
     if (!investmentAmount || !optimizedPortfolio || !optimizedPortfolio.weights) return
 
@@ -54,51 +68,58 @@ const Optimizer = () => {
     const weights = optimizedPortfolio.weights
     const prices = optimizedPortfolio.prices || {}
 
-    if (allowFractional) {
-      // Fractional mode: simple weight-based split
-      const allocated = Object.entries(weights).map(([ticker, weight]) => {
-        const price = prices[ticker] ?? 1
-        const amount = totalInvestment * weight
-        const shares = amount / price
-        return { ticker, weight, price, amount, shares }
-      })
-      setAllocation({ items: allocated, remainingCash: 0 })
-      return
-    }
-
-    // Integer-share mode with weight-proportional redistribution
-    // Step 1: Floor allocation
+    // Step 1: Allocate per-ticker based on fractional eligibility
     const entries = Object.entries(weights).map(([ticker, weight]) => {
       const price = prices[ticker] ?? 1
       const idealAmount = totalInvestment * weight
       const idealShares = idealAmount / price
+      const fractional = isTickerFractional(ticker)
+
+      if (fractional) {
+        return { ticker, weight, price, shares: idealShares, amount: idealAmount, fractional: true }
+      }
       const floorShares = Math.floor(idealShares)
-      return { ticker, weight, price, shares: floorShares, amount: floorShares * price }
+      return { ticker, weight, price, shares: floorShares, amount: floorShares * price, fractional: false }
     })
 
-    // Step 2: Calculate remaining capital
+    // Step 2: Calculate freed capital from integer rounding
     let spent = entries.reduce((sum, e) => sum + e.amount, 0)
     let remaining = totalInvestment - spent
 
-    // Step 3: Weight-proportional redistribution of remaining capital
-    // Try to buy additional whole shares, prioritizing by weight (descending)
-    let changed = true
-    while (changed && remaining > 0) {
-      changed = false
-      // Sort by weight descending so higher-weight tickers get priority
-      const sorted = [...entries].sort((a, b) => b.weight - a.weight)
-      for (const entry of sorted) {
-        if (entry.price <= remaining) {
-          entry.shares += 1
-          entry.amount = entry.shares * entry.price
-          remaining -= entry.price
-          changed = true
-          break // restart the loop to re-evaluate from highest weight
+    if (remaining > 0.01) {
+      // Step 3: Redistribute remaining to fractional-eligible tickers proportionally
+      const fractionalEntries = entries.filter(e => e.fractional)
+      const fractionalWeight = fractionalEntries.reduce((sum, e) => sum + e.weight, 0)
+
+      if (fractionalWeight > 0 && remaining > 0.01) {
+        for (const entry of fractionalEntries) {
+          const extra = (entry.weight / fractionalWeight) * remaining
+          entry.shares += extra / entry.price
+          entry.amount += extra
+        }
+        remaining = 0
+      }
+
+      // Step 4: If no fractional tickers absorbed it, try whole shares (greedy by weight)
+      if (remaining > 0.01) {
+        let changed = true
+        while (changed && remaining > 0.01) {
+          changed = false
+          const sorted = [...entries].filter(e => !e.fractional).sort((a, b) => b.weight - a.weight)
+          for (const entry of sorted) {
+            if (entry.price <= remaining) {
+              entry.shares += 1
+              entry.amount = entry.shares * entry.price
+              remaining -= entry.price
+              changed = true
+              break
+            }
+          }
         }
       }
     }
 
-    setAllocation({ items: entries, remainingCash: remaining })
+    setAllocation({ items: entries, remainingCash: Math.max(0, remaining) })
   }
 
   const handleDownloadPortfolio = () => {
@@ -527,10 +548,10 @@ const Optimizer = () => {
                     id="allowFractional"
                     type="checkbox"
                     checked={allowFractional}
-                    onChange={(e) => setAllowFractional(e.target.checked)}
+                    onChange={(e) => handleAllowFractionalChange(e.target.checked)}
                   />
                   <span className="toggle-slider" />
-                  <span className="toggle-label">{t("optimizer.allowFractional", "Allow Fractional Shares")}</span>
+                  <span className="toggle-label">{t("optimizer.allowFractionalAll", "All Fractional Shares")}</span>
                 </label>
               </div>
               <button onClick={handleAllocation} className="optimizer-submit-button">
@@ -548,34 +569,44 @@ const Optimizer = () => {
                       <th>{t("optimizer.price", "Price")}</th>
                       <th>{t("optimizer.shares")}</th>
                       <th>{t("optimizer.investmentAmount")}</th>
+                      <th>{t("optimizer.fractional", "Fractional")}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {allocation.items
                       .filter(({ ticker }) => optimizedPortfolio.weights[ticker] > 0.0001)
-                      .map(({ ticker, price, amount, shares }) => (
+                      .map(({ ticker, price, amount, shares, fractional }) => (
                         <tr key={ticker}>
                           <td>{ticker}</td>
                           <td>${price.toFixed(2)}</td>
-                          <td>{allowFractional ? shares.toFixed(4) : shares}</td>
+                          <td>{fractional ? shares.toFixed(4) : shares}</td>
                           <td>${amount.toFixed(2)}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <label className="toggle-switch toggle-switch-sm">
+                              <input
+                                type="checkbox"
+                                checked={isTickerFractional(ticker)}
+                                onChange={() => handleToggleFractional(ticker)}
+                              />
+                              <span className="toggle-slider" />
+                            </label>
+                          </td>
                         </tr>
                       ))}
-                    {!allowFractional && allocation.remainingCash > 0.01 && (
+                    {allocation.remainingCash > 0.01 && (
                       <tr style={{ fontStyle: 'italic', opacity: 0.8 }}>
                         <td>{t("optimizer.remainingCash", "Remaining Cash")}</td>
                         <td>—</td>
                         <td>—</td>
                         <td>${allocation.remainingCash.toFixed(2)}</td>
+                        <td />
                       </tr>
                     )}
                   </tbody>
                 </table>
-                {!allowFractional && (
-                  <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
-                    {t("optimizer.integerShareNote", "Shares are rounded to whole units. Remaining capital is redistributed by weight priority.")}
-                  </small>
-                )}
+                <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                  {t("optimizer.hybridNote", "Toggle fractional per ticker. Integer-only tickers are floored; freed capital is redistributed to fractional-eligible tickers.")}
+                </small>
               </div>
             )}
           </div>

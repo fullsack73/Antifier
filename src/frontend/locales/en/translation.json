@@ -102,8 +102,11 @@
     "price": "Price",
     "custom": "Custom",
     "allowFractional": "Allow Fractional Shares",
+    "allowFractionalAll": "All Fractional Shares",
+    "fractional": "Fractional",
     "remainingCash": "Remaining Cash",
-    "integerShareNote": "Shares are rounded to whole units. Remaining capital is redistributed by weight priority."
+    "integerShareNote": "Shares are rounded to whole units. Remaining capital is redistributed by weight priority.",
+    "hybridNote": "Toggle fractional per ticker. Integer-only tickers are floored; freed capital is redistributed to fractional-eligible tickers."
   },
   "stockScreener": {
     "stock_screener": "Stock Screener",
