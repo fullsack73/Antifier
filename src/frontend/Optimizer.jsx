@@ -511,7 +511,7 @@ const Optimizer = () => {
           <div className="investment-allocation-container">
             <h3>{t("optimizer.investmentAllocation")}</h3>
             <div className="investment-allocation-form">
-              <div className="optimizer-form-group">
+              <div className="optimizer-form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <label>{t("optimizer.investmentBudget")}</label>
                 <input
                   className="optimizer-input"
@@ -520,8 +520,6 @@ const Optimizer = () => {
                   onChange={(e) => setInvestmentAmount(e.target.value)}
                   placeholder={t("optimizer.enterBudget")}
                 />
-              </div>
-              <div className="optimizer-form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <label htmlFor="allowFractional" style={{ margin: 0 }}>
                   {t("optimizer.allowFractional", "Allow Fractional Shares")}
                 </label>
@@ -531,10 +529,10 @@ const Optimizer = () => {
                   checked={allowFractional}
                   onChange={(e) => setAllowFractional(e.target.checked)}
                 />
-              </div>
-              <button onClick={handleAllocation} className="optimizer-submit-button">
+                <button onClick={handleAllocation} className="optimizer-submit-button">
                 {t("optimizer.calculate")}
-              </button>
+                </button>
+              </div>
             </div>
 
             {allocation && (
