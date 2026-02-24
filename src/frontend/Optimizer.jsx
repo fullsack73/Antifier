@@ -511,8 +511,8 @@ const Optimizer = () => {
           <div className="investment-allocation-container">
             <h3>{t("optimizer.investmentAllocation")}</h3>
             <div className="investment-allocation-form">
-              <div className="optimizer-form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <label>{t("optimizer.investmentBudget")}</label>
+              <div className="optimizer-form-group">
+                <label style={{ textAlign: 'center' }}>{t("optimizer.investmentBudget")}</label>
                 <input
                   className="optimizer-input"
                   type="number"
@@ -520,21 +520,24 @@ const Optimizer = () => {
                   onChange={(e) => setInvestmentAmount(e.target.value)}
                   placeholder={t("optimizer.enterBudget")}
                 />
-                <label htmlFor="allowFractional" style={{ margin: 0 }}>
-                  {t("optimizer.allowFractional", "Allow Fractional Shares")}
-                </label>
-                <input
-                  id="allowFractional"
-                  type="checkbox"
-                  checked={allowFractional}
-                  onChange={(e) => setAllowFractional(e.target.checked)}
-                />
-                <button onClick={handleAllocation} className="optimizer-submit-button">
-                {t("optimizer.calculate")}
-                </button>
               </div>
+              <div className="allocation-toggle-row">
+                <label className="toggle-switch" htmlFor="allowFractional">
+                  <input
+                    id="allowFractional"
+                    type="checkbox"
+                    checked={allowFractional}
+                    onChange={(e) => setAllowFractional(e.target.checked)}
+                  />
+                  <span className="toggle-slider" />
+                  <span className="toggle-label">{t("optimizer.allowFractional", "Allow Fractional Shares")}</span>
+                </label>
+              </div>
+              <button onClick={handleAllocation} className="optimizer-submit-button">
+                {t("optimizer.calculate")}
+            </button>
             </div>
-
+            
             {allocation && (
               <div className="allocation-results-container">
                 <h4>{t("optimizer.allocationResults")}</h4>
