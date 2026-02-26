@@ -105,6 +105,14 @@ const StockScreener = () => {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    const handleCloseUploadModal = () => {
+        setShowUploadModal(false);
+        // If no tickers loaded, revert to default universe
+        if (customTickers.length === 0) {
+            setTickerGroup('S&P 500');
+        }
+    };
+
     const handleSearch = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -200,35 +208,34 @@ const StockScreener = () => {
                     <h3>Screening Criteria</h3>
                     <div className="universe-selector">
                         <label>Universe:</label>
-                        <select
-                            className="premium-select"
-                            value={tickerGroup}
-                            onChange={(e) => {
-                                setTickerGroup(e.target.value);
-                                if (e.target.value === 'Custom') {
-                                    setShowUploadModal(true);
-                                } else {
-                                    handleClearUpload();
-                                }
-                            }}
-                        >
-                            <option value="S&P 500">S&P 500</option>
-                            <option value="Dow Jones">Dow Jones</option>
-                            <option value="Custom">Custom (CSV)</option>
-                        </select>
+                        {tickerGroup === 'Custom' && customTickers.length > 0 ? (
+                            <button
+                                type="button"
+                                className="premium-select"
+                                onClick={() => setShowUploadModal(true)}
+                                style={{ cursor: 'pointer', textAlign: 'left' }}
+                            >
+                                {uploadFileName} ({customTickers.length})
+                            </button>
+                        ) : (
+                            <select
+                                className="premium-select"
+                                value={tickerGroup}
+                                onChange={(e) => {
+                                    setTickerGroup(e.target.value);
+                                    if (e.target.value === 'Custom') {
+                                        setShowUploadModal(true);
+                                    } else {
+                                        handleClearUpload();
+                                    }
+                                }}
+                            >
+                                <option value="S&P 500">S&P 500</option>
+                                <option value="Dow Jones">Dow Jones</option>
+                                <option value="Custom">Custom (CSV)</option>
+                            </select>
+                        )}
                     </div>
-                    {tickerGroup === 'Custom' && (
-                        <button
-                            type="button"
-                            className="secondary-btn"
-                            onClick={() => setShowUploadModal(true)}
-                        >
-                            {customTickers.length > 0
-                                ? `${uploadFileName} (${customTickers.length})`
-                                : 'Upload CSV'
-                            }
-                        </button>
-                    )}
                 </div>
 
                 <div className="filters-list">
@@ -273,11 +280,11 @@ const StockScreener = () => {
             </div>
 
             {showUploadModal && (
-                <div className="optimizer-modal-overlay" onClick={() => setShowUploadModal(false)}>
+                <div className="optimizer-modal-overlay" onClick={handleCloseUploadModal}>
                     <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
                         <div className="optimizer-modal-header">
                             <h3 className="optimizer-modal-title">Upload Custom Tickers</h3>
-                            <button type="button" className="optimizer-modal-close" onClick={() => setShowUploadModal(false)}>×</button>
+                            <button type="button" className="optimizer-modal-close" onClick={handleCloseUploadModal}>×</button>
                         </div>
                         <div className="optimizer-modal-body">
                             <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
@@ -318,7 +325,7 @@ const StockScreener = () => {
                                     Clear
                                 </button>
                             )}
-                            <button type="button" className="primary-btn" onClick={() => setShowUploadModal(false)}>
+                            <button type="button" className="primary-btn" onClick={handleCloseUploadModal}>
                                 Done
                             </button>
                         </div>
