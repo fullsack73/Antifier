@@ -36,6 +36,7 @@ const StockScreener = () => {
     const [customTickers, setCustomTickers] = useState([]);
     const [uploadFileName, setUploadFileName] = useState('');
     const [uploadError, setUploadError] = useState(null);
+    const [showUploadModal, setShowUploadModal] = useState(false);
     const fileInputRef = useRef(null);
 
     const handleAddFilter = () => {
@@ -204,7 +205,9 @@ const StockScreener = () => {
                             value={tickerGroup}
                             onChange={(e) => {
                                 setTickerGroup(e.target.value);
-                                if (e.target.value !== 'Custom') {
+                                if (e.target.value === 'Custom') {
+                                    setShowUploadModal(true);
+                                } else {
                                     handleClearUpload();
                                 }
                             }}
@@ -215,31 +218,16 @@ const StockScreener = () => {
                         </select>
                     </div>
                     {tickerGroup === 'Custom' && (
-                        <div className="csv-upload-section">
-                            <div className="csv-upload-row">
-                                <button
-                                    type="button"
-                                    className="secondary-btn csv-upload-btn"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    {uploadFileName ? 'Change File' : 'Upload CSV'}
-                                </button>
-                                <input
-                                    type="file"
-                                    accept=".csv"
-                                    ref={fileInputRef}
-                                    style={{ display: 'none' }}
-                                    onChange={handleFileUpload}
-                                />
-                                {uploadFileName && (
-                                    <span className="csv-file-info">
-                                        {uploadFileName} — {customTickers.length} ticker{customTickers.length !== 1 ? 's' : ''} loaded
-                                        <button type="button" className="csv-clear-btn" onClick={handleClearUpload}>×</button>
-                                    </span>
-                                )}
-                            </div>
-                            {uploadError && <div className="csv-upload-error">{uploadError}</div>}
-                        </div>
+                        <button
+                            type="button"
+                            className="secondary-btn"
+                            onClick={() => setShowUploadModal(true)}
+                        >
+                            {customTickers.length > 0
+                                ? `${uploadFileName} (${customTickers.length})`
+                                : 'Upload CSV'
+                            }
+                        </button>
                     )}
                 </div>
 
@@ -283,6 +271,60 @@ const StockScreener = () => {
                     </button>
                 </div>
             </div>
+
+            {showUploadModal && (
+                <div className="optimizer-modal-overlay" onClick={() => setShowUploadModal(false)}>
+                    <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="optimizer-modal-header">
+                            <h3 className="optimizer-modal-title">Upload Custom Tickers</h3>
+                            <button type="button" className="optimizer-modal-close" onClick={() => setShowUploadModal(false)}>×</button>
+                        </div>
+                        <div className="optimizer-modal-body">
+                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
+                                Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like "Symbol" or "Ticker" are automatically ignored.
+                            </p>
+                            <button
+                                type="button"
+                                className="secondary-btn"
+                                onClick={() => fileInputRef.current?.click()}
+                                style={{ width: '100%', marginBottom: 'var(--spacing-md)' }}
+                            >
+                                {uploadFileName ? 'Change File' : 'Choose CSV File'}
+                            </button>
+                            <input
+                                type="file"
+                                accept=".csv"
+                                ref={fileInputRef}
+                                style={{ display: 'none' }}
+                                onChange={handleFileUpload}
+                            />
+                            {uploadError && (
+                                <div style={{ fontSize: '0.85rem', color: 'var(--color-danger)', marginBottom: 'var(--spacing-md)' }}>
+                                    {uploadError}
+                                </div>
+                            )}
+                            {customTickers.length > 0 && (
+                                <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                                    <strong>{uploadFileName}</strong> — {customTickers.length} ticker{customTickers.length !== 1 ? 's' : ''} loaded
+                                    <ul className="optimizer-weights-list" style={{ marginTop: 'var(--spacing-sm)', maxHeight: '150px' }}>
+                                        {customTickers.map(t => <li key={t}><span>{t}</span></li>)}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                        <div className="optimizer-modal-footer">
+                            {customTickers.length > 0 && (
+                                <button type="button" className="secondary-btn" onClick={handleClearUpload}>
+                                    Clear
+                                </button>
+                            )}
+                            <button type="button" className="primary-btn" onClick={() => setShowUploadModal(false)}>
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {error && <div className="error-banner">{error}</div>}
 
