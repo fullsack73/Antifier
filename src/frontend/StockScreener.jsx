@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import './App.css';
 
@@ -34,6 +34,9 @@ const StockScreener = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [customTickers, setCustomTickers] = useState([]);
+    const [uploadFileName, setUploadFileName] = useState('');
+    const [uploadError, setUploadError] = useState(null);
+    const fileInputRef = useRef(null);
 
     const handleAddFilter = () => {
         setFilters([...filters, { metric: 'P/E', operator: 'Under', value: '' }]);
@@ -52,16 +55,53 @@ const StockScreener = () => {
 
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const text = event.target.result;
-                // Basic CSV/newline parser
-                const tickers = text.split(/[\r\n,]+/).map(t => t.trim()).filter(t => t);
-                setCustomTickers(tickers);
-            };
-            reader.readAsText(file);
+        if (!file) return;
+
+        setUploadError(null);
+        setUploadFileName(file.name);
+
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            setUploadError('Only .csv files are accepted.');
+            setCustomTickers([]);
+            setUploadFileName('');
+            e.target.value = '';
+            return;
         }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target.result;
+            const tickers = text
+                .split(/[\r\n,]+/)
+                .map(t => t.trim())
+                // Remove header rows, RTF artifacts, and empty lines
+                .filter(t => t && !t.startsWith('\\') && !t.startsWith('{') && !t.startsWith('}'))
+                .filter(t => !/^(symbol|ticker|name|company)$/i.test(t))
+                .map(t => t.replace(/\\$/, ''))
+                // Allow only valid ticker characters: letters, digits, dots, hyphens, carets
+                .filter(t => /^[A-Z0-9.\-^]+$/i.test(t));
+
+            if (tickers.length === 0) {
+                setUploadError('No valid ticker symbols found in the file.');
+                setCustomTickers([]);
+            } else {
+                setCustomTickers(tickers);
+            }
+        };
+        reader.onerror = () => {
+            setUploadError('Failed to read the file.');
+            setCustomTickers([]);
+        };
+        reader.readAsText(file);
+        // Reset input so the same file can be re-uploaded
+        e.target.value = '';
+    };
+
+    const handleClearUpload = () => {
+        setCustomTickers([]);
+        setUploadFileName('');
+        setUploadError(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
     const handleSearch = useCallback(async () => {
@@ -75,12 +115,23 @@ const StockScreener = () => {
         // For 'Custom', the backend might not be ready to accept a raw list of strings in the body yet based on my implementation.
         // My backend uses `get_ticker_group`. I'll stick to predefined groups for now as per "exhaustive search" request.
 
+        if (tickerGroup === 'Custom' && customTickers.length === 0) {
+            setError('Please upload a CSV file with valid ticker symbols.');
+            setLoading(false);
+            return;
+        }
+
         const payload = {
             filters: {
                 Index: tickerGroup,
                 criteria: filters
             }
         };
+
+        // When using custom tickers, send them to the backend
+        if (tickerGroup === 'Custom') {
+            payload.filters.tickers = customTickers;
+        }
 
         try {
             const response = await fetch('http://127.0.0.1:5000/api/stock-screener', {
@@ -104,7 +155,7 @@ const StockScreener = () => {
         } finally {
             setLoading(false);
         }
-    }, [filters, tickerGroup]);
+    }, [filters, tickerGroup, customTickers]);
 
     const handleDownloadCSV = () => {
         if (results.length === 0) return;
@@ -151,18 +202,45 @@ const StockScreener = () => {
                         <select
                             className="premium-select"
                             value={tickerGroup}
-                            onChange={(e) => setTickerGroup(e.target.value)}
+                            onChange={(e) => {
+                                setTickerGroup(e.target.value);
+                                if (e.target.value !== 'Custom') {
+                                    handleClearUpload();
+                                }
+                            }}
                         >
                             <option value="S&P 500">S&P 500</option>
                             <option value="Dow Jones">Dow Jones</option>
-                            {/* <option value="Custom">Custom (CSV)</option> */}
+                            <option value="Custom">Custom (CSV)</option>
                         </select>
-                        {tickerGroup === 'Custom' && (
-                            <div className="file-upload-wrapper">
-                                <input type="file" accept=".csv" onChange={handleFileUpload} className="file-input" />
-                            </div>
-                        )}
                     </div>
+                    {tickerGroup === 'Custom' && (
+                        <div className="csv-upload-section">
+                            <div className="csv-upload-row">
+                                <button
+                                    type="button"
+                                    className="secondary-btn csv-upload-btn"
+                                    onClick={() => fileInputRef.current?.click()}
+                                >
+                                    {uploadFileName ? 'Change File' : 'Upload CSV'}
+                                </button>
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    ref={fileInputRef}
+                                    style={{ display: 'none' }}
+                                    onChange={handleFileUpload}
+                                />
+                                {uploadFileName && (
+                                    <span className="csv-file-info">
+                                        {uploadFileName} — {customTickers.length} ticker{customTickers.length !== 1 ? 's' : ''} loaded
+                                        <button type="button" className="csv-clear-btn" onClick={handleClearUpload}>×</button>
+                                    </span>
+                                )}
+                            </div>
+                            {uploadError && <div className="csv-upload-error">{uploadError}</div>}
+                        </div>
+                    )}
                 </div>
 
                 <div className="filters-list">

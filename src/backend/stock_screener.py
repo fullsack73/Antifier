@@ -187,9 +187,15 @@ def search_stocks(filters):
     
     # Adaptation:
     ticker_group = filters.get('Index', 'S&P 500')
+    custom_tickers = filters.get('tickers', None)
     
-    # Get universe data (Cached)
-    df_universe = get_universe_dataframe(ticker_group)
+    # If custom tickers are provided, fetch their data directly (no cache)
+    if custom_tickers and isinstance(custom_tickers, list) and len(custom_tickers) > 0:
+        logger.info(f"Using {len(custom_tickers)} custom tickers for screening")
+        df_universe = fetch_universe_data(custom_tickers)
+    else:
+        # Get universe data (Cached)
+        df_universe = get_universe_dataframe(ticker_group)
     
     if df_universe.empty:
         return []

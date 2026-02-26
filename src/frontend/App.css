@@ -1747,6 +1747,56 @@ h2 {
   margin-bottom: var(--spacing-lg);
 }
 
+/* CSV Upload Section (Stock Screener) */
+.csv-upload-section {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-divider);
+}
+
+.csv-upload-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.csv-upload-btn {
+  white-space: nowrap;
+}
+
+.csv-file-info {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-tertiary);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-md);
+}
+
+.csv-clear-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+
+.csv-clear-btn:hover {
+  color: var(--color-danger);
+}
+
+.csv-upload-error {
+  margin-top: var(--spacing-sm);
+  font-size: 0.85rem;
+  color: var(--color-danger);
+}
+
 
 /* ============================================================================
    14. COMPONENT: PORTFOLIO BENCHMARK
