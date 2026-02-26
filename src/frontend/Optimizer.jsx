@@ -27,24 +27,66 @@ const Optimizer = () => {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [allowFractional, setAllowFractional] = useState(false)
   const [fractionalOverrides, setFractionalOverrides] = useState({})
+  const [showUploadModal, setShowUploadModal] = useState(false)
+  const [uploadFileName, setUploadFileName] = useState('')
+  const [uploadError, setUploadError] = useState(null)
   const portfolioFileInputRef = useRef(null)
+  const csvFileInputRef = useRef(null)
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const text = event.target.result
-        const tickers = text
-          .split("\n")
-          .map((t) => t.trim())
-          // Sanitize input: Remove RTF artifacts (\...) and ensuring valid characters
-          .filter((t) => t && !t.startsWith('\\') && !t.startsWith('{') && !t.startsWith('}')) 
-          .map(t => t.replace(/\\$/, '')) // Remove trailing backslashes
-          .filter(t => /^[A-Z0-9.\-^]+$/i.test(t)) // Allow only valid ticker characters
+    if (!file) return
+
+    setUploadError(null)
+    setUploadFileName(file.name)
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setUploadError('Only .csv files are accepted.')
+      setCustomTickers([])
+      setUploadFileName('')
+      e.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target.result
+      const tickers = text
+        .split(/[\r\n,]+/)
+        .map((t) => t.trim())
+        // Remove header rows, RTF artifacts, and empty lines
+        .filter((t) => t && !t.startsWith('\\') && !t.startsWith('{') && !t.startsWith('}'))
+        .filter(t => !/^(symbol|ticker|name|company)$/i.test(t))
+        .map(t => t.replace(/\\$/, ''))
+        // Allow only valid ticker characters
+        .filter(t => /^[A-Z0-9.\-^]+$/i.test(t))
+
+      if (tickers.length === 0) {
+        setUploadError('No valid ticker symbols found in the file.')
+        setCustomTickers([])
+      } else {
         setCustomTickers(tickers)
       }
-      reader.readAsText(file)
+    }
+    reader.onerror = () => {
+      setUploadError('Failed to read the file.')
+      setCustomTickers([])
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  const handleClearUpload = () => {
+    setCustomTickers([])
+    setUploadFileName('')
+    setUploadError(null)
+    if (csvFileInputRef.current) csvFileInputRef.current.value = ''
+  }
+
+  const handleCloseUploadModal = () => {
+    setShowUploadModal(false)
+    if (customTickers.length === 0) {
+      setTickerGroup('SP500')
     }
   }
 
@@ -287,17 +329,34 @@ const Optimizer = () => {
         <div className="optimizer-form-grid">
           <div className="optimizer-form-group">
             <label>{t("optimizer.tickerGroup")}</label>
-            <select
-              className="optimizer-select"
-              value={tickerGroup}
-              onChange={(e) => setTickerGroup(e.target.value)}
-              required
-            >
-              <option value="SP500">S&P 500</option>
-              <option value="DOW">Dow Jones</option>
-              <option value="CUSTOM">{t("optimizer.custom")}</option>
-            </select>
-            {tickerGroup === "CUSTOM" && <input type="file" accept=".csv" onChange={handleFileUpload} />}
+            {tickerGroup === "CUSTOM" && customTickers.length > 0 ? (
+              <button
+                type="button"
+                className="optimizer-select"
+                onClick={() => setShowUploadModal(true)}
+                style={{ cursor: 'pointer', textAlign: 'left' }}
+              >
+                {uploadFileName} ({customTickers.length})
+              </button>
+            ) : (
+              <select
+                className="optimizer-select"
+                value={tickerGroup}
+                onChange={(e) => {
+                  setTickerGroup(e.target.value)
+                  if (e.target.value === 'CUSTOM') {
+                    setShowUploadModal(true)
+                  } else {
+                    handleClearUpload()
+                  }
+                }}
+                required
+              >
+                <option value="SP500">S&P 500</option>
+                <option value="DOW">Dow Jones</option>
+                <option value="CUSTOM">{t("optimizer.custom")}</option>
+              </select>
+            )}
           </div>
 
           <div className="optimizer-form-group">
@@ -445,6 +504,60 @@ const Optimizer = () => {
                 </div>
                 <div className="optimizer-modal-footer">
                   <button type="button" className="optimizer-secondary-button" onClick={() => setShowAdvanced(false)}>{t("common.done", "Done")}</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showUploadModal && (
+            <div className="optimizer-modal-overlay" onClick={handleCloseUploadModal}>
+              <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
+                <div className="optimizer-modal-header">
+                  <h3 className="optimizer-modal-title">{t("optimizer.uploadCustomTickers", "Upload Custom Tickers")}</h3>
+                  <button type="button" className="optimizer-modal-close" onClick={handleCloseUploadModal}>×</button>
+                </div>
+                <div className="optimizer-modal-body">
+                  <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
+                    Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like "Symbol" or "Ticker" are automatically ignored.
+                  </p>
+                  <button
+                    type="button"
+                    className="optimizer-secondary-button"
+                    onClick={() => csvFileInputRef.current?.click()}
+                    style={{ width: '100%', marginBottom: 'var(--spacing-md)' }}
+                  >
+                    {uploadFileName ? t("optimizer.changeFile", "Change File") : t("optimizer.chooseCsvFile", "Choose CSV File")}
+                  </button>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    ref={csvFileInputRef}
+                    style={{ display: 'none' }}
+                    onChange={handleFileUpload}
+                  />
+                  {uploadError && (
+                    <div style={{ fontSize: '0.85rem', color: 'var(--color-danger)', marginBottom: 'var(--spacing-md)' }}>
+                      {uploadError}
+                    </div>
+                  )}
+                  {customTickers.length > 0 && (
+                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                      <strong>{uploadFileName}</strong> — {customTickers.length} ticker{customTickers.length !== 1 ? 's' : ''} loaded
+                      <ul className="optimizer-weights-list" style={{ marginTop: 'var(--spacing-sm)', maxHeight: '150px' }}>
+                        {customTickers.map(t => <li key={t}><span>{t}</span></li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+                <div className="optimizer-modal-footer">
+                  {customTickers.length > 0 && (
+                    <button type="button" className="optimizer-secondary-button" onClick={handleClearUpload}>
+                      {t("common.clear", "Clear")}
+                    </button>
+                  )}
+                  <button type="button" className="optimizer-secondary-button" onClick={handleCloseUploadModal}>
+                    {t("common.done", "Done")}
+                  </button>
                 </div>
               </div>
             </div>
