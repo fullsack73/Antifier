@@ -4,7 +4,8 @@
     "hedge": "Hedge Analysis",
     "financial": "Financial Statement Analysis",
     "optimizer": "Portfolio Optimizer",
-    "benchmark": "Portfolio Benchmark"
+    "benchmark": "Portfolio Benchmark",
+    "manager": "Portfolio Manager"
   },
   "date": {
     "start": "Start Date",
@@ -155,5 +156,26 @@
     "invalidBudget": "Please enter a valid budget amount",
     "noDateRange": "Please select a date range",
     "apiError": "Failed to calculate benchmarks"
+  },
+  "manager": {
+    "title": "Portfolio Manager",
+    "uploadCsv": "Upload Holdings CSV",
+    "uploadHoldings": "Upload Holdings",
+    "csvInstructions": "Upload a .csv file with TICKER,QUANTITY per line (e.g., AAPL,10).",
+    "chooseCsvFile": "Choose CSV File",
+    "currentHoldings": "Current Holdings",
+    "tickerPlaceholder": "e.g., AAPL",
+    "quantityPlaceholder": "e.g., 10",
+    "addHolding": "+ Add Holding",
+    "cashInjection": "Cash Injection ($)",
+    "cashPlaceholder": "e.g., 5000",
+    "rebalance": "Rebalance Portfolio",
+    "noHoldings": "Please add at least one holding.",
+    "resultsTitle": "Rebalancing Results",
+    "currentAllocation": "Current Allocation",
+    "targetAllocation": "Target Allocation",
+    "buyList": "Buy List",
+    "sellList": "Sell List",
+    "totalTargetValue": "Total Target Value"
   }
 }

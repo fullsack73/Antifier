@@ -70,6 +70,16 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                         <img src="/benchmark-transparent.png" className="icon" alt="Benchmark" />
                         {t('navigation.benchmark')}
                     </button>
+                    <button
+                        className={`nav-item ${activeView === 'manager' ? 'active' : ''}`}
+                        onClick={() => {
+                            onViewChange('manager');
+                            onToggle();
+                        }}
+                    >
+                        <img src="/portfolio-transparent.png" className="icon" alt="Manager" />
+                        {t('navigation.manager')}
+                    </button>
                 </nav>
             </div>
         </>

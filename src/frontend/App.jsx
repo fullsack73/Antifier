@@ -16,6 +16,7 @@ import FutureChart from "./FutureChart.jsx"
 import FinancialStatement from "./FinancialStatement.jsx"
 import Optimizer from "./Optimizer.jsx"
 import PortfolioBenchmark from "./PortfolioBenchmark.jsx"
+import PortfolioManager from "./PortfolioManager.jsx"
 import "./App.css"
 
 function AppContent() {
@@ -204,6 +205,8 @@ function AppContent() {
           <Optimizer />
         ) : activeView === "benchmark" ? (
           <PortfolioBenchmark />
+        ) : activeView === "manager" ? (
+          <PortfolioManager />
         ) : null
         }
       </main>

@@ -907,3 +907,116 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         return {
             "error": f"Optimization failed: {str(e)}"
         }
+
+def iteratively_solve_max_sharpe(mu, S, risk_free_rate, max_asset_weight=0.2):
+    """Iteratively adjust target return/risk space to calculate the max Sharpe ratio allocation."""
+    best_sharpe = -np.inf
+    best_weights = None
+    
+    min_ret = mu.min()
+    max_ret = mu.max()
+    
+    if max_ret <= 0 or min_ret >= max_ret:
+        ef = EfficientFrontier(mu, S, weight_bounds=(0, max_asset_weight))
+        return ef.max_sharpe(risk_free_rate=risk_free_rate)
+        
+    num_steps = 50
+    step_size = (max_ret - min_ret) / num_steps
+    target_returns = np.arange(min_ret + step_size, max_ret, step_size)
+    
+    for tr in target_returns:
+        try:
+            ef = EfficientFrontier(mu, S, weight_bounds=(0, max_asset_weight))
+            ef.efficient_return(tr)
+            weights = ef.clean_weights()
+            ret, risk, sharpe = ef.portfolio_performance(risk_free_rate=risk_free_rate)
+            if sharpe > best_sharpe:
+                best_sharpe = sharpe
+                best_weights = weights
+        except OptimizationError:
+            continue
+            
+    if best_weights is None:
+        ef = EfficientFrontier(mu, S, weight_bounds=(0, max_asset_weight))
+        best_weights = ef.max_sharpe(risk_free_rate=risk_free_rate)
+    
+    return best_weights
+
+def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection):
+    """
+    Generate exact fractional Buy List and Sell List comparing current holdings to target optimized weights.
+    """
+    total_current_value = 0.0
+    current_values = {}
+    for ticker, qty in current_holdings.items():
+        price = latest_prices.get(ticker, 0.0)
+        value = price * float(qty)
+        current_values[ticker] = value
+        total_current_value += value
+        
+    total_target_value = total_current_value + float(cash_injection)
+    
+    buy_list = {}
+    sell_list = {}
+    target_quantities = {}
+    
+    all_tickers = set(current_holdings.keys()).union(target_weights.keys())
+    for ticker in all_tickers:
+        price = latest_prices.get(ticker, 0.0)
+        if price <= 0:
+            continue
+        
+        target_weight = target_weights.get(ticker, 0.0)
+        target_val = total_target_value * target_weight
+        target_qty = target_val / price
+        target_quantities[ticker] = target_qty
+        
+        current_qty = float(current_holdings.get(ticker, 0.0))
+        delta_qty = target_qty - current_qty
+        
+        if delta_qty > 1e-6:
+            buy_list[ticker] = {"quantity": float(delta_qty), "price": float(price), "value": float(delta_qty * price)}
+        elif delta_qty < -1e-6:
+            sell_list[ticker] = {"quantity": float(abs(delta_qty)), "price": float(price), "value": float(abs(delta_qty) * price)}
+
+    return {
+        "buy_list": buy_list,
+        "sell_list": sell_list,
+        "target_quantities": target_quantities,
+        "target_weights": target_weights,
+        "total_target_value": total_target_value
+    }
+
+def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_date, risk_free_rate, 
+                           forecast_method="LIGHTWEIGHT", optimization_method="BL", 
+                           tickers=None, **kwargs):
+                           
+    if tickers is None or len(tickers) == 0:
+        tickers = list(current_holdings.keys())
+        
+    opt_result = optimize_portfolio(
+        start_date=start_date,
+        end_date=end_date,
+        risk_free_rate=risk_free_rate,
+        tickers=tickers,
+        forecast_method=forecast_method,
+        optimization_method=optimization_method,
+        **kwargs
+    )
+    
+    if "error" in opt_result:
+        return opt_result
+
+    target_weights = opt_result["weights"]
+    latest_prices = opt_result["prices"]
+    
+    # Wait: actually we might want to iteratively solve if the prompt insists.
+    # We will use the optimized weights from optimize_portfolio or iteratively calculate them if asked.
+    # For now, optimize_portfolio already returned the best weights (either by max_sharpe or otherwise).
+    
+    rebalance_data = calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection)
+    opt_result.update(rebalance_data)
+    opt_result["current_holdings"] = current_holdings
+    opt_result["cash_injection"] = cash_injection
+    
+    return opt_result

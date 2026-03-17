@@ -9,14 +9,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        // couldn't afford a hosting service, so use local machine
         target: 'http://localhost:5000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }
-    },
-    // free version ngrok. again, couldn't afford a paid version
-    allowedHosts: ['gannet-included-jolly.ngrok-free.app']
+    }
   },
   test: {
     globals: true,

@@ -13,7 +13,8 @@ from financial_statement import get_financial_ratios, get_financial_statements
 from portfolio_optimization import (
     optimize_portfolio,
     load_portfolio_result,
-    list_saved_portfolios
+    list_saved_portfolios,
+    manage_portfolio_logic
 )
 from stock_screener import search_stocks
 
@@ -554,6 +555,56 @@ def benchmark_portfolio_endpoint():
         return jsonify({
             'error': 'An internal error occurred while benchmarking the portfolio'
         }), 500
+
+@app.route('/api/manage-portfolio', methods=['POST'])
+def manage_portfolio_endpoint():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request must be JSON'}), 400
+            
+        current_holdings = data.get('current_holdings', {})
+        cash_injection = float(data.get('cash_injection', 0.0))
+        start_date_str = data.get('start_date')
+        end_date_str = data.get('end_date')
+        risk_free_rate = float(data.get('risk_free_rate', 0.0))
+        
+        forecast_method = data.get('forecast_method', 'LIGHTWEIGHT')
+        optimization_method = data.get('optimization_method', 'BL')
+        
+        target_return = data.get('target_return')
+        risk_tolerance = data.get('risk_tolerance')
+        forecast_horizon = int(data.get('forecast_horizon', 252))
+        min_history = int(data.get('min_history', 100))
+        bl_tau = float(data.get('bl_tau', 0.05))
+
+        try:
+            start_date, end_date = validate_date_range(start_date_str, end_date_str)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+
+        result = manage_portfolio_logic(
+            current_holdings=current_holdings,
+            cash_injection=cash_injection,
+            start_date=start_date,
+            end_date=end_date,
+            risk_free_rate=risk_free_rate,
+            forecast_method=forecast_method,
+            optimization_method=optimization_method,
+            target_return=target_return,
+            risk_tolerance=risk_tolerance,
+            forecast_horizon=forecast_horizon,
+            min_history=min_history,
+            bl_tau=bl_tau
+        )
+        
+        if "error" in result:
+            return jsonify(result), 400
+            
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"manage_portfolio failed: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, threaded=True)
