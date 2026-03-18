@@ -19,6 +19,16 @@ const PortfolioManager = () => {
   const [endDate, setEndDate] = useState("")
   const [riskFreeRate, setRiskFreeRate] = useState("2")
 
+  const [forecastHorizon, setForecastHorizon] = useState("252")
+  const [minHistory, setMinHistory] = useState("100")
+  const [blTau, setBlTau] = useState("0.05")
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [tickerGroup, setTickerGroup] = useState("CURRENT_HOLDINGS")
+  const [customTickers, setCustomTickers] = useState([])
+  const [allowFractional, setAllowFractional] = useState(false)
+  const [fractionalOverrides, setFractionalOverrides] = useState({})
+  const [orderDisplayMode, setOrderDisplayMode] = useState("all") // 'all' | 'shares' | 'value'
+
   // Results state
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -26,9 +36,13 @@ const PortfolioManager = () => {
 
   // CSV upload
   const csvFileInputRef = useRef(null)
+  const spaceCsvFileInputRef = useRef(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
+  const [showSpaceUploadModal, setShowSpaceUploadModal] = useState(false)
   const [uploadFileName, setUploadFileName] = useState("")
+  const [spaceUploadFileName, setSpaceUploadFileName] = useState("")
   const [uploadError, setUploadError] = useState(null)
+  const [spaceUploadError, setSpaceUploadError] = useState(null)
 
   // --- Holdings Management ---
   const addHolding = () => {
@@ -107,6 +121,90 @@ const PortfolioManager = () => {
     return dict
   }
 
+  const handleSpaceFileUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    setSpaceUploadError(null)
+    setSpaceUploadFileName(file.name)
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setSpaceUploadError('Only .csv files are accepted.')
+      setCustomTickers([])
+      setSpaceUploadFileName('')
+      e.target.value = ''
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const text = event.target.result
+      const tickers = text
+        .split(/[\r\n,]+/)
+        .map((t) => t.trim())
+        .filter((t) => t && !t.startsWith('\\') && !t.startsWith('{') && !t.startsWith('}'))
+        .filter(t => !/^(symbol|ticker|name|company)$/i.test(t))
+        .map(t => t.replace(/\\$/, ''))
+        .filter(t => /^[A-Z0-9.\-^]+$/i.test(t))
+
+      if (tickers.length === 0) {
+        setSpaceUploadError('No valid ticker symbols found in the file.')
+        setCustomTickers([])
+      } else {
+        setCustomTickers(tickers)
+        setShowSpaceUploadModal(false)
+      }
+    }
+    reader.onerror = () => {
+      setSpaceUploadError('Failed to read the file.')
+      setCustomTickers([])
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
+  const handleClearSpaceUpload = () => {
+    setCustomTickers([])
+    setSpaceUploadFileName('')
+    setSpaceUploadError(null)
+    if (spaceCsvFileInputRef.current) spaceCsvFileInputRef.current.value = ''
+  }
+
+  const handleCloseSpaceUploadModal = () => {
+    setShowSpaceUploadModal(false)
+    if (customTickers.length === 0) {
+      setTickerGroup('CURRENT_HOLDINGS')
+    }
+  }
+
+  // Determine per-ticker fractional eligibility
+  const isTickerFractional = (ticker) => fractionalOverrides[ticker] ?? allowFractional
+
+  const handleToggleFractional = (ticker) => {
+    setFractionalOverrides(prev => ({ ...prev, [ticker]: !isTickerFractional(ticker) }))
+  }
+
+  const handleAllowFractionalChange = (checked) => {
+    setAllowFractional(checked)
+    setFractionalOverrides({})
+  }
+
+  const handleDownloadCsv = () => {
+    const dataLines = holdings.filter(h => h.ticker.trim() && h.quantity !== "");
+    if (dataLines.length === 0) return;
+    
+    const csvContent = "TICKER,QUANTITY\n" + dataLines.map(h => `${h.ticker.toUpperCase()},${h.quantity}`).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "portfolio_holdings.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   // --- Submit ---
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -130,6 +228,19 @@ const PortfolioManager = () => {
         risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
         forecast_method: forecastMethod,
         optimization_method: optimizationMethod,
+        forecast_horizon: Number.parseInt(forecastHorizon),
+        min_history: Number.parseInt(minHistory),
+        bl_tau: Number.parseFloat(blTau),
+        allow_fractional: allowFractional,
+        fractional_overrides: fractionalOverrides
+      }
+      
+      if (tickerGroup === "CUSTOM") {
+        if (customTickers.length > 0) {
+          payload.tickers = customTickers
+        }
+      } else if (tickerGroup !== "CURRENT_HOLDINGS") {
+        payload.ticker_group = tickerGroup
       }
 
       const response = await axios.post(
@@ -200,7 +311,6 @@ const PortfolioManager = () => {
     <div className="manager-container">
       <h2 className="page-header">{t("manager.title", "Portfolio Manager")}</h2>
 
-      {/* Actions row */}
       <div className="optimizer-actions-row" style={{ marginBottom: "1rem" }}>
         <button
           className="optimizer-secondary-button"
@@ -208,6 +318,19 @@ const PortfolioManager = () => {
           onClick={() => setShowUploadModal(true)}
         >
           {t("manager.uploadCsv", "Upload Holdings CSV")}
+        </button>
+        <button
+          className="optimizer-secondary-button"
+          type="button"
+          onClick={handleDownloadCsv}
+        >
+          {t("manager.downloadCsv", "Download Holdings CSV")}
+        </button>
+        <button 
+          className="optimizer-secondary-button" 
+          type="button" 
+          onClick={() => setShowAdvanced(true)}>
+          {t("optimizer.advancedSettings", "Advanced Settings")}
         </button>
       </div>
 
@@ -362,6 +485,39 @@ const PortfolioManager = () => {
         {/* Configuration grid */}
         <div className="optimizer-form-grid">
           <div className="optimizer-form-group">
+            <label>{t("optimizer.tickerGroup", "Target Asset Space")}</label>
+            {tickerGroup === "CUSTOM" && customTickers.length > 0 ? (
+              <button
+                type="button"
+                className="optimizer-select"
+                onClick={() => setShowSpaceUploadModal(true)}
+                style={{ cursor: 'pointer', textAlign: 'left' }}
+              >
+                {spaceUploadFileName} ({customTickers.length})
+              </button>
+            ) : (
+              <select
+                className="optimizer-select"
+                value={tickerGroup}
+                onChange={(e) => {
+                  setTickerGroup(e.target.value)
+                  if (e.target.value === 'CUSTOM') {
+                    setShowSpaceUploadModal(true)
+                  } else {
+                    handleClearSpaceUpload()
+                  }
+                }}
+                required
+              >
+                <option value="CURRENT_HOLDINGS">{t("manager.currentHoldingsOnly", "Current Holdings Only")}</option>
+                <option value="SP500">S&P 500 (+ Holdings)</option>
+                <option value="DOW">Dow Jones (+ Holdings)</option>
+                <option value="CUSTOM">{t("optimizer.custom", "Custom CSV Upload")}</option>
+              </select>
+            )}
+          </div>
+
+          <div className="optimizer-form-group">
             <label htmlFor="mgr-forecastMethod">
               {t("optimizer.forecastMethod", "Forecast Method")}
             </label>
@@ -454,6 +610,117 @@ const PortfolioManager = () => {
         </div>
       </form>
 
+      {showAdvanced && (
+        <div className="optimizer-modal-overlay" onClick={() => setShowAdvanced(false)}>
+          <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="optimizer-modal-header">
+              <h3 className="optimizer-modal-title">{t("optimizer.advancedSettings", "Advanced Settings")}</h3>
+              <button type="button" className="optimizer-modal-close" onClick={() => setShowAdvanced(false)}>×</button>
+            </div>
+            <div className="optimizer-modal-body">
+              <div className="optimizer-form-group">
+                <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
+                <input
+                  id="forecastHorizon"
+                  className="optimizer-input"
+                  type="number"
+                  value={forecastHorizon}
+                  onChange={(e) => setForecastHorizon(e.target.value)}
+                  placeholder="252"
+                />
+              </div>
+
+              <div className="optimizer-form-group">
+                <label htmlFor="minHistory" title="Minimum number of historical data points required for a ticker to be included.">{t("optimizer.minHistory", "Min. Data History (Days)")}</label>
+                <input
+                  id="minHistory"
+                  className="optimizer-input"
+                  type="number"
+                  value={minHistory}
+                  onChange={(e) => setMinHistory(e.target.value)}
+                  placeholder="100"
+                />
+              </div>
+
+              {optimizationMethod === "BL" && (
+                <div className="optimizer-form-group">
+                  <label htmlFor="blTau" title="A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.">{t("optimizer.blTau", "Black-Litterman Tau")}</label>
+                  <input
+                    id="blTau"
+                    className="optimizer-input"
+                    type="number"
+                    step="0.01"
+                    value={blTau}
+                    onChange={(e) => setBlTau(e.target.value)}
+                    placeholder="0.05"
+                  />
+                  <small style={{ display: 'block', marginTop: '4px', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                    {t("optimizer.blTauHelp", "Confidence in market equilibrium: Lower = Higher Confidence")}
+                  </small>
+                </div>
+              )}
+            </div>
+            <div className="optimizer-modal-footer">
+              <button type="button" className="optimizer-secondary-button" onClick={() => setShowAdvanced(false)}>{t("common.done", "Done")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSpaceUploadModal && (
+        <div className="optimizer-modal-overlay" onClick={handleCloseSpaceUploadModal}>
+          <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="optimizer-modal-header">
+              <h3 className="optimizer-modal-title">{t("optimizer.uploadCustomTickers", "Upload Custom Tickers")}</h3>
+              <button type="button" className="optimizer-modal-close" onClick={handleCloseSpaceUploadModal}>×</button>
+            </div>
+            <div className="optimizer-modal-body">
+              <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
+                Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like "Symbol" or "Ticker" are automatically ignored.
+              </p>
+              <button
+                type="button"
+                className="optimizer-secondary-button"
+                onClick={() => spaceCsvFileInputRef.current?.click()}
+                style={{ width: '100%', marginBottom: 'var(--spacing-md)' }}
+              >
+                {spaceUploadFileName ? t("optimizer.changeFile", "Change File") : t("optimizer.chooseCsvFile", "Choose CSV File")}
+              </button>
+              <input
+                type="file"
+                accept=".csv"
+                ref={spaceCsvFileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleSpaceFileUpload}
+              />
+              {spaceUploadError && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--color-danger)', marginBottom: 'var(--spacing-md)' }}>
+                  {spaceUploadError}
+                </div>
+              )}
+              {customTickers.length > 0 && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                  <strong>{spaceUploadFileName}</strong> — {customTickers.length} ticker{customTickers.length !== 1 ? 's' : ''} loaded
+                  <ul className="optimizer-weights-list" style={{ marginTop: 'var(--spacing-sm)', maxHeight: '150px' }}>
+                    {customTickers.map(t => <li key={t}><span>{t}</span></li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="optimizer-modal-footer">
+              {customTickers.length > 0 && (
+                <button type="button" className="optimizer-secondary-button" onClick={handleClearSpaceUpload}>
+                  {t("common.clear", "Clear")}
+                </button>
+              )}
+              <button type="button" className="optimizer-secondary-button" onClick={handleCloseSpaceUploadModal}>
+                {t("common.done", "Done")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Error */}
       {error && (
         <div className="optimizer-error">
@@ -470,6 +737,47 @@ const PortfolioManager = () => {
           <h3 className="manager-results-title">
             {t("manager.resultsTitle", "Rebalancing Results")}
           </h3>
+
+          <div className="optimizer-weights-card" style={{ marginTop: "var(--spacing-md)", marginBottom: "var(--spacing-xl)" }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h4 style={{ margin: 0 }}>{t("optimizer.fractionalSettings", "Fractional Settings")}</h4>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '0.9rem' }}>
+                <input
+                  type="checkbox"
+                  checked={allowFractional}
+                  onChange={(e) => handleAllowFractionalChange(e.target.checked)}
+                  style={{ marginRight: '8px', cursor: 'pointer' }}
+                />
+                {t("optimizer.allowFractional", "Allow Fractional Shares (Global)")}
+              </label>
+            </div>
+            
+            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+              <p>Re-configure how non-fractional orders behave by overriding settings below, and resubmit.</p>
+            </div>
+            <ul className="optimizer-weights-list" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+              {Array.from(new Set([...Object.keys(results.weights || {}), ...Object.keys(results.current_holdings || {})])).sort().map(ticker => {
+                if (!ticker || (!results.weights?.[ticker] && !results.current_holdings?.[ticker])) return null;
+                return (
+                  <li key={ticker} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0' }}>
+                    <span style={{ fontWeight: '500' }}>{ticker}</span>
+                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '0.85rem' }}>
+                      <input
+                        type="checkbox"
+                        checked={isTickerFractional(ticker)}
+                        onChange={() => handleToggleFractional(ticker)}
+                        style={{ marginRight: '6px', cursor: 'pointer' }}
+                      />
+                      {t("optimizer.fractionalAllowed", "Fractional Allowed")}
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+            <button type="button" className="optimizer-submit-button" onClick={handleSubmit} style={{ marginTop: "1rem" }} disabled={loading}>
+              {loading ? t("common.processing", "Processing...") : t("manager.recalculate", "Recalculate Orders")}
+            </button>
+          </div>
 
           {/* Pie Charts */}
           <div className="manager-charts-row">
@@ -557,6 +865,24 @@ const PortfolioManager = () => {
             </div>
           )}
 
+          {/* Order Display Toggle */}
+          {(results.buy_list && Object.keys(results.buy_list).length > 0) || (results.sell_list && Object.keys(results.sell_list).length > 0) ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: 'var(--spacing-lg)', marginBottom: 'var(--spacing-sm)' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginRight: '0.25rem' }}>{t("manager.displayMode", "Display:")} </span>
+              {[{key: 'all', label: t("manager.displayAll", "All")}, {key: 'shares', label: t("optimizer.shares", "Shares")}, {key: 'value', label: t("optimizer.investmentAmount", "Value")}].map(mode => (
+                <button
+                  key={mode.key}
+                  type="button"
+                  onClick={() => setOrderDisplayMode(mode.key)}
+                  className={orderDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}
+                  style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', minWidth: 'unset' }}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
           {/* Buy List */}
           {results.buy_list && Object.keys(results.buy_list).length > 0 && (
             <div className="manager-order-section">
@@ -567,24 +893,28 @@ const PortfolioManager = () => {
                 <thead>
                   <tr>
                     <th>{t("optimizer.ticker", "Ticker")}</th>
-                    <th>{t("optimizer.shares", "Shares")}</th>
+                    {(orderDisplayMode === 'all' || orderDisplayMode === 'shares') && <th>{t("optimizer.shares", "Shares")}</th>}
                     <th>{t("optimizer.price", "Price")}</th>
-                    <th>{t("optimizer.investmentAmount", "Value")}</th>
+                    {(orderDisplayMode === 'all' || orderDisplayMode === 'value') && <th>{t("optimizer.investmentAmount", "Value")}</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {Object.entries(results.buy_list).map(([ticker, data]) => (
                     <tr key={ticker}>
                       <td className="ticker-cell">{ticker}</td>
-                      <td className="number-cell">
-                        {data.quantity?.toFixed(4)}
-                      </td>
+                      {(orderDisplayMode === 'all' || orderDisplayMode === 'shares') && (
+                        <td className="number-cell">
+                          {data.quantity?.toFixed(4)}
+                        </td>
+                      )}
                       <td className="number-cell">
                         ${data.price?.toFixed(2)}
                       </td>
-                      <td className="number-cell positive">
-                        +${data.value?.toFixed(2)}
-                      </td>
+                      {(orderDisplayMode === 'all' || orderDisplayMode === 'value') && (
+                        <td className="number-cell positive">
+                          +${data.value?.toFixed(2)}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -602,24 +932,28 @@ const PortfolioManager = () => {
                 <thead>
                   <tr>
                     <th>{t("optimizer.ticker", "Ticker")}</th>
-                    <th>{t("optimizer.shares", "Shares")}</th>
+                    {(orderDisplayMode === 'all' || orderDisplayMode === 'shares') && <th>{t("optimizer.shares", "Shares")}</th>}
                     <th>{t("optimizer.price", "Price")}</th>
-                    <th>{t("optimizer.investmentAmount", "Value")}</th>
+                    {(orderDisplayMode === 'all' || orderDisplayMode === 'value') && <th>{t("optimizer.investmentAmount", "Value")}</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {Object.entries(results.sell_list).map(([ticker, data]) => (
                     <tr key={ticker}>
                       <td className="ticker-cell">{ticker}</td>
-                      <td className="number-cell">
-                        {data.quantity?.toFixed(4)}
-                      </td>
+                      {(orderDisplayMode === 'all' || orderDisplayMode === 'shares') && (
+                        <td className="number-cell">
+                          {data.quantity?.toFixed(4)}
+                        </td>
+                      )}
                       <td className="number-cell">
                         ${data.price?.toFixed(2)}
                       </td>
-                      <td className="number-cell negative">
-                        -${data.value?.toFixed(2)}
-                      </td>
+                      {(orderDisplayMode === 'all' || orderDisplayMode === 'value') && (
+                        <td className="number-cell negative">
+                          -${data.value?.toFixed(2)}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

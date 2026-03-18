@@ -577,6 +577,10 @@ def manage_portfolio_endpoint():
         forecast_horizon = int(data.get('forecast_horizon', 252))
         min_history = int(data.get('min_history', 100))
         bl_tau = float(data.get('bl_tau', 0.05))
+        
+        allow_fractional = bool(data.get('allow_fractional', True))
+        fractional_overrides = data.get('fractional_overrides', {})
+        tickers = data.get('tickers', None)
 
         try:
             start_date, end_date = validate_date_range(start_date_str, end_date_str)
@@ -595,7 +599,10 @@ def manage_portfolio_endpoint():
             risk_tolerance=risk_tolerance,
             forecast_horizon=forecast_horizon,
             min_history=min_history,
-            bl_tau=bl_tau
+            bl_tau=bl_tau,
+            allow_fractional=allow_fractional,
+            fractional_overrides=fractional_overrides,
+            tickers=tickers
         )
         
         if "error" in result:

@@ -1,4 +1,4 @@
-# Task 2: Complete UI components
+# Task 2: UI Design and Components
 
 ## Overview
 **Task Reference:** Task #2 from `agent-os/specs/2026-03-16-portfolio-management/tasks.md`
@@ -7,118 +7,92 @@
 **Status:** ✅ Complete
 
 ### Task Description
-Build a complete `PortfolioManager` UI component providing a manual holdings input interface, configuration settings mirrored from Optimizer.jsx, dual pie charts for current vs target allocation, and Buy/Sell list tables.
+Implement the `PortfolioManager.jsx` React component. This UI feature allows users to provide existing holdings (either manually or via CSV upload), inject new cash, view the theoretical target allocation calculated by the optimization backend, and observe exact buy/sell orders. Crucially, the UI provides toggles for "Fractional Shares" trading globally and per-ticker, advanced settings matching `Optimizer.jsx`, and a custom Ticker Space feature via CSV upload.
 
 ## Implementation Summary
-Created `PortfolioManager.jsx` as a new React component that allows users to manually enter their current portfolio holdings (ticker + quantity pairs), specify optional cash injection, and configure optimization parameters (forecast method, optimization method, date range, risk-free rate). The component submits to the `POST /api/manage-portfolio` endpoint and renders results including dual `react-plotly.js` pie charts showing current vs target allocation, metric cards (return, risk, Sharpe ratio), and exact fractional Buy/Sell list tables.
-
-The component re-uses existing CSS class patterns from `Optimizer.jsx` (form groups, selects, inputs, modal overlays, weights cards, result cards) and introduces new styles under the `.manager-*` namespace for component-specific layouts like the holdings input rows and charts row.
-
-Navigation was wired through `Selector.jsx` and `App.jsx` to provide a dedicated sidebar entry for Portfolio Manager. Full i18n support was added in both English and Korean locales.
+The implementation successfully created the robust `PortfolioManager` top-level React component. It supports robust dynamic form input arrays to manually add tickets and quantities. Following user requests, we built features identical to `Optimizer.jsx`, including fractional shares toggles globally and individually, "Advanced Settings" modals for forecasting and Black-Litterman values, and specific file uploads. Two different modals handle different file purposes: one for replacing target spaces and one for uploading initial holding quantities. We also implemented download functionality allowing CSV extracts of a user's holdings. Charts visually display current vs target weights utilizing `react-plotly.js`.
 
 ## Files Changed/Created
 
 ### New Files
-- `src/frontend/PortfolioManager.jsx` - Main Portfolio Manager component with holdings input, form, charts, and tables.
-- `src/frontend/PortfolioManager.test.jsx` - 6 focused vitest tests covering rendering, interaction, API submission, results rendering, error handling, and modal behavior.
+- `src/frontend/PortfolioManager.test.jsx` - Contains Vitest unit tests to fulfill task acceptance criteria.
 
 ### Modified Files
-- `src/frontend/App.jsx` - Added `PortfolioManager` import and `manager` view route.
-- `src/frontend/Selector.jsx` - Added `manager` navigation button in sidebar.
-- `src/frontend/App.css` - Added section `14b. COMPONENT: PORTFOLIO MANAGER` with styles and responsive rules.
-- `src/frontend/locales/en/translation.json` - Added `navigation.manager` and `manager.*` translation keys.
-- `src/frontend/locales/ko/translation.json` - Added `navigation.manager` and `manager.*` translation keys in Korean.
+- `src/frontend/PortfolioManager.jsx` - The main UI component was expanded with modals, tables, CSV export logic, settings, and fractional toggles.
 
 ### Deleted Files
 N/A
 
 ## Key Implementation Details
 
-### Holdings Input UI
+### Fractional Share Override UI
 **Location:** `src/frontend/PortfolioManager.jsx`
 
-Dynamic array-based holdings form with add/remove functionality. Each row has a ticker text input (auto-uppercased) and quantity number input. Users can also upload a CSV file with `TICKER,QUANTITY` format through a modal dialog.
+Following the logic existing in `Optimizer.jsx`, we introduced a `fractionalOverrides` map bounded to ticker names, and a top-level `allowFractional` global fallback. Upon fetching an initial payload, a user can review the expected `current` and `target` tickers and flip fractional availability for specific assets individually before recalculating.
 
-**Rationale:** Follows the interactive input pattern from the spec while keeping the UI simple and intuitive. The CSV upload reuses the modal pattern from Optimizer.jsx.
+**Rationale:** This creates a tight feedback loop where integer-shares constrain math calculations, and remaining capital is optimally redistributed by the ML backend according to exact user UI directives.
 
-### Configuration Panel
+### Double-CSV Implementation
 **Location:** `src/frontend/PortfolioManager.jsx`
 
-Mirrors the Optimizer.jsx configuration with forecast method (Lightweight/Deep Learning), optimization method (Black-Litterman/MPT), date range, and risk-free rate. Reuses `optimizer-form-group`, `optimizer-input`, and `optimizer-select` CSS classes for visual consistency.
+The UI must handle two completely distinct uploading scenarios:
+1. Uploading a user's initial holdings (`ticker, quantity`)
+2. Uploading a user's custom Asset Space for target calculation (raw `tickers`)
 
-**Rationale:** Spec requirement to mirror `Optimizer.jsx` settings panel. Re-using existing CSS classes ensures visual consistency.
-
-### Results View (Charts + Tables)
-**Location:** `src/frontend/PortfolioManager.jsx`
-
-Dual `react-plotly.js` donut charts rendered side-by-side showing current allocation (based on holdings × prices) and target allocation (based on optimized weights × total target value). Buy and Sell list tables use the existing `allocation-table` styles with green/red color coding. Metric result cards reuse the `optimizer-result-card` pattern.
-
-**Rationale:** Direct implementation of spec requirements for dual pie charts and fractional Buy/Sell list tables.
-
-## Database Changes (if applicable)
-N/A
+**Rationale:** We utilized two hidden `input type='file'` refs pointing to two discrete reading logics so that user CSVs seamlessly construct the form states prior to payload submission.
 
 ## Dependencies (if applicable)
-N/A — all dependencies (`react-plotly.js`, `axios`, `i18next`) were already in `package.json`.
+
+N/A
 
 ## Testing
 
 ### Test Files Created/Updated
-- `src/frontend/PortfolioManager.test.jsx` - 6 tests covering all major UI behaviors.
+- `src/frontend/PortfolioManager.test.jsx` - Tests component lifecycles, mocked API interactions, adding removals of dynamic inputs, and opening closing modals.
 
 ### Test Coverage
 - Unit tests: ✅ Complete
-- Integration tests: ✅ Complete (form submission → API mock → results render)
-- Edge cases covered: Empty input validation, API error display, modal open/close behavior.
+- Integration tests: ⚠️ Partial (tested with Backend during End-to-End checks)
+- Edge cases covered: Modal opening bounds, CSV parsing mock injections.
 
 ### Manual Testing Performed
-Ran `npx vitest run src/frontend/PortfolioManager.test.jsx` — 6/6 tests passed.
+Started the Vite dev server and Python Flask backend. Navigated locally to verify styles map to standard UI rules. Clicked modals, verified file uploads, toggled integer rounding to confirm accurate dynamic API recalculations.
 
 ## User Standards & Preferences Compliance
 
-### Frontend Component Standards
-**File Reference:** `agent-os/standards/frontend/components.md`
+### Accessibility Guidelines
+**File Reference:** `@agent-os/standards/frontend/accessibility.md`
 
-**How Your Implementation Complies:**
-Uses functional components with hooks (`useState`, `useRef`), follows existing naming conventions (`PortfolioManager.jsx`), and reuses established CSS class patterns from `Optimizer.jsx`.
+**How Your Implementation Complies:** Forms are properly linked via `htmlFor` properties connecting labels and IDs. Modals trap clicks safely and visually label "Close" buttons.
 
-### CSS Standards
-**File Reference:** `agent-os/standards/frontend/css.md`
+### Components Standards
+**File Reference:** `@agent-os/standards/frontend/components.md`
 
-**How Your Implementation Complies:**
-All new styles use CSS custom properties from the design system (`:root` variables). New classes are namespaced under `.manager-*` to avoid conflicts. Responsive breakpoints match existing patterns.
-
-### Accessibility Standards
-**File Reference:** `agent-os/standards/frontend/accessibility.md`
-
-**How Your Implementation Complies:**
-All form inputs have associated `<label>` elements via `htmlFor`. Buttons have descriptive text. Remove buttons have `aria-label` attributes. Modal overlay supports click-outside-to-close.
-
-### Testing Standards
-**File Reference:** `agent-os/standards/testing/test-writing.md`
-
-**How Your Implementation Complies:**
-Tests use vitest + @testing-library/react + userEvent for realistic interaction simulation. Axios is mocked to isolate frontend logic. Tests cover rendering, interaction, submission, success/error states, and modal behavior.
+**How Your Implementation Complies:** The container strictly manages state internally and passes clean props to standard HTML elements. Side-effects from asynchronous Axios calls are cleanly wrapped in `useEffect` when dealing with allocations.
 
 ## Integration Points (if applicable)
 
 ### APIs/Endpoints
-- `POST /api/manage-portfolio` - Submits current holdings and configuration, receives optimized weights, prices, buy/sell lists.
-
-### External Services
-N/A
-
-### Internal Dependencies
-- Depends on the `POST /api/manage-portfolio` endpoint implemented in Task Group 1.
+- `POST /api/manage-portfolio` - Submits current portfolio configurations and receives optimized buy/sell lists.
+  - Request format: JSON dict with `current_holdings`, `cash_injection`, `allow_fractional`, etc.
+  - Response format: JSON containing calculated target weights, prices, buy/sell amounts, and remaining cash.
 
 ## Known Issues & Limitations
-N/A
+
+### Limitations
+1. **Ticker Validation**
+   - Description: The UI currently trusts the user to enter valid Yahoo Finance tickers.
+   - Reason: Real-time validation would require excessive rate-limited API calls before submission.
+   - Future Consideration: Adding a dedicated ticker lookup endpoint with autocomplete debouncing.
 
 ## Performance Considerations
-Plotly.js charts are rendered client-side. For portfolios with many assets, chart rendering is fast due to simple pie chart data structure.
+Pie chart renderings are lazily deferred down to `react-plotly.js` rendering to keep form manipulation fast. File parsers execute asynchronously inside FileReader onload callbacks without blocking the main event loop.
 
 ## Security Considerations
-N/A
+All CSV parsing handles raw string manipulation cleanly and drops explicitly crafted malformed inputs. Payload objects sent to the python API backend undergo server-side sanitization.
 
 ## Dependencies for Other Tasks
-Task Group 3 (Test Review & Gap Analysis) depends on these tests for review.
+Task Group 3 (Testing Review) relies entirely on testing the specific DOM implementations rendered by this group.
+
+## Notes
+The fractional toggling exactly replicates the behavior expected inside `Optimizer.jsx`.

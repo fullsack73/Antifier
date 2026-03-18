@@ -9,20 +9,22 @@ We're continuing our implementation of Portfolio Management by implementing task
     - Setup routing or tab navigation to access this new feature.
   - [ ] 2.3 Implement the manual holdings input UI.
     - Fields for entering ticker (e.g., `msft`) and quantity (e.g., `2`), along with a cash injection input field.
+    - Add a "Download CSV" button to export the currently entered portfolio holdings to a `.csv` file.
   - [ ] 2.4 Re-use and integrate the configuration settings panel mirrored from `Optimizer.jsx`.
     - Dropdowns/inputs for optimization method (Black-Litterman vs MPT), forecast method (Historical vs ML/Lightweight), and historical time periods.
-    - Manage candidate "spaces" (using the tickers from the user's current holdings input or allowing a CSV upload).
+    - Modal or panel for Advanced Settings (Forecast Horizon, Min. Data History, Black-Litterman Tau).
+    - Manage candidate "spaces" (using the tickers from the user's current holdings input, adding new tickers manually, or allowing a CSV upload).
   - [ ] 2.5 Build the Results View.
     - Implement the two `react-plotly.js` pie charts (Current Allocation vs. Target Allocation) side by side.
-    - Build exact fractional Buy and Sell list tables.
+    - Build exact Buy and Sell list tables, incorporating a Fractional Trading toggle (global and per-ticker) akin to `Optimizer.jsx` to handle fractional vs. integer share calculation and remaining cash redistribution.
   - [ ] 2.6 Ensure UI component tests pass
     - Run ONLY the 2-8 tests written in 2.1.
     - Ensure styling matches existing application framework.
 
 **Acceptance Criteria:**
 - The 2-8 tests written in 2.1 pass.
-- Users can successfully manually input their exact holding quantities and configure all optimization details interactively.
-- The output pie charts and buy/sell tables render accurately based on backend API responses.
+- Users can successfully manually input their exact holding quantities, export them to CSV, and configure all optimization details interactively, including Advanced Settings and space management.
+- The output pie charts and buy/sell tables render accurately based on backend API responses, correctly applying the Fractional Share constraints.
 
 ## Understand the context
 

@@ -10,10 +10,12 @@ Enable users to manage their existing portfolios by calculating the optimal buy/
 
 ## Core Requirements
 ### Functional Requirements
-- Provide an interactive UI to manually input current portfolio holdings (e.g., entering tickers like `msft` and quantities like `0.1` or `2`), alongside an input for optional additional cash injection.
-- UI settings panel to configure the optimization method (Black-Litterman vs MPT), forecast method (Historical vs ML/Lightweight), historical time periods, and to manage candidate "spaces" (e.g., tickers in user's input portfolio or uploading a CSV of custom tickers) to find the target portfolio, mirroring the settings in `Optimizer.jsx`.
+- Provide an interactive UI to manually input current portfolio holdings (e.g., entering tickers like `msft` and quantities like `0.1` or `2`), alongside an input for optional additional cash injection. Provide a function to export the entered holdings and quantities as a CSV file.
+- UI settings panel to configure the optimization method (Black-Litterman vs MPT), forecast method (Historical vs ML/Lightweight), historical time periods, and Advanced Settings (Forecast Horizon, Min. Data History, Black-Litterman Tau).
+- Option to manage candidate "spaces". Users can choose to use the tickers from their input portfolio, add new manual tickers, or upload a CSV of custom tickers to find the target portfolio, mirroring the settings in `Optimizer.jsx`.
+- Include a toggle for allowing Fractional Shares at the global and per-ticker level, mirroring the logic in `Optimizer.jsx`.
 - Compute the optimal target portfolio iteratively by adjusting target returns and risks to find the maximum Sharpe ratio using the selected algorithms.
-- Calculate exact difference in fractional shares between the current portfolio and the new target portfolio to produce a "Sell List" and a "Buy List".
+- Calculate exact difference in fractional (or integer, based on the toggle) shares between the current portfolio and the new target portfolio to produce a "Sell List" and a "Buy List". Handle leftover liquidity redistribution if fractional shares are disabled for some or all tickers.
 - Render two pie charts (using Plotly.js) displaying the current allocation vs. optimized target allocation side by side.
 
 ### Non-Functional Requirements
@@ -28,7 +30,7 @@ Enable users to manage their existing portfolios by calculating the optimal buy/
 
 ## Reusable Components
 ### Existing Code to Leverage
-- **Frontend Components**: Re-use the CSV/JSON upload modal logic, the advanced settings panel (forecast method, optimization method, history settings), and the fractional share constraints/redistribution tables from `src/frontend/Optimizer.jsx`. Re-use `Plotly.js` integration for the pie charts.
+- **Frontend Components**: Re-use the CSV/JSON upload modal logic, the advanced settings modal (Forecast Horizon, Min. Data History, Black-Litterman Tau), the forecast method/optimization method settings, and the fractional share constraints/redistribution tables and toggles from `src/frontend/Optimizer.jsx`. Re-use `Plotly.js` integration for the pie charts.
 - **Backend Services**: Extend `src/backend/portfolio_optimization.py` leveraging the `optimize_portfolio` function and iteration loops for calculating max-Sharpe weights, using existing data-fetching pipelines (`data_and_forecast_pipeline`).
 - **Patterns**: The handling of leftover cash and fractional logic is already well-defined in the `Optimizer` frontend state.
 
@@ -38,7 +40,7 @@ Enable users to manage their existing portfolios by calculating the optimal buy/
 ## Technical Approach
 - **Database**: Portfolios can optionally be persisted as JSON using the existing mechanism in `portfolio_optimization.py`.
 - **API**: A new or extended endpoint (e.g., `POST /api/manage-portfolio`) in the Flask backend that takes current holdings, space parameters, optimization configurations, and cash injection, calculates the maximum Sharpe target, and returns the comparative states.
-- **Frontend**: Create a `PortfolioManager` React component using `useTranslation` for i18n, managing form state for the current holdings JSON upload, the cash injection amount, and configuration fields. Render charts with `react-plotly.js`.
+- **Frontend**: Create a `PortfolioManager` React component using `useTranslation` for i18n, managing form state for the current holdings (with CSV export capability), the cash injection amount, configuration fields, advanced settings, and the fractional toggle state. Render charts with `react-plotly.js`.
 - **Testing**: Add backend tests to ensure the rebalancing logic (calculating the buy/sell diffs) is mathematically accurate, paying close attention to fractional accuracy and the handling of the optional cash injection.
 
 ## Out of Scope

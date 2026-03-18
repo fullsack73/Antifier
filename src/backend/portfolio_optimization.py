@@ -942,10 +942,18 @@ def iteratively_solve_max_sharpe(mu, S, risk_free_rate, max_asset_weight=0.2):
     
     return best_weights
 
-def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection):
+def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection, allow_fractional=True, fractional_overrides=None):
     """
-    Generate exact fractional Buy List and Sell List comparing current holdings to target optimized weights.
+    Generate exact Buy List and Sell List comparing current holdings to target optimized weights,
+    respecting fractional trading constraints and redistributing unused cash.
     """
+    import math
+    if fractional_overrides is None:
+        fractional_overrides = {}
+        
+    def is_fractional(ticker):
+        return fractional_overrides.get(ticker, allow_fractional)
+
     total_current_value = 0.0
     current_values = {}
     for ticker, qty in current_holdings.items():
@@ -956,21 +964,67 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         
     total_target_value = total_current_value + float(cash_injection)
     
+    # Calculate ideal target quantities first
+    ideal_quantities = {}
+    all_tickers = set(current_holdings.keys()).union(target_weights.keys())
+    for ticker in all_tickers:
+        price = latest_prices.get(ticker, 0.0)
+        target_weight = target_weights.get(ticker, 0.0)
+        if price > 0:
+            ideal_quantities[ticker] = (total_target_value * target_weight) / price
+            
+    # Apply fractional constraints
+    target_quantities = {}
+    remaining_cash = 0.0
+    fractional_tickers = []
+    
+    for ticker, ideal_qty in ideal_quantities.items():
+        price = latest_prices.get(ticker, 0.0)
+        if is_fractional(ticker):
+            target_quantities[ticker] = ideal_qty
+            if target_weights.get(ticker, 0.0) > 0:
+                fractional_tickers.append(ticker)
+        else:
+            floor_qty = math.floor(ideal_qty)
+            target_quantities[ticker] = float(floor_qty)
+            remaining_cash += (ideal_qty - floor_qty) * price
+            
+    # Redistribute remaining cash
+    if remaining_cash > 0.01:
+        if fractional_tickers:
+            frac_weight_sum = sum(target_weights.get(t, 0.0) for t in fractional_tickers)
+            if frac_weight_sum > 0:
+                for ticker in fractional_tickers:
+                    extra_cash = (target_weights[ticker] / frac_weight_sum) * remaining_cash
+                    target_quantities[ticker] += extra_cash / latest_prices[ticker]
+                remaining_cash = 0.0
+            
+        if remaining_cash > 0.01:
+            sorted_tickers = sorted(
+                [t for t in target_quantities.keys() if not is_fractional(t)],
+                key=lambda t: target_weights.get(t, 0.0), 
+                reverse=True
+            )
+            changed = True
+            while changed and remaining_cash > 0.01:
+                changed = False
+                for ticker in sorted_tickers:
+                    price = latest_prices.get(ticker, 0.0)
+                    if price > 0 and price <= remaining_cash:
+                        target_quantities[ticker] += 1.0
+                        remaining_cash -= price
+                        changed = True
+                        break
+
     buy_list = {}
     sell_list = {}
-    target_quantities = {}
     
-    all_tickers = set(current_holdings.keys()).union(target_weights.keys())
     for ticker in all_tickers:
         price = latest_prices.get(ticker, 0.0)
         if price <= 0:
             continue
-        
-        target_weight = target_weights.get(ticker, 0.0)
-        target_val = total_target_value * target_weight
-        target_qty = target_val / price
-        target_quantities[ticker] = target_qty
-        
+            
+        target_qty = target_quantities.get(ticker, 0.0)
         current_qty = float(current_holdings.get(ticker, 0.0))
         delta_qty = target_qty - current_qty
         
@@ -984,12 +1038,13 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         "sell_list": sell_list,
         "target_quantities": target_quantities,
         "target_weights": target_weights,
-        "total_target_value": total_target_value
+        "total_target_value": total_target_value,
+        "remaining_cash": float(remaining_cash)
     }
 
 def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_date, risk_free_rate, 
                            forecast_method="LIGHTWEIGHT", optimization_method="BL", 
-                           tickers=None, **kwargs):
+                           tickers=None, allow_fractional=True, fractional_overrides=None, **kwargs):
                            
     if tickers is None or len(tickers) == 0:
         tickers = list(current_holdings.keys())
@@ -1014,7 +1069,10 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
     # We will use the optimized weights from optimize_portfolio or iteratively calculate them if asked.
     # For now, optimize_portfolio already returned the best weights (either by max_sharpe or otherwise).
     
-    rebalance_data = calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection)
+    rebalance_data = calculate_rebalance_orders(
+        current_holdings, target_weights, latest_prices, cash_injection,
+        allow_fractional=allow_fractional, fractional_overrides=fractional_overrides
+    )
     opt_result.update(rebalance_data)
     opt_result["current_holdings"] = current_holdings
     opt_result["cash_injection"] = cash_injection

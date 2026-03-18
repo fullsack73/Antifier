@@ -1,99 +1,52 @@
-# Task 1: Complete optimization and rebalancing API layer
+# Task 1: Backend Optimization and Rebalancing API
 
 ## Overview
-**Task Reference:** Task #1 from `agent-os/specs/2026-03-16-portfolio-management/tasks.md`
+**Task Reference:** Task Group 1 from `agent-os/specs/2026-03-16-portfolio-management/tasks.md`
 **Implemented By:** api-engineer
 **Date:** 2026-03-17
 **Status:** ✅ Complete
 
 ### Task Description
-Implement a new portfolio management backend logic and API endpoint. The new API needs to calculate the buy/sell list and rebalance a provided portfolio towards a max-sharpe target allocation considering an optional cash injection.
+Implement the backend optimization and rebalancing API layer handling current holdings, cash injections, and calculating the target weights and fractional remaining cash states including custom UI toggles for integer/fractional sharing.
 
 ## Implementation Summary
-Added the `iteratively_solve_max_sharpe` and `calculate_rebalance_orders` optimization and logic functions to `portfolio_optimization.py` to calculate fractional allocations and exact buy/sell lists given current holdings and cash injections. A new overarching `manage_portfolio_logic` combines them and uses the existing `optimize_portfolio` function for calculating ML predictions and optimization weights.
-
-Added the `POST /api/manage-portfolio` endpoint to `app.py` taking in the necessary inputs, invoking `manage_portfolio_logic`, and returning the structured results back to the caller.
-
-Added extensive unit-testing in `test_portfolio_management.py` and patched expensive machine-learning module requirements.
+Extended the backend to process a true rebalancing action considering initial holdings and uninvested cash. Updated the calculation function to consider `allow_fractional` and `fractional_overrides`.
 
 ## Files Changed/Created
 
-### New Files
-- `tests/test_portfolio_management.py` - Contains 5 detailed test functions targeting fractional computation (Buy/Sell lists with or without new cash injections), maximum sharpe iteratively solver, and API responses.
-
 ### Modified Files
-- `src/backend/portfolio_optimization.py` - Inserted iterative solver and fractional deltas calculator for rebalancing.
-- `src/backend/app.py` - Inserted `manage-portfolio` Flask route to expose the business logic.
-
-### Deleted Files
-N/A
+- `src/backend/app.py` - Added integration to pass the `allow_fractional` and `fractional_overrides` arguments through to the optimization logic.
+- `src/backend/portfolio_optimization.py` - Re-wrote `calculate_rebalance_orders` to add robust redistribution of cash for integer requirements based on ideal allocations.
+- `tests/test_portfolio_management.py` - Added specific tests validating the mathematical calculations for integer limits (`allow_fractional=False`) and fractional edge cases.
 
 ## Key Implementation Details
 
-### Fractional Rebalancing Engine
+### Fractional Logic Redistribution
 **Location:** `src/backend/portfolio_optimization.py`
-Created `calculate_rebalance_orders`. It first tallies the total value of current holdings, adds the optional cash injection, and determines the targeted value block for each asset based on the newly optimized target weights. It then generates accurate fractional delta differences (quantities) and records them in discrete Buy/Sell lists.
-**Rationale:** Preserves exact fractional calculations out of the box in simple float operations.
 
-### Flask API Point
-**Location:** `src/backend/app.py`
-Mapped to `POST /api/manage-portfolio`. Retrieves and parses current portfolio configurations, injection sizes, historical period preferences, algorithm switches, etc.
-**Rationale:** Follows existing pattern established by `optimize-portfolio`.
+When solving for actual quantities based on target valuations, any unused cash coming from flooring integers is efficiently redistributed using remaining asset capacities, either greedily (full integers) or proportionally for strictly fractional assets.
+
+**Rationale:** The front-end handles integer allocations locally, but for consistency if the backend delivers exact fractions, it needs full logic matching for exact Buy/Sell list generation.
 
 ## Database Changes (if applicable)
-N/A
 
-## Dependencies (if applicable)
-N/A
+### Schema Impact
+None.
 
 ## Testing
 
 ### Test Files Created/Updated
-- `tests/test_portfolio_management.py` - Testing edge cases like generating target amounts when adding a brand new asset from a cash injection, ensuring exact quantities to buy/sell are returned, and ensuring the API responds correctly.
+- `tests/test_portfolio_management.py` - Unit test coverage for fractional and integer permutations.
 
 ### Test Coverage
 - Unit tests: ✅ Complete
-- Integration tests: ✅ Complete
-- Edge cases covered: No cash injection, with cash injection, adding a completely new asset to the portfolio.
-
-### Manual Testing Performed
-Ran pytest on testing file to verify. 6/6 tests passed including a warning check for OSQP solver parameters.
 
 ## User Standards & Preferences Compliance
 
-### API Standard File
-**File Reference:** `agent-os/standards/backend/api.md`
+### API Standards
+**File Reference:** `@agent-os/standards/backend/api.md`
+**How Your Implementation Complies:** Implemented the proper return dictionary matching exactly what the endpoints need, catching exceptions cleanly.
 
-**How Your Implementation Complies:**
-Provides a clean, RESTful JSON structured interface via `POST /api/manage-portfolio`. Handled edge-case date errors appropriately by returning `400` codes and detailed error descriptions in JSON blocks securely. Added robust python `try...except` blocks around the backend execution to gracefully capture failure within standard error objects.
-
-### Testing Standard File
-**File Reference:** `agent-os/standards/testing/test-writing.md`
-
-**How Your Implementation Complies:**
-Mocked external API integration correctly (mocking API responses for complex predictions to prevent lengthy network waits on simple logic flows). Tested different specific fractional and value parameters. Included testing using pytest syntax.
-
-## Integration Points (if applicable)
-
-### APIs/Endpoints
-- `POST /api/manage-portfolio` - Calculates optimal buy/sell list
-  - Request format: JSON body containing current portfolio holdings dict, cash injection float, start/end dates, risk rate, and other algorithm options.
-  - Response format: JSON dictionary containing target weights array, latest asset prices, targeted quantities, required buy list, and required sell list to rebalance.
-
-### External Services
-N/A
-
-### Internal Dependencies
-N/A
-
-## Known Issues & Limitations
-N/A
-
-## Performance Considerations
-Relies directly on the performance and throughput limits set down by the existing `optimize_portfolio` engine, which dynamically adapts via multithreading in `data_and_forecast_pipeline`.
-
-## Security Considerations
-N/A
-
-## Dependencies for Other Tasks
-This is the base API layer that Task Group 2 requires to render fractional information on the Frontend.
+### Testing Standards
+**File Reference:** `@agent-os/standards/testing/test-writing.md`
+**How Your Implementation Complies:** Wrote tightly-scoped focused tests limiting to 2-8 tests strictly on critical paths.

@@ -5,11 +5,11 @@ We're continuing our implementation of Portfolio Management by implementing task
 - [ ] 1.0 Complete optimization and rebalancing API layer
   - [ ] 1.1 Write 2-8 focused tests for the new `manage-portfolio` API endpoint and rebalancing calculations.
     - Test maximum Sharpe ratio iterative optimization loop.
-    - Test the exact fractional calculation logic for Buy/Sell lists considering the cash injection.
+    - Test the exact fractional and integer calculation logic for Buy/Sell lists considering the cash injection and fractional toggle state (redistributing unused cash).
   - [ ] 1.2 Implement the Portfolio Management optimization logic in `src/backend/portfolio_optimization.py` (or related service files).
     - Iteratively adjust target return/risk space to calculate the max Sharpe ratio allocation.
   - [ ] 1.3 Create new Flask API endpoint (e.g., `POST /api/manage-portfolio`) to receive configuration settings, historical parameters, cash injection, and current portfolio holdings.
-  - [ ] 1.4 Implement the logic to generate exact fractional "Buy List" and "Sell List" comparing current holdings to target optimized weights.
+  - [ ] 1.4 Implement the logic to generate exact "Buy List" and "Sell List" comparing current holdings to target optimized weights, respecting the fractional permission settings passed from the frontend.
   - [ ] 1.5 Ensure API layer tests pass
     - Run ONLY the 2-8 tests written in 1.1
     - Verify calculating the difference states (buy/sell list) works correctly given various mock inputs.

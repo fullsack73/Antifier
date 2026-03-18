@@ -68,6 +68,41 @@ def test_calculate_rebalance_orders_new_asset():
     assert result["buy_list"]["MSFT"]["quantity"] == 5.0
     assert pytest.approx(result["sell_list"]["AAPL"]["quantity"]) == 3.333333333333333
 
+def test_calculate_rebalance_orders_integer_redistribution():
+    current_holdings = {"AAPL": 0.0, "MSFT": 0.0} 
+    latest_prices = {"AAPL": 150.0, "MSFT": 200.0}
+    target_weights = {"AAPL": 0.6, "MSFT": 0.4}
+    
+    # target values: AAPL = 630 (4.2 shares), MSFT = 420 (2.1 shares)
+    # Floor quantities: AAPL = 4 (600), MSFT = 2 (400)
+    # Remaining cash: 30 + 20 = 50
+    result = calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection=1050.0, allow_fractional=False)
+    
+    import pytest
+    assert result["total_target_value"] == 1050.0
+    assert result["buy_list"]["AAPL"]["quantity"] == 4.0
+    assert result["buy_list"]["MSFT"]["quantity"] == 2.0
+    assert result["remaining_cash"] == pytest.approx(50.0)
+
+def test_calculate_rebalance_orders_fractional_overrides():
+    current_holdings = {"AAPL": 0.0, "MSFT": 0.0}
+    latest_prices = {"AAPL": 150.0, "MSFT": 200.0}
+    target_weights = {"AAPL": 0.6, "MSFT": 0.4}
+    
+    # AAPL gets 630 (4.2 shares)
+    # MSFT gets 420 (2.1 shares)
+    # Overrides: AAPL fractional, MSFT integer
+    # AAPL gets 4.2 shares. MSFT gets 2 shares (400)
+    # Remaining 20 redistributes to AAPL -> 20 / 150 = 0.13333333333333333
+    # AAPL total shares: 4.2 + 0.13333333333333333 = 4.333333333333333
+    
+    result = calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection=1050.0, allow_fractional=False, fractional_overrides={"AAPL": True})
+    
+    assert result["total_target_value"] == 1050.0
+    assert pytest.approx(result["buy_list"]["AAPL"]["quantity"]) == 4.333333333333333
+    assert result["buy_list"]["MSFT"]["quantity"] == 2.0
+    assert result["remaining_cash"] == 0.0
+    
 def test_iteratively_solve_max_sharpe():
     mu = pd.Series({"AAPL": 0.1, "MSFT": 0.05})
     S = pd.DataFrame([[0.04, 0.005], [0.005, 0.02]], index=["AAPL", "MSFT"], columns=["AAPL", "MSFT"])

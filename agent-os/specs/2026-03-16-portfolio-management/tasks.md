@@ -15,11 +15,11 @@ Assigned roles: api-engineer, ui-designer, testing-engineer
 - [x] 1.0 Complete optimization and rebalancing API layer
   - [x] 1.1 Write 2-8 focused tests for the new `manage-portfolio` API endpoint and rebalancing calculations.
     - Test maximum Sharpe ratio iterative optimization loop.
-    - Test the exact fractional calculation logic for Buy/Sell lists considering the cash injection.
+    - Test the exact fractional and integer calculation logic for Buy/Sell lists considering the cash injection and fractional toggle state (redistributing unused cash).
   - [x] 1.2 Implement the Portfolio Management optimization logic in `src/backend/portfolio_optimization.py` (or related service files).
     - Iteratively adjust target return/risk space to calculate the max Sharpe ratio allocation.
   - [x] 1.3 Create new Flask API endpoint (e.g., `POST /api/manage-portfolio`) to receive configuration settings, historical parameters, cash injection, and current portfolio holdings.
-  - [x] 1.4 Implement the logic to generate exact fractional "Buy List" and "Sell List" comparing current holdings to target optimized weights.
+  - [x] 1.4 Implement the logic to generate exact "Buy List" and "Sell List" comparing current holdings to target optimized weights, respecting the fractional permission settings passed from the frontend.
   - [x] 1.5 Ensure API layer tests pass
     - Run ONLY the 2-8 tests written in 1.1
     - Verify calculating the difference states (buy/sell list) works correctly given various mock inputs.
@@ -43,20 +43,22 @@ Assigned roles: api-engineer, ui-designer, testing-engineer
     - Setup routing or tab navigation to access this new feature.
   - [x] 2.3 Implement the manual holdings input UI.
     - Fields for entering ticker (e.g., `msft`) and quantity (e.g., `2`), along with a cash injection input field.
+    - Add a "Download CSV" button to export the currently entered portfolio holdings to a `.csv` file.
   - [x] 2.4 Re-use and integrate the configuration settings panel mirrored from `Optimizer.jsx`.
     - Dropdowns/inputs for optimization method (Black-Litterman vs MPT), forecast method (Historical vs ML/Lightweight), and historical time periods.
-    - Manage candidate "spaces" (using the tickers from the user's current holdings input or allowing a CSV upload).
+    - Modal or panel for Advanced Settings (Forecast Horizon, Min. Data History, Black-Litterman Tau).
+    - Manage candidate "spaces" (using the tickers from the user's current holdings input, adding new tickers manually, or allowing a CSV upload).
   - [x] 2.5 Build the Results View.
     - Implement the two `react-plotly.js` pie charts (Current Allocation vs. Target Allocation) side by side.
-    - Build exact fractional Buy and Sell list tables.
+    - Build exact Buy and Sell list tables, incorporating a Fractional Trading toggle (global and per-ticker) akin to `Optimizer.jsx` to handle fractional vs. integer share calculation and remaining cash redistribution.
   - [x] 2.6 Ensure UI component tests pass
     - Run ONLY the 2-8 tests written in 2.1.
     - Ensure styling matches existing application framework.
 
 **Acceptance Criteria:**
 - The 2-8 tests written in 2.1 pass.
-- Users can successfully manually input their exact holding quantities and configure all optimization details interactively.
-- The output pie charts and buy/sell tables render accurately based on backend API responses.
+- Users can successfully manually input their exact holding quantities, export them to CSV, and configure all optimization details interactively, including Advanced Settings and space management.
+- The output pie charts and buy/sell tables render accurately based on backend API responses, correctly applying the Fractional Share constraints.
 
 ### Testing
 
