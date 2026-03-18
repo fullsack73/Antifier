@@ -15,6 +15,7 @@ sys.modules['tensorflow.keras.callbacks'] = MagicMock()
 # Now import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src/backend')))
 from portfolio_optimization import calculate_rebalance_orders, iteratively_solve_max_sharpe
+from portfolio_optimization import optimize_portfolio
 from app import app
 
 def test_calculate_rebalance_orders_no_injection():
@@ -143,3 +144,41 @@ def test_manage_portfolio_api(client):
         assert "weights" in data
         assert "buy_list" in data
         assert data["total_target_value"] == 3000.0
+
+
+def test_optimize_portfolio_dedupes_tickers_before_pipeline():
+    mu = pd.Series({"AAPL": 0.1, "MSFT": 0.08})
+    S = pd.DataFrame(
+        [[0.04, 0.005], [0.005, 0.02]],
+        index=["AAPL", "MSFT"],
+        columns=["AAPL", "MSFT"]
+    )
+    uncertainties = pd.Series({"AAPL": 0.05, "MSFT": 0.05})
+
+    pipeline_result = {
+        "mu": mu,
+        "S": S,
+        "uncertainties": uncertainties,
+        "tickers": ["AAPL", "MSFT"],
+        "latest_prices": {"AAPL": 150.0, "MSFT": 200.0}
+    }
+
+    with patch("portfolio_optimization.data_and_forecast_pipeline", return_value=pipeline_result) as mock_pipeline:
+        with patch("portfolio_optimization.EfficientFrontier") as mock_ef_cls:
+            mock_ef = MagicMock()
+            mock_ef.clean_weights.return_value = {"AAPL": 0.6, "MSFT": 0.4}
+            mock_ef.portfolio_performance.return_value = (0.12, 0.2, 0.5)
+            mock_ef_cls.return_value = mock_ef
+
+            result = optimize_portfolio(
+                start_date="2023-01-01",
+                end_date="2023-12-31",
+                risk_free_rate=0.02,
+                tickers=["AAPL", "AAPL", "MSFT", "aapl"],
+                optimization_method="MPT",
+                forecast_method="LIGHTWEIGHT"
+            )
+
+    assert "error" not in result
+    assert mock_pipeline.call_count == 1
+    assert mock_pipeline.call_args.args[3] == ["AAPL", "MSFT"]

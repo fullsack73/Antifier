@@ -749,6 +749,10 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        forecast_method="LIGHTWEIGHT", optimization_method="BL",
                        forecast_horizon=252, min_history=100, bl_tau=0.05):
     """Optimize portfolio and optionally persist or reuse saved results."""
+
+    # Resolve ticker source as early as possible so we can sanitize/de-duplicate once.
+    if not tickers and ticker_group:
+        tickers = get_ticker_group(ticker_group)
     
     # Sanitization: Cleanse tickers if provided (fixes RTF/formatting issues)
     if tickers:
@@ -761,7 +765,23 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 cleaned_tickers.append(t_clean)
             else:
                 logger.warning(f"Ignoring invalid ticker format: '{t}'")
-        tickers = cleaned_tickers
+
+        # Remove duplicates while preserving input order (case-insensitive key).
+        deduped_tickers = []
+        seen = set()
+        duplicate_count = 0
+        for t in cleaned_tickers:
+            dedupe_key = t.upper()
+            if dedupe_key in seen:
+                duplicate_count += 1
+                continue
+            seen.add(dedupe_key)
+            deduped_tickers.append(t)
+
+        if duplicate_count > 0:
+            logger.info(f"Removed {duplicate_count} duplicate tickers before optimization")
+
+        tickers = deduped_tickers
         if not tickers and not ticker_group:
              return {"error": "No valid tickers found after sanitization."}
 
