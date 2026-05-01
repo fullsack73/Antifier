@@ -4,9 +4,18 @@ import logging
 from scipy.stats import linregress
 import warnings
 import lightgbm as lgb
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Input
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
+
+try:
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense, Input
+    TF_AVAILABLE = True
+except Exception:
+    Sequential = None
+    LSTM = None
+    Dense = None
+    Input = None
+    TF_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -478,6 +487,8 @@ class EnsemblePredictor:
 
 class LSTMPriceModel:
     def __init__(self, input_shape):
+        if not TF_AVAILABLE:
+            raise RuntimeError("TensorFlow is required for LSTMPriceModel but is not installed")
         self.model = Sequential()
         self.model.add(Input(shape=input_shape))
         self.model.add(LSTM(50, activation='tanh'))

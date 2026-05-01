@@ -2,9 +2,11 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import numpy as np
 import yfinance as yf
+import warnings
 from datetime import datetime, timedelta
 from hedge_analysis import analyze_hedge_relationship
 from portfolio_benchmark import calculate_portfolio_benchmark
+from pmdarima import auto_arima
 
 
 from forecast_models import LSTMPriceModel, LightGBMPriceModel, ARIMAPriceModel
@@ -70,6 +72,69 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
         if df.empty:
             print(f"No data received from yfinance for {ticker}")
             return {}
+
+        # ARIMA should model the original time series directly.
+        # Do not force ARIMA into the feature-based regression pipeline used by LSTM/LightGBM.
+        if model_type == 'ARIMA':
+            close_series = df['Close'].dropna()
+            if len(close_series) < 30:
+                print(f"Not enough data for ARIMA on {ticker}")
+                return {}
+
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                arima_model = auto_arima(
+                    close_series.values,
+                    seasonal=False,
+                    stepwise=True,
+                    suppress_warnings=True,
+                    error_action='ignore',
+                    max_p=3,
+                    max_q=3,
+                    max_d=2
+                )
+
+            fitted_prices = np.asarray(arima_model.predict_in_sample(), dtype=float)
+
+            # ARIMA with differencing (d > 0) can produce unstable leading fitted values
+            # because the first states are not fully initialized.
+            # Replace the first d points with observed prices for a visually consistent chart.
+            d_order = 0
+            try:
+                d_order = int(arima_model.order[1])
+            except Exception:
+                d_order = 0
+
+            if d_order > 0:
+                fitted_prices[:d_order] = close_series.values[:d_order]
+
+            # Defensive fallback for rare edge cases where the first point is still non-finite.
+            if len(fitted_prices) > 0 and not np.isfinite(fitted_prices[0]):
+                fitted_prices[0] = float(close_series.values[0])
+
+            dates = close_series.index.strftime('%Y-%m-%d').tolist()
+            original_data = {date: float(price) for date, price in zip(dates, close_series.values)}
+            regression_data = {date: float(price) for date, price in zip(dates, fitted_prices)}
+
+            future_predictions = {}
+            if future_days > 0:
+                future_prices = arima_model.predict(n_periods=future_days)
+                last_date = close_series.index[-1]
+                for i, predicted_price in enumerate(future_prices, start=1):
+                    next_date = last_date + timedelta(days=i)
+                    future_predictions[next_date.strftime('%Y-%m-%d')] = float(predicted_price)
+
+            info = stock.info
+            company_name = info.get('longName', ticker)
+
+            return {
+                'prices': original_data,
+                'regression': regression_data,
+                'future_predictions': future_predictions,
+                'companyName': company_name,
+                'slope': 'N/A',
+                'intercept': 'N/A'
+            }
             
         # Feature Engineering: Create features that might predict the *change* in price
         df['Time'] = np.arange(len(df))
@@ -116,8 +181,7 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
 
         # Fit model
         model.fit(X_reshaped, y_scaled)
-        
-        # Generate regression line based on predicted changes
+
         predicted_changes_scaled = model.predict(X_reshaped)
         predicted_changes = scaler_y.inverse_transform(predicted_changes_scaled).flatten()
         
@@ -139,36 +203,32 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
         if future_days > 0 and not X_reshaped.size == 0:
             last_known_price = df['Close'].iloc[-1]
             last_date = df.index[-1]
-            
-            # Use the last row of features as the starting point for future predictions
-            # We work with actual values first, then scale them for prediction
+
+            # Use the last row of features as the starting point for future predictions.
+            # Keep MA/Volume constant as a lightweight approximation.
             last_features = df[feature_columns].iloc[-1:].copy()
 
             for i in range(future_days):
                 # Scale input for prediction
                 last_features_scaled = scaler_X.transform(last_features.values)
                 last_features_reshaped = last_features_scaled.reshape((1, 1, last_features_scaled.shape[1]))
-                
+
                 # Predict the change for the next day
-                # wrappers should handle X_reshaped (3D) and return scaled prediction
                 predicted_change_scaled = model.predict(last_features_reshaped, verbose=0)
                 predicted_change = scaler_y.inverse_transform(predicted_change_scaled)[0][0]
-                
+
                 # Calculate the new price
                 next_price = last_known_price + predicted_change
-                
+
                 # Update features for the next iteration
                 next_date = last_date + timedelta(days=i + 1)
-                
-                # Update DataFrame for features (simpler to keep using DataFrame for column mapping)
+
                 last_features['Time'] += 1
                 last_features['Lag1'] = last_known_price
-                
-                # For MAs, we keeps them constant as per original simplification
-                
+
                 # Store prediction
                 future_predictions[next_date.strftime('%Y-%m-%d')] = float(next_price)
-                
+
                 # Update last known price for the next prediction
                 last_known_price = next_price
         
