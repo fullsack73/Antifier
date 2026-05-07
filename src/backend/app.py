@@ -17,14 +17,45 @@ from portfolio_optimization import (
     optimize_portfolio,
     load_portfolio_result,
     list_saved_portfolios,
-    manage_portfolio_logic,
-    _convert_price_data_to_usd,
-    BASE_CURRENCY
+    manage_portfolio_logic
 )
 from stock_screener import search_stocks
 
 
 app = Flask(__name__)
+
+BASE_CURRENCY = "USD"
+DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
+TICKER_SUFFIX_CURRENCIES = {
+    ".KS": "KRW",
+    ".KQ": "KRW",
+    ".T": "JPY",
+    ".HK": "HKD",
+    ".L": "GBp",
+    ".AX": "AUD",
+    ".TO": "CAD",
+    ".V": "CAD",
+    ".PA": "EUR",
+    ".DE": "EUR",
+    ".F": "EUR",
+    ".MI": "EUR",
+    ".MC": "EUR",
+    ".AS": "EUR",
+    ".BR": "EUR",
+    ".SW": "CHF",
+    ".ST": "SEK",
+    ".OL": "NOK",
+    ".CO": "DKK",
+    ".SS": "CNY",
+    ".SZ": "CNY",
+    ".TW": "TWD",
+    ".SI": "SGD",
+    ".BO": "INR",
+    ".NS": "INR",
+    ".SA": "BRL",
+    ".MX": "MXN",
+    ".JO": "ZAR",
+}
 
 CORS(app, 
      resources={
@@ -58,25 +89,147 @@ def validate_date_range(start_date, end_date):
         raise ValueError(f"Invalid date format. Please use YYYY-MM-DD format")
 
 
+def normalize_currency(currency):
+    if not currency:
+        return None
+    currency = str(currency).strip()
+    if currency in {"GBp", "GBX"}:
+        return "GBp"
+    return currency.upper()
+
+
+def infer_currency_from_ticker(ticker):
+    ticker_upper = str(ticker or "").upper()
+    for suffix, currency in TICKER_SUFFIX_CURRENCIES.items():
+        if ticker_upper.endswith(suffix):
+            return currency
+    return None
+
+
+def extract_fast_info_currency(fast_info):
+    if not fast_info:
+        return None
+    if isinstance(fast_info, dict):
+        return fast_info.get("currency")
+    return getattr(fast_info, "currency", None)
+
+
+def get_ticker_currency(ticker):
+    """Return quote currency for the stock/regression API."""
+    inferred_currency = infer_currency_from_ticker(ticker)
+    if inferred_currency:
+        return normalize_currency(inferred_currency)
+
+    ticker_text = str(ticker or "").strip()
+    if "." not in ticker_text and not ticker_text.upper().endswith("=X"):
+        return BASE_CURRENCY
+
+    try:
+        stock = yf.Ticker(ticker)
+        currency = extract_fast_info_currency(getattr(stock, "fast_info", None))
+        if not currency:
+            currency = (stock.info or {}).get("currency")
+        return normalize_currency(currency) or BASE_CURRENCY
+    except Exception as e:
+        print(f"Could not determine quote currency for {ticker}; assuming {BASE_CURRENCY}: {e}")
+        return BASE_CURRENCY
+
+
+def fx_spec_for_currency(currency):
+    currency = normalize_currency(currency)
+    if not currency or currency == BASE_CURRENCY:
+        return None
+    if currency == "GBp":
+        return "GBPUSD=X", "multiply", 0.01
+    if currency in DIRECT_USD_QUOTE_CURRENCIES:
+        return f"{currency}USD=X", "multiply", 1.0
+    return f"{currency}=X", "divide", 1.0
+
+
+def extract_close_series(raw_data):
+    if raw_data is None or raw_data.empty:
+        return pd.Series(dtype=float)
+    if isinstance(raw_data.columns, pd.MultiIndex):
+        if "Close" in raw_data.columns.get_level_values(0):
+            close_data = raw_data["Close"]
+        else:
+            close_data = raw_data
+        if isinstance(close_data, pd.DataFrame):
+            return close_data.iloc[:, 0]
+        return close_data
+    if "Close" in raw_data.columns:
+        close_data = raw_data["Close"]
+        if isinstance(close_data, pd.DataFrame):
+            return close_data.iloc[:, 0]
+        return close_data
+    return raw_data.iloc[:, 0]
+
+
+def date_indexed_series(series):
+    date_index = pd.to_datetime(series.index).tz_localize(None).normalize()
+    return pd.Series(series.to_numpy(dtype=float), index=date_index).sort_index()
+
+
+def fetch_usd_conversion_factor(currency, start_date, end_date, target_index):
+    """Fetch a daily factor that converts one unit of currency into USD."""
+    spec = fx_spec_for_currency(currency)
+    if spec is None:
+        return pd.Series(1.0, index=target_index)
+
+    fx_ticker, operation, unit_multiplier = spec
+    raw_fx_data = yf.download(fx_ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
+    fx_close = extract_close_series(raw_fx_data).dropna()
+    if fx_close.empty:
+        return None
+
+    target_dates = pd.to_datetime(target_index).tz_localize(None).normalize()
+    fx_close_by_date = date_indexed_series(fx_close)
+    fx_close_by_date = fx_close_by_date[~fx_close_by_date.index.duplicated(keep="last")]
+    aligned_index = fx_close_by_date.index.union(target_dates)
+    aligned_fx_close = (
+        fx_close_by_date
+        .reindex(aligned_index)
+        .sort_index()
+        .ffill()
+        .bfill()
+        .reindex(target_dates)
+    )
+
+    if aligned_fx_close.isna().all():
+        return None
+
+    if operation == "multiply":
+        factor_values = aligned_fx_close * unit_multiplier
+    else:
+        factor_values = unit_multiplier / aligned_fx_close
+
+    factor = pd.Series(factor_values.to_numpy(dtype=float), index=target_index)
+    return factor.replace([np.inf, -np.inf], np.nan).ffill().bfill()
+
+
 def normalize_history_close_to_usd(ticker, df, start_date, end_date):
     """Normalize a yfinance history dataframe's Close column into USD for charting."""
     if df.empty or 'Close' not in df.columns:
         return df, BASE_CURRENCY, {}
 
-    close_frame = pd.DataFrame({ticker: df['Close']})
-    converted, currency_metadata, conversion_failures = _convert_price_data_to_usd(
-        close_frame,
-        start_date,
-        end_date
-    )
+    source_currency = get_ticker_currency(ticker)
+    if source_currency == BASE_CURRENCY:
+        return df, BASE_CURRENCY, {
+            "source_currency": source_currency,
+            "display_currency": BASE_CURRENCY,
+        }
 
-    if conversion_failures or ticker not in converted.columns:
+    conversion_factor = fetch_usd_conversion_factor(source_currency, start_date, end_date, df.index)
+    if conversion_factor is None or conversion_factor.dropna().empty:
         raise ValueError(f"Could not convert {ticker} prices to {BASE_CURRENCY}.")
 
     normalized_df = df.copy()
-    normalized_df['Close'] = converted[ticker].reindex(normalized_df.index)
+    normalized_df['Close'] = normalized_df['Close'].multiply(conversion_factor, axis=0)
 
-    return normalized_df, BASE_CURRENCY, currency_metadata.get(ticker, {})
+    return normalized_df, BASE_CURRENCY, {
+        "source_currency": source_currency,
+        "display_currency": BASE_CURRENCY,
+    }
 
 def generate_regression_data(ticker="", start_date=None, end_date=None, future_days=0, model_type='LSTM'):
     try:

@@ -189,13 +189,9 @@ def test_stock_chart_history_close_is_normalized_to_usd():
         },
         index=dates,
     )
-    converted = pd.DataFrame({"035420.KS": [153.84, 150.0]}, index=dates)
+    fx_data = pd.DataFrame({"Close": [1300.0, 1400.0]}, index=dates)
 
-    with patch("app._convert_price_data_to_usd", return_value=(
-        converted,
-        {"035420.KS": {"source_currency": "KRW", "display_currency": "USD"}},
-        [],
-    )):
+    with patch("app.yf.download", return_value=fx_data) as mock_download:
         normalized, price_currency, metadata = normalize_history_close_to_usd(
             "035420.KS",
             history,
@@ -203,8 +199,9 @@ def test_stock_chart_history_close_is_normalized_to_usd():
             end_date="2024-01-04",
         )
 
-    assert normalized["Close"].iloc[0] == pytest.approx(153.84)
-    assert normalized["Close"].iloc[1] == pytest.approx(150.0)
+    assert mock_download.call_args.args[0] == "KRW=X"
+    assert normalized["Close"].iloc[0] == pytest.approx(200000.0 / 1300.0)
+    assert normalized["Close"].iloc[1] == pytest.approx(210000.0 / 1400.0)
     assert normalized["Volume"].iloc[0] == 1000
     assert price_currency == "USD"
     assert metadata["source_currency"] == "KRW"
