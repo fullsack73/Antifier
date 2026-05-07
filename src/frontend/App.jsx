@@ -33,6 +33,8 @@ function AppContent() {
   const [appEndDate, setAppEndDate] = useState(null)
   const [futureDays, setFutureDays] = useState(30)
   const [futurePredictions, setFuturePredictions] = useState(null)
+  const [priceCurrency, setPriceCurrency] = useState("USD")
+  const [sourceCurrency, setSourceCurrency] = useState("USD")
   const [activeView, setActiveView] = useState("stock")
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [selectedLanguage, setSelectedLanguage] = useState("en")
@@ -81,6 +83,8 @@ function AppContent() {
         setFuturePredictions(responseData.future_predictions)
         setCompanyName(responseData.companyName)
         setFormula(responseData.formula)
+        setPriceCurrency(responseData.price_currency || "USD")
+        setSourceCurrency(responseData.source_currency || responseData.price_currency || "USD")
         setLoading(false)
         setShowChart(true)
       })
@@ -178,19 +182,20 @@ function AppContent() {
               <>
                 <h2>
                   {companyName} ({ticker})
+                  {sourceCurrency !== priceCurrency ? ` ${sourceCurrency} -> ${priceCurrency}` : ""}
                 </h2>
                 <div className="charts-container">
                   <div className="chart-wrapper">
-                    <StockChart data={data} ticker={ticker} />
+                    <StockChart data={data} ticker={ticker} priceCurrency={priceCurrency} />
                   </div>
                   <div className="chart-wrapper">
-                    <RegressionChart data={data} regression={regressionData} ticker={ticker} formula={formula} />
+                    <RegressionChart data={data} regression={regressionData} ticker={ticker} formula={formula} priceCurrency={priceCurrency} />
                   </div>
                 </div>
                 {futurePredictions && (
                   <div className="charts-container">
                     <div className="chart-wrapper">
-                      <FutureChart data={futurePredictions} ticker={ticker} />
+                      <FutureChart data={futurePredictions} ticker={ticker} priceCurrency={priceCurrency} />
                     </div>
                   </div>
                 )}

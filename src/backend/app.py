@@ -4,6 +4,7 @@ import numpy as np
 import yfinance as yf
 import warnings
 from datetime import datetime, timedelta
+import pandas as pd
 from hedge_analysis import analyze_hedge_relationship
 from portfolio_benchmark import calculate_portfolio_benchmark
 from pmdarima import auto_arima
@@ -16,7 +17,9 @@ from portfolio_optimization import (
     optimize_portfolio,
     load_portfolio_result,
     list_saved_portfolios,
-    manage_portfolio_logic
+    manage_portfolio_logic,
+    _convert_price_data_to_usd,
+    BASE_CURRENCY
 )
 from stock_screener import search_stocks
 
@@ -54,6 +57,27 @@ def validate_date_range(start_date, end_date):
     except Exception as e:
         raise ValueError(f"Invalid date format. Please use YYYY-MM-DD format")
 
+
+def normalize_history_close_to_usd(ticker, df, start_date, end_date):
+    """Normalize a yfinance history dataframe's Close column into USD for charting."""
+    if df.empty or 'Close' not in df.columns:
+        return df, BASE_CURRENCY, {}
+
+    close_frame = pd.DataFrame({ticker: df['Close']})
+    converted, currency_metadata, conversion_failures = _convert_price_data_to_usd(
+        close_frame,
+        start_date,
+        end_date
+    )
+
+    if conversion_failures or ticker not in converted.columns:
+        raise ValueError(f"Could not convert {ticker} prices to {BASE_CURRENCY}.")
+
+    normalized_df = df.copy()
+    normalized_df['Close'] = converted[ticker].reindex(normalized_df.index)
+
+    return normalized_df, BASE_CURRENCY, currency_metadata.get(ticker, {})
+
 def generate_regression_data(ticker="", start_date=None, end_date=None, future_days=0, model_type='LSTM'):
     try:
         if start_date and end_date:
@@ -72,6 +96,8 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
         if df.empty:
             print(f"No data received from yfinance for {ticker}")
             return {}
+
+        df, price_currency, currency_metadata = normalize_history_close_to_usd(ticker, df, start_date, end_date)
 
         # ARIMA should model the original time series directly.
         # Do not force ARIMA into the feature-based regression pipeline used by LSTM/LightGBM.
@@ -132,6 +158,8 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
                 'regression': regression_data,
                 'future_predictions': future_predictions,
                 'companyName': company_name,
+                'price_currency': price_currency,
+                'source_currency': currency_metadata.get('source_currency', price_currency),
                 'slope': 'N/A',
                 'intercept': 'N/A'
             }
@@ -237,6 +265,8 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
             'regression': regression_data,
             'future_predictions': future_predictions,
             'companyName': company_name,
+            'price_currency': price_currency,
+            'source_currency': currency_metadata.get('source_currency', price_currency),
             'slope': 'N/A',
             'intercept': 'N/A'
         }
@@ -247,6 +277,8 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
             'prices': {},
             'regression': {},
             'companyName': ticker, 
+            'price_currency': BASE_CURRENCY,
+            'source_currency': BASE_CURRENCY,
             'slope': 'N/A', 
             'intercept': 'N/A',
             'future_predictions': {}
@@ -271,6 +303,8 @@ def generate_data(ticker="", start_date=None, end_date=None):
         if df.empty:
             print(f"No data received from yfinance for {ticker}")
             return {}
+
+        df, price_currency, currency_metadata = normalize_history_close_to_usd(ticker, df, start_date, end_date)
             
         print(f"DataFrame shape: {df.shape}")
         print(f"DataFrame columns: {df.columns}")
@@ -287,13 +321,22 @@ def generate_data(ticker="", start_date=None, end_date=None):
         return {
             'prices': data,
             'companyName': company_name,
+            'price_currency': price_currency,
+            'source_currency': currency_metadata.get('source_currency', price_currency),
             'regression': {},
             'future_predictions': {}
         }
         
     except Exception as e:
         print(f"Error fetching data: {str(e)}")
-        return {'prices': {}, 'companyName': ticker, 'regression': {}, 'future_predictions': {}}
+        return {
+            'prices': {},
+            'companyName': ticker,
+            'price_currency': BASE_CURRENCY,
+            'source_currency': BASE_CURRENCY,
+            'regression': {},
+            'future_predictions': {}
+        }
     
 
     

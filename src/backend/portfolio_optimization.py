@@ -29,6 +29,39 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 RESULTS_DIR = Path("logs/portfolio_results")
+BASE_CURRENCY = "USD"
+
+DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
+TICKER_SUFFIX_CURRENCIES = {
+    ".KS": "KRW",
+    ".KQ": "KRW",
+    ".T": "JPY",
+    ".HK": "HKD",
+    ".L": "GBp",
+    ".AX": "AUD",
+    ".TO": "CAD",
+    ".V": "CAD",
+    ".PA": "EUR",
+    ".DE": "EUR",
+    ".F": "EUR",
+    ".MI": "EUR",
+    ".MC": "EUR",
+    ".AS": "EUR",
+    ".BR": "EUR",
+    ".SW": "CHF",
+    ".ST": "SEK",
+    ".OL": "NOK",
+    ".CO": "DKK",
+    ".SS": "CNY",
+    ".SZ": "CNY",
+    ".TW": "TWD",
+    ".SI": "SGD",
+    ".BO": "INR",
+    ".NS": "INR",
+    ".SA": "BRL",
+    ".MX": "MXN",
+    ".JO": "ZAR",
+}
 
 
 def worker_initializer():
@@ -78,6 +111,201 @@ def _dedupe_tickers(tickers):
         seen.add(cleaned)
         deduped.append(cleaned)
     return deduped
+
+
+def _normalize_currency(currency):
+    if not currency:
+        return None
+    currency = str(currency).strip()
+    if currency in {"GBp", "GBX"}:
+        return "GBp"
+    return currency.upper()
+
+
+def _infer_currency_from_ticker(ticker):
+    ticker_upper = str(ticker or "").upper()
+    for suffix, currency in TICKER_SUFFIX_CURRENCIES.items():
+        if ticker_upper.endswith(suffix):
+            return currency
+    return None
+
+
+def _extract_fast_info_currency(fast_info):
+    if not fast_info:
+        return None
+    if isinstance(fast_info, dict):
+        return fast_info.get("currency")
+    return getattr(fast_info, "currency", None)
+
+
+def _get_ticker_currency(ticker):
+    """Return the quote currency for a ticker, using suffix inference before slower metadata."""
+    inferred_currency = _infer_currency_from_ticker(ticker)
+    if inferred_currency:
+        return _normalize_currency(inferred_currency)
+
+    ticker_text = str(ticker or "").strip()
+    if "." not in ticker_text and not ticker_text.upper().endswith("=X"):
+        return BASE_CURRENCY
+
+    try:
+        stock = yf.Ticker(ticker)
+        currency = _extract_fast_info_currency(getattr(stock, "fast_info", None))
+        if not currency:
+            currency = (stock.info or {}).get("currency")
+        return _normalize_currency(currency) or BASE_CURRENCY
+    except Exception as e:
+        logger.warning(f"Could not determine quote currency for {ticker}; assuming {BASE_CURRENCY}: {e}")
+        return BASE_CURRENCY
+
+
+def _fx_spec_for_currency(currency):
+    currency = _normalize_currency(currency)
+    if not currency or currency == BASE_CURRENCY:
+        return None
+    if currency == "GBp":
+        return "GBPUSD=X", "multiply", 0.01
+    if currency in DIRECT_USD_QUOTE_CURRENCIES:
+        return f"{currency}USD=X", "multiply", 1.0
+    return f"{currency}=X", "divide", 1.0
+
+
+def _extract_close_series(raw_data):
+    if raw_data is None or raw_data.empty:
+        return pd.Series(dtype=float)
+    if isinstance(raw_data.columns, pd.MultiIndex):
+        if "Close" in raw_data.columns.get_level_values(0):
+            close_data = raw_data["Close"]
+        else:
+            close_data = raw_data
+        if isinstance(close_data, pd.DataFrame):
+            return close_data.iloc[:, 0]
+        return close_data
+    if "Close" in raw_data.columns:
+        close_data = raw_data["Close"]
+        if isinstance(close_data, pd.DataFrame):
+            return close_data.iloc[:, 0]
+        return close_data
+    return raw_data.iloc[:, 0]
+
+
+def _date_indexed_series(series):
+    """Return a copy indexed by calendar date, avoiding Yahoo timezone mismatches."""
+    date_index = pd.to_datetime(series.index).tz_localize(None).normalize()
+    return pd.Series(series.to_numpy(dtype=float), index=date_index).sort_index()
+
+
+def _fetch_usd_conversion_factor(currency, start_date, end_date, target_index):
+    """Fetch a daily factor that converts one unit of currency into USD."""
+    spec = _fx_spec_for_currency(currency)
+    if spec is None:
+        return pd.Series(1.0, index=target_index)
+
+    fx_ticker, operation, unit_multiplier = spec
+    try:
+        raw_fx_data = yf.download(fx_ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
+        fx_close = _extract_close_series(raw_fx_data).dropna()
+        if fx_close.empty:
+            logger.warning(f"No FX data returned for {currency} via {fx_ticker}")
+            return None
+
+        target_dates = pd.to_datetime(target_index).tz_localize(None).normalize()
+        fx_close_by_date = _date_indexed_series(fx_close)
+        fx_close_by_date = fx_close_by_date[~fx_close_by_date.index.duplicated(keep="last")]
+        aligned_index = fx_close_by_date.index.union(target_dates)
+        aligned_fx_close = (
+            fx_close_by_date
+            .reindex(aligned_index)
+            .sort_index()
+            .ffill()
+            .bfill()
+            .reindex(target_dates)
+        )
+
+        if aligned_fx_close.isna().all():
+            logger.warning(f"FX data for {currency} could not be aligned to stock dates")
+            return None
+
+        if operation == "multiply":
+            factor_values = aligned_fx_close * unit_multiplier
+        else:
+            factor_values = unit_multiplier / aligned_fx_close
+
+        factor = pd.Series(factor_values.to_numpy(dtype=float), index=target_index)
+        return factor.replace([np.inf, -np.inf], np.nan).ffill().bfill()
+    except Exception as e:
+        logger.warning(f"Failed to fetch FX data for {currency} via {fx_ticker}: {e}")
+        return None
+
+
+@cached(l1_ttl=3600, l2_ttl=86400)
+def _fetch_latest_usd_conversion_scalar(currency):
+    """Fetch the latest scalar that converts one unit of currency into USD."""
+    spec = _fx_spec_for_currency(currency)
+    if spec is None:
+        return 1.0
+
+    fx_ticker, operation, unit_multiplier = spec
+    try:
+        raw_fx_data = yf.download(fx_ticker, period="5d", progress=False, auto_adjust=True)
+        fx_close = _extract_close_series(raw_fx_data).dropna()
+        if fx_close.empty:
+            return None
+
+        latest_fx = float(fx_close.iloc[-1])
+        if latest_fx <= 0:
+            return None
+
+        if operation == "multiply":
+            return latest_fx * unit_multiplier
+        return unit_multiplier / latest_fx
+    except Exception as e:
+        logger.warning(f"Failed to fetch latest FX data for {currency} via {fx_ticker}: {e}")
+        return None
+
+
+def _convert_price_data_to_usd(data, start_date, end_date, ticker_currencies=None):
+    """
+    Convert local-currency Yahoo close prices into USD.
+
+    Yahoo returns local exchange closes, so a Korean stock like 035420.KS arrives
+    around 200,000 KRW. Portfolio value math assumes a single base currency, so
+    non-USD series must be converted before latest prices and weights are used.
+    """
+    if data.empty:
+        return data, {}, []
+
+    converted = data.copy()
+    ticker_currencies = ticker_currencies or {}
+    currency_metadata = {}
+    conversion_failures = []
+    factor_cache = {}
+
+    for ticker in list(converted.columns):
+        currency = _normalize_currency(ticker_currencies.get(ticker)) or _get_ticker_currency(ticker)
+        currency = _normalize_currency(currency) or BASE_CURRENCY
+        currency_metadata[ticker] = {
+            "source_currency": currency,
+            "display_currency": BASE_CURRENCY,
+        }
+
+        if currency == BASE_CURRENCY:
+            continue
+
+        if currency not in factor_cache:
+            factor_cache[currency] = _fetch_usd_conversion_factor(currency, start_date, end_date, converted.index)
+
+        conversion_factor = factor_cache[currency]
+        if conversion_factor is None or conversion_factor.dropna().empty:
+            logger.warning(f"Dropping {ticker}: unable to convert {currency} prices to {BASE_CURRENCY}")
+            converted = converted.drop(columns=[ticker])
+            conversion_failures.append(ticker)
+            continue
+
+        converted[ticker] = converted[ticker].multiply(conversion_factor, axis=0)
+        logger.info(f"Converted {ticker} prices from {currency} to {BASE_CURRENCY}")
+
+    return converted, currency_metadata, conversion_failures
 
 
 def save_portfolio_result(portfolio_id, result, metadata=None):
@@ -459,6 +687,15 @@ def get_market_caps(tickers):
                         info = yf_tickers.tickers[ticker].info
                         mc = info.get("marketCap") or info.get("totalAssets")
                         if mc:
+                            currency = _normalize_currency(info.get("currency") or info.get("financialCurrency"))
+                            currency = currency or _get_ticker_currency(ticker)
+                            if currency != BASE_CURRENCY:
+                                conversion_factor = _fetch_latest_usd_conversion_scalar(currency)
+                                if conversion_factor:
+                                    mc = float(mc) * conversion_factor
+                                else:
+                                    logger.warning(f"Skipping market cap for {ticker}: cannot convert {currency} to {BASE_CURRENCY}")
+                                    continue
                             mcaps[ticker] = float(mc)
                     except Exception:
                         pass
@@ -508,7 +745,7 @@ def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_met
         tickers_str = ",".join(sorted(tickers))
     else:
         tickers_str = "None"
-    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}"
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_v1"
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
@@ -544,6 +781,9 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         return {
             "error": "Could not fetch any valid data for the given tickers and date range."
         }
+
+    currency_metadata = {}
+    currency_conversion_failures = []
     
     # --- START: MINIMUM HISTORY CHECK ---
     # Drop assets with insufficient data points (User Configurable)
@@ -611,6 +851,18 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
     except Exception as e:
          logger.error(f"Error during Liveness Check: {e}")
     # --- END: STRICT TIMEFRAME CHECK ---
+
+    data, currency_metadata, currency_conversion_failures = _convert_price_data_to_usd(data, start_date, end_date)
+    if currency_conversion_failures:
+        logger.warning(f"Dropped tickers with unavailable FX conversion: {currency_conversion_failures}")
+        if tickers:
+            tickers = [t for t in tickers if t not in currency_conversion_failures]
+
+    if data.empty:
+        logger.error("No valid tickers remaining after currency conversion.")
+        return {
+            "error": "Could not convert selected non-USD prices into USD."
+        }
 
     # Sanitization: Replace infinity with NaN to prevent overflow in covariance calculation
     data = data.replace([np.inf, -np.inf], np.nan)
@@ -754,7 +1006,12 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         "S": S_hist,
         "tickers": final_tickers,
         "uncertainties": uncertainties,
-        "latest_prices": latest_prices
+        "latest_prices": latest_prices,
+        "price_currency": BASE_CURRENCY,
+        "source_currencies": {
+            ticker: currency_metadata.get(ticker, {}).get("source_currency", BASE_CURRENCY)
+            for ticker in final_tickers
+        }
     }
 
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
@@ -839,6 +1096,8 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     uncertainties = pipeline_result["uncertainties"]
     final_tickers = pipeline_result["tickers"]
     latest_prices = pipeline_result.get("latest_prices", {})
+    price_currency = pipeline_result.get("price_currency", BASE_CURRENCY)
+    source_currencies = pipeline_result.get("source_currencies", {})
 
     # 3. Apply Optimization Logic (BL or MPT)
     if optimization_method in ["BL", "Black-Litterman"]:
@@ -928,7 +1187,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "return": performance[0],
             "risk": performance[1],
             "sharpe_ratio": performance[2],
-            "prices": final_prices
+            "prices": final_prices,
+            "price_currency": price_currency,
+            "source_currencies": {t: source_currencies.get(t, BASE_CURRENCY) for t in final_tickers}
         }
 
         if portfolio_id and persist_result:

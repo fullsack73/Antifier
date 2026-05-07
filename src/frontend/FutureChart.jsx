@@ -1,7 +1,7 @@
 import Plot from "react-plotly.js"
 import { useTranslation } from "react-i18next"
 
-const FutureChart = ({ data, ticker }) => {
+const FutureChart = ({ data, ticker, priceCurrency = "USD" }) => {
   const { t } = useTranslation()
 
   return (
@@ -37,7 +37,7 @@ const FutureChart = ({ data, ticker }) => {
           gridcolor: "rgba(148, 163, 184, 0.1)",
         },
         yaxis: {
-          title: { text: "Price ($)", font: { color: "#94a3b8" } },
+          title: { text: `Price (${priceCurrency})`, font: { color: "#94a3b8" } },
           color: "#94a3b8",
           gridcolor: "rgba(148, 163, 184, 0.1)",
         },

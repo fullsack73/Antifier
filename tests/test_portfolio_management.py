@@ -15,8 +15,9 @@ sys.modules['tensorflow.keras.callbacks'] = MagicMock()
 # Now import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src/backend')))
 from portfolio_optimization import calculate_rebalance_orders, iteratively_solve_max_sharpe
+from portfolio_optimization import _convert_price_data_to_usd, _get_ticker_currency
 from portfolio_optimization import optimize_portfolio, manage_portfolio_logic
-from app import app
+from app import app, normalize_history_close_to_usd
 
 def test_calculate_rebalance_orders_no_injection():
     current_holdings = {"AAPL": 10.0, "MSFT": 5.0}
@@ -103,7 +104,112 @@ def test_calculate_rebalance_orders_fractional_overrides():
     assert pytest.approx(result["buy_list"]["AAPL"]["quantity"]) == 4.333333333333333
     assert result["buy_list"]["MSFT"]["quantity"] == 2.0
     assert result["remaining_cash"] == 0.0
-    
+
+
+def test_convert_krw_prices_to_usd_before_portfolio_math():
+    dates = pd.to_datetime(["2024-01-02", "2024-01-03"])
+    prices = pd.DataFrame(
+        {
+            "035420.KS": [200000.0, 210000.0],
+            "AAPL": [100.0, 110.0],
+        },
+        index=dates,
+    )
+    fx_data = pd.DataFrame({"Close": [1300.0, 1400.0]}, index=dates)
+
+    with patch("portfolio_optimization.yf.download", return_value=fx_data) as mock_download:
+        converted, metadata, failures = _convert_price_data_to_usd(
+            prices,
+            start_date="2024-01-01",
+            end_date="2024-01-04",
+            ticker_currencies={"035420.KS": "KRW", "AAPL": "USD"},
+        )
+
+    assert failures == []
+    assert mock_download.call_args.args[0] == "KRW=X"
+    assert converted["035420.KS"].iloc[0] == pytest.approx(200000.0 / 1300.0)
+    assert converted["035420.KS"].iloc[1] == pytest.approx(210000.0 / 1400.0)
+    assert converted["AAPL"].iloc[0] == pytest.approx(100.0)
+    assert metadata["035420.KS"]["source_currency"] == "KRW"
+    assert metadata["035420.KS"]["display_currency"] == "USD"
+
+
+def test_fx_conversion_aligns_by_calendar_date_not_exact_timestamp():
+    stock_dates = pd.to_datetime(["2024-01-02 15:30", "2024-01-03 15:30"])
+    fx_dates = pd.to_datetime(["2024-01-02 00:00", "2024-01-03 00:00"])
+    prices = pd.DataFrame({"035420.KS": [200000.0, 210000.0]}, index=stock_dates)
+    fx_data = pd.DataFrame({"Close": [1300.0, 1400.0]}, index=fx_dates)
+
+    with patch("portfolio_optimization.yf.download", return_value=fx_data):
+        converted, _, failures = _convert_price_data_to_usd(
+            prices,
+            start_date="2024-01-01",
+            end_date="2024-01-04",
+            ticker_currencies={"035420.KS": "KRW"},
+        )
+
+    assert failures == []
+    assert converted.index.equals(stock_dates)
+    assert converted["035420.KS"].iloc[0] == pytest.approx(200000.0 / 1300.0)
+    assert converted["035420.KS"].iloc[1] == pytest.approx(210000.0 / 1400.0)
+
+
+def test_fx_conversion_uses_nearest_available_rate_for_missing_stock_date():
+    stock_dates = pd.to_datetime(["2024-01-03 15:30"])
+    fx_dates = pd.to_datetime(["2024-01-02 00:00"])
+    prices = pd.DataFrame({"035420.KS": [200000.0]}, index=stock_dates)
+    fx_data = pd.DataFrame({"Close": [1300.0]}, index=fx_dates)
+
+    with patch("portfolio_optimization.yf.download", return_value=fx_data):
+        converted, _, failures = _convert_price_data_to_usd(
+            prices,
+            start_date="2024-01-01",
+            end_date="2024-01-04",
+            ticker_currencies={"035420.KS": "KRW"},
+        )
+
+    assert failures == []
+    assert converted["035420.KS"].iloc[0] == pytest.approx(200000.0 / 1300.0)
+
+
+def test_plain_us_tickers_assume_usd_without_metadata_lookup():
+    with patch("portfolio_optimization.yf.Ticker") as mock_ticker:
+        currency = _get_ticker_currency("AAPL")
+
+    assert currency == "USD"
+    mock_ticker.assert_not_called()
+
+
+def test_stock_chart_history_close_is_normalized_to_usd():
+    dates = pd.to_datetime(["2024-01-02", "2024-01-03"])
+    history = pd.DataFrame(
+        {
+            "Close": [200000.0, 210000.0],
+            "Volume": [1000, 1200],
+        },
+        index=dates,
+    )
+    converted = pd.DataFrame({"035420.KS": [153.84, 150.0]}, index=dates)
+
+    with patch("app._convert_price_data_to_usd", return_value=(
+        converted,
+        {"035420.KS": {"source_currency": "KRW", "display_currency": "USD"}},
+        [],
+    )):
+        normalized, price_currency, metadata = normalize_history_close_to_usd(
+            "035420.KS",
+            history,
+            start_date="2024-01-01",
+            end_date="2024-01-04",
+        )
+
+    assert normalized["Close"].iloc[0] == pytest.approx(153.84)
+    assert normalized["Close"].iloc[1] == pytest.approx(150.0)
+    assert normalized["Volume"].iloc[0] == 1000
+    assert price_currency == "USD"
+    assert metadata["source_currency"] == "KRW"
+
+
 def test_iteratively_solve_max_sharpe():
     mu = pd.Series({"AAPL": 0.1, "MSFT": 0.05})
     S = pd.DataFrame([[0.04, 0.005], [0.005, 0.02]], index=["AAPL", "MSFT"], columns=["AAPL", "MSFT"])

@@ -1,6 +1,6 @@
 import Plot from "react-plotly.js"
 
-function StockChart({ data, ticker }) {
+function StockChart({ data, ticker, priceCurrency = "USD" }) {
   return (
     <Plot
       data={[
@@ -33,7 +33,7 @@ function StockChart({ data, ticker }) {
           gridcolor: "rgba(148, 163, 184, 0.1)",
         },
         yaxis: {
-          title: { text: "Price ($)", font: { color: "#94a3b8" } },
+          title: { text: `Price (${priceCurrency})`, font: { color: "#94a3b8" } },
           color: "#94a3b8",
           gridcolor: "rgba(148, 163, 184, 0.1)",
         },
