@@ -306,6 +306,17 @@ const PortfolioManager = () => {
 
   const currentPie = buildCurrentPieData()
   const targetPie = buildTargetPieData()
+  const expectedReturn = results?.expected_return ?? results?.return
+  const volatility = results?.volatility ?? results?.risk
+  const sharpeRatio = results?.sharpe_ratio
+  const formatPercentMetric = (value) => {
+    const numericValue = Number(value)
+    return Number.isFinite(numericValue) ? `${(numericValue * 100).toFixed(2)}%` : "N/A"
+  }
+  const formatRatioMetric = (value) => {
+    const numericValue = Number(value)
+    return Number.isFinite(numericValue) ? numericValue.toFixed(2) : "N/A"
+  }
 
   return (
     <div className="manager-container">
@@ -845,24 +856,6 @@ const PortfolioManager = () => {
             )}
           </div>
 
-          {/* Metrics */}
-          {results.expected_return !== undefined && (
-            <div className="optimizer-results-grid" style={{ marginTop: "var(--spacing-xl)" }}>
-              <div className="optimizer-result-card">
-                <h4>{t("optimizer.return", "Expected Return")}</h4>
-                <p>{(results.expected_return * 100).toFixed(2)}%</p>
-              </div>
-              <div className="optimizer-result-card">
-                <h4>{t("optimizer.risk", "Risk (Std. Dev)")}</h4>
-                <p>{(results.volatility * 100).toFixed(2)}%</p>
-              </div>
-              <div className="optimizer-result-card">
-                <h4>{t("optimizer.sharpeRatio", "Sharpe Ratio")}</h4>
-                <p>{results.sharpe_ratio?.toFixed(2) ?? "N/A"}</p>
-              </div>
-            </div>
-          )}
-
           {/* Order Display Toggle */}
           {(results.buy_list && Object.keys(results.buy_list).length > 0) || (results.sell_list && Object.keys(results.sell_list).length > 0) ? (
             <div className="manager-display-toggle">
@@ -978,20 +971,43 @@ const PortfolioManager = () => {
           )}
 
           {/* Total Target Value */}
-          {results.total_target_value && (
-            <div
-              className="manager-summary-card"
-              style={{ marginTop: "var(--spacing-xl)" }}
-            >
-              <span className="manager-summary-label">
-                {t("manager.totalTargetValue", "Total Target Value")}
-              </span>
-              <span className="manager-summary-value">
-                ${results.total_target_value.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
+          {results.total_target_value !== undefined && (
+            <div className="manager-summary-grid">
+              <div className="manager-summary-card manager-summary-card-wide">
+                <span className="manager-summary-label">
+                  {t("manager.totalTargetValue", "Total Target Value")}
+                </span>
+                <span className="manager-summary-value">
+                  ${results.total_target_value.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+              <div className="manager-summary-card manager-summary-metric-card">
+                <span className="manager-summary-label">
+                  {t("optimizer.return", "Expected Return")}
+                </span>
+                <span className="manager-summary-metric-value">
+                  {formatPercentMetric(expectedReturn)}
+                </span>
+              </div>
+              <div className="manager-summary-card manager-summary-metric-card">
+                <span className="manager-summary-label">
+                  {t("optimizer.risk", "Volatility")}
+                </span>
+                <span className="manager-summary-metric-value">
+                  {formatPercentMetric(volatility)}
+                </span>
+              </div>
+              <div className="manager-summary-card manager-summary-metric-card">
+                <span className="manager-summary-label">
+                  {t("optimizer.sharpeRatio", "Sharpe Ratio")}
+                </span>
+                <span className="manager-summary-metric-value">
+                  {formatRatioMetric(sharpeRatio)}
+                </span>
+              </div>
             </div>
           )}
         </div>

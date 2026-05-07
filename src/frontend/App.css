@@ -1965,6 +1965,13 @@ h2 {
   color: var(--color-danger);
 }
 
+.manager-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 2fr) repeat(3, minmax(180px, 1fr));
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-xl);
+}
+
 .manager-summary-card {
   display: flex;
   justify-content: space-between;
@@ -1975,6 +1982,18 @@ h2 {
   border: 1px solid var(--color-border);
   position: relative;
   overflow: hidden;
+}
+
+.manager-summary-card-wide {
+  min-height: 7.5rem;
+}
+
+.manager-summary-metric-card {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  min-height: 7.5rem;
 }
 
 .manager-summary-card::before {
@@ -2002,6 +2021,12 @@ h2 {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.manager-summary-metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
 }
 
 
@@ -2146,6 +2171,16 @@ h2 {
    17. RESPONSIVE DESIGN
    ============================================================================ */
 
+@media (max-width: 1180px) {
+  .manager-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .manager-summary-card-wide {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 768px) {
   .main-content {
     padding: var(--spacing-lg);
@@ -2173,6 +2208,16 @@ h2 {
 
   .manager-holding-row {
     grid-template-columns: 1fr;
+  }
+
+  .manager-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-summary-card {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--spacing-sm);
   }
 
   .manager-fractional-header {
