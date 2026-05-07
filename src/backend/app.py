@@ -631,6 +631,7 @@ def manage_portfolio_endpoint():
         
         forecast_method = data.get('forecast_method', 'LIGHTWEIGHT')
         optimization_method = data.get('optimization_method', 'BL')
+        ticker_group = data.get('ticker_group')
         
         target_return = data.get('target_return')
         risk_tolerance = data.get('risk_tolerance')
@@ -655,6 +656,7 @@ def manage_portfolio_endpoint():
             risk_free_rate=risk_free_rate,
             forecast_method=forecast_method,
             optimization_method=optimization_method,
+            ticker_group=ticker_group,
             target_return=target_return,
             risk_tolerance=risk_tolerance,
             forecast_horizon=forecast_horizon,

@@ -15,7 +15,7 @@ sys.modules['tensorflow.keras.callbacks'] = MagicMock()
 # Now import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src/backend')))
 from portfolio_optimization import calculate_rebalance_orders, iteratively_solve_max_sharpe
-from portfolio_optimization import optimize_portfolio
+from portfolio_optimization import optimize_portfolio, manage_portfolio_logic
 from app import app
 
 def test_calculate_rebalance_orders_no_injection():
@@ -144,6 +144,83 @@ def test_manage_portfolio_api(client):
         assert "weights" in data
         assert "buy_list" in data
         assert data["total_target_value"] == 3000.0
+
+
+def test_manage_portfolio_api_forwards_ticker_group(client):
+    with patch("app.manage_portfolio_logic") as mock_logic:
+        mock_logic.return_value = {
+            "weights": {"AAPL": 0.5, "MSFT": 0.5},
+            "prices": {"AAPL": 150.0, "MSFT": 200.0},
+            "buy_list": {},
+            "sell_list": {},
+            "total_target_value": 2500.0
+        }
+
+        response = client.post('/api/manage-portfolio', json={
+            "current_holdings": {"AAPL": 10.0, "GOOGL": 5.0},
+            "cash_injection": 96,
+            "start_date": "2023-01-01",
+            "end_date": "2023-12-31",
+            "risk_free_rate": 0.03,
+            "ticker_group": "DOW"
+        })
+
+        assert response.status_code == 200
+        assert mock_logic.call_args.kwargs["ticker_group"] == "DOW"
+
+
+def test_manage_portfolio_combines_ticker_group_with_current_holdings():
+    with patch("portfolio_optimization.get_ticker_group", return_value=["AAPL", "MSFT"]):
+        with patch("portfolio_optimization.optimize_portfolio") as mock_optimize:
+            mock_optimize.return_value = {
+                "weights": {"AAPL": 0.5, "MSFT": 0.5},
+                "prices": {"AAPL": 150.0, "GOOGL": 100.0, "MSFT": 200.0},
+                "return": 0.1,
+                "risk": 0.2,
+                "sharpe_ratio": 0.4
+            }
+
+            result = manage_portfolio_logic(
+                current_holdings={"AAPL": 10.0, "GOOGL": 5.0},
+                cash_injection=96,
+                start_date="2023-01-01",
+                end_date="2023-12-31",
+                risk_free_rate=0.03,
+                ticker_group="DOW",
+                optimization_method="MPT"
+            )
+
+    assert mock_optimize.call_args.kwargs["tickers"] == ["AAPL", "GOOGL", "MSFT"]
+    assert result["current_holdings"] == {"AAPL": 10.0, "GOOGL": 5.0}
+
+
+def test_optimize_portfolio_relaxes_weight_cap_for_small_universe():
+    mu = pd.Series({"AAPL": 0.10, "GOOGL": 0.08})
+    S = pd.DataFrame(
+        [[0.04, 0.005], [0.005, 0.03]],
+        index=["AAPL", "GOOGL"],
+        columns=["AAPL", "GOOGL"]
+    )
+    pipeline_result = {
+        "mu": mu,
+        "S": S,
+        "uncertainties": pd.Series({"AAPL": 0.05, "GOOGL": 0.05}),
+        "tickers": ["AAPL", "GOOGL"],
+        "latest_prices": {"AAPL": 150.0, "GOOGL": 100.0}
+    }
+
+    with patch("portfolio_optimization.data_and_forecast_pipeline", return_value=pipeline_result):
+        result = optimize_portfolio(
+            start_date="2023-01-01",
+            end_date="2023-12-31",
+            risk_free_rate=0.02,
+            tickers=["AAPL", "GOOGL"],
+            optimization_method="MPT",
+            forecast_method="LIGHTWEIGHT"
+        )
+
+    assert "error" not in result
+    assert sum(result["weights"].values()) == pytest.approx(1.0)
 
 
 def test_optimize_portfolio_dedupes_tickers_before_pipeline():

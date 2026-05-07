@@ -65,6 +65,21 @@ def _to_serializable(value):
     return value
 
 
+def _dedupe_tickers(tickers):
+    """Return uppercase ticker symbols without duplicates, preserving first-seen order."""
+    deduped = []
+    seen = set()
+    for ticker in tickers or []:
+        if ticker is None:
+            continue
+        cleaned = str(ticker).strip().rstrip('\\').upper()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        deduped.append(cleaned)
+    return deduped
+
+
 def save_portfolio_result(portfolio_id, result, metadata=None):
     """Persist portfolio optimization output and metadata to disk."""
     if not portfolio_id:
@@ -864,7 +879,24 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
 
     # 4. Efficient Frontier Optimization
     try:
-        ef = EfficientFrontier(mu, S, weight_bounds=(0, max_asset_weight))
+        asset_count = len(mu.index)
+        if asset_count == 0:
+            return {"error": "No valid assets remained after data preparation."}
+
+        effective_max_asset_weight = max_asset_weight
+        if (
+            effective_max_asset_weight is not None
+            and effective_max_asset_weight > 0
+            and asset_count * effective_max_asset_weight < 1
+        ):
+            effective_max_asset_weight = min(1.0, (1.0 / asset_count) + 1e-6)
+            logger.info(
+                "Relaxed max_asset_weight to %.6f for %d assets so weights can sum to 1.",
+                effective_max_asset_weight,
+                asset_count,
+            )
+
+        ef = EfficientFrontier(mu, S, weight_bounds=(0, effective_max_asset_weight))
 
         # Add L2 regularization
         if l2_gamma > 0:
@@ -889,7 +921,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         # performance: (return, volatility, sharpe)
         
         # Filter prices
-        final_prices = {t: latest_prices.get(t, 0.0) for t in final_weights.keys()}
+        final_prices = {t: latest_prices.get(t, 0.0) for t in final_tickers}
 
         result_payload = {
             "weights": final_weights,
@@ -918,8 +950,14 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
 
     except OptimizationError as e:
         logger.warning(f"pypfopt OptimizationError: {e}")
+        if target_return:
+            error_message = "Infeasible constraints. The portfolio cannot achieve the requested Target Return with the current constraints."
+        elif risk_tolerance:
+            error_message = "Infeasible constraints. The portfolio cannot achieve the requested risk target with the current constraints."
+        else:
+            error_message = "Infeasible constraints. The optimizer could not solve a max-Sharpe allocation with the current asset universe and constraints."
         return {
-            "error": "Infeasible constraints. The portfolio cannot achieve the 'Target Return' with the current constraints.",
+            "error": error_message,
             "details": str(e)
         }
     except Exception as e:
@@ -1063,16 +1101,23 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
     }
 
 def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_date, risk_free_rate, 
-                           forecast_method="LIGHTWEIGHT", optimization_method="BL", 
+                           forecast_method="LIGHTWEIGHT", optimization_method="BL",
+                           ticker_group=None,
                            tickers=None, allow_fractional=True, fractional_overrides=None, **kwargs):
-                           
-    if tickers is None or len(tickers) == 0:
-        tickers = list(current_holdings.keys())
+
+    universe_tickers = list(current_holdings.keys())
+    if tickers:
+        universe_tickers.extend(tickers)
+    elif ticker_group and ticker_group != "CURRENT_HOLDINGS":
+        universe_tickers.extend(get_ticker_group(ticker_group))
+
+    tickers = _dedupe_tickers(universe_tickers)
         
     opt_result = optimize_portfolio(
         start_date=start_date,
         end_date=end_date,
         risk_free_rate=risk_free_rate,
+        ticker_group=ticker_group,
         tickers=tickers,
         forecast_method=forecast_method,
         optimization_method=optimization_method,
