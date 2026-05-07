@@ -738,35 +738,33 @@ const PortfolioManager = () => {
             {t("manager.resultsTitle", "Rebalancing Results")}
           </h3>
 
-          <div className="optimizer-weights-card" style={{ marginTop: "var(--spacing-md)", marginBottom: "var(--spacing-xl)" }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h4 style={{ margin: 0 }}>{t("optimizer.fractionalSettings", "Fractional Settings")}</h4>
-              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '0.9rem' }}>
+          <div className="optimizer-weights-card manager-fractional-card">
+            <div className="manager-fractional-header">
+              <h4>{t("optimizer.fractionalSettings", "Fractional Settings")}</h4>
+              <label className="manager-fractional-global-toggle">
                 <input
                   type="checkbox"
                   checked={allowFractional}
                   onChange={(e) => handleAllowFractionalChange(e.target.checked)}
-                  style={{ marginRight: '8px', cursor: 'pointer' }}
                 />
                 {t("optimizer.allowFractional", "Allow Fractional Shares (Global)")}
               </label>
             </div>
             
-            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+            <div className="manager-fractional-note">
               <p>Re-configure how non-fractional orders behave by overriding settings below, and resubmit.</p>
             </div>
-            <ul className="optimizer-weights-list" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+            <ul className="optimizer-weights-list manager-fractional-list">
               {Array.from(new Set([...Object.keys(results.weights || {}), ...Object.keys(results.current_holdings || {})])).sort().map(ticker => {
                 if (!ticker || (!results.weights?.[ticker] && !results.current_holdings?.[ticker])) return null;
                 return (
-                  <li key={ticker} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0' }}>
-                    <span style={{ fontWeight: '500' }}>{ticker}</span>
-                    <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <li key={ticker} className="manager-fractional-item">
+                    <span className="manager-fractional-ticker">{ticker}</span>
+                    <label className="manager-fractional-toggle">
                       <input
                         type="checkbox"
                         checked={isTickerFractional(ticker)}
                         onChange={() => handleToggleFractional(ticker)}
-                        style={{ marginRight: '6px', cursor: 'pointer' }}
                       />
                       {t("optimizer.fractionalAllowed", "Fractional Allowed")}
                     </label>
@@ -774,7 +772,7 @@ const PortfolioManager = () => {
                 )
               })}
             </ul>
-            <button type="button" className="optimizer-submit-button" onClick={handleSubmit} style={{ marginTop: "1rem" }} disabled={loading}>
+            <button type="button" className="optimizer-submit-button manager-fractional-recalculate" onClick={handleSubmit} disabled={loading}>
               {loading ? t("common.processing", "Processing...") : t("manager.recalculate", "Recalculate Orders")}
             </button>
           </div>
@@ -867,14 +865,14 @@ const PortfolioManager = () => {
 
           {/* Order Display Toggle */}
           {(results.buy_list && Object.keys(results.buy_list).length > 0) || (results.sell_list && Object.keys(results.sell_list).length > 0) ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: 'var(--spacing-lg)', marginBottom: 'var(--spacing-sm)' }}>
+            <div className="manager-display-toggle">
               <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginRight: '0.25rem' }}>{t("manager.displayMode", "Display:")} </span>
               {[{key: 'all', label: t("manager.displayAll", "All")}, {key: 'shares', label: t("optimizer.shares", "Shares")}, {key: 'value', label: t("optimizer.investmentAmount", "Value")}].map(mode => (
                 <button
                   key={mode.key}
                   type="button"
                   onClick={() => setOrderDisplayMode(mode.key)}
-                  className={orderDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}
+                  className={`manager-display-toggle-button ${orderDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}`}
                   style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', minWidth: 'unset' }}
                 >
                   {mode.label}

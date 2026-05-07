@@ -1177,6 +1177,20 @@ h2 {
   box-shadow: none;
 }
 
+.manager-display-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+}
+
+.manager-display-toggle-button,
+.manager-display-toggle-button:hover {
+  margin-top: 0;
+  transform: none;
+}
+
 /* Optimizer Results */
 .optimizer-results-container {
   margin-top: var(--spacing-2xl);
@@ -1310,6 +1324,87 @@ h2 {
 .optimizer-weights-list li strong {
   color: var(--color-accent);
   font-weight: 700;
+}
+
+.manager-fractional-card {
+  margin-top: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.manager-fractional-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.manager-fractional-header h4 {
+  margin: 0;
+  text-align: left;
+  font-size: 1.25rem;
+}
+
+.manager-fractional-note {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: var(--spacing-lg);
+}
+
+.manager-fractional-note p {
+  margin: 0;
+}
+
+.manager-fractional-global-toggle,
+.manager-fractional-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.manager-fractional-global-toggle {
+  font-size: 0.95rem;
+}
+
+.manager-fractional-toggle {
+  font-size: 0.85rem;
+}
+
+.manager-fractional-global-toggle input,
+.manager-fractional-toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.manager-fractional-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.optimizer-weights-list .manager-fractional-item {
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+}
+
+.manager-fractional-ticker {
+  min-width: 4.5rem;
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.manager-fractional-recalculate {
+  width: fit-content;
+  min-width: 14rem;
+  margin-top: var(--spacing-lg);
 }
 
 /* Optimizer Error */
@@ -2078,6 +2173,24 @@ h2 {
 
   .manager-holding-row {
     grid-template-columns: 1fr;
+  }
+
+  .manager-fractional-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .manager-fractional-global-toggle,
+  .manager-fractional-toggle {
+    white-space: normal;
+  }
+
+  .manager-fractional-list {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-fractional-recalculate {
+    width: 100%;
   }
 
   .controls-container {
