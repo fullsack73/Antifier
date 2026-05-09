@@ -17,7 +17,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../s
 from portfolio_optimization import calculate_rebalance_orders, iteratively_solve_max_sharpe
 from portfolio_optimization import _convert_price_data_to_usd, _get_ticker_currency
 from portfolio_optimization import optimize_portfolio, manage_portfolio_logic
-from app import app, normalize_history_close_to_usd
+from app import app, normalize_history_close_to_usd, build_historical_log_trend_regression
+from app import build_arima_in_sample_regression
 
 def test_calculate_rebalance_orders_no_injection():
     current_holdings = {"AAPL": 10.0, "MSFT": 5.0}
@@ -205,6 +206,37 @@ def test_stock_chart_history_close_is_normalized_to_usd():
     assert normalized["Volume"].iloc[0] == 1000
     assert price_currency == "USD"
     assert metadata["source_currency"] == "KRW"
+
+
+def test_forecast_model_regression_line_uses_historical_log_trend():
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"])
+    prices = pd.Series([100.0, 90.0, 130.0, 140.0], index=dates)
+
+    regression = build_historical_log_trend_regression(prices)
+
+    assert list(regression.keys()) == [date.strftime("%Y-%m-%d") for date in dates]
+    assert all(np.isfinite(value) and value > 0 for value in regression.values())
+    assert regression["2025-01-04"] > regression["2025-01-01"]
+    assert regression["2025-01-01"] != pytest.approx(100.0)
+
+
+def test_arima_transformer_regression_line_uses_arima_in_sample_fit():
+    class FakeArimaModel:
+        order = (1, 1, 1)
+
+        def predict_in_sample(self):
+            return np.array([9999.0, 91.0, 129.0, 141.0] + [150.0] * 30)
+
+    dates = pd.date_range("2025-01-01", periods=34)
+    prices = pd.Series(np.linspace(100.0, 150.0, 34), index=dates)
+
+    with patch("pmdarima.auto_arima", return_value=FakeArimaModel()):
+        regression = build_arima_in_sample_regression(prices)
+
+    assert regression["2025-01-01"] == pytest.approx(100.0)
+    assert regression["2025-01-02"] == pytest.approx(91.0)
+    assert regression["2025-01-03"] == pytest.approx(129.0)
+    assert regression["2025-01-04"] == pytest.approx(141.0)
 
 
 def test_iteratively_solve_max_sharpe():

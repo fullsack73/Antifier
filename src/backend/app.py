@@ -254,12 +254,76 @@ def is_transformer_model_type(model_type):
     return str(model_type or "").strip().upper() in TRANSFORMER_MODEL_TYPES
 
 
+def build_historical_log_trend_regression(close_series):
+    close_series = close_series.dropna()
+    dates = close_series.index.strftime('%Y-%m-%d').tolist()
+    values = close_series.values.astype(float)
+
+    if len(values) < 2:
+        return {date: float(price) for date, price in zip(dates, values)}
+
+    valid_mask = np.isfinite(values) & (values > 0)
+    if valid_mask.sum() < 2:
+        return {date: float(price) for date, price in zip(dates, values)}
+
+    x = np.arange(len(values), dtype=float)
+    slope, intercept = np.polyfit(x[valid_mask], np.log(values[valid_mask]), 1)
+    fitted_prices = np.exp(intercept + slope * x)
+    fitted_prices = np.where(np.isfinite(fitted_prices), fitted_prices, values)
+
+    return {date: float(price) for date, price in zip(dates, fitted_prices)}
+
+
+def build_arima_in_sample_regression(close_series):
+    close_series = close_series.dropna()
+    if len(close_series) < 30:
+        return build_historical_log_trend_regression(close_series)
+
+    dates = close_series.index.strftime('%Y-%m-%d').tolist()
+    observed_prices = close_series.values.astype(float)
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            from pmdarima import auto_arima
+            arima_model = auto_arima(
+                observed_prices,
+                seasonal=False,
+                stepwise=True,
+                suppress_warnings=True,
+                error_action='ignore',
+                max_p=3,
+                max_q=3,
+                max_d=2
+            )
+
+        fitted_prices = np.asarray(arima_model.predict_in_sample(), dtype=float).reshape(-1)
+        if len(fitted_prices) != len(observed_prices):
+            return build_historical_log_trend_regression(close_series)
+
+        d_order = 0
+        try:
+            d_order = int(arima_model.order[1])
+        except Exception:
+            d_order = 0
+
+        if d_order > 0:
+            fitted_prices[:d_order] = observed_prices[:d_order]
+
+        fitted_prices = np.where(np.isfinite(fitted_prices), fitted_prices, observed_prices)
+        return {date: float(price) for date, price in zip(dates, fitted_prices)}
+    except Exception as exc:
+        app.logger.warning(f"ARIMA in-sample regression failed; using log trend fallback: {exc}")
+        return build_historical_log_trend_regression(close_series)
+
+
 def generate_forecast_regression_response(ticker, stock, close_series, future_days, price_currency, currency_metadata, model_type):
     close_series = close_series.dropna()
     if close_series.empty:
         return {}
 
-    if is_transformer_model_type(model_type):
+    use_transformer_only = is_transformer_model_type(model_type)
+    if use_transformer_only:
         prediction = forecast_single_ticker_with_transformer(ticker, close_series, horizon=TRADING_DAYS_PER_YEAR)
         model_label = "TRANSFORMER"
         default_source = "transformer"
@@ -275,9 +339,10 @@ def generate_forecast_regression_response(ticker, stock, close_series, future_da
     dates = close_series.index.strftime('%Y-%m-%d').tolist()
     original_data = {date: float(price) for date, price in zip(dates, close_series.values)}
 
-    regression_steps = np.arange(len(close_series), dtype=float)
-    regression_prices = float(close_series.iloc[0]) * np.exp(daily_log_return * regression_steps)
-    regression_data = {date: float(price) for date, price in zip(dates, regression_prices)}
+    if use_transformer_only:
+        regression_data = build_historical_log_trend_regression(close_series)
+    else:
+        regression_data = build_arima_in_sample_regression(close_series)
 
     future_predictions = {}
     if future_days > 0:
