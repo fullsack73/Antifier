@@ -6,6 +6,7 @@ import numpy as np
 import logging
 from scipy.stats import linregress
 import warnings
+import time
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 logger = logging.getLogger(__name__)
@@ -403,93 +404,461 @@ class XGBoostModel:
             logger.error(f"XGBoost forecast failed: {e}")
             return 0.08
 
-class EnsemblePredictor:
-    """
-    Ensemble model that combines predictions from ARIMA, LSTM, and XGBoost.
-    Uses soft voting (averaging) for the final prediction and standard deviation for uncertainty.
-    """
-    
-    def __init__(self):
-        self.models = {
-            'ARIMA': ARIMA(seasonal=False, suppress_warnings=True),
-            'LSTM': LSTMModel(layers=2, units=32, dropout=0.2),
-            'XGBoost': XGBoostModel()
+
+class TransformerForecastModel:
+    """Transformer encoder model for log-return forecasting."""
+
+    def __init__(
+        self,
+        lookback=60,
+        d_model=32,
+        num_heads=2,
+        ff_dim=64,
+        dropout=0.1,
+        epochs=15,
+        batch_size=32,
+        validation_split=0.1,
+        random_state=42,
+    ):
+        self.lookback = lookback
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.ff_dim = ff_dim
+        self.dropout = dropout
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.validation_split = validation_split
+        self.random_state = random_state
+        self.model = None
+        self.scaler = None
+        self.last_sequence = None
+        self.training_daily_rmse = None
+
+    def cleanup(self):
+        if self.model is not None:
+            try:
+                import tensorflow as tf
+                del self.model
+                tf.keras.backend.clear_session()
+            except Exception:
+                pass
+        self.model = None
+        self.scaler = None
+        self.last_sequence = None
+
+    def __del__(self):
+        self.cleanup()
+
+    def _create_sequences(self, data, lookback):
+        X, y = [], []
+        for i in range(lookback, len(data)):
+            X.append(data[i - lookback:i])
+            y.append(data[i])
+        return np.array(X), np.array(y)
+
+    def _build_model(self, sequence_length):
+        try:
+            import tensorflow as tf
+            from tensorflow import keras
+            from tensorflow.keras import layers
+        except Exception as exc:
+            raise RuntimeError("TensorFlow is required for Transformer models but is not installed") from exc
+
+        inputs = keras.Input(shape=(sequence_length, 1))
+        x = layers.Dense(self.d_model)(inputs)
+
+        attention = layers.MultiHeadAttention(
+            num_heads=self.num_heads,
+            key_dim=max(1, self.d_model // self.num_heads),
+            dropout=self.dropout,
+        )(x, x)
+        attention = layers.Dropout(self.dropout)(attention)
+        x = layers.LayerNormalization(epsilon=1e-6)(x + attention)
+
+        feed_forward = layers.Dense(self.ff_dim, activation="relu")(x)
+        feed_forward = layers.Dense(self.d_model)(feed_forward)
+        feed_forward = layers.Dropout(self.dropout)(feed_forward)
+        x = layers.LayerNormalization(epsilon=1e-6)(x + feed_forward)
+
+        x = layers.GlobalAveragePooling1D()(x)
+        x = layers.Dense(32, activation="relu")(x)
+        x = layers.Dropout(self.dropout)(x)
+        outputs = layers.Dense(1)(x)
+
+        model = keras.Model(inputs=inputs, outputs=outputs)
+        model.compile(optimizer="adam", loss="mse")
+        return model
+
+    def train(self, prices):
+        """Train on historical prices converted to daily log returns."""
+        try:
+            import tensorflow as tf
+
+            try:
+                tf.random.set_seed(self.random_state)
+                tf.config.threading.set_intra_op_parallelism_threads(1)
+                tf.config.threading.set_inter_op_parallelism_threads(1)
+            except Exception:
+                pass
+
+            prices = np.asarray(prices, dtype=float)
+            prices = prices[np.isfinite(prices) & (prices > 0)]
+            if len(prices) < max(100, self.lookback + 30):
+                logger.warning("Insufficient data for Transformer training")
+                self.model = None
+                return
+
+            log_returns = np.diff(np.log(prices)).reshape(-1, 1)
+            self.scaler = StandardScaler()
+            scaled_returns = self.scaler.fit_transform(log_returns)
+
+            lookback = min(self.lookback, max(10, len(scaled_returns) // 3))
+            X, y = self._create_sequences(scaled_returns, lookback)
+            if len(X) < 30:
+                logger.warning("Insufficient sequences for Transformer training")
+                self.model = None
+                return
+
+            self.lookback = lookback
+            self.last_sequence = scaled_returns[-lookback:].reshape(lookback, 1)
+            self.model = self._build_model(lookback)
+
+            callbacks = [
+                tf.keras.callbacks.EarlyStopping(
+                    monitor="val_loss",
+                    patience=3,
+                    restore_best_weights=True,
+                )
+            ]
+            self.model.fit(
+                X,
+                y,
+                epochs=self.epochs,
+                batch_size=self.batch_size,
+                verbose=0,
+                validation_split=self.validation_split,
+                callbacks=callbacks,
+            )
+
+            fitted = self.model.predict(X, verbose=0).reshape(-1, 1)
+            fitted_returns = self.scaler.inverse_transform(fitted).ravel()
+            actual_returns = self.scaler.inverse_transform(y.reshape(-1, 1)).ravel()
+            self.training_daily_rmse = float(np.sqrt(np.mean((fitted_returns - actual_returns) ** 2)))
+            logger.info("Transformer model trained successfully")
+
+        except Exception as e:
+            logger.error(f"Transformer training failed: {e}")
+            self.model = None
+
+    def forecast(self, horizon=252, annualize=True):
+        """Forecast log return for the horizon, annualized by default."""
+        if self.model is None or self.scaler is None or self.last_sequence is None:
+            logger.warning("Transformer model not trained, returning default")
+            default_annual_return = 0.08
+            return default_annual_return if annualize else default_annual_return * (horizon / 252)
+
+        try:
+            sequence = self.last_sequence.astype(float).copy()
+            cumulative_log_return = 0.0
+
+            for _ in range(max(1, int(horizon))):
+                pred_scaled = float(self.model.predict(sequence.reshape(1, sequence.shape[0], 1), verbose=0)[0][0])
+                pred_log_return = float(self.scaler.inverse_transform([[pred_scaled]])[0][0])
+                pred_log_return = float(np.clip(pred_log_return, -0.2, 0.2))
+                cumulative_log_return += pred_log_return
+
+                next_scaled = float(self.scaler.transform([[pred_log_return]])[0][0])
+                sequence = np.vstack([sequence[1:], [[next_scaled]]])
+
+            if annualize:
+                annual_log_return = cumulative_log_return * (252 / max(1, horizon))
+                return float(np.clip(annual_log_return, -0.69, 0.69))
+            return float(np.clip(cumulative_log_return, -0.95, 2.0))
+
+        except Exception as e:
+            logger.error(f"Transformer forecast failed: {e}")
+            default_annual_return = 0.08
+            return default_annual_return if annualize else default_annual_return * (horizon / 252)
+
+    def predict(self, horizon=252):
+        expected_return = self.forecast(horizon=horizon, annualize=True)
+        uncertainty = self.training_daily_rmse * np.sqrt(252) if self.training_daily_rmse else 0.05
+        uncertainty = float(np.clip(uncertainty, 0.01, 1.0))
+        return {
+            "expected_return": float(expected_return),
+            "uncertainty": uncertainty,
+            "components": {"Transformer": float(expected_return)},
         }
+
+
+class ARIMATransformerPredictor:
+    """
+    Hybrid forecaster that combines ARIMA and Transformer log-return forecasts.
+
+    This replaces the previous ARIMA/LSTM/XGBoost ensemble path for portfolio
+    optimization while keeping the same expected_return/uncertainty contract.
+    """
+
+    def __init__(self, transformer_kwargs=None):
+        self.arima = ARIMA(seasonal=False, suppress_warnings=True)
+        self.transformer = TransformerForecastModel(**(transformer_kwargs or {}))
         self.history = None
 
-    def train_all(self, prices):
-        """
-        Train all ensemble models on the provided price data.
-        
-        Args:
-            prices: Array-like of historical prices
-        """
-        self.history = prices
-        
-        for name, model in self.models.items():
-            try:
-                # logger.info(f"Training {name} model...")
-                if isinstance(model, ARIMA):
-                    # ARIMA logic executed at forecast time
-                    pass 
-                else:
-                    model.train(prices)
-            except Exception as e:
-                logger.error(f"Failed to train {name}: {e}")
+    def cleanup(self):
+        self.transformer.cleanup()
 
-    def predict(self):
-        """
-        Generate ensemble forecast (annual log return).
-        
-        Returns:
-            dict: {
-                'expected_return': float, # Mean of component models
-                'uncertainty': float,     # Std dev of component models
-                'components': dict        # Individual model predictions
-            }
-        """
-        predictions = []
-        component_results = {}
-        
-        for name, model in self.models.items():
-            try:
-                if isinstance(model, ARIMA):
-                    if self.history is None or len(self.history) == 0:
-                        continue
-                    # ARIMA returns (return, volatility)
-                    pred_ret, _ = model.forecast(self.history)
-                else:
-                    # Others return float
-                    pred_ret = model.forecast()
-                
-                # Check for nan/inf
-                if np.isnan(pred_ret) or np.isinf(pred_ret):
-                    logger.warning(f"{name} returned invalid prediction: {pred_ret}")
-                    continue
-                    
-                predictions.append(pred_ret)
-                component_results[name] = float(pred_ret)
-                
-            except Exception as e:
-                logger.error(f"Prediction failed for {name}: {e}")
-                continue
-        
-        if not predictions:
-            logger.warning("No models generated predictions successfully. Returning default.")
+    def train_all(self, prices):
+        self.history = np.asarray(prices, dtype=float)
+        self.history = self.history[np.isfinite(self.history) & (self.history > 0)]
+        self.transformer.train(self.history)
+
+    def predict(self, horizon=252):
+        if self.history is None or len(self.history) == 0:
+            logger.warning("ARIMA + Transformer predictor has no training history. Returning default.")
             return {
                 'expected_return': 0.08,
                 'uncertainty': 0.05,
                 'components': {}
             }
-            
-        mean_prediction = np.mean(predictions)
-        std_prediction = np.std(predictions) if len(predictions) > 1 else 0.05
-        
+
+        predictions = []
+        component_results = {}
+        uncertainties = []
+
+        try:
+            arima_period_return, arima_volatility = self.arima.forecast(self.history, horizon=horizon)
+            arima_annual_return = arima_period_return * (252 / max(1, horizon))
+            if np.isfinite(arima_annual_return):
+                predictions.append(float(arima_annual_return))
+                component_results["ARIMA"] = float(arima_annual_return)
+                uncertainties.append(float(arima_volatility))
+        except Exception as e:
+            logger.error(f"ARIMA component failed: {e}")
+
+        try:
+            transformer_prediction = self.transformer.predict(horizon=horizon)
+            transformer_return = transformer_prediction.get("expected_return")
+            if transformer_return is not None and np.isfinite(transformer_return):
+                predictions.append(float(transformer_return))
+                component_results["Transformer"] = float(transformer_return)
+                uncertainties.append(float(transformer_prediction.get("uncertainty", 0.05)))
+        except Exception as e:
+            logger.error(f"Transformer component failed: {e}")
+
+        if not predictions:
+            logger.warning("ARIMA + Transformer generated no valid predictions. Returning default.")
+            return {
+                'expected_return': 0.08,
+                'uncertainty': 0.05,
+                'components': {}
+            }
+
+        mean_prediction = float(np.mean(predictions))
+        component_disagreement = float(np.std(predictions)) if len(predictions) > 1 else 0.0
+        model_uncertainty = float(np.mean(uncertainties)) if uncertainties else 0.05
+        uncertainty = float(np.clip(max(component_disagreement, model_uncertainty), 0.01, 1.0))
+
         return {
-            'expected_return': float(mean_prediction),
-            'uncertainty': float(std_prediction),
+            'expected_return': mean_prediction,
+            'uncertainty': uncertainty,
             'components': component_results
         }
+
+
+def _forecast_ensemble_period_log_return(prices, horizon):
+    return _forecast_arima_transformer_period_log_return(prices, horizon)
+
+
+def _forecast_transformer_period_log_return(prices, horizon, transformer_kwargs=None):
+    model = TransformerForecastModel(**(transformer_kwargs or {}))
+    try:
+        model.train(prices)
+        return model.forecast(horizon=horizon, annualize=False)
+    finally:
+        model.cleanup()
+
+
+def _forecast_arima_transformer_period_log_return(prices, horizon, transformer_kwargs=None):
+    predictor = ARIMATransformerPredictor(transformer_kwargs=transformer_kwargs)
+    try:
+        predictor.train_all(prices)
+        prediction = predictor.predict(horizon=horizon)
+        annual_log_return = float(prediction.get("expected_return", 0.08))
+        return annual_log_return * (horizon / 252)
+    finally:
+        predictor.cleanup()
+
+
+def _summarize_forecast_records(records):
+    valid_records = [
+        record for record in records
+        if record.get("predicted_log_return") is not None
+        and np.isfinite(record.get("predicted_log_return"))
+        and np.isfinite(record.get("actual_log_return"))
+    ]
+    failures = len(records) - len(valid_records)
+    if not valid_records:
+        return {
+            "n": 0,
+            "failures": failures,
+            "mae": None,
+            "rmse": None,
+            "bias": None,
+            "directional_accuracy": None,
+            "correlation": None,
+            "avg_seconds": None,
+        }
+
+    predicted = np.array([record["predicted_log_return"] for record in valid_records], dtype=float)
+    actual = np.array([record["actual_log_return"] for record in valid_records], dtype=float)
+    errors = predicted - actual
+    actual_sign = np.sign(actual)
+    predicted_sign = np.sign(predicted)
+    if len(valid_records) > 1 and np.std(predicted) > 0 and np.std(actual) > 0:
+        correlation = float(np.corrcoef(predicted, actual)[0, 1])
+    else:
+        correlation = None
+
+    return {
+        "n": len(valid_records),
+        "failures": failures,
+        "mae": float(np.mean(np.abs(errors))),
+        "rmse": float(np.sqrt(np.mean(errors ** 2))),
+        "bias": float(np.mean(errors)),
+        "directional_accuracy": float(np.mean(predicted_sign == actual_sign)),
+        "correlation": correlation,
+        "avg_seconds": float(np.mean([record.get("elapsed_seconds", 0.0) for record in valid_records])),
+    }
+
+
+def compare_forecasters_on_series(
+    prices,
+    horizon=21,
+    min_train_size=252,
+    step=None,
+    max_windows=5,
+    models=("ensemble", "transformer", "arima_transformer"),
+    transformer_kwargs=None,
+):
+    """
+    Walk-forward comparison for ensemble vs Transformer forecasts on one price series.
+
+    Metrics are based on horizon log-return prediction error. Lower MAE/RMSE is
+    better; higher directional_accuracy/correlation is better.
+    """
+    prices = np.asarray(prices, dtype=float)
+    prices = prices[np.isfinite(prices) & (prices > 0)]
+    step = step or horizon
+    min_train_size = max(100, int(min_train_size))
+    horizon = max(1, int(horizon))
+
+    if len(prices) < min_train_size + horizon + 1:
+        raise ValueError(
+            f"Need at least {min_train_size + horizon + 1} valid prices for comparison; got {len(prices)}"
+        )
+
+    last_cutoff = len(prices) - horizon - 1
+    cutoffs = list(range(min_train_size - 1, last_cutoff + 1, max(1, int(step))))
+    if max_windows:
+        cutoffs = cutoffs[-int(max_windows):]
+
+    results = {model_name: {"records": []} for model_name in models}
+
+    for cutoff in cutoffs:
+        train_prices = prices[:cutoff + 1]
+        actual_log_return = float(np.log(prices[cutoff + horizon] / prices[cutoff]))
+
+        for model_name in models:
+            started_at = time.perf_counter()
+            predicted = None
+            error = None
+            try:
+                normalized_name = model_name.lower()
+                if normalized_name in {"ensemble", "deep_learning", "deep-learning"}:
+                    predicted = _forecast_ensemble_period_log_return(train_prices, horizon)
+                elif normalized_name == "transformer":
+                    predicted = _forecast_transformer_period_log_return(
+                        train_prices,
+                        horizon,
+                        transformer_kwargs=transformer_kwargs,
+                    )
+                elif normalized_name in {"arima_transformer", "arima+transformer", "arima-transformer"}:
+                    predicted = _forecast_arima_transformer_period_log_return(
+                        train_prices,
+                        horizon,
+                        transformer_kwargs=transformer_kwargs,
+                    )
+                else:
+                    raise ValueError(f"Unsupported model for comparison: {model_name}")
+            except Exception as exc:
+                error = str(exc)
+
+            results[model_name]["records"].append({
+                "cutoff_index": int(cutoff),
+                "horizon": int(horizon),
+                "actual_log_return": actual_log_return,
+                "predicted_log_return": None if predicted is None else float(predicted),
+                "elapsed_seconds": float(time.perf_counter() - started_at),
+                "error": error,
+            })
+
+    for model_name, payload in results.items():
+        payload["metrics"] = _summarize_forecast_records(payload["records"])
+
+    return results
+
+
+def compare_forecasters_on_frame(
+    price_frame,
+    horizon=21,
+    min_train_size=252,
+    step=None,
+    max_windows=5,
+    models=("ensemble", "transformer", "arima_transformer"),
+    transformer_kwargs=None,
+):
+    """Run the same walk-forward comparison across every column in a price DataFrame."""
+    import pandas as pd
+
+    if not isinstance(price_frame, pd.DataFrame):
+        raise TypeError("price_frame must be a pandas DataFrame")
+
+    per_ticker = {}
+    all_records = {model_name: [] for model_name in models}
+
+    for ticker in price_frame.columns:
+        series = price_frame[ticker].dropna().values
+        try:
+            ticker_result = compare_forecasters_on_series(
+                series,
+                horizon=horizon,
+                min_train_size=min_train_size,
+                step=step,
+                max_windows=max_windows,
+                models=models,
+                transformer_kwargs=transformer_kwargs,
+            )
+        except ValueError as exc:
+            per_ticker[ticker] = {"error": str(exc)}
+            continue
+
+        per_ticker[ticker] = ticker_result
+        for model_name in models:
+            for record in ticker_result[model_name]["records"]:
+                merged_record = dict(record)
+                merged_record["ticker"] = ticker
+                all_records[model_name].append(merged_record)
+
+    summary = {
+        model_name: _summarize_forecast_records(records)
+        for model_name, records in all_records.items()
+    }
+
+    return {
+        "summary": summary,
+        "per_ticker": per_ticker,
+    }
+
 
 class LSTMPriceModel:
     def __init__(self, input_shape):

@@ -24,7 +24,7 @@ from cache_manager import (
     get_cache, cached
 )
 from ticker_lists import get_ticker_group
-from forecast_models import EnsemblePredictor
+from forecast_models import ARIMATransformerPredictor, TransformerForecastModel
 from lightweight_forecast import lightweight_ensemble_forecast
 
 # Configure logging for this module
@@ -465,17 +465,18 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None):
         return pd.DataFrame()
 
 # NOTE: 모델 객체를 캐시하지 않음 - 메모리 누수 방지를 위해 forecast 결과만 캐시
-def _generate_ensemble_prediction(ticker, ticker_data):
+def _generate_arima_transformer_prediction(ticker, ticker_data, horizon=252):
     """
-    Train ensemble models and generate prediction for a single ticker.
+    Train ARIMA + Transformer models and generate prediction for a single ticker.
     Returns dictionary with expected_return and uncertainty.
     """
+    predictor = None
     try:
         prices = ticker_data.values
         
         # Validate data
         if len(prices) < 100:
-            logger.warning(f"Insufficient data for ML training on {ticker}: {len(prices)} points")
+            logger.warning(f"Insufficient data for ARIMA + Transformer training on {ticker}: {len(prices)} points")
             return None
         
         valid_prices = prices[~np.isnan(prices)]
@@ -483,14 +484,13 @@ def _generate_ensemble_prediction(ticker, ticker_data):
             logger.warning(f"Too many NaN values for {ticker}")
             return None
         
-        # Use EnsemblePredictor
         start_time = time.time()
-        predictor = EnsemblePredictor()
+        predictor = ARIMATransformerPredictor()
         predictor.train_all(valid_prices)
-        prediction = predictor.predict()
+        prediction = predictor.predict(horizon=horizon)
         elapsed = time.time() - start_time
         
-        logger.info(f"Ensemble Prediction for {ticker}: "
+        logger.info(f"ARIMA + Transformer Prediction for {ticker}: "
                    f"Return={prediction['expected_return']:.4f}, "
                    f"Uncertainty={prediction['uncertainty']:.4f} "
                    f"in {elapsed:.2f}s")
@@ -498,15 +498,53 @@ def _generate_ensemble_prediction(ticker, ticker_data):
         return prediction
         
     except Exception as e:
-        logger.error(f"Ensemble forecasting failed for {ticker}: {e}")
+        logger.error(f"ARIMA + Transformer forecasting failed for {ticker}: {e}")
         return None
     finally:
+        if predictor is not None:
+            predictor.cleanup()
         gc.collect()
 
 
-def forecast_single_ticker_with_ensemble(ticker, ticker_data, horizon=252):
+def _generate_transformer_prediction(ticker, ticker_data, horizon=252):
     """
-    Forecast a single ticker with the same ensemble path used by portfolio optimization.
+    Train a Transformer model and generate an annualized log-return prediction
+    for a single ticker.
+    """
+    model = None
+    try:
+        prices = ticker_data.values
+        valid_prices = prices[~np.isnan(prices)]
+
+        if len(valid_prices) < 100:
+            logger.warning(f"Insufficient data for Transformer training on {ticker}: {len(valid_prices)} points")
+            return None
+
+        start_time = time.time()
+        model = TransformerForecastModel()
+        model.train(valid_prices)
+        prediction = model.predict(horizon=horizon)
+        elapsed = time.time() - start_time
+
+        logger.info(f"Transformer Prediction for {ticker}: "
+                    f"Return={prediction['expected_return']:.4f}, "
+                    f"Uncertainty={prediction['uncertainty']:.4f} "
+                    f"in {elapsed:.2f}s")
+
+        return prediction
+
+    except Exception as e:
+        logger.error(f"Transformer forecasting failed for {ticker}: {e}")
+        return None
+    finally:
+        if model is not None:
+            model.cleanup()
+        gc.collect()
+
+
+def forecast_single_ticker_with_arima_transformer(ticker, ticker_data, horizon=252):
+    """
+    Forecast a single ticker with the same ARIMA + Transformer path used by portfolio optimization.
 
     Returns expected_return as an annualized log return so callers can convert it
     into a daily compounded price path.
@@ -515,7 +553,7 @@ def forecast_single_ticker_with_ensemble(ticker, ticker_data, horizon=252):
     valid_prices = prices[~np.isnan(prices)]
 
     if len(valid_prices) < 100:
-        logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ML)")
+        logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ARIMA + Transformer)")
         period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
         annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
         return {
@@ -525,9 +563,9 @@ def forecast_single_ticker_with_ensemble(ticker, ticker_data, horizon=252):
             'source': 'lightweight_fallback'
         }
 
-    prediction = _generate_ensemble_prediction(ticker, ticker_data)
+    prediction = _generate_arima_transformer_prediction(ticker, ticker_data, horizon=horizon)
     if prediction is None:
-        logger.warning(f"ML training failed for {ticker}, using lightweight forecast")
+        logger.warning(f"ARIMA + Transformer training failed for {ticker}, using lightweight forecast")
         period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
         annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
         return {
@@ -538,13 +576,55 @@ def forecast_single_ticker_with_ensemble(ticker, ticker_data, horizon=252):
         }
 
     prediction['expected_return'] = float(prediction.get('expected_return', 0.08))
-    prediction['source'] = 'deep_learning_ensemble'
+    prediction['source'] = 'arima_transformer'
+    return prediction
+
+
+def forecast_single_ticker_with_ensemble(ticker, ticker_data, horizon=252):
+    """Backward-compatible alias: the old ensemble path now uses ARIMA + Transformer."""
+    return forecast_single_ticker_with_arima_transformer(ticker, ticker_data, horizon=horizon)
+
+
+def forecast_single_ticker_with_transformer(ticker, ticker_data, horizon=252):
+    """
+    Forecast a single ticker using the Transformer path.
+
+    Returns expected_return as an annualized log return.
+    """
+    prices = ticker_data.values if hasattr(ticker_data, "values") else np.asarray(ticker_data)
+    valid_prices = prices[~np.isnan(prices)]
+
+    if len(valid_prices) < 100:
+        logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for Transformer)")
+        period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+        annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
+        return {
+            'expected_return': float(annual_log_return),
+            'uncertainty': 0.05,
+            'components': {},
+            'source': 'lightweight_fallback'
+        }
+
+    prediction = _generate_transformer_prediction(ticker, ticker_data, horizon=horizon)
+    if prediction is None:
+        logger.warning(f"Transformer training failed for {ticker}, using lightweight forecast")
+        period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+        annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
+        return {
+            'expected_return': float(annual_log_return),
+            'uncertainty': 0.05,
+            'components': {},
+            'source': 'lightweight_fallback'
+        }
+
+    prediction['expected_return'] = float(prediction.get('expected_return', 0.08))
+    prediction['source'] = 'transformer'
     return prediction
 
 
 @cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache for predictions
-def _ml_forecast_single_ticker(ticker, ticker_data):
-    """Forecast returns for single ticker using Ensemble models with caching.
+def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
+    """Forecast returns for single ticker using ARIMA + Transformer with caching.
     
     Falls back to lightweight forecasting when insufficient data.
     Returns dictionary with expected_return and uncertainty.
@@ -555,18 +635,19 @@ def _ml_forecast_single_ticker(ticker, ticker_data):
         
         # Validate data - use lightweight mode if insufficient data for ML
         if len(valid_prices) < 100:
-            logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ML)")
-            forecast_value = lightweight_ensemble_forecast(valid_prices)
-            return ticker, {'expected_return': forecast_value, 'uncertainty': 0.05}
+            logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ARIMA + Transformer)")
+            period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+            annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
+            return ticker, {'expected_return': annual_log_return, 'uncertainty': 0.05}
         
-        # Generate ensemble prediction
-        prediction = _generate_ensemble_prediction(ticker, ticker_data)
+        prediction = _generate_arima_transformer_prediction(ticker, ticker_data, horizon=horizon)
         
         if prediction is None:
             # Fallback to lightweight forecast
-            logger.warning(f"ML training failed for {ticker}, using lightweight forecast")
-            forecast_value = lightweight_ensemble_forecast(valid_prices)
-            return ticker, {'expected_return': forecast_value, 'uncertainty': 0.05}
+            logger.warning(f"ARIMA + Transformer training failed for {ticker}, using lightweight forecast")
+            period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+            annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
+            return ticker, {'expected_return': annual_log_return, 'uncertainty': 0.05}
         
         return ticker, prediction
         
@@ -574,10 +655,37 @@ def _ml_forecast_single_ticker(ticker, ticker_data):
         gc.collect()
 
 
+@cached(l1_ttl=900, l2_ttl=14400)
+def _transformer_forecast_single_ticker(ticker, ticker_data, horizon=252):
+    """Forecast returns for one ticker using the Transformer model with caching."""
+    try:
+        prices = ticker_data.values
+        valid_prices = prices[~np.isnan(prices)]
 
-def ml_forecast_returns(data, batch_size=50, progress_callback=None):
+        if len(valid_prices) < 100:
+            logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for Transformer)")
+            forecast_value = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+            annual_log_return = np.log1p(np.clip(forecast_value, -0.95, None)) * (252 / horizon)
+            return ticker, {'expected_return': annual_log_return, 'uncertainty': 0.05}
+
+        prediction = _generate_transformer_prediction(ticker, ticker_data, horizon=horizon)
+
+        if prediction is None:
+            logger.warning(f"Transformer training failed for {ticker}, using lightweight forecast")
+            forecast_value = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+            annual_log_return = np.log1p(np.clip(forecast_value, -0.95, None)) * (252 / horizon)
+            return ticker, {'expected_return': annual_log_return, 'uncertainty': 0.05}
+
+        return ticker, prediction
+
+    finally:
+        gc.collect()
+
+
+
+def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252):
     """
-    Forecast expected returns using ML models with memory-efficient batch processing.
+    Forecast expected returns using ARIMA + Transformer with memory-efficient batch processing.
     
     Args:
         data: DataFrame with stock prices (dates as index, tickers as columns)
@@ -588,7 +696,7 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None):
         tuple: (forecasts_series, uncertainties_series)
     """
     start_time = time.time()
-    logger.info(f"Starting BATCH ML forecasting for {len(data.columns)} tickers")
+    logger.info(f"Starting BATCH ARIMA + Transformer forecasting for {len(data.columns)} tickers")
     
     if is_windows() and batch_size > 20:
         logger.info(f"Reducing ML forecast batch_size from {batch_size} to 20 on Windows for memory stability")
@@ -622,7 +730,7 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None):
             with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx, initializer=worker_initializer) as executor:
                 future_to_ticker = {}
                 for ticker in batch_tickers:
-                    future = executor.submit(_ml_forecast_single_ticker, ticker, data[ticker])
+                    future = executor.submit(_ml_forecast_single_ticker, ticker, data[ticker], horizon)
                     future_to_ticker[future] = ticker
                 
                 for future in as_completed(future_to_ticker):
@@ -649,7 +757,7 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None):
             logger.info(f"Batch {batch_idx + 1} complete. Total progress: {completed}/{len(tickers)} ({100*completed/len(tickers):.1f}%)")
             
             if progress_callback:
-                progress_callback(completed, len(tickers), f"ML Training: Batch {batch_idx + 1}/{total_batches} complete")
+                progress_callback(completed, len(tickers), f"ARIMA + Transformer Training: Batch {batch_idx + 1}/{total_batches} complete")
 
             # 메모리 상태 체크
             import psutil
@@ -668,7 +776,7 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None):
                     pass
         
         elapsed_time = time.time() - start_time
-        logger.info(f"BATCH ML forecasting completed in {elapsed_time:.2f}s for {len(forecasts)} tickers")
+        logger.info(f"BATCH ARIMA + Transformer forecasting completed in {elapsed_time:.2f}s for {len(forecasts)} tickers")
         
         # Log cache performance
         cache = get_cache()
@@ -680,7 +788,7 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None):
         return pd.Series(forecasts), pd.Series(uncertainties)
         
     except Exception as e:
-        logger.error(f"ML forecasting failed critically: {e}. Using lightweight ensemble fallback.")
+        logger.error(f"ARIMA + Transformer forecasting failed critically: {e}. Using lightweight ensemble fallback.")
         # Fallback: 경량 앙상블 방식으로 직접 예측
         forecasts = {}
         uncertainties = {}
@@ -689,12 +797,94 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None):
                 prices = data[ticker].values
                 valid_prices = prices[~np.isnan(prices)]
                 if len(valid_prices) >= 10:
-                    val = lightweight_ensemble_forecast(valid_prices)
-                    forecasts[ticker] = val
+                    period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+                    forecasts[ticker] = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
                     uncertainties[ticker] = 0.05
                 else:
                     forecasts[ticker] = 0.05
                     uncertainties[ticker] = 0.05
+            except Exception:
+                forecasts[ticker] = 0.05
+                uncertainties[ticker] = 0.05
+        return pd.Series(forecasts), pd.Series(uncertainties)
+
+
+def transformer_forecast_returns(data, batch_size=20, progress_callback=None, horizon=252):
+    """
+    Forecast expected returns using a standalone Transformer model.
+
+    Returns:
+        tuple: (forecasts_series, uncertainties_series)
+    """
+    start_time = time.time()
+    logger.info(f"Starting Transformer forecasting for {len(data.columns)} tickers")
+
+    if is_windows() and batch_size > 10:
+        logger.info(f"Reducing Transformer batch_size from {batch_size} to 10 on Windows for memory stability")
+        batch_size = 10
+
+    max_workers = get_ml_worker_limit(len(data.columns))
+    max_workers = max(1, min(max_workers, 2))
+
+    import multiprocessing as mp
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    ctx = mp.get_context('spawn')
+    forecasts = {}
+    uncertainties = {}
+    tickers = list(data.columns)
+    total_batches = (len(tickers) + batch_size - 1) // batch_size
+
+    try:
+        for batch_idx in range(total_batches):
+            batch_start = batch_idx * batch_size
+            batch_end = min(batch_start + batch_size, len(tickers))
+            batch_tickers = tickers[batch_start:batch_end]
+
+            logger.info(f"Processing Transformer batch {batch_idx + 1}/{total_batches} ({len(batch_tickers)} tickers)")
+
+            with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx, initializer=worker_initializer) as executor:
+                future_to_ticker = {}
+                for ticker in batch_tickers:
+                    future = executor.submit(_transformer_forecast_single_ticker, ticker, data[ticker], horizon)
+                    future_to_ticker[future] = ticker
+
+                for future in as_completed(future_to_ticker):
+                    ticker = future_to_ticker[future]
+                    try:
+                        result_ticker, prediction_result = future.result()
+                        forecasts[result_ticker] = prediction_result.get('expected_return', 0.05)
+                        uncertainties[result_ticker] = prediction_result.get('uncertainty', 0.05)
+                    except Exception as exc:
+                        logger.error(f"Transformer forecasting exception for {ticker}: {exc}")
+                        forecasts[ticker] = 0.08
+                        uncertainties[ticker] = 0.05
+
+            gc.collect()
+
+            completed = len(forecasts)
+            logger.info(f"Transformer batch {batch_idx + 1} complete. Total progress: {completed}/{len(tickers)}")
+            if progress_callback:
+                progress_callback(completed, len(tickers), f"Transformer Training: Batch {batch_idx + 1}/{total_batches} complete")
+
+        elapsed_time = time.time() - start_time
+        logger.info(f"Transformer forecasting completed in {elapsed_time:.2f}s for {len(forecasts)} tickers")
+        return pd.Series(forecasts), pd.Series(uncertainties)
+
+    except Exception as e:
+        logger.error(f"Transformer forecasting failed critically: {e}. Using lightweight ensemble fallback.")
+        forecasts = {}
+        uncertainties = {}
+        for ticker in data.columns:
+            try:
+                prices = data[ticker].values
+                valid_prices = prices[~np.isnan(prices)]
+                if len(valid_prices) >= 10:
+                    period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+                    forecasts[ticker] = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
+                else:
+                    forecasts[ticker] = 0.05
+                uncertainties[ticker] = 0.05
             except Exception:
                 forecasts[ticker] = 0.05
                 uncertainties[ticker] = 0.05
@@ -950,10 +1140,21 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         mu_forecast = pd.Series(forecasts).fillna(0.0)
         uncertainties = pd.Series(uncertainties_dict).fillna(0.05)
         
-    elif forecast_method in ["DEEP_LEARNING", "Ensemble"]:
-        logger.info("Using Deep Learning Ensemble Forecast")
-        # TODO: Update ml_forecast_returns to accept horizon if needed, currently usually 1 year
-        mu_forecast, uncertainties = ml_forecast_returns(data, progress_callback=ml_callback)
+    elif forecast_method in ["DEEP_LEARNING", "Ensemble", "ARIMA_TRANSFORMER", "ARIMA + Transformer"]:
+        logger.info(f"Using ARIMA + Transformer Forecast (Horizon={forecast_horizon})")
+        mu_forecast, uncertainties = ml_forecast_returns(
+            data,
+            progress_callback=ml_callback,
+            horizon=forecast_horizon
+        )
+
+    elif forecast_method in ["TRANSFORMER", "Transformer"]:
+        logger.info(f"Using Transformer Forecast (Horizon={forecast_horizon})")
+        mu_forecast, uncertainties = transformer_forecast_returns(
+            data,
+            progress_callback=ml_callback,
+            horizon=forecast_horizon
+        )
     
     else:
         logger.warning(f"Unknown forecast method '{forecast_method}', defaulting to Lightweight")

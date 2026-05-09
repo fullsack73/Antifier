@@ -21,7 +21,8 @@ from portfolio_optimization import (
     load_portfolio_result,
     list_saved_portfolios,
     manage_portfolio_logic,
-    forecast_single_ticker_with_ensemble
+    forecast_single_ticker_with_arima_transformer,
+    forecast_single_ticker_with_transformer
 )
 from stock_screener import search_stocks
 
@@ -30,7 +31,14 @@ app = Flask(__name__)
 
 BASE_CURRENCY = "USD"
 TRADING_DAYS_PER_YEAR = 252
-ENSEMBLE_MODEL_TYPES = {"DEEP_LEARNING", "ENSEMBLE", "DEEP LEARNING ENSEMBLE"}
+ENSEMBLE_MODEL_TYPES = {
+    "DEEP_LEARNING",
+    "ENSEMBLE",
+    "DEEP LEARNING ENSEMBLE",
+    "ARIMA_TRANSFORMER",
+    "ARIMA + TRANSFORMER",
+}
+TRANSFORMER_MODEL_TYPES = {"TRANSFORMER"}
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
     ".KS": "KRW",
@@ -242,12 +250,24 @@ def is_ensemble_model_type(model_type):
     return str(model_type or "").strip().upper() in ENSEMBLE_MODEL_TYPES
 
 
-def generate_ensemble_regression_response(ticker, stock, close_series, future_days, price_currency, currency_metadata):
+def is_transformer_model_type(model_type):
+    return str(model_type or "").strip().upper() in TRANSFORMER_MODEL_TYPES
+
+
+def generate_forecast_regression_response(ticker, stock, close_series, future_days, price_currency, currency_metadata, model_type):
     close_series = close_series.dropna()
     if close_series.empty:
         return {}
 
-    prediction = forecast_single_ticker_with_ensemble(ticker, close_series, horizon=TRADING_DAYS_PER_YEAR)
+    if is_transformer_model_type(model_type):
+        prediction = forecast_single_ticker_with_transformer(ticker, close_series, horizon=TRADING_DAYS_PER_YEAR)
+        model_label = "TRANSFORMER"
+        default_source = "transformer"
+    else:
+        prediction = forecast_single_ticker_with_arima_transformer(ticker, close_series, horizon=TRADING_DAYS_PER_YEAR)
+        model_label = "ARIMA_TRANSFORMER"
+        default_source = "arima_transformer"
+
     annual_log_return = float(prediction.get('expected_return', 0.08))
     annual_log_return = float(np.clip(annual_log_return, -0.69, 0.69))
     daily_log_return = annual_log_return / TRADING_DAYS_PER_YEAR
@@ -281,11 +301,11 @@ def generate_ensemble_regression_response(ticker, stock, close_series, future_da
         'slope': 'N/A',
         'intercept': 'N/A',
         'model_metadata': {
-            'model': 'DEEP_LEARNING',
+            'model': model_label,
             'expected_annual_log_return': annual_log_return,
             'uncertainty': prediction.get('uncertainty'),
             'components': prediction.get('components', {}),
-            'source': prediction.get('source', 'deep_learning_ensemble')
+            'source': prediction.get('source', default_source)
         }
     }
 
@@ -310,14 +330,15 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
 
         df, price_currency, currency_metadata = normalize_history_close_to_usd(ticker, df, start_date, end_date)
 
-        if is_ensemble_model_type(model_type):
-            return generate_ensemble_regression_response(
+        if is_ensemble_model_type(model_type) or is_transformer_model_type(model_type):
+            return generate_forecast_regression_response(
                 ticker,
                 stock,
                 df['Close'],
                 future_days,
                 price_currency,
-                currency_metadata
+                currency_metadata,
+                model_type
             )
 
         # ARIMA should model the original time series directly.

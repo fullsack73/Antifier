@@ -541,8 +541,11 @@ const PortfolioManager = () => {
               <option value="LIGHTWEIGHT">
                 {t("optimizer.lightweight", "Lightweight Prediction")}
               </option>
-              <option value="DEEP_LEARNING">
-                {t("optimizer.ensemble", "Deep Learning Ensemble")}
+              <option value="ARIMA_TRANSFORMER">
+                {t("optimizer.ensemble", "ARIMA + Transformer")}
+              </option>
+              <option value="TRANSFORMER">
+                {t("optimizer.transformer", "Transformer")}
               </option>
             </select>
           </div>
