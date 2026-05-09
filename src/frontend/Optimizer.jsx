@@ -12,7 +12,6 @@ const Optimizer = () => {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [riskFreeRate, setRiskFreeRate] = useState("2")
-  const [optimizationGoal, setOptimizationGoal] = useState("AUTO_MAX_SHARPE")
   const [targetReturn, setTargetReturn] = useState("")
   const [riskTolerance, setRiskTolerance] = useState("")
   const [optimizedPortfolio, setOptimizedPortfolio] = useState(null)
@@ -222,16 +221,6 @@ const Optimizer = () => {
 
   const generateRequestId = () => `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-  const handleOptimizationGoalChange = (goal) => {
-    setOptimizationGoal(goal)
-    if (goal !== "TARGET_RETURN") {
-      setTargetReturn("")
-    }
-    if (goal !== "RISK_TOLERANCE") {
-      setRiskTolerance("")
-    }
-  }
-
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -249,8 +238,8 @@ const Optimizer = () => {
         start_date: startDate,
         end_date: endDate,
         risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
-        target_return: optimizationGoal === "TARGET_RETURN" && targetReturn ? Number.parseFloat(targetReturn) / 100 : null,
-        risk_tolerance: optimizationGoal === "RISK_TOLERANCE" && riskTolerance ? Number.parseFloat(riskTolerance) / 100 : null,
+        target_return: targetReturn ? Number.parseFloat(targetReturn) / 100 : null,
+        risk_tolerance: riskTolerance ? Number.parseFloat(riskTolerance) / 100 : null,
         request_id: requestId,
         forecast_method: forecastMethod,
         optimization_method: optimizationMethod,
@@ -432,63 +421,6 @@ const Optimizer = () => {
               />
             </div>
           </div>
-
-          <div className="optimizer-form-group">
-            <label htmlFor="optimizationGoal">{t("optimizer.optimizationGoal", "Optimization Goal")}</label>
-            <select
-              id="optimizationGoal"
-              className="optimizer-select"
-              value={optimizationGoal}
-              onChange={(e) => handleOptimizationGoalChange(e.target.value)}
-            >
-              <option value="AUTO_MAX_SHARPE">{t("optimizer.autoMaxSharpe", "Auto: Max Sharpe Ratio")}</option>
-              <option value="TARGET_RETURN">{t("optimizer.targetReturnGoal", "Target Return")}</option>
-              <option value="RISK_TOLERANCE">{t("optimizer.riskToleranceGoal", "Risk Limit")}</option>
-            </select>
-          </div>
-
-          {optimizationGoal === "AUTO_MAX_SHARPE" && (
-            <div className="optimizer-form-group">
-              <label>{t("optimizer.autoMaxSharpe", "Auto: Max Sharpe Ratio")}</label>
-              <div className="optimizer-input optimizer-readonly-field">
-                {t("optimizer.autoMaxSharpeHelp", "No return or risk target is sent. The backend uses cached forecasts and selects the max-Sharpe allocation.")}
-              </div>
-            </div>
-          )}
-
-          {optimizationGoal === "TARGET_RETURN" && (
-            <div className="optimizer-form-group">
-              <label htmlFor="targetReturn">{t("optimizer.targetReturn")}</label>
-              <div className="input-with-symbol">
-                <input
-                  id="targetReturn"
-                  className="optimizer-input"
-                  type="number"
-                  value={targetReturn}
-                  onChange={(e) => setTargetReturn(e.target.value)}
-                  placeholder="e.g., 20"
-                  required
-                />
-              </div>
-            </div>
-          )}
-
-          {optimizationGoal === "RISK_TOLERANCE" && (
-            <div className="optimizer-form-group">
-              <label htmlFor="riskTolerance">{t("optimizer.riskTolerance")}</label>
-              <div className="input-with-symbol">
-                <input
-                  id="riskTolerance"
-                  className="optimizer-input"
-                  type="number"
-                  value={riskTolerance}
-                  onChange={(e) => setRiskTolerance(e.target.value)}
-                  placeholder="e.g., 15"
-                  required
-                />
-              </div>
-            </div>
-          )}
           <button type="submit" className="optimizer-submit-button" disabled={loading}>
             {loading ? t("common.processing", "Processing...") : t("optimizer.submit")}
           </button>
@@ -501,6 +433,40 @@ const Optimizer = () => {
                   <button type="button" className="optimizer-modal-close" onClick={() => setShowAdvanced(false)}>×</button>
                 </div>
                 <div className="optimizer-modal-body">
+                  <div className="optimizer-form-group">
+                    <label htmlFor="targetReturn">{t("optimizer.targetReturn")}</label>
+                    <div className="input-with-symbol">
+                      <input
+                        id="targetReturn"
+                        className="optimizer-input"
+                        type="number"
+                        value={targetReturn}
+                        onChange={(e) => {
+                          setTargetReturn(e.target.value)
+                          if (e.target.value) setRiskTolerance("")
+                        }}
+                        placeholder="e.g., 20"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="optimizer-form-group">
+                    <label htmlFor="riskTolerance">{t("optimizer.riskTolerance")}</label>
+                    <div className="input-with-symbol">
+                      <input
+                        id="riskTolerance"
+                        className="optimizer-input"
+                        type="number"
+                        value={riskTolerance}
+                        onChange={(e) => {
+                          setRiskTolerance(e.target.value)
+                          if (e.target.value) setTargetReturn("")
+                        }}
+                        placeholder="e.g., 15"
+                      />
+                    </div>
+                  </div>
+
                   <div className="optimizer-form-group">
                     <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
                     <input

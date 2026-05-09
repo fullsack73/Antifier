@@ -1147,14 +1147,6 @@ h2 {
   color: var(--color-text-muted);
 }
 
-.optimizer-readonly-field {
-  align-items: center;
-  color: var(--color-text-muted);
-  display: flex;
-  font-size: 0.85rem;
-  line-height: 1.35;
-}
-
 .optimizer-submit-button {
   grid-column: 1 / -1;
   padding: var(--spacing-lg) var(--spacing-xl);
