@@ -86,6 +86,8 @@
     "riskFreeRate": "무위험 이자율 (%)",
     "targetReturn": "목표 수익률 (%)",
     "riskTolerance": "위험 허용 수준 (%)",
+    "constraints": "제약 조건",
+    "forecastControls": "예측 설정",
     "submit": "포트폴리오 최적화",
     "results": "최적화된 포트폴리오",
     "weights": "가중치",

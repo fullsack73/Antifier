@@ -427,87 +427,97 @@ const Optimizer = () => {
 
           {showAdvanced && (
             <div className="optimizer-modal-overlay" onClick={() => setShowAdvanced(false)}>
-              <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
+              <div className="optimizer-modal-content optimizer-advanced-modal" onClick={e => e.stopPropagation()}>
                 <div className="optimizer-modal-header">
                   <h3 className="optimizer-modal-title">{t("optimizer.advancedSettings", "Advanced Settings")}</h3>
                   <button type="button" className="optimizer-modal-close" onClick={() => setShowAdvanced(false)}>×</button>
                 </div>
-                <div className="optimizer-modal-body">
-                  <div className="optimizer-form-group">
-                    <label htmlFor="targetReturn">{t("optimizer.targetReturn")}</label>
-                    <div className="input-with-symbol">
-                      <input
-                        id="targetReturn"
-                        className="optimizer-input"
-                        type="number"
-                        value={targetReturn}
-                        onChange={(e) => {
-                          setTargetReturn(e.target.value)
-                          if (e.target.value) setRiskTolerance("")
-                        }}
-                        placeholder="e.g., 20"
-                      />
+                <div className="optimizer-modal-body optimizer-advanced-modal-body">
+                  <div className="optimizer-advanced-section">
+                    <div className="optimizer-advanced-section-title">{t("optimizer.constraints", "Constraints")}</div>
+                    <div className="optimizer-advanced-grid">
+                      <div className="optimizer-form-group">
+                        <label htmlFor="targetReturn">{t("optimizer.targetReturn")}</label>
+                        <div className="input-with-symbol">
+                          <input
+                            id="targetReturn"
+                            className="optimizer-input"
+                            type="number"
+                            value={targetReturn}
+                            onChange={(e) => {
+                              setTargetReturn(e.target.value)
+                              if (e.target.value) setRiskTolerance("")
+                            }}
+                            placeholder="e.g., 20"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="optimizer-form-group">
+                        <label htmlFor="riskTolerance">{t("optimizer.riskTolerance")}</label>
+                        <div className="input-with-symbol">
+                          <input
+                            id="riskTolerance"
+                            className="optimizer-input"
+                            type="number"
+                            value={riskTolerance}
+                            onChange={(e) => {
+                              setRiskTolerance(e.target.value)
+                              if (e.target.value) setTargetReturn("")
+                            }}
+                            placeholder="e.g., 15"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="optimizer-form-group">
-                    <label htmlFor="riskTolerance">{t("optimizer.riskTolerance")}</label>
-                    <div className="input-with-symbol">
-                      <input
-                        id="riskTolerance"
-                        className="optimizer-input"
-                        type="number"
-                        value={riskTolerance}
-                        onChange={(e) => {
-                          setRiskTolerance(e.target.value)
-                          if (e.target.value) setTargetReturn("")
-                        }}
-                        placeholder="e.g., 15"
-                      />
+                  <div className="optimizer-advanced-section">
+                    <div className="optimizer-advanced-section-title">{t("optimizer.forecastControls", "Forecast Controls")}</div>
+                    <div className="optimizer-advanced-grid">
+                      <div className="optimizer-form-group">
+                        <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
+                        <input
+                          id="forecastHorizon"
+                          className="optimizer-input"
+                          type="number"
+                          value={forecastHorizon}
+                          onChange={(e) => setForecastHorizon(e.target.value)}
+                          placeholder="252"
+                        />
+                      </div>
+
+                      <div className="optimizer-form-group">
+                        <label htmlFor="minHistory" title="Minimum number of historical data points required for a ticker to be included.">{t("optimizer.minHistory", "Min. Data History (Days)")}</label>
+                        <input
+                          id="minHistory"
+                          className="optimizer-input"
+                          type="number"
+                          value={minHistory}
+                          onChange={(e) => setMinHistory(e.target.value)}
+                          placeholder="100"
+                        />
+                      </div>
+
+                      {optimizationMethod === "BL" && (
+                        <div className="optimizer-form-group optimizer-advanced-field-wide">
+                          <label htmlFor="blTau" title="A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.">{t("optimizer.blTau", "Black-Litterman Tau")}</label>
+                          <input
+                            id="blTau"
+                            className="optimizer-input"
+                            type="number"
+                            step="0.01"
+                            value={blTau}
+                            onChange={(e) => setBlTau(e.target.value)}
+                            placeholder="0.05"
+                          />
+                          <small className="optimizer-field-help">
+                            {t("optimizer.blTauHelp", "Confidence in market equilibrium: Lower = Higher Confidence")}
+                          </small>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  <div className="optimizer-form-group">
-                    <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
-                    <input
-                      id="forecastHorizon"
-                      className="optimizer-input"
-                      type="number"
-                      value={forecastHorizon}
-                      onChange={(e) => setForecastHorizon(e.target.value)}
-                      placeholder="252"
-                    />
-                  </div>
-
-                  <div className="optimizer-form-group">
-                    <label htmlFor="minHistory" title="Minimum number of historical data points required for a ticker to be included.">{t("optimizer.minHistory", "Min. Data History (Days)")}</label>
-                    <input
-                      id="minHistory"
-                      className="optimizer-input"
-                      type="number"
-                      value={minHistory}
-                      onChange={(e) => setMinHistory(e.target.value)}
-                      placeholder="100"
-                    />
-                  </div>
-
-                  {optimizationMethod === "BL" && (
-                    <div className="optimizer-form-group">
-                      <label htmlFor="blTau" title="A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.">{t("optimizer.blTau", "Black-Litterman Tau")}</label>
-                      <input
-                        id="blTau"
-                        className="optimizer-input"
-                        type="number"
-                        step="0.01"
-                        value={blTau}
-                        onChange={(e) => setBlTau(e.target.value)}
-                        placeholder="0.05"
-                      />
-                      <small style={{ display: 'block', marginTop: '4px', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
-                        {t("optimizer.blTauHelp", "Confidence in market equilibrium: Lower = Higher Confidence")}
-                      </small>
-                    </div>
-                  )}
                 </div>
                 <div className="optimizer-modal-footer">
                   <button type="button" className="optimizer-secondary-button" onClick={() => setShowAdvanced(false)}>{t("common.done", "Done")}</button>

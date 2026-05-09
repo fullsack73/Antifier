@@ -86,6 +86,8 @@
     "riskFreeRate": "Risk-Free Rate (%)",
     "targetReturn": "Target Return (%)",
     "riskTolerance": "Risk Tolerance (%)",
+    "constraints": "Constraints",
+    "forecastControls": "Forecast Controls",
     "submit": "Optimize Portfolio",
     "results": "Optimized Portfolio",
     "weights": "Weights",
