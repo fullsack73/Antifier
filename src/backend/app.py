@@ -20,7 +20,8 @@ from portfolio_optimization import (
     optimize_portfolio,
     load_portfolio_result,
     list_saved_portfolios,
-    manage_portfolio_logic
+    manage_portfolio_logic,
+    forecast_single_ticker_with_ensemble
 )
 from stock_screener import search_stocks
 
@@ -28,6 +29,8 @@ from stock_screener import search_stocks
 app = Flask(__name__)
 
 BASE_CURRENCY = "USD"
+TRADING_DAYS_PER_YEAR = 252
+ENSEMBLE_MODEL_TYPES = {"DEEP_LEARNING", "ENSEMBLE", "DEEP LEARNING ENSEMBLE"}
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
     ".KS": "KRW",
@@ -234,6 +237,58 @@ def normalize_history_close_to_usd(ticker, df, start_date, end_date):
         "display_currency": BASE_CURRENCY,
     }
 
+
+def is_ensemble_model_type(model_type):
+    return str(model_type or "").strip().upper() in ENSEMBLE_MODEL_TYPES
+
+
+def generate_ensemble_regression_response(ticker, stock, close_series, future_days, price_currency, currency_metadata):
+    close_series = close_series.dropna()
+    if close_series.empty:
+        return {}
+
+    prediction = forecast_single_ticker_with_ensemble(ticker, close_series, horizon=TRADING_DAYS_PER_YEAR)
+    annual_log_return = float(prediction.get('expected_return', 0.08))
+    annual_log_return = float(np.clip(annual_log_return, -0.69, 0.69))
+    daily_log_return = annual_log_return / TRADING_DAYS_PER_YEAR
+
+    dates = close_series.index.strftime('%Y-%m-%d').tolist()
+    original_data = {date: float(price) for date, price in zip(dates, close_series.values)}
+
+    regression_steps = np.arange(len(close_series), dtype=float)
+    regression_prices = float(close_series.iloc[0]) * np.exp(daily_log_return * regression_steps)
+    regression_data = {date: float(price) for date, price in zip(dates, regression_prices)}
+
+    future_predictions = {}
+    if future_days > 0:
+        last_price = float(close_series.iloc[-1])
+        last_date = close_series.index[-1]
+        for i in range(1, future_days + 1):
+            next_date = last_date + timedelta(days=i)
+            next_price = last_price * np.exp(daily_log_return * i)
+            future_predictions[next_date.strftime('%Y-%m-%d')] = float(next_price)
+
+    info = stock.info
+    company_name = info.get('longName', ticker)
+
+    return {
+        'prices': original_data,
+        'regression': regression_data,
+        'future_predictions': future_predictions,
+        'companyName': company_name,
+        'price_currency': price_currency,
+        'source_currency': currency_metadata.get('source_currency', price_currency),
+        'slope': 'N/A',
+        'intercept': 'N/A',
+        'model_metadata': {
+            'model': 'DEEP_LEARNING',
+            'expected_annual_log_return': annual_log_return,
+            'uncertainty': prediction.get('uncertainty'),
+            'components': prediction.get('components', {}),
+            'source': prediction.get('source', 'deep_learning_ensemble')
+        }
+    }
+
 def generate_regression_data(ticker="", start_date=None, end_date=None, future_days=0, model_type='LSTM'):
     try:
         if start_date and end_date:
@@ -254,6 +309,16 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
             return {}
 
         df, price_currency, currency_metadata = normalize_history_close_to_usd(ticker, df, start_date, end_date)
+
+        if is_ensemble_model_type(model_type):
+            return generate_ensemble_regression_response(
+                ticker,
+                stock,
+                df['Close'],
+                future_days,
+                price_currency,
+                currency_metadata
+            )
 
         # ARIMA should model the original time series directly.
         # Do not force ARIMA into the feature-based regression pipeline used by LSTM/LightGBM.

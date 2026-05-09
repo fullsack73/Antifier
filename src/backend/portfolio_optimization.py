@@ -503,6 +503,45 @@ def _generate_ensemble_prediction(ticker, ticker_data):
     finally:
         gc.collect()
 
+
+def forecast_single_ticker_with_ensemble(ticker, ticker_data, horizon=252):
+    """
+    Forecast a single ticker with the same ensemble path used by portfolio optimization.
+
+    Returns expected_return as an annualized log return so callers can convert it
+    into a daily compounded price path.
+    """
+    prices = ticker_data.values if hasattr(ticker_data, "values") else np.asarray(ticker_data)
+    valid_prices = prices[~np.isnan(prices)]
+
+    if len(valid_prices) < 100:
+        logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ML)")
+        period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+        annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
+        return {
+            'expected_return': float(annual_log_return),
+            'uncertainty': 0.05,
+            'components': {},
+            'source': 'lightweight_fallback'
+        }
+
+    prediction = _generate_ensemble_prediction(ticker, ticker_data)
+    if prediction is None:
+        logger.warning(f"ML training failed for {ticker}, using lightweight forecast")
+        period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
+        annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
+        return {
+            'expected_return': float(annual_log_return),
+            'uncertainty': 0.05,
+            'components': {},
+            'source': 'lightweight_fallback'
+        }
+
+    prediction['expected_return'] = float(prediction.get('expected_return', 0.08))
+    prediction['source'] = 'deep_learning_ensemble'
+    return prediction
+
+
 @cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache for predictions
 def _ml_forecast_single_ticker(ticker, ticker_data):
     """Forecast returns for single ticker using Ensemble models with caching.

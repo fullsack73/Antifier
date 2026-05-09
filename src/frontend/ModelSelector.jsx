@@ -26,6 +26,7 @@ function ModelSelector({ onModelChange, initialModel = 'LSTM' }) {
           <option value="LSTM">LSTM (Neural Network)</option>
           <option value="LightGBM">LightGBM (Gradient Boosting)</option>
           <option value="ARIMA">ARIMA (Time Series)</option>
+          <option value="DEEP_LEARNING">Deep Learning Ensemble</option>
         </select>
       </div>
     </div>
