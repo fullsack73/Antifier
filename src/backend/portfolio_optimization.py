@@ -6,6 +6,9 @@ import warnings
 from pathlib import Path
 import time
 from datetime import datetime, timedelta
+from native_threading import configure_native_threading, get_ml_worker_limit, is_windows
+
+configure_native_threading()
 
 # Silence Protobuf warnings from TensorFlow/Google libraries
 warnings.filterwarnings("ignore", message=".*Protobuf gencode version.*")
@@ -66,16 +69,9 @@ TICKER_SUFFIX_CURRENCIES = {
 
 def worker_initializer():
     """Initialize worker process environment to restrict threading."""
-    import os
-    # Force single-threaded execution for libraries in worker processes
-    # to prevent CPU oversubscription when running many workers.
-    os.environ['OMP_NUM_THREADS'] = '1'
-    os.environ['MKL_NUM_THREADS'] = '1'
-    os.environ['OPENBLAS_NUM_THREADS'] = '1'
-    os.environ['TF_NUM_INTRAOP_THREADS'] = '1'
-    os.environ['TF_NUM_INTEROP_THREADS'] = '1'
-    # Also for numexpr if used by pandas/numpy
-    os.environ['NUMEXPR_NUM_THREADS'] = '1'
+    # Force single-threaded execution for libraries in worker processes to
+    # prevent CPU oversubscription when running many ML workers.
+    configure_native_threading(force=True)
 
 
 def _ensure_results_dir():
@@ -555,16 +551,13 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None):
     start_time = time.time()
     logger.info(f"Starting BATCH ML forecasting for {len(data.columns)} tickers")
     
-    # ProcessPool Tuning (Task 2)
-    # Since we restricted inner-model threading (Task 1), we can safely use more workers
-    import os
-    cpu_count = os.cpu_count() or 4
-    # Reserve 1 core for OS/Main process to keep system responsive
-    usable_cores = max(1, cpu_count - 1)
-    # Cap at 16 to prevent diminishing returns from excessive process management
-    max_workers = min(usable_cores, len(data.columns), 16)
+    if is_windows() and batch_size > 20:
+        logger.info(f"Reducing ML forecast batch_size from {batch_size} to 20 on Windows for memory stability")
+        batch_size = 20
+
+    max_workers = get_ml_worker_limit(len(data.columns))
     
-    logger.info(f"Using {max_workers} parallel workers for ML forecasting (Optimized process pool)")
+    logger.info(f"Using {max_workers} parallel workers for ML forecasting")
     
     import multiprocessing as mp
     from concurrent.futures import ProcessPoolExecutor, as_completed

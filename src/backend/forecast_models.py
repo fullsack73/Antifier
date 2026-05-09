@@ -1,23 +1,28 @@
-from pmdarima import auto_arima
+from native_threading import configure_native_threading
+
+configure_native_threading()
+
 import numpy as np
 import logging
 from scipy.stats import linregress
 import warnings
-import lightgbm as lgb
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
-try:
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import LSTM, Dense, Input
-    TF_AVAILABLE = True
-except Exception:
-    Sequential = None
-    LSTM = None
-    Dense = None
-    Input = None
-    TF_AVAILABLE = False
-
 logger = logging.getLogger(__name__)
+
+
+def _load_auto_arima():
+    from pmdarima import auto_arima
+    return auto_arima
+
+
+def _load_tensorflow_keras():
+    try:
+        from tensorflow.keras.models import Sequential
+        from tensorflow.keras.layers import LSTM, Dense, Input
+        return Sequential, LSTM, Dense, Input
+    except Exception as exc:
+        raise RuntimeError("TensorFlow is required for LSTM models but is not installed") from exc
 
 class ARIMA():
     """ARIMA-based forecasting model for log returns and volatility."""
@@ -58,6 +63,7 @@ class ARIMA():
             with warnings.catch_warnings():
                 if self.suppress_warnings:
                     warnings.simplefilter("ignore")
+                auto_arima = _load_auto_arima()
                 model = auto_arima(
                     log_returns,
                     seasonal=self.seasonal,
@@ -487,8 +493,7 @@ class EnsemblePredictor:
 
 class LSTMPriceModel:
     def __init__(self, input_shape):
-        if not TF_AVAILABLE:
-            raise RuntimeError("TensorFlow is required for LSTMPriceModel but is not installed")
+        Sequential, LSTM, Dense, Input = _load_tensorflow_keras()
         self.model = Sequential()
         self.model.add(Input(shape=input_shape))
         self.model.add(LSTM(50, activation='tanh'))
@@ -505,6 +510,7 @@ class LSTMPriceModel:
 
 class LightGBMPriceModel:
     def __init__(self):
+        import lightgbm as lgb
         self.model = lgb.LGBMRegressor(n_estimators=100, learning_rate=0.1, verbose=-1)
 
     def fit(self, X, y):
@@ -532,6 +538,7 @@ class ARIMAPriceModel:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             # auto_arima is computationally expensive, so we use some faster settings
+            auto_arima = _load_auto_arima()
             self.model = auto_arima(y.ravel(), exogenous=X, 
                                   seasonal=False, 
                                   stepwise=True,

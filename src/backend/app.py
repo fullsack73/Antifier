@@ -1,3 +1,7 @@
+from native_threading import configure_native_threading
+
+configure_native_threading()
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import numpy as np
@@ -7,7 +11,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 from hedge_analysis import analyze_hedge_relationship
 from portfolio_benchmark import calculate_portfolio_benchmark
-from pmdarima import auto_arima
 
 
 from forecast_models import LSTMPriceModel, LightGBMPriceModel, ARIMAPriceModel
@@ -262,6 +265,7 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
+                from pmdarima import auto_arima
                 arima_model = auto_arima(
                     close_series.values,
                     seasonal=False,
@@ -872,4 +876,7 @@ def manage_portfolio_endpoint():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, threaded=True)
+    import multiprocessing as mp
+
+    mp.freeze_support()
+    app.run(debug=False, threaded=True, use_reloader=False)

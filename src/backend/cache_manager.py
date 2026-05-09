@@ -242,11 +242,18 @@ class L2PersistentCache:
             else:
                 # Disk fallback with TTL file
                 disk_path = self._get_disk_path(key)
-                with open(disk_path, 'wb') as f:
+                temp_path = f"{disk_path}.{os.getpid()}.{threading.get_ident()}.tmp"
+                ttl_path = disk_path + '.ttl'
+                ttl_temp_path = f"{ttl_path}.{os.getpid()}.{threading.get_ident()}.tmp"
+
+                with open(temp_path, 'wb') as f:
                     f.write(compressed_data)
+                os.replace(temp_path, disk_path)
+
                 # Store expiry time in separate file
-                with open(disk_path + '.ttl', 'w') as f:
+                with open(ttl_temp_path, 'w') as f:
                     f.write(str(time.time() + ttl))
+                os.replace(ttl_temp_path, ttl_path)
                     
         except Exception as e:
             logger.error(f"L2 Cache set error for key {key}: {e}")
@@ -391,4 +398,3 @@ def cached(l1_ttl: int = 900, l2_ttl: int = 3600, key_func=None):
     return decorator
 
 # Convenience functions for common cache operations
-
