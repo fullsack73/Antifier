@@ -415,8 +415,13 @@ class TransformerForecastModel:
         num_heads=2,
         ff_dim=64,
         dropout=0.1,
-        epochs=15,
+        epochs=5,
         batch_size=32,
+        learning_rate=0.001,
+        dense_units=32,
+        num_blocks=1,
+        patience=2,
+        forecast_clip=0.2,
         validation_split=0.1,
         random_state=42,
     ):
@@ -427,6 +432,11 @@ class TransformerForecastModel:
         self.dropout = dropout
         self.epochs = epochs
         self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.dense_units = dense_units
+        self.num_blocks = num_blocks
+        self.patience = patience
+        self.forecast_clip = forecast_clip
         self.validation_split = validation_split
         self.random_state = random_state
         self.model = None
@@ -464,29 +474,32 @@ class TransformerForecastModel:
         except Exception as exc:
             raise RuntimeError("TensorFlow is required for Transformer models but is not installed") from exc
 
+        tf.keras.backend.clear_session()
+
         inputs = keras.Input(shape=(sequence_length, 1))
         x = layers.Dense(self.d_model)(inputs)
 
-        attention = layers.MultiHeadAttention(
-            num_heads=self.num_heads,
-            key_dim=max(1, self.d_model // self.num_heads),
-            dropout=self.dropout,
-        )(x, x)
-        attention = layers.Dropout(self.dropout)(attention)
-        x = layers.LayerNormalization(epsilon=1e-6)(x + attention)
+        for _ in range(max(1, int(self.num_blocks))):
+            attention = layers.MultiHeadAttention(
+                num_heads=self.num_heads,
+                key_dim=max(1, self.d_model // self.num_heads),
+                dropout=self.dropout,
+            )(x, x)
+            attention = layers.Dropout(self.dropout)(attention)
+            x = layers.LayerNormalization(epsilon=1e-6)(x + attention)
 
-        feed_forward = layers.Dense(self.ff_dim, activation="relu")(x)
-        feed_forward = layers.Dense(self.d_model)(feed_forward)
-        feed_forward = layers.Dropout(self.dropout)(feed_forward)
-        x = layers.LayerNormalization(epsilon=1e-6)(x + feed_forward)
+            feed_forward = layers.Dense(self.ff_dim, activation="relu")(x)
+            feed_forward = layers.Dense(self.d_model)(feed_forward)
+            feed_forward = layers.Dropout(self.dropout)(feed_forward)
+            x = layers.LayerNormalization(epsilon=1e-6)(x + feed_forward)
 
         x = layers.GlobalAveragePooling1D()(x)
-        x = layers.Dense(32, activation="relu")(x)
+        x = layers.Dense(self.dense_units, activation="relu")(x)
         x = layers.Dropout(self.dropout)(x)
         outputs = layers.Dense(1)(x)
 
         model = keras.Model(inputs=inputs, outputs=outputs)
-        model.compile(optimizer="adam", loss="mse")
+        model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.learning_rate), loss="mse")
         return model
 
     def train(self, prices):
@@ -526,7 +539,7 @@ class TransformerForecastModel:
             callbacks = [
                 tf.keras.callbacks.EarlyStopping(
                     monitor="val_loss",
-                    patience=3,
+                    patience=self.patience,
                     restore_best_weights=True,
                 )
             ]
@@ -538,6 +551,7 @@ class TransformerForecastModel:
                 verbose=0,
                 validation_split=self.validation_split,
                 callbacks=callbacks,
+                shuffle=False,
             )
 
             fitted = self.model.predict(X, verbose=0).reshape(-1, 1)
@@ -564,7 +578,7 @@ class TransformerForecastModel:
             for _ in range(max(1, int(horizon))):
                 pred_scaled = float(self.model.predict(sequence.reshape(1, sequence.shape[0], 1), verbose=0)[0][0])
                 pred_log_return = float(self.scaler.inverse_transform([[pred_scaled]])[0][0])
-                pred_log_return = float(np.clip(pred_log_return, -0.2, 0.2))
+                pred_log_return = float(np.clip(pred_log_return, -self.forecast_clip, self.forecast_clip))
                 cumulative_log_return += pred_log_return
 
                 next_scaled = float(self.scaler.transform([[pred_log_return]])[0][0])
