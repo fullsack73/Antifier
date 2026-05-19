@@ -1,15 +1,24 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
 import Plot from "react-plotly.js"
+import {
+  buildExportBaseName,
+  buildPortfolioExportPayload,
+  buildTargetHoldingsCsv,
+  downloadBlob,
+} from "./portfolioManagerExports"
+
+const PORTFOLIO_MANAGER_STORAGE_KEY = "portfolio-manager-saved-input-v1"
+const DEFAULT_HOLDINGS = [{ ticker: "", quantity: "" }]
 
 const PortfolioManager = () => {
   const { t } = useTranslation()
 
   // Holdings state: array of { ticker, quantity }
-  const [holdings, setHoldings] = useState([{ ticker: "", quantity: "" }])
+  const [holdings, setHoldings] = useState(DEFAULT_HOLDINGS)
   const [cashInjection, setCashInjection] = useState("")
 
   // Configuration mirrored from Optimizer
@@ -28,6 +37,8 @@ const PortfolioManager = () => {
   const [allowFractional, setAllowFractional] = useState(false)
   const [fractionalOverrides, setFractionalOverrides] = useState({})
   const [orderDisplayMode, setOrderDisplayMode] = useState("all") // 'all' | 'shares' | 'value'
+  const [hasSavedPortfolio, setHasSavedPortfolio] = useState(false)
+  const [savedPortfolioStatus, setSavedPortfolioStatus] = useState("")
 
   // Results state
   const [results, setResults] = useState(null)
@@ -37,12 +48,21 @@ const PortfolioManager = () => {
   // CSV upload
   const csvFileInputRef = useRef(null)
   const spaceCsvFileInputRef = useRef(null)
+  const resultsPrintRef = useRef(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showSpaceUploadModal, setShowSpaceUploadModal] = useState(false)
   const [uploadFileName, setUploadFileName] = useState("")
   const [spaceUploadFileName, setSpaceUploadFileName] = useState("")
   const [uploadError, setUploadError] = useState(null)
   const [spaceUploadError, setSpaceUploadError] = useState(null)
+
+  useEffect(() => {
+    try {
+      setHasSavedPortfolio(Boolean(window.localStorage.getItem(PORTFOLIO_MANAGER_STORAGE_KEY)))
+    } catch {
+      setHasSavedPortfolio(false)
+    }
+  }, [])
 
   // --- Holdings Management ---
   const addHolding = () => {
@@ -121,6 +141,90 @@ const PortfolioManager = () => {
     return dict
   }
 
+  const buildPortfolioSnapshot = () => ({
+    holdings,
+    cashInjection,
+    forecastMethod,
+    optimizationMethod,
+    startDate,
+    endDate,
+    riskFreeRate,
+    forecastHorizon,
+    minHistory,
+    blTau,
+    tickerGroup,
+    customTickers,
+    spaceUploadFileName,
+    allowFractional,
+    fractionalOverrides,
+    savedAt: new Date().toISOString(),
+  })
+
+  const handleSavePortfolio = () => {
+    try {
+      window.localStorage.setItem(
+        PORTFOLIO_MANAGER_STORAGE_KEY,
+        JSON.stringify(buildPortfolioSnapshot())
+      )
+      setHasSavedPortfolio(true)
+      setSavedPortfolioStatus(t("manager.savedPortfolio", "Portfolio saved in this browser."))
+    } catch {
+      setSavedPortfolioStatus(
+        t("manager.savePortfolioError", "Could not save portfolio in this browser.")
+      )
+    }
+  }
+
+  const handleLoadPortfolio = () => {
+    try {
+      const savedPortfolio = window.localStorage.getItem(PORTFOLIO_MANAGER_STORAGE_KEY)
+      if (!savedPortfolio) {
+        setHasSavedPortfolio(false)
+        setSavedPortfolioStatus(t("manager.noSavedPortfolio", "No saved portfolio found."))
+        return
+      }
+
+      const parsed = JSON.parse(savedPortfolio)
+      if (!Array.isArray(parsed.holdings)) {
+        throw new Error("Invalid saved portfolio")
+      }
+
+      const savedHoldings = parsed.holdings
+        .map((holding) => ({
+          ticker: String(holding?.ticker || "").toUpperCase(),
+          quantity: String(holding?.quantity || ""),
+        }))
+        .filter((holding) => holding.ticker || holding.quantity)
+
+      setHoldings(savedHoldings.length > 0 ? savedHoldings : DEFAULT_HOLDINGS)
+      setCashInjection(String(parsed.cashInjection || ""))
+      setForecastMethod(parsed.forecastMethod || "LIGHTWEIGHT")
+      setOptimizationMethod(parsed.optimizationMethod || "BL")
+      setStartDate(String(parsed.startDate || ""))
+      setEndDate(String(parsed.endDate || ""))
+      setRiskFreeRate(String(parsed.riskFreeRate || "2"))
+      setForecastHorizon(String(parsed.forecastHorizon || "252"))
+      setMinHistory(String(parsed.minHistory || "100"))
+      setBlTau(String(parsed.blTau || "0.05"))
+      setTickerGroup(parsed.tickerGroup || "CURRENT_HOLDINGS")
+      setCustomTickers(Array.isArray(parsed.customTickers) ? parsed.customTickers : [])
+      setSpaceUploadFileName(String(parsed.spaceUploadFileName || ""))
+      setAllowFractional(Boolean(parsed.allowFractional))
+      setFractionalOverrides(
+        parsed.fractionalOverrides && typeof parsed.fractionalOverrides === "object"
+          ? parsed.fractionalOverrides
+          : {}
+      )
+      setResults(null)
+      setError(null)
+      setSavedPortfolioStatus(t("manager.loadedPortfolio", "Saved portfolio loaded."))
+    } catch {
+      setSavedPortfolioStatus(
+        t("manager.loadPortfolioError", "Saved portfolio could not be loaded.")
+      )
+    }
+  }
+
   const handleSpaceFileUpload = (e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -194,15 +298,76 @@ const PortfolioManager = () => {
     if (dataLines.length === 0) return;
     
     const csvContent = "TICKER,QUANTITY\n" + dataLines.map(h => `${h.ticker.toUpperCase()},${h.quantity}`).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "portfolio_holdings.csv";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    downloadBlob("portfolio_holdings.csv", csvContent, "text/csv;charset=utf-8;")
+  }
+
+  const buildManagerExportSettings = () => ({
+    current_holdings: buildHoldingsDict(),
+    cash_injection: Number.parseFloat(cashInjection) || 0,
+    start_date: startDate,
+    end_date: endDate,
+    risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
+    forecast_method: forecastMethod,
+    optimization_method: optimizationMethod,
+    forecast_horizon: Number.parseInt(forecastHorizon),
+    min_history: Number.parseInt(minHistory),
+    bl_tau: Number.parseFloat(blTau),
+    ticker_group: tickerGroup,
+    custom_tickers: customTickers,
+    allow_fractional: allowFractional,
+    fractional_overrides: fractionalOverrides,
+  })
+
+  const handleSaveResultPdf = () => {
+    if (!results) return
+
+    const previousDisplayMode = orderDisplayMode
+    const previousTitle = document.title
+    const exportBaseName = buildExportBaseName(results.portfolio_id)
+
+    setOrderDisplayMode("all")
+    document.title = `${exportBaseName}.pdf`
+
+    window.setTimeout(() => {
+      resultsPrintRef.current?.scrollIntoView({ block: "start" })
+      window.print()
+
+      window.setTimeout(() => {
+        document.title = previousTitle
+        setOrderDisplayMode(previousDisplayMode)
+      }, 500)
+    }, 0)
+  }
+
+  const handleDownloadPortfolioJson = () => {
+    if (!results) return
+
+    const exportedAtDate = new Date()
+    const exportedAt = exportedAtDate.toISOString()
+    const exportBaseName = buildExportBaseName(results.portfolio_id, exportedAtDate)
+    const payload = buildPortfolioExportPayload({
+      results,
+      managerSettings: buildManagerExportSettings(),
+      portfolioId: results.portfolio_id || exportBaseName,
+      exportedAt,
+    })
+
+    downloadBlob(
+      `${exportBaseName}.json`,
+      JSON.stringify(payload, null, 2),
+      "application/json;charset=utf-8;"
+    )
+  }
+
+  const handleDownloadTargetHoldingsCsv = () => {
+    if (!results) return
+
+    const exportBaseName = buildExportBaseName(results.portfolio_id)
+    downloadBlob(
+      `${exportBaseName}-target-holdings.csv`,
+      buildTargetHoldingsCsv(results),
+      "text/csv;charset=utf-8;"
+    )
   }
 
   // --- Submit ---
@@ -326,16 +491,17 @@ const PortfolioManager = () => {
         <button
           className="optimizer-secondary-button"
           type="button"
-          onClick={() => setShowUploadModal(true)}
+          onClick={handleSavePortfolio}
         >
-          {t("manager.uploadCsv", "Upload Holdings CSV")}
+          {t("manager.saveInputsLocally", "Save Inputs Locally")}
         </button>
         <button
           className="optimizer-secondary-button"
           type="button"
-          onClick={handleDownloadCsv}
+          onClick={handleLoadPortfolio}
+          disabled={!hasSavedPortfolio}
         >
-          {t("manager.downloadCsv", "Download Holdings CSV")}
+          {t("manager.loadPortfolio", "Load Saved Portfolio")}
         </button>
         <button 
           className="optimizer-secondary-button" 
@@ -344,6 +510,11 @@ const PortfolioManager = () => {
           {t("optimizer.advancedSettings", "Advanced Settings")}
         </button>
       </div>
+      {savedPortfolioStatus && (
+        <div className="manager-save-status" role="status">
+          {savedPortfolioStatus}
+        </div>
+      )}
 
       {/* CSV Upload Modal */}
       {showUploadModal && (
@@ -626,53 +797,80 @@ const PortfolioManager = () => {
 
       {showAdvanced && (
         <div className="optimizer-modal-overlay" onClick={() => setShowAdvanced(false)}>
-          <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
+          <div className="optimizer-modal-content optimizer-advanced-modal" onClick={e => e.stopPropagation()}>
             <div className="optimizer-modal-header">
               <h3 className="optimizer-modal-title">{t("optimizer.advancedSettings", "Advanced Settings")}</h3>
               <button type="button" className="optimizer-modal-close" onClick={() => setShowAdvanced(false)}>×</button>
             </div>
-            <div className="optimizer-modal-body">
-              <div className="optimizer-form-group">
-                <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
-                <input
-                  id="forecastHorizon"
-                  className="optimizer-input"
-                  type="number"
-                  value={forecastHorizon}
-                  onChange={(e) => setForecastHorizon(e.target.value)}
-                  placeholder="252"
-                />
+            <div className="optimizer-modal-body optimizer-advanced-modal-body">
+              <div className="optimizer-advanced-section">
+                <h4 className="optimizer-advanced-section-title">
+                  {t("manager.csvTools", "CSV Tools")}
+                </h4>
+                <div className="manager-advanced-actions">
+                  <button
+                    className="optimizer-secondary-button"
+                    type="button"
+                    onClick={() => {
+                      setShowAdvanced(false)
+                      setShowUploadModal(true)
+                    }}
+                  >
+                    {t("manager.uploadCsv", "Upload Holdings CSV")}
+                  </button>
+                  <button
+                    className="optimizer-secondary-button"
+                    type="button"
+                    onClick={handleDownloadCsv}
+                  >
+                    {t("manager.downloadCsv", "Download Holdings CSV")}
+                  </button>
+                </div>
               </div>
 
-              <div className="optimizer-form-group">
-                <label htmlFor="minHistory" title="Minimum number of historical data points required for a ticker to be included.">{t("optimizer.minHistory", "Min. Data History (Days)")}</label>
-                <input
-                  id="minHistory"
-                  className="optimizer-input"
-                  type="number"
-                  value={minHistory}
-                  onChange={(e) => setMinHistory(e.target.value)}
-                  placeholder="100"
-                />
-              </div>
-
-              {optimizationMethod === "BL" && (
+              <div className="optimizer-advanced-section">
                 <div className="optimizer-form-group">
-                  <label htmlFor="blTau" title="A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.">{t("optimizer.blTau", "Black-Litterman Tau")}</label>
+                  <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
                   <input
-                    id="blTau"
+                    id="forecastHorizon"
                     className="optimizer-input"
                     type="number"
-                    step="0.01"
-                    value={blTau}
-                    onChange={(e) => setBlTau(e.target.value)}
-                    placeholder="0.05"
+                    value={forecastHorizon}
+                    onChange={(e) => setForecastHorizon(e.target.value)}
+                    placeholder="252"
                   />
-                  <small style={{ display: 'block', marginTop: '4px', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
-                    {t("optimizer.blTauHelp", "Confidence in market equilibrium: Lower = Higher Confidence")}
-                  </small>
                 </div>
-              )}
+
+                <div className="optimizer-form-group">
+                  <label htmlFor="minHistory" title="Minimum number of historical data points required for a ticker to be included.">{t("optimizer.minHistory", "Min. Data History (Days)")}</label>
+                  <input
+                    id="minHistory"
+                    className="optimizer-input"
+                    type="number"
+                    value={minHistory}
+                    onChange={(e) => setMinHistory(e.target.value)}
+                    placeholder="100"
+                  />
+                </div>
+
+                {optimizationMethod === "BL" && (
+                  <div className="optimizer-form-group">
+                    <label htmlFor="blTau" title="A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.">{t("optimizer.blTau", "Black-Litterman Tau")}</label>
+                    <input
+                      id="blTau"
+                      className="optimizer-input"
+                      type="number"
+                      step="0.01"
+                      value={blTau}
+                      onChange={(e) => setBlTau(e.target.value)}
+                      placeholder="0.05"
+                    />
+                    <small style={{ display: 'block', marginTop: '4px', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                      {t("optimizer.blTauHelp", "Confidence in market equilibrium: Lower = Higher Confidence")}
+                    </small>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="optimizer-modal-footer">
               <button type="button" className="optimizer-secondary-button" onClick={() => setShowAdvanced(false)}>{t("common.done", "Done")}</button>
@@ -690,7 +888,7 @@ const PortfolioManager = () => {
             </div>
             <div className="optimizer-modal-body">
               <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
-                Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like "Symbol" or "Ticker" are automatically ignored.
+                Upload a .csv file containing ticker symbols (one per line or comma-separated). Symbol or Ticker header rows are automatically ignored.
               </p>
               <button
                 type="button"
@@ -747,12 +945,36 @@ const PortfolioManager = () => {
 
       {/* Results */}
       {results && (
-        <div className="manager-results">
+        <div className="manager-results" ref={resultsPrintRef}>
           <h3 className="manager-results-title">
             {t("manager.resultsTitle", "Rebalancing Results")}
           </h3>
 
-          <div className="optimizer-weights-card manager-fractional-card">
+          <div className="manager-results-actions no-print">
+            <button
+              className="optimizer-secondary-button"
+              type="button"
+              onClick={handleSaveResultPdf}
+            >
+              {t("manager.saveResultPdf", "Save Result as PDF")}
+            </button>
+            <button
+              className="optimizer-secondary-button"
+              type="button"
+              onClick={handleDownloadPortfolioJson}
+            >
+              {t("manager.downloadPortfolioJson", "Download Portfolio JSON")}
+            </button>
+            <button
+              className="optimizer-secondary-button"
+              type="button"
+              onClick={handleDownloadTargetHoldingsCsv}
+            >
+              {t("manager.downloadTargetHoldingsCsv", "Download New Holdings CSV")}
+            </button>
+          </div>
+
+          <div className="optimizer-weights-card manager-fractional-card no-print">
             <div className="manager-fractional-header">
               <h4>{t("optimizer.fractionalSettings", "Fractional Settings")}</h4>
               <label className="manager-fractional-global-toggle">
@@ -861,7 +1083,7 @@ const PortfolioManager = () => {
 
           {/* Order Display Toggle */}
           {(results.buy_list && Object.keys(results.buy_list).length > 0) || (results.sell_list && Object.keys(results.sell_list).length > 0) ? (
-            <div className="manager-display-toggle">
+            <div className="manager-display-toggle no-print">
               <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginRight: '0.25rem' }}>{t("manager.displayMode", "Display:")} </span>
               {[{key: 'all', label: t("manager.displayAll", "All")}, {key: 'shares', label: t("optimizer.shares", "Shares")}, {key: 'value', label: t("optimizer.investmentAmount", "Value")}].map(mode => (
                 <button
