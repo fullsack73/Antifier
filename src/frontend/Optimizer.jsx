@@ -22,8 +22,8 @@ const Optimizer = () => {
   const [investmentAmount, setInvestmentAmount] = useState("")
   const [allocation, setAllocation] = useState(null)
   const [customTickers, setCustomTickers] = useState([])
-  const [forecastHorizon, setForecastHorizon] = useState("252")
-  const [minHistory, setMinHistory] = useState("100")
+  const [forecastHorizon, setForecastHorizon] = useState("63")
+  const [minHistory, setMinHistory] = useState("504")
   const [blTau, setBlTau] = useState("0.05")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [allowFractional, setAllowFractional] = useState(false)
@@ -516,14 +516,14 @@ const Optimizer = () => {
                     <div className="optimizer-advanced-section-title">{t("optimizer.forecastControls", "Forecast Controls")}</div>
                     <div className="optimizer-advanced-grid">
                       <div className="optimizer-form-group">
-                        <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
+                        <label htmlFor="forecastHorizon" title="Number of trading days to forecast into the future. Default is 63 (roughly one quarter).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
                         <input
                           id="forecastHorizon"
                           className="optimizer-input"
                           type="number"
                           value={forecastHorizon}
                           onChange={(e) => setForecastHorizon(e.target.value)}
-                          placeholder="252"
+                          placeholder="63"
                         />
                       </div>
 
@@ -535,7 +535,7 @@ const Optimizer = () => {
                           type="number"
                           value={minHistory}
                           onChange={(e) => setMinHistory(e.target.value)}
-                          placeholder="100"
+                          placeholder="504"
                         />
                       </div>
 

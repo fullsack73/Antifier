@@ -783,8 +783,8 @@ def optimize_portfolio_endpoint():
     optimization_method = data.get('optimization_method', 'BL')
     
     # Advanced settings
-    forecast_horizon = int(data.get('forecast_horizon', 252))
-    min_history = int(data.get('min_history', 100))
+    forecast_horizon = int(data.get('forecast_horizon', 63))
+    min_history = int(data.get('min_history', 504))
     bl_tau = float(data.get('bl_tau', 0.05))
 
     if not request_id:
@@ -814,8 +814,8 @@ def optimize_portfolio_endpoint():
                 progress_callback=progress_adapter,
                 forecast_method=params.get('forecast_method', 'LIGHTWEIGHT'),
                 optimization_method=params.get('optimization_method', 'BL'),
-                forecast_horizon=params.get('forecast_horizon', 252),
-                min_history=params.get('min_history', 100),
+                forecast_horizon=params.get('forecast_horizon', 63),
+                min_history=params.get('min_history', 504),
                 bl_tau=params.get('bl_tau', 0.05)
             )
 
@@ -997,8 +997,8 @@ def manage_portfolio_endpoint():
         
         target_return = data.get('target_return')
         risk_tolerance = data.get('risk_tolerance')
-        forecast_horizon = int(data.get('forecast_horizon', 252))
-        min_history = int(data.get('min_history', 100))
+        forecast_horizon = int(data.get('forecast_horizon', 63))
+        min_history = int(data.get('min_history', 504))
         bl_tau = float(data.get('bl_tau', 0.05))
         
         allow_fractional = bool(data.get('allow_fractional', True))

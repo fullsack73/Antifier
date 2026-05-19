@@ -29,8 +29,8 @@ const PortfolioManager = () => {
   const [endDate, setEndDate] = useState("")
   const [riskFreeRate, setRiskFreeRate] = useState("2")
 
-  const [forecastHorizon, setForecastHorizon] = useState("252")
-  const [minHistory, setMinHistory] = useState("100")
+  const [forecastHorizon, setForecastHorizon] = useState("63")
+  const [minHistory, setMinHistory] = useState("504")
   const [blTau, setBlTau] = useState("0.05")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [tickerGroup, setTickerGroup] = useState("CURRENT_HOLDINGS")
@@ -206,8 +206,8 @@ const PortfolioManager = () => {
       setStartDate(String(parsed.startDate || ""))
       setEndDate(String(parsed.endDate || ""))
       setRiskFreeRate(String(parsed.riskFreeRate || "2"))
-      setForecastHorizon(String(parsed.forecastHorizon || "252"))
-      setMinHistory(String(parsed.minHistory || "100"))
+      setForecastHorizon(String(parsed.forecastHorizon || "63"))
+      setMinHistory(String(parsed.minHistory || "504"))
       setBlTau(String(parsed.blTau || "0.05"))
       setTickerGroup(parsed.tickerGroup || "CURRENT_HOLDINGS")
       setCustomTickers(Array.isArray(parsed.customTickers) ? parsed.customTickers : [])
@@ -875,14 +875,14 @@ const PortfolioManager = () => {
 
               <div className="optimizer-advanced-section">
                 <div className="optimizer-form-group">
-                  <label htmlFor="forecastHorizon" title="Number of days to forecast into the future. Standard is 252 (1 trading year).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
+                  <label htmlFor="forecastHorizon" title="Number of trading days to forecast into the future. Default is 63 (roughly one quarter).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
                   <input
                     id="forecastHorizon"
                     className="optimizer-input"
                     type="number"
                     value={forecastHorizon}
                     onChange={(e) => setForecastHorizon(e.target.value)}
-                    placeholder="252"
+                    placeholder="63"
                   />
                 </div>
 
@@ -894,7 +894,7 @@ const PortfolioManager = () => {
                     type="number"
                     value={minHistory}
                     onChange={(e) => setMinHistory(e.target.value)}
-                    placeholder="100"
+                    placeholder="504"
                   />
                 </div>
 

@@ -9,7 +9,7 @@ psutil==7.0.0
 
 # Data Science & Math
 numpy==2.3.5
-pandas
+pandas<3
 scipy
 scikit-learn
 statsmodels==0.14.5

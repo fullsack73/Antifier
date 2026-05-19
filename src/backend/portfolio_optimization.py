@@ -999,7 +999,7 @@ def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
 
-def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=252, min_history=100, progress_callback=None):
+def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=63, min_history=504, progress_callback=None):
     """Generate cache key for pipeline, excluding progress callback."""
     if tickers:
         tickers_str = ",".join(sorted(tickers))
@@ -1009,7 +1009,7 @@ def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_met
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
-def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=252, min_history=100, progress_callback=None):
+def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=63, min_history=504, progress_callback=None):
     """
     Pipeline for Data Fetching, Cleaning, and Forecasting.
     Decoupled from optimization constraints to enable 'Warm Start'.
@@ -1290,7 +1290,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        persist_result=False, load_if_available=False, progress_callback=None,
                        l2_gamma=0.05, max_asset_weight=0.2,
                        forecast_method="LIGHTWEIGHT", optimization_method="BL",
-                       forecast_horizon=252, min_history=100, bl_tau=0.05):
+                       forecast_horizon=63, min_history=504, bl_tau=0.05):
     """Optimize portfolio and optionally persist or reuse saved results."""
 
     # Resolve ticker source as early as possible so we can sanitize/de-duplicate once.
