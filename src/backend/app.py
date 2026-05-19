@@ -7,6 +7,7 @@ from flask_cors import CORS
 import numpy as np
 import yfinance as yf
 import warnings
+import re
 from datetime import datetime, timedelta
 import pandas as pd
 from hedge_analysis import analyze_hedge_relationship
@@ -29,6 +30,14 @@ from stock_screener import search_stocks
 
 
 app = Flask(__name__)
+
+
+class ExternalDataError(RuntimeError):
+    """Raised when an upstream market-data dependency cannot satisfy a request."""
+
+
+class ModelExecutionError(RuntimeError):
+    """Raised when a local model fails while serving an otherwise valid request."""
 
 BASE_CURRENCY = "USD"
 TRADING_DAYS_PER_YEAR = 252
@@ -392,7 +401,7 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
         
         if df.empty:
             print(f"No data received from yfinance for {ticker}")
-            return {}
+            raise ExternalDataError(f"No data available for ticker {ticker}")
 
         df, price_currency, currency_metadata = normalize_history_close_to_usd(ticker, df, start_date, end_date)
 
@@ -413,7 +422,7 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
             close_series = df['Close'].dropna()
             if len(close_series) < 30:
                 print(f"Not enough data for ARIMA on {ticker}")
-                return {}
+                raise ValueError(f"Not enough data for ARIMA on {ticker}")
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -487,7 +496,7 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
         
         if df.empty:
             print(f"Not enough data for {ticker} after feature engineering. Consider a longer date range.")
-            return {}
+            raise ValueError(f"Not enough data for {ticker} after feature engineering")
             
         # Prepare data for regression        
         feature_columns = ['Time', 'MA7', 'MA21', 'Lag1', 'Volume']
@@ -580,18 +589,11 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
             'intercept': 'N/A'
         }
         
+    except (ValueError, ExternalDataError):
+        raise
     except Exception as e:
         print(f"Error generating regression data: {str(e)}")
-        return {
-            'prices': {},
-            'regression': {},
-            'companyName': ticker, 
-            'price_currency': BASE_CURRENCY,
-            'source_currency': BASE_CURRENCY,
-            'slope': 'N/A', 
-            'intercept': 'N/A',
-            'future_predictions': {}
-        }
+        raise ModelExecutionError(f"Error generating regression data: {str(e)}") from e
 
 def generate_data(ticker="", start_date=None, end_date=None):
     try:
@@ -666,11 +668,19 @@ def get_data():
     except ValueError:
         future_days = 0 # Default to 0 if conversion fails
 
-    if include_regression:
-        data = generate_regression_data(ticker, start_date, end_date, future_days=future_days, model_type=model_type)
-    else:
-        # Default data gen doesn't use model
-        data = generate_data(ticker, start_date, end_date)
+    try:
+        if include_regression:
+            data = generate_regression_data(ticker, start_date, end_date, future_days=future_days, model_type=model_type)
+        else:
+            # Default data gen doesn't use model
+            data = generate_data(ticker, start_date, end_date)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except ExternalDataError as e:
+        return jsonify({'error': str(e)}), 502
+    except ModelExecutionError as e:
+        app.logger.error(str(e))
+        return jsonify({'error': 'Model execution failed while generating regression data'}), 500
 
     return jsonify(data)
 
@@ -720,29 +730,59 @@ from flask import Response, stream_with_context
 
 # Global store for request queues: {request_id: queue.Queue}
 REQUEST_QUEUES = {}
+REQUEST_QUEUES_LOCK = threading.RLock()
+MAX_ACTIVE_REQUEST_QUEUES = 64
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
 
-def push_progress(request_id, progress, total, message, status='running'):
+
+def get_or_create_request_queue(request_id):
+    """Return a bounded, validated SSE queue for an optimization job."""
+    if not isinstance(request_id, str) or not REQUEST_ID_PATTERN.fullmatch(request_id):
+        raise ValueError("request_id must be a safe identifier up to 128 characters")
+
+    with REQUEST_QUEUES_LOCK:
+        if request_id not in REQUEST_QUEUES and len(REQUEST_QUEUES) >= MAX_ACTIVE_REQUEST_QUEUES:
+            raise RuntimeError("Too many active optimization requests")
+        return REQUEST_QUEUES.setdefault(request_id, queue.Queue())
+
+
+def put_progress_event(request_id, event, close=False):
+    with REQUEST_QUEUES_LOCK:
+        q = REQUEST_QUEUES.get(request_id)
+    if q is None:
+        return False
+    q.put(event)
+    if close:
+        q.put(None)
+    return True
+
+
+def push_progress(request_id, progress, total, message, status='running', result=None):
     """Helper to push progress events to the SSE queue."""
-    if request_id in REQUEST_QUEUES:
-        q = REQUEST_QUEUES[request_id]
-        if status == 'completed':
-            q.put({'type': 'complete', 'progress': 100, 'message': 'Optimization complete'})
-            q.put(None) # Sentinel to close stream
-        elif status == 'error':
-            q.put({'type': 'error', 'message': message})
-            q.put(None)
-        else:
-            percentage = int((progress / total) * 100) if total > 0 else 0
-            q.put({'type': 'progress', 'progress': percentage, 'message': message})
+    if status == 'completed':
+        event = {'type': 'complete', 'progress': 100, 'message': message or 'Optimization complete'}
+        if result is not None:
+            event['result'] = result
+        put_progress_event(request_id, event, close=True)
+    elif status == 'error':
+        put_progress_event(request_id, {'type': 'error', 'message': message}, close=True)
+    else:
+        percentage = int((progress / total) * 100) if total > 0 else 0
+        put_progress_event(request_id, {'type': 'progress', 'progress': percentage, 'message': message})
 
 @app.route('/api/progress-stream/<request_id>', methods=['GET'])
 def stream_progress(request_id):
     def event_stream():
-        # Lazy initialization: Allow connecting before POST
-        if request_id not in REQUEST_QUEUES:
-             REQUEST_QUEUES[request_id] = queue.Queue()
+        try:
+            # Lazy initialization: Allow connecting before POST
+            q = get_or_create_request_queue(request_id)
+        except ValueError as e:
+            yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            return
+        except RuntimeError as e:
+            yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            return
         
-        q = REQUEST_QUEUES[request_id]
         while True:
             try:
                 # Wait for next event
@@ -759,14 +799,17 @@ def stream_progress(request_id):
                 break
         
         # Cleanup
-        if request_id in REQUEST_QUEUES:
-            del REQUEST_QUEUES[request_id]
+        with REQUEST_QUEUES_LOCK:
+            if REQUEST_QUEUES.get(request_id) is q:
+                del REQUEST_QUEUES[request_id]
 
     return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
 
 @app.route('/api/optimize-portfolio', methods=['POST'])
 def optimize_portfolio_endpoint():
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request must be JSON"}), 400
     
     ticker_group = data.get('ticker_group')
     tickers = data.get('tickers')
@@ -782,17 +825,24 @@ def optimize_portfolio_endpoint():
     forecast_method = data.get('forecast_method', 'LIGHTWEIGHT')
     optimization_method = data.get('optimization_method', 'BL')
     
-    # Advanced settings
-    forecast_horizon = int(data.get('forecast_horizon', 63))
-    min_history = int(data.get('min_history', 504))
-    bl_tau = float(data.get('bl_tau', 0.05))
+    try:
+        # Advanced settings
+        forecast_horizon = int(data.get('forecast_horizon', 63))
+        min_history = int(data.get('min_history', 504))
+        bl_tau = float(data.get('bl_tau', 0.05))
+    except (TypeError, ValueError):
+        return jsonify({"error": "forecast_horizon, min_history, and bl_tau must be valid numbers"}), 400
 
     if not request_id:
         return jsonify({"error": "request_id is required"}), 400
 
     # Initialize Queue for SSE (Idempotent)
-    if request_id not in REQUEST_QUEUES:
-        REQUEST_QUEUES[request_id] = queue.Queue()
+    try:
+        get_or_create_request_queue(request_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 429
 
     def background_optimization(req_id, params):
         try:
@@ -822,10 +872,14 @@ def optimize_portfolio_endpoint():
             if "error" in result:
                 push_progress(req_id, 0, 0, result["error"], status='error')
             else:
-                 # Send result in complete message
-                 q = REQUEST_QUEUES[req_id]
-                 q.put({'type': 'complete', 'progress': 100, 'message': 'Optimization complete', 'result': result})
-                 q.put(None)
+                 push_progress(
+                     req_id,
+                     100,
+                     100,
+                     'Optimization complete',
+                     status='completed',
+                     result=result
+                 )
 
         except Exception as e:
             app.logger.error(f"Background optimization failed: {e}")

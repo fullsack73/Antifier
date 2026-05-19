@@ -18,7 +18,7 @@ import pandas as pd
 import numpy as np
 from pypfopt import EfficientFrontier, risk_models, objective_functions, BlackLittermanModel, black_litterman
 from pypfopt.exceptions import OptimizationError
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 import gc
 from cache_manager import (
     get_cache, cached
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 RESULTS_DIR = Path("logs/portfolio_results")
 BASE_CURRENCY = "USD"
+PORTFOLIO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
@@ -77,6 +78,19 @@ def worker_initializer():
 def _ensure_results_dir():
     """Create persistence directory if it does not exist."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _portfolio_result_path(portfolio_id):
+    """Return a safe on-disk path for a persisted portfolio result."""
+    if not isinstance(portfolio_id, str) or not PORTFOLIO_ID_PATTERN.fullmatch(portfolio_id):
+        raise ValueError("portfolio_id must be a safe slug up to 128 characters")
+
+    _ensure_results_dir()
+    results_root = RESULTS_DIR.resolve()
+    output_path = (results_root / f"{portfolio_id}.json").resolve()
+    if results_root not in output_path.parents:
+        raise ValueError("portfolio_id resolves outside the portfolio results directory")
+    return output_path
 
 
 def _to_serializable(value):
@@ -356,8 +370,7 @@ def save_portfolio_result(portfolio_id, result, metadata=None):
         "saved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     }
 
-    _ensure_results_dir()
-    output_path = RESULTS_DIR / f"{portfolio_id}.json"
+    output_path = _portfolio_result_path(portfolio_id)
     with open(output_path, "w", encoding="utf-8") as file:
         json.dump(payload, file, indent=2)
     logger.info(f"Saved portfolio result to {output_path}")
@@ -368,7 +381,7 @@ def load_portfolio_result(portfolio_id):
     if not portfolio_id:
         raise ValueError("portfolio_id is required to load results")
 
-    output_path = RESULTS_DIR / f"{portfolio_id}.json"
+    output_path = _portfolio_result_path(portfolio_id)
     if not output_path.exists():
         logger.info(f"No saved portfolio result found for {portfolio_id}")
         return None
@@ -417,35 +430,40 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None):
             def _download_chunk():
                 return yf.download(chunk, start=start_date, end=end_date, progress=False, auto_adjust=True, threads=True)
 
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_download_chunk)
-                try:
-                    # 20 seconds timeout for a chunk of 50
-                    raw_data = future.result(timeout=20)
-                    
-                    # Extract Close data logic
-                    if len(chunk) == 1:
-                        if isinstance(raw_data.columns, pd.MultiIndex):
-                            c_data = raw_data['Close'] if 'Close' in raw_data.columns.get_level_values(0) else raw_data
-                        else:
-                            c_data = raw_data['Close'] if 'Close' in raw_data.columns else raw_data
-                        c_data.name = chunk[0]
-                        chunk_data = pd.DataFrame(c_data)
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(_download_chunk)
+            wait_for_shutdown = True
+            try:
+                # 20 seconds timeout for a chunk of 50
+                raw_data = future.result(timeout=20)
+
+                # Extract Close data logic
+                if len(chunk) == 1:
+                    if isinstance(raw_data.columns, pd.MultiIndex):
+                        c_data = raw_data['Close'] if 'Close' in raw_data.columns.get_level_values(0) else raw_data
                     else:
-                        if isinstance(raw_data.columns, pd.MultiIndex):
-                            if 'Close' in raw_data.columns.get_level_values(0):
-                                chunk_data = raw_data['Close']
-                            else:
-                                chunk_data = raw_data
+                        c_data = raw_data['Close'] if 'Close' in raw_data.columns else raw_data
+                    c_data.name = chunk[0]
+                    chunk_data = pd.DataFrame(c_data)
+                else:
+                    if isinstance(raw_data.columns, pd.MultiIndex):
+                        if 'Close' in raw_data.columns.get_level_values(0):
+                            chunk_data = raw_data['Close']
                         else:
                             chunk_data = raw_data
+                    else:
+                        chunk_data = raw_data
 
-                    chunk_data = chunk_data.ffill().dropna(how='all')
-                    
-                except TimeoutError:
-                    logger.warning(f"GET_STOCK_DATA: Chunk {chunk_idx+1} timed out")
-                except Exception as e:
-                    logger.warning(f"GET_STOCK_DATA: Chunk {chunk_idx+1} failed: {e}")
+                chunk_data = chunk_data.ffill().dropna(how='all')
+
+            except FuturesTimeoutError:
+                wait_for_shutdown = False
+                future.cancel()
+                logger.warning(f"GET_STOCK_DATA: Chunk {chunk_idx+1} timed out")
+            except Exception as e:
+                logger.warning(f"GET_STOCK_DATA: Chunk {chunk_idx+1} failed: {e}")
+            finally:
+                executor.shutdown(wait=wait_for_shutdown, cancel_futures=not wait_for_shutdown)
 
         except Exception as e:
             logger.error(f"GET_STOCK_DATA: Chunk wrapper failed: {e}")
@@ -1159,6 +1177,7 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         logger.info(f"Using Lightweight Ensemble Forecast (Horizon={forecast_horizon})")
         forecasts = {}
         uncertainties_dict = {}
+        annualization_factor = 252 / max(1, int(forecast_horizon))
         for i, ticker in enumerate(final_tickers):
             if i % 10 == 0:
                 ml_callback(i, len(final_tickers), f"Lightweight forecasting {i}/{len(final_tickers)}")
@@ -1166,7 +1185,8 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
                 prices = data[ticker].dropna().values
                 valid_prices = prices[~np.isnan(prices)]
                 if len(valid_prices) > 0:
-                    val = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon)
+                    period_return = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon)
+                    val = np.log1p(np.clip(period_return, -0.95, None)) * annualization_factor
                 else:
                     val = 0.05
                 forecasts[ticker] = val
@@ -1198,10 +1218,15 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         logger.warning(f"Unknown forecast method '{forecast_method}', defaulting to Lightweight")
         forecasts = {}
         uncertainties_dict = {}
+        annualization_factor = 252 / max(1, int(forecast_horizon))
         for ticker in final_tickers:
             prices = data[ticker].dropna().values
             valid_prices = prices[~np.isnan(prices)]
-            val = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon) if len(valid_prices)>0 else 0.05
+            if len(valid_prices) > 0:
+                period_return = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon)
+                val = np.log1p(np.clip(period_return, -0.95, None)) * annualization_factor
+            else:
+                val = 0.05
             forecasts[ticker] = val
             uncertainties_dict[ticker] = 0.05
         mu_forecast = pd.Series(forecasts).fillna(0.0)
