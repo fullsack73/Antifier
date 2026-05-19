@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
 import Plot from "react-plotly.js"
@@ -10,6 +10,7 @@ import {
   buildTargetHoldingsCsv,
   downloadBlob,
 } from "./portfolioManagerExports"
+import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
 
 const PORTFOLIO_MANAGER_STORAGE_KEY = "portfolio-manager-saved-input-v1"
 const DEFAULT_HOLDINGS = [{ ticker: "", quantity: "" }]
@@ -37,6 +38,8 @@ const PortfolioManager = () => {
   const [allowFractional, setAllowFractional] = useState(false)
   const [fractionalOverrides, setFractionalOverrides] = useState({})
   const [orderDisplayMode, setOrderDisplayMode] = useState("all") // 'all' | 'shares' | 'value'
+  const [securityDisplayMode, setSecurityDisplayMode] = useState("ticker")
+  const [assetNameOverrides, setAssetNameOverrides] = useState({})
   const [hasSavedPortfolio, setHasSavedPortfolio] = useState(false)
   const [savedPortfolioStatus, setSavedPortfolioStatus] = useState("")
 
@@ -424,6 +427,48 @@ const PortfolioManager = () => {
     }
   }
 
+  const resultsDisplayData = useMemo(() => (
+    results
+      ? {
+          ...results,
+          asset_names: {
+            ...(results.asset_names || {}),
+            ...assetNameOverrides,
+          },
+        }
+      : null
+  ), [results, assetNameOverrides])
+
+  const formatResultTicker = (ticker) => formatSecurityDisplay(ticker, resultsDisplayData, securityDisplayMode)
+
+  useEffect(() => {
+    if (securityDisplayMode !== "name" || !results) return
+
+    const displayTickers = new Set([
+      ...Object.keys(results.weights || {}),
+      ...Object.keys(results.current_holdings || {}),
+      ...Object.keys(results.buy_list || {}),
+      ...Object.keys(results.sell_list || {}),
+    ])
+    const missingNameTickers = Array.from(displayTickers).filter(
+      (ticker) =>
+        getSecurityDisplayName(ticker, resultsDisplayData) === ticker &&
+        assetNameOverrides[ticker] !== ticker
+    )
+    if (missingNameTickers.length === 0) return
+
+    let cancelled = false
+    fetchSecurityNames(missingNameTickers).then((names) => {
+      if (!cancelled) {
+        setAssetNameOverrides(prev => ({ ...prev, ...names }))
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [securityDisplayMode, results, resultsDisplayData, assetNameOverrides])
+
   // --- Chart helpers ---
   const buildCurrentPieData = () => {
     if (!results || !results.prices) return null
@@ -432,7 +477,7 @@ const PortfolioManager = () => {
     const values = []
     for (const [ticker, qty] of Object.entries(holdingsDict)) {
       const price = results.prices[ticker] || 0
-      labels.push(ticker)
+      labels.push(formatResultTicker(ticker))
       values.push(qty * price)
     }
     return { labels, values }
@@ -452,7 +497,7 @@ const PortfolioManager = () => {
     const values = []
     for (const [ticker, weight] of Object.entries(results.weights)) {
       if (weight > 0.0001) {
-        labels.push(ticker)
+        labels.push(formatResultTicker(ticker))
         values.push(weight * totalTarget)
       }
     }
@@ -974,6 +1019,26 @@ const PortfolioManager = () => {
             </button>
           </div>
 
+          <div className="manager-display-toggle no-print">
+            <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginRight: '0.25rem' }}>
+              {t("optimizer.securityDisplay", "Show:")}
+            </span>
+            {[
+              { key: "ticker", label: t("optimizer.displayTicker", "Ticker") },
+              { key: "name", label: t("optimizer.displayName", "Name") },
+            ].map(mode => (
+              <button
+                key={mode.key}
+                type="button"
+                onClick={() => setSecurityDisplayMode(mode.key)}
+                className={`manager-display-toggle-button ${securityDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}`}
+                style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', minWidth: 'unset' }}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
+
           <div className="optimizer-weights-card manager-fractional-card no-print">
             <div className="manager-fractional-header">
               <h4>{t("optimizer.fractionalSettings", "Fractional Settings")}</h4>
@@ -995,7 +1060,7 @@ const PortfolioManager = () => {
                 if (!ticker || (!results.weights?.[ticker] && !results.current_holdings?.[ticker])) return null;
                 return (
                   <li key={ticker} className="manager-fractional-item">
-                    <span className="manager-fractional-ticker">{ticker}</span>
+                    <span className="manager-fractional-ticker">{formatResultTicker(ticker)}</span>
                     <label className="manager-fractional-toggle">
                       <input
                         type="checkbox"
@@ -1108,7 +1173,11 @@ const PortfolioManager = () => {
               <table className="allocation-table">
                 <thead>
                   <tr>
-                    <th>{t("optimizer.ticker", "Ticker")}</th>
+                    <th>
+                      {securityDisplayMode === "name"
+                        ? t("optimizer.securityName", "Name")
+                        : t("optimizer.ticker", "Ticker")}
+                    </th>
                     {(orderDisplayMode === 'all' || orderDisplayMode === 'shares') && <th>{t("optimizer.shares", "Shares")}</th>}
                     <th>{t("optimizer.price", "Price")}</th>
                     {(orderDisplayMode === 'all' || orderDisplayMode === 'value') && <th>{t("optimizer.investmentAmount", "Value")}</th>}
@@ -1117,7 +1186,7 @@ const PortfolioManager = () => {
                 <tbody>
                   {Object.entries(results.buy_list).map(([ticker, data]) => (
                     <tr key={ticker}>
-                      <td className="ticker-cell">{ticker}</td>
+                      <td className="ticker-cell">{formatResultTicker(ticker)}</td>
                       {(orderDisplayMode === 'all' || orderDisplayMode === 'shares') && (
                         <td className="number-cell">
                           {data.quantity?.toFixed(4)}
@@ -1147,7 +1216,11 @@ const PortfolioManager = () => {
               <table className="allocation-table">
                 <thead>
                   <tr>
-                    <th>{t("optimizer.ticker", "Ticker")}</th>
+                    <th>
+                      {securityDisplayMode === "name"
+                        ? t("optimizer.securityName", "Name")
+                        : t("optimizer.ticker", "Ticker")}
+                    </th>
                     {(orderDisplayMode === 'all' || orderDisplayMode === 'shares') && <th>{t("optimizer.shares", "Shares")}</th>}
                     <th>{t("optimizer.price", "Price")}</th>
                     {(orderDisplayMode === 'all' || orderDisplayMode === 'value') && <th>{t("optimizer.investmentAmount", "Value")}</th>}
@@ -1156,7 +1229,7 @@ const PortfolioManager = () => {
                 <tbody>
                   {Object.entries(results.sell_list).map(([ticker, data]) => (
                     <tr key={ticker}>
-                      <td className="ticker-cell">{ticker}</td>
+                      <td className="ticker-cell">{formatResultTicker(ticker)}</td>
                       {(orderDisplayMode === 'all' || orderDisplayMode === 'shares') && (
                         <td className="number-cell">
                           {data.quantity?.toFixed(4)}
@@ -1187,7 +1260,7 @@ const PortfolioManager = () => {
                   .sort(([, a], [, b]) => b - a)
                   .map(([ticker, weight]) => (
                     <li key={ticker}>
-                      <span>{ticker}</span>
+                      <span>{formatResultTicker(ticker)}</span>
                       <strong>{(weight * 100).toFixed(2)}%</strong>
                     </li>
                   ))}

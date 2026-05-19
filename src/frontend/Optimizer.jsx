@@ -1,8 +1,9 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useMemo, useRef, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
+import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
 
 const Optimizer = () => {
   const { t } = useTranslation()
@@ -30,6 +31,8 @@ const Optimizer = () => {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [uploadFileName, setUploadFileName] = useState('')
   const [uploadError, setUploadError] = useState(null)
+  const [securityDisplayMode, setSecurityDisplayMode] = useState("ticker")
+  const [assetNameOverrides, setAssetNameOverrides] = useState({})
   const portfolioFileInputRef = useRef(null)
   const csvFileInputRef = useRef(null)
 
@@ -221,6 +224,43 @@ const Optimizer = () => {
 
   const generateRequestId = () => `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
+  const portfolioDisplayData = useMemo(() => (
+    optimizedPortfolio
+      ? {
+          ...optimizedPortfolio,
+          asset_names: {
+            ...(optimizedPortfolio.asset_names || {}),
+            ...assetNameOverrides,
+          },
+        }
+      : null
+  ), [optimizedPortfolio, assetNameOverrides])
+
+  const formatPortfolioTicker = (ticker) =>
+    formatSecurityDisplay(ticker, portfolioDisplayData, securityDisplayMode)
+
+  useEffect(() => {
+    if (securityDisplayMode !== "name" || !optimizedPortfolio?.weights) return
+
+    const missingNameTickers = Object.keys(optimizedPortfolio.weights).filter(
+      (ticker) =>
+        getSecurityDisplayName(ticker, portfolioDisplayData) === ticker &&
+        assetNameOverrides[ticker] !== ticker
+    )
+    if (missingNameTickers.length === 0) return
+
+    let cancelled = false
+    fetchSecurityNames(missingNameTickers).then((names) => {
+      if (!cancelled) {
+        setAssetNameOverrides(prev => ({ ...prev, ...names }))
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [securityDisplayMode, optimizedPortfolio, portfolioDisplayData, assetNameOverrides])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -231,7 +271,6 @@ const Optimizer = () => {
     setProgress({ percentage: 0, message: t("common.starting", "Starting...") })
 
     const requestId = generateRequestId()
-    let pollInterval
 
     try {
       const payload = {
@@ -257,7 +296,7 @@ const Optimizer = () => {
       // Start SSE connection
       const eventSource = new EventSource(`http://127.0.0.1:5000/api/progress-stream/${requestId}`)
 
-      eventSource.onmessage = (event) => {
+      eventSource.onmessage = () => {
         // Ping/Keep-alive, ignore
       }
 
@@ -536,7 +575,7 @@ const Optimizer = () => {
                 </div>
                 <div className="optimizer-modal-body">
                   <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
-                    Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like "Symbol" or "Ticker" are automatically ignored.
+                    Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like &quot;Symbol&quot; or &quot;Ticker&quot; are automatically ignored.
                   </p>
                   <button
                     type="button"
@@ -640,6 +679,25 @@ const Optimizer = () => {
                 {t("optimizer.downloadPortfolio", "Download JSON")}
               </button>
             </div>
+            <div className="manager-display-toggle no-print">
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginRight: '0.25rem' }}>
+                {t("optimizer.securityDisplay", "Show:")}
+              </span>
+              {[
+                { key: "ticker", label: t("optimizer.displayTicker", "Ticker") },
+                { key: "name", label: t("optimizer.displayName", "Name") },
+              ].map(mode => (
+                <button
+                  key={mode.key}
+                  type="button"
+                  onClick={() => setSecurityDisplayMode(mode.key)}
+                  className={`manager-display-toggle-button ${securityDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}`}
+                  style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', minWidth: 'unset' }}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
             <div className="optimizer-results-grid">
               <div className="optimizer-result-card">
                 <h4>{t("optimizer.return")}</h4>
@@ -659,7 +717,7 @@ const Optimizer = () => {
               <ul className="optimizer-weights-list">
                 {Object.entries(optimizedPortfolio.weights).map(([ticker, weight]) => (
                   <li key={ticker}>
-                    <span>{ticker}</span>
+                    <span>{formatPortfolioTicker(ticker)}</span>
                     <strong>{(weight * 100).toFixed(2)}%</strong>
                   </li>
                 ))}
@@ -703,7 +761,11 @@ const Optimizer = () => {
                 <table className="allocation-table">
                   <thead>
                     <tr>
-                      <th>{t("optimizer.ticker")}</th>
+                      <th>
+                        {securityDisplayMode === "name"
+                          ? t("optimizer.securityName", "Name")
+                          : t("optimizer.ticker")}
+                      </th>
                       <th>{t("optimizer.price", "Price")}</th>
                       <th>{t("optimizer.shares")}</th>
                       <th>{t("optimizer.investmentAmount")}</th>
@@ -715,7 +777,7 @@ const Optimizer = () => {
                       .filter(({ ticker }) => optimizedPortfolio.weights[ticker] > 0.0001)
                       .map(({ ticker, price, amount, shares, fractional }) => (
                         <tr key={ticker}>
-                          <td>{ticker}</td>
+                          <td>{formatPortfolioTicker(ticker)}</td>
                           <td>${price.toFixed(2)}</td>
                           <td>{fractional ? shares.toFixed(4) : shares}</td>
                           <td>${amount.toFixed(2)}</td>

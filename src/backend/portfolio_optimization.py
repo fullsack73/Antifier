@@ -109,6 +109,44 @@ def _dedupe_tickers(tickers):
     return deduped
 
 
+@cached(l1_ttl=86400, l2_ttl=604800)
+def get_asset_names(tickers):
+    """Fetch display names for tickers, falling back to the ticker symbol."""
+    names = {}
+    cleaned_tickers = _dedupe_tickers(tickers)
+    if not cleaned_tickers:
+        return names
+
+    try:
+        batch_size = 50
+        for i in range(0, len(cleaned_tickers), batch_size):
+            batch = cleaned_tickers[i:i + batch_size]
+            try:
+                yf_tickers = yf.Tickers(" ".join(batch))
+                for ticker in batch:
+                    try:
+                        info = yf_tickers.tickers[ticker].info
+                        name = (
+                            info.get("longName")
+                            or info.get("shortName")
+                            or info.get("displayName")
+                            or ticker
+                        )
+                        names[ticker] = str(name)
+                    except Exception:
+                        names[ticker] = ticker
+            except Exception as e:
+                logger.warning(f"Batch name fetch failed: {e}")
+                for ticker in batch:
+                    names[ticker] = ticker
+    except Exception as e:
+        logger.warning(f"Asset name fetch failed: {e}")
+
+    for ticker in cleaned_tickers:
+        names.setdefault(ticker, ticker)
+    return names
+
+
 def _normalize_currency(currency):
     if not currency:
         return None
@@ -1421,6 +1459,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "risk": performance[1],
             "sharpe_ratio": performance[2],
             "prices": final_prices,
+            "asset_names": get_asset_names(final_weights.keys()),
             "price_currency": price_currency,
             "source_currencies": {t: source_currencies.get(t, BASE_CURRENCY) for t in final_tickers}
         }
@@ -1635,5 +1674,11 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
     opt_result.update(rebalance_data)
     opt_result["current_holdings"] = current_holdings
     opt_result["cash_injection"] = cash_injection
+    display_tickers = set(current_holdings.keys())
+    display_tickers.update(opt_result.get("weights", {}).keys())
+    display_tickers.update(opt_result.get("prices", {}).keys())
+    display_tickers.update(rebalance_data.get("buy_list", {}).keys())
+    display_tickers.update(rebalance_data.get("sell_list", {}).keys())
+    opt_result["asset_names"] = get_asset_names(sorted(display_tickers))
     
     return opt_result

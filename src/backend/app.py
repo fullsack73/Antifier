@@ -21,6 +21,7 @@ from portfolio_optimization import (
     load_portfolio_result,
     list_saved_portfolios,
     manage_portfolio_logic,
+    get_asset_names,
     forecast_single_ticker_with_arima_transformer,
     forecast_single_ticker_with_transformer
 )
@@ -879,6 +880,16 @@ def stock_screener_endpoint():
         # Log the exception for debugging
         app.logger.error(f"Stock screener failed with exception: {e}")
         return jsonify({"error": "An internal error occurred while screening stocks."}), 500
+
+
+@app.route('/api/asset-names', methods=['POST'])
+def asset_names_endpoint():
+    data = request.get_json() or {}
+    tickers = data.get('tickers', [])
+    if not isinstance(tickers, list):
+        return jsonify({'error': 'tickers must be a list'}), 400
+
+    return jsonify({'asset_names': get_asset_names(tickers)})
 
 @app.route('/api/benchmark-portfolio', methods=['POST'])
 def benchmark_portfolio_endpoint():
