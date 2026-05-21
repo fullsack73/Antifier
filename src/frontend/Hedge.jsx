@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { apiUrl } from './apiClient.js';
 import './App.css';
 
 const HedgeAnalysis = () => {
@@ -22,13 +23,12 @@ const HedgeAnalysis = () => {
         setError(null);
 
         try {
-            const url = new URL('/analyze-hedge', 'http://127.0.0.1:5000');
-            url.searchParams.append('ticker1', ticker1.toUpperCase());
-            url.searchParams.append('ticker2', ticker2.toUpperCase());
-            if (startDate) url.searchParams.append('start_date', startDate);
-            if (endDate) url.searchParams.append('end_date', endDate);
-
-            const response = await fetch(url);
+            const response = await fetch(apiUrl('/api/analyze-hedge', {
+                ticker1: ticker1.toUpperCase(),
+                ticker2: ticker2.toUpperCase(),
+                start_date: startDate,
+                end_date: endDate,
+            }));
             const data = await response.json();
 
             if (data.error) {
@@ -39,7 +39,9 @@ const HedgeAnalysis = () => {
             setHedgeData(data);
         } catch (err) {
             setError('Failed to fetch hedge analysis data');
-            console.error('Error fetching hedge data:', err);
+            if (import.meta.env.DEV) {
+                console.error('Error fetching hedge data:', err);
+            }
         } finally {
             setLoading(false);
         }

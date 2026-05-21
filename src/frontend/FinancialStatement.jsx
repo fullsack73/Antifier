@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import StockScreener from './StockScreener';
+import { apiUrl } from './apiClient.js';
 import './App.css'; // Ensure CSS is imported
 
 const FinancialStatement = () => {
@@ -15,19 +16,20 @@ const FinancialStatement = () => {
     const [error, setError] = useState(null);
 
     const [hoveredMetric, setHoveredMetric] = useState(null);
+    const hasFetchedRef = useRef(false);
 
-    const fetchFinancialData = async () => {
+    const fetchFinancialData = useCallback(async () => {
         if (!ticker) return;
+        hasFetchedRef.current = true;
         setLoading(true);
         setError(null);
 
         try {
-            let url = `http://127.0.0.1:5000/financial-statement?ticker=${ticker}`;
-            if (view !== 'summary') {
-                url += `&type=${view}&frequency=${frequency}`;
-            }
-
-            const response = await fetch(url);
+            const response = await fetch(apiUrl('/api/financial-statement', {
+                ticker,
+                type: view !== 'summary' ? view : undefined,
+                frequency: view !== 'summary' ? frequency : undefined,
+            }));
             const result = await response.json();
 
             if (!response.ok) {
@@ -43,29 +45,28 @@ const FinancialStatement = () => {
                 setStatementData(null);
             } else {
                 setStatementData(result);
-                // Keep existing summary data if available, or fetch it? 
-                // For now, let's just focus on the active view.
             }
 
         } catch (err) {
-            console.error("Fetch error:", err);
+            if (import.meta.env.DEV) {
+                console.error("Fetch error:", err);
+            }
             setError(err.message);
             if (view !== 'summary') setStatementData(null);
             else setData(null);
         } finally {
             setLoading(false);
         }
-    };
+    }, [frequency, ticker, view]);
 
     // Re-fetch when view or frequency changes, if we have a ticker and have already fetched once (optional auto-refresh logic)
     // For now, let's rely on the "Fetch" button for the initial load, and auto-fetch on view change if we already have data.
     // Actually, user expects tabs to switch views immediately.
     useEffect(() => {
-        // Only auto-fetch if we aren't completely empty
-        if ((data || statementData || error) && !loading) {
+        if (hasFetchedRef.current) {
             fetchFinancialData();
         }
-    }, [view, frequency]);
+    }, [fetchFinancialData]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -167,6 +168,40 @@ const FinancialStatement = () => {
                         {loading ? t('common.loading') : t('financial.fetch_data')}
                     </button>
                 </form>
+                <div className="optimizer-actions-row" style={{ justifyContent: 'center', marginTop: '1rem' }}>
+                    {[
+                        { key: 'summary', label: t('financial.summary', 'Summary') },
+                        { key: 'income', label: t('financial.income', 'Income') },
+                        { key: 'balance', label: t('financial.balance', 'Balance') },
+                        { key: 'cash', label: t('financial.cash', 'Cash Flow') },
+                    ].map((item) => (
+                        <button
+                            key={item.key}
+                            type="button"
+                            className={view === item.key ? 'optimizer-submit-button' : 'optimizer-secondary-button'}
+                            onClick={() => setView(item.key)}
+                        >
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+                {view !== 'summary' && (
+                    <div className="optimizer-actions-row" style={{ justifyContent: 'center', marginTop: '0.5rem' }}>
+                        {[
+                            { key: 'annual', label: t('financial.annual', 'Annual') },
+                            { key: 'quarterly', label: t('financial.quarterly', 'Quarterly') },
+                        ].map((item) => (
+                            <button
+                                key={item.key}
+                                type="button"
+                                className={frequency === item.key ? 'optimizer-submit-button' : 'optimizer-secondary-button'}
+                                onClick={() => setFrequency(item.key)}
+                            >
+                                {item.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {error && <div className="error-message">{t('common.error')}: {error}</div>}

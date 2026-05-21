@@ -1,12 +1,14 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
-function DateInput({ onDateRangeChange }) {
+function DateInput({ onDateRangeChange, notifyInitial = true, inputIdPrefix = "date" }) {
   const { t } = useTranslation()
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
+  const updateTimeoutRef = useRef(null)
+  const isInitialSetupRef = useRef(true)
 
   useEffect(() => {
     // set default dates (3 months from yesterday)
@@ -25,57 +27,42 @@ function DateInput({ onDateRangeChange }) {
     setStartDate(formatDate(threeMonthsAgo))
   }, [])
 
-  // Debounced update function to prevent excessive API calls
-  const debouncedUpdate = useCallback(
-    (() => {
-      let timeoutId
-      return (start, end, source = "unknown") => {
-        console.log(`📅 DateInput debounced update from: ${source}`, { start, end })
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          if (start && end && onDateRangeChange) {
-            console.log("📅 DateInput calling parent onDateRangeChange:", { start, end })
-            onDateRangeChange(start, end)
-          }
-        }, 500) // 500ms delay
-      }
-    })(),
-    [onDateRangeChange],
-  )
-
-  // Track if this is initial setup to avoid triggering parent callback on mount
-  const [isInitialSetup, setIsInitialSetup] = useState(true)
-
-  // Auto-update when dates change (but not on initial setup)
   useEffect(() => {
-    if (startDate && endDate) {
-      if (isInitialSetup) {
-        console.log("📅 DateInput: Skipping initial setup callback")
-        setIsInitialSetup(false)
-      } else {
-        console.log("📅 DateInput: User changed dates, calling debounced update")
-        debouncedUpdate(startDate, endDate, "user-input")
-      }
+    if (!startDate || !endDate || !onDateRangeChange) return undefined
+
+    if (isInitialSetupRef.current) {
+      isInitialSetupRef.current = false
+      if (!notifyInitial) return undefined
     }
-  }, [startDate, endDate, debouncedUpdate, isInitialSetup])
+
+    clearTimeout(updateTimeoutRef.current)
+    updateTimeoutRef.current = setTimeout(() => {
+      onDateRangeChange(startDate, endDate)
+    }, 500)
+
+    return () => clearTimeout(updateTimeoutRef.current)
+  }, [startDate, endDate, notifyInitial, onDateRangeChange])
+
+  const startDateId = `${inputIdPrefix}-start`
+  const endDateId = `${inputIdPrefix}-end`
 
   return (
     <div className="date-input-container">
       <div className="date-input-group">
-        <label htmlFor="startDate">{t("date.start")}</label>
+        <label htmlFor={startDateId}>{t("date.start")}</label>
         <input
           type="date"
-          id="startDate"
+          id={startDateId}
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
           title="Chart will auto-update when both dates are selected"
         />
       </div>
       <div className="date-input-group">
-        <label htmlFor="endDate">{t("date.end")}</label>
+        <label htmlFor={endDateId}>{t("date.end")}</label>
         <input
           type="date"
-          id="endDate"
+          id={endDateId}
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
           title="Chart will auto-update when both dates are selected"

@@ -1,49 +1,31 @@
-import React, { useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './App.css';
 
-function TickerInput({ onTickerChange, onSubmit, initialTicker }) {
+function TickerInput({ onTickerChange, initialTicker = '' }) {
   const [ticker, setTicker] = useState(initialTicker);
   const { t } = useTranslation();
+  const updateTimeoutRef = useRef(null);
 
-  // Debounced update function to prevent excessive API calls
-  const debouncedUpdate = useCallback(
-    (() => {
-      let timeoutId;
-      return (newTicker, source = 'unknown') => {
-        console.log(`🎯 TickerInput debounced update from: ${source}`, { newTicker });
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
-          if (newTicker && newTicker.length >= 1 && onTickerChange) {
-            console.log('🎯 TickerInput calling parent onTickerChange:', { newTicker });
-            onTickerChange(newTicker);
-          }
-        }, 300); // 300ms delay for ticker input (reduced since we have API cancellation)
-      };
-    })(),
-    [onTickerChange]
-  );
+  useEffect(() => () => clearTimeout(updateTimeoutRef.current), []);
+
+  const scheduleTickerChange = (newTicker) => {
+    clearTimeout(updateTimeoutRef.current);
+    updateTimeoutRef.current = setTimeout(() => {
+      if (newTicker && onTickerChange) {
+        onTickerChange(newTicker);
+      }
+    }, 300);
+  };
 
   const handleInputChange = (e) => {
     const newTicker = e.target.value.trim().toUpperCase();
-    console.log('🎯 TickerInput: User changed ticker:', { newTicker });
     setTicker(newTicker);
     
-    // Auto-update when ticker changes (with validation)
     if (newTicker && newTicker.length >= 1) {
-      debouncedUpdate(newTicker, 'user-input');
+      scheduleTickerChange(newTicker);
     }
   };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (ticker.trim()) {
-      onTickerChange(ticker.trim().toUpperCase());
-      onSubmit(e);
-    }
-  };
-
-
 
   return (
     <div className="ticker-input-container">
@@ -63,4 +45,4 @@ function TickerInput({ onTickerChange, onSubmit, initialTicker }) {
   );
 }
 
-export default TickerInput; 
+export default TickerInput;

@@ -8,6 +8,7 @@ import numpy as np
 import yfinance as yf
 import warnings
 import re
+import os
 from datetime import datetime, timedelta
 import pandas as pd
 from hedge_analysis import analyze_hedge_relationship
@@ -49,6 +50,8 @@ ENSEMBLE_MODEL_TYPES = {
     "ARIMA + TRANSFORMER",
 }
 TRANSFORMER_MODEL_TYPES = {"TRANSFORMER"}
+STOCK_MODEL_TYPES = {"LSTM", "LightGBM", "ARIMA"} | ENSEMBLE_MODEL_TYPES | TRANSFORMER_MODEL_TYPES
+SAFE_TICKER_PATTERN = re.compile(r"^[A-Za-z0-9.^=\-]{1,24}$")
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
     ".KS": "KRW",
@@ -81,10 +84,19 @@ TICKER_SUFFIX_CURRENCIES = {
     ".JO": "ZAR",
 }
 
+ALLOWED_CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "ALLOWED_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(",")
+    if origin.strip()
+]
+
 CORS(app, 
      resources={
          "/*": {
-             "origins": ["http://localhost:5173", "http://127.0.0.1:*"],
+             "origins": ALLOWED_CORS_ORIGINS,
              "methods": ["GET", "POST", "OPTIONS"],
              "allow_headers": ["Content-Type", "Authorization", "Accept"],
              "supports_credentials": True,
@@ -92,6 +104,37 @@ CORS(app,
              "max_age": 3600
          }
      })
+
+
+def normalize_ticker_param(value, default=None, field_name="ticker"):
+    ticker = str(value or default or "").strip().upper()
+    if not ticker:
+        raise ValueError(f"{field_name} is required")
+    if not SAFE_TICKER_PATTERN.fullmatch(ticker):
+        raise ValueError(f"{field_name} contains invalid characters")
+    return ticker
+
+
+def parse_float_param(value, field_name, required=True, default=None):
+    if value is None or value == "":
+        if required:
+            raise ValueError(f"{field_name} is required")
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a valid number") from exc
+
+
+def parse_int_param(value, field_name, required=True, default=None):
+    if value is None or value == "":
+        if required:
+            raise ValueError(f"{field_name} is required")
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a valid integer") from exc
 
 def validate_date_range(start_date, end_date):
     try:
@@ -653,20 +696,27 @@ def generate_data(ticker="", start_date=None, end_date=None):
     
 # API endpoint to send data to the frontend
 @app.route('/get-data', methods=['GET', 'OPTIONS'])
+@app.route('/api/get-data', methods=['GET', 'OPTIONS'])
 def get_data():
-    ticker = request.args.get('ticker', 'AAPL')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    include_regression = request.args.get('regression', 'false').lower() == 'true'
-    future_days_str = request.args.get('future_days', '0')
-    model_type = request.args.get('model', 'LSTM')
-    
     try:
-        future_days = int(future_days_str)
-        if future_days < 0:
-            future_days = 0 # Prevent negative days
-    except ValueError:
-        future_days = 0 # Default to 0 if conversion fails
+        ticker = normalize_ticker_param(request.args.get('ticker'), default='AAPL')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        include_regression = request.args.get('regression', 'false').lower() == 'true'
+        future_days = parse_int_param(
+            request.args.get('future_days', '0'),
+            "future_days",
+            required=False,
+            default=0
+        )
+        if future_days < 0 or future_days > 365:
+            raise ValueError("future_days must be between 0 and 365")
+
+        model_type = request.args.get('model', 'LSTM')
+        if model_type not in STOCK_MODEL_TYPES:
+            raise ValueError(f"Unsupported model type: {model_type}")
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
 
     try:
         if include_regression:
@@ -686,14 +736,16 @@ def get_data():
 
 # add new endpoint for hedge analysis
 @app.route('/analyze-hedge', methods=['GET', 'OPTIONS'])
+@app.route('/api/analyze-hedge', methods=['GET', 'OPTIONS'])
 def analyze_hedge():
-    ticker1 = request.args.get('ticker1')
-    ticker2 = request.args.get('ticker2')
+    try:
+        ticker1 = normalize_ticker_param(request.args.get('ticker1'), field_name='ticker1')
+        ticker2 = normalize_ticker_param(request.args.get('ticker2'), field_name='ticker2')
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-
-    if not ticker1 or not ticker2:
-        return jsonify({'error': 'Both tickers are required'}), 400
 
     result = analyze_hedge_relationship(ticker1, ticker2, start_date, end_date)
     return jsonify(result)
@@ -701,14 +753,20 @@ def analyze_hedge():
 
 
 @app.route('/financial-statement', methods=['GET'])
+@app.route('/api/financial-statement', methods=['GET'])
 def financial_statement():
-    print("--- Received request for financial statement ---")
-    ticker = request.args.get('ticker')
+    try:
+        ticker = normalize_ticker_param(request.args.get('ticker'))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
     statement_type = request.args.get('type')
     frequency = request.args.get('frequency', 'annual')
 
-    if not ticker:
-        return jsonify({"error": "Ticker symbol is required"}), 400
+    if statement_type and statement_type not in {"income", "balance", "cash"}:
+        return jsonify({"error": "type must be one of income, balance, or cash"}), 400
+    if frequency not in {"annual", "quarterly"}:
+        return jsonify({"error": "frequency must be annual or quarterly"}), 400
 
     if statement_type:
         data = get_financial_statements(ticker, statement_type, frequency)
@@ -826,12 +884,44 @@ def optimize_portfolio_endpoint():
     optimization_method = data.get('optimization_method', 'BL')
     
     try:
+        validate_date_range(start_date, end_date)
+        risk_free_rate = parse_float_param(risk_free_rate, "risk_free_rate")
+        if target_return is not None:
+            target_return = parse_float_param(target_return, "target_return", required=False)
+        if risk_tolerance is not None:
+            risk_tolerance = parse_float_param(risk_tolerance, "risk_tolerance", required=False)
+
         # Advanced settings
-        forecast_horizon = int(data.get('forecast_horizon', 63))
-        min_history = int(data.get('min_history', 504))
-        bl_tau = float(data.get('bl_tau', 0.05))
-    except (TypeError, ValueError):
-        return jsonify({"error": "forecast_horizon, min_history, and bl_tau must be valid numbers"}), 400
+        forecast_horizon = parse_int_param(
+            data.get('forecast_horizon', 63),
+            'forecast_horizon',
+            required=False,
+            default=63
+        )
+        min_history = parse_int_param(
+            data.get('min_history', 504),
+            'min_history',
+            required=False,
+            default=504
+        )
+        bl_tau = parse_float_param(
+            data.get('bl_tau', 0.05),
+            'bl_tau',
+            required=False,
+            default=0.05
+        )
+        if forecast_horizon < 1 or forecast_horizon > 365:
+            raise ValueError('forecast_horizon must be between 1 and 365')
+        if min_history < 30:
+            raise ValueError('min_history must be at least 30')
+        if bl_tau <= 0:
+            raise ValueError('bl_tau must be positive')
+        if tickers is not None:
+            if not isinstance(tickers, list):
+                raise ValueError('tickers must be a list')
+            tickers = [normalize_ticker_param(ticker) for ticker in tickers]
+    except (TypeError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
 
     if not request_id:
         return jsonify({"error": "request_id is required"}), 400
@@ -919,7 +1009,7 @@ def get_portfolio_result_endpoint(portfolio_id):
 
 @app.route('/api/stock-screener', methods=['POST'])
 def stock_screener_endpoint():
-    data = request.get_json()
+    data = request.get_json(silent=True)
     if not data or 'filters' not in data:
         return jsonify({"error": "Request must be JSON and contain a 'filters' key"}), 400
 
@@ -938,12 +1028,20 @@ def stock_screener_endpoint():
 
 @app.route('/api/asset-names', methods=['POST'])
 def asset_names_endpoint():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     tickers = data.get('tickers', [])
     if not isinstance(tickers, list):
         return jsonify({'error': 'tickers must be a list'}), 400
 
-    return jsonify({'asset_names': get_asset_names(tickers)})
+    try:
+        normalized_tickers = [
+            normalize_ticker_param(ticker)
+            for ticker in tickers[:100]
+        ]
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    return jsonify({'asset_names': get_asset_names(normalized_tickers)})
 
 @app.route('/api/benchmark-portfolio', methods=['POST'])
 def benchmark_portfolio_endpoint():
@@ -961,7 +1059,7 @@ def benchmark_portfolio_endpoint():
         JSON with portfolio_timeline, sp500_timeline, riskfree_timeline, and summary
     """
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         
         # Validate request data
         if not data:
@@ -1035,15 +1133,13 @@ def benchmark_portfolio_endpoint():
 @app.route('/api/manage-portfolio', methods=['POST'])
 def manage_portfolio_endpoint():
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True)
         if not data:
             return jsonify({'error': 'Request must be JSON'}), 400
             
         current_holdings = data.get('current_holdings', {})
-        cash_injection = float(data.get('cash_injection', 0.0))
         start_date_str = data.get('start_date')
         end_date_str = data.get('end_date')
-        risk_free_rate = float(data.get('risk_free_rate', 0.0))
         
         forecast_method = data.get('forecast_method', 'LIGHTWEIGHT')
         optimization_method = data.get('optimization_method', 'BL')
@@ -1051,16 +1147,61 @@ def manage_portfolio_endpoint():
         
         target_return = data.get('target_return')
         risk_tolerance = data.get('risk_tolerance')
-        forecast_horizon = int(data.get('forecast_horizon', 63))
-        min_history = int(data.get('min_history', 504))
-        bl_tau = float(data.get('bl_tau', 0.05))
-        
         allow_fractional = bool(data.get('allow_fractional', True))
         fractional_overrides = data.get('fractional_overrides', {})
         tickers = data.get('tickers', None)
 
+        if not isinstance(current_holdings, dict):
+            return jsonify({'error': 'current_holdings must be an object'}), 400
+        if not isinstance(fractional_overrides, dict):
+            return jsonify({'error': 'fractional_overrides must be an object'}), 400
+        if tickers is not None and not isinstance(tickers, list):
+            return jsonify({'error': 'tickers must be a list'}), 400
+
         try:
             start_date, end_date = validate_date_range(start_date_str, end_date_str)
+            cash_injection = parse_float_param(
+                data.get('cash_injection', 0.0),
+                'cash_injection',
+                required=False,
+                default=0.0
+            )
+            risk_free_rate = parse_float_param(
+                data.get('risk_free_rate', 0.0),
+                'risk_free_rate',
+                required=False,
+                default=0.0
+            )
+            forecast_horizon = parse_int_param(
+                data.get('forecast_horizon', 63),
+                'forecast_horizon',
+                required=False,
+                default=63
+            )
+            min_history = parse_int_param(
+                data.get('min_history', 504),
+                'min_history',
+                required=False,
+                default=504
+            )
+            bl_tau = parse_float_param(
+                data.get('bl_tau', 0.05),
+                'bl_tau',
+                required=False,
+                default=0.05
+            )
+            if target_return is not None:
+                target_return = parse_float_param(target_return, 'target_return', required=False)
+            if risk_tolerance is not None:
+                risk_tolerance = parse_float_param(risk_tolerance, 'risk_tolerance', required=False)
+            if cash_injection < 0:
+                raise ValueError('cash_injection must be non-negative')
+            if forecast_horizon < 1 or forecast_horizon > 365:
+                raise ValueError('forecast_horizon must be between 1 and 365')
+            if min_history < 30:
+                raise ValueError('min_history must be at least 30')
+            if bl_tau <= 0:
+                raise ValueError('bl_tau must be positive')
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
 

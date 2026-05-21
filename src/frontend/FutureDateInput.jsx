@@ -1,38 +1,30 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 const FutureDateInput = ({ onFutureDaysChange, initialDays = 30 }) => {
   const [days, setDays] = useState(initialDays)
   const { t } = useTranslation()
+  const updateTimeoutRef = useRef(null)
 
-  // Debounced update function to prevent excessive API calls
-  const debouncedUpdate = useCallback(
-    (() => {
-      let timeoutId
-      return (newDays, source = "unknown") => {
-        console.log(`🔮 FutureDateInput debounced update from: ${source}`, { newDays })
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => {
-          if (newDays && onFutureDaysChange) {
-            console.log("🔮 FutureDateInput calling parent onFutureDaysChange:", { newDays: Number.parseInt(newDays) })
-            onFutureDaysChange(Number.parseInt(newDays))
-          }
-        }, 500) // 500ms delay
+  useEffect(() => () => clearTimeout(updateTimeoutRef.current), [])
+
+  const scheduleFutureDaysChange = (newDays) => {
+    clearTimeout(updateTimeoutRef.current)
+    updateTimeoutRef.current = setTimeout(() => {
+      if (newDays && onFutureDaysChange) {
+        onFutureDaysChange(Number.parseInt(newDays, 10))
       }
-    })(),
-    [onFutureDaysChange],
-  )
+    }, 500)
+  }
 
   const handleChange = (e) => {
     const newDays = e.target.value
-    console.log("🔮 FutureDateInput: User changed days:", { newDays })
     setDays(newDays)
 
-    // Auto-update when value changes
-    if (newDays && Number.parseInt(newDays) > 0) {
-      debouncedUpdate(newDays, "user-input")
+    if (newDays && Number.parseInt(newDays, 10) > 0) {
+      scheduleFutureDaysChange(newDays)
     }
   }
 

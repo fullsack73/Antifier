@@ -4,6 +4,7 @@ import axios from "axios"
 import DateInput from "./DateInput.jsx"
 import BenchmarkChart from "./BenchmarkChart.jsx"
 import BenchmarkResultsTable from "./BenchmarkResultsTable.jsx"
+import { apiUrl } from "./apiClient.js"
 
 const PortfolioBenchmark = () => {
   const { t } = useTranslation()
@@ -85,7 +86,7 @@ const PortfolioBenchmark = () => {
     setError(null)
 
     try {
-      const response = await axios.post("http://localhost:5000/api/benchmark-portfolio", {
+      const response = await axios.post(apiUrl("/api/benchmark-portfolio"), {
         portfolio_data: portfolio,
         budget: parseFloat(budget),
         start_date: startDate,
@@ -146,7 +147,7 @@ const PortfolioBenchmark = () => {
 
         {/* Date Range */}
         <div className="optimizer-form-group">
-          <DateInput onDateRangeChange={handleDateRangeChange} />
+          <DateInput onDateRangeChange={handleDateRangeChange} inputIdPrefix="benchmark-date" />
         </div>
 
         {/* Risk-Free Rate */}

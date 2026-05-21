@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import './App.css';
 
@@ -17,7 +16,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
             <div className={`sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
                     <h2>Antifier</h2>
-                    <button className="close-button" onClick={onToggle}>×</button>
+                    <button className="close-button" type="button" onClick={onToggle}>×</button>
                 </div>
                 <nav className="sidebar-nav">
                     <button

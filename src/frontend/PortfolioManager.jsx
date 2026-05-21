@@ -11,6 +11,7 @@ import {
   downloadBlob,
 } from "./portfolioManagerExports"
 import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
+import { apiUrl } from "./apiClient.js"
 
 const PORTFOLIO_MANAGER_STORAGE_KEY = "portfolio-manager-saved-input-v1"
 const DEFAULT_HOLDINGS = [{ ticker: "", quantity: "" }]
@@ -412,7 +413,7 @@ const PortfolioManager = () => {
       }
 
       const response = await axios.post(
-        "http://127.0.0.1:5000/api/manage-portfolio",
+        apiUrl("/api/manage-portfolio"),
         payload
       )
       setResults(response.data)

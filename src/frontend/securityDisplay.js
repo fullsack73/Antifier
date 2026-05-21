@@ -1,3 +1,5 @@
+import { apiUrl } from "./apiClient.js"
+
 export const getSecurityDisplayName = (ticker, results) => {
   const normalizedTicker = String(ticker || "").toUpperCase()
   const assetNames = results?.asset_names || results?.ticker_names || results?.company_names || {}
@@ -18,7 +20,7 @@ export const fetchSecurityNames = async (tickers) => {
   if (uniqueTickers.length === 0) return {}
 
   try {
-    const response = await fetch("http://127.0.0.1:5000/api/asset-names", {
+    const response = await fetch(apiUrl("/api/asset-names"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tickers: uniqueTickers }),
@@ -36,7 +38,7 @@ export const fetchSecurityNames = async (tickers) => {
   const namePairs = await Promise.all(
     uniqueTickers.map(async (ticker) => {
       try {
-        const response = await fetch(`http://127.0.0.1:5000/get-data?ticker=${encodeURIComponent(ticker)}`)
+        const response = await fetch(apiUrl("/api/get-data", { ticker }))
         if (!response.ok) return [ticker, ticker]
 
         const data = await response.json()

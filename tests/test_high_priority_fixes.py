@@ -170,6 +170,26 @@ def test_regression_endpoint_returns_error_status_for_empty_market_data():
     assert "error" in response.get_json()
 
 
+def test_api_prefixed_regression_endpoint_matches_public_contract():
+    stock = MagicMock()
+    stock.history.return_value = pd.DataFrame()
+
+    app_module.app.config["TESTING"] = True
+    with patch("app.yf.Ticker", return_value=stock):
+        response = app_module.app.test_client().get("/api/get-data?regression=true&ticker=BAD")
+
+    assert response.status_code == 502
+    assert "error" in response.get_json()
+
+
+def test_stock_data_endpoint_rejects_unsafe_ticker_input():
+    app_module.app.config["TESTING"] = True
+    response = app_module.app.test_client().get("/api/get-data?ticker=../AAPL")
+
+    assert response.status_code == 400
+    assert "invalid characters" in response.get_json()["error"]
+
+
 def test_progress_events_do_not_crash_after_queue_cleanup():
     with app_module.REQUEST_QUEUES_LOCK:
         app_module.REQUEST_QUEUES.pop("already-closed", None)

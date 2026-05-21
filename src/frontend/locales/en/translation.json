@@ -11,9 +11,6 @@
     "start": "Start Date",
     "end": "End Date"
   },
-  "model": {
-    "select": "Select AI Model"
-  },
   "regression": {
     "title": "Stock Data Visualization",
     "updateChart": "Update Chart",
@@ -52,7 +49,7 @@
     "placeholder": "e.g., AAPL, MSFT, GOOGL",
     "submit": "Show Stock Data"
   },
-  "model": { 
+  "model": {
     "select": "Select AI Model"
   },
   "future": {
@@ -62,6 +59,12 @@
   "financial": {
     "title": "Financial Statement Analysis",
     "fetch_data": "Fetch Data",
+    "summary": "Summary",
+    "income": "Income",
+    "balance": "Balance",
+    "cash": "Cash Flow",
+    "annual": "Annual",
+    "quarterly": "Quarterly",
     "per": "Price to Earnings (P/E)",
     "per_tooltip": "Measures the company's current share price relative to its per-share earnings. A high P/E could mean the stock is overvalued, or that investors are expecting high growth rates.",
     "pbr": "Price to Book (P/B)",

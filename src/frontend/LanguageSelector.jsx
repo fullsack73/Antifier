@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import './App.css';
 
@@ -10,8 +9,6 @@ const LanguageSelector = ({ isOpen }) => {
         const newLanguage = currentLanguage === 'en' ? 'ko' : 'en';
         i18n.changeLanguage(newLanguage);
     };
-
-    const currentFlag = currentLanguage === 'en' ? '🇺🇸' : '🇰🇷';
 
     return (
         <button

@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { apiUrl } from './apiClient.js';
 import './App.css';
 
 // Define available metrics
@@ -143,7 +144,7 @@ const StockScreener = () => {
         }
 
         try {
-            const response = await fetch('http://127.0.0.1:5000/api/stock-screener', {
+            const response = await fetch(apiUrl('/api/stock-screener'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -160,7 +161,9 @@ const StockScreener = () => {
             setResults(data);
         } catch (err) {
             setError(err.message || 'Failed to fetch screener results.');
-            console.error(err);
+            if (import.meta.env.DEV) {
+                console.error(err);
+            }
         } finally {
             setLoading(false);
         }
@@ -288,7 +291,7 @@ const StockScreener = () => {
                         </div>
                         <div className="optimizer-modal-body">
                             <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
-                                Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like "Symbol" or "Ticker" are automatically ignored.
+                                Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like &quot;Symbol&quot; or &quot;Ticker&quot; are automatically ignored.
                             </p>
                             <button
                                 type="button"

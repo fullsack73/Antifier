@@ -1,9 +1,10 @@
 "use client"
 
-import { useMemo, useRef, useState, useEffect } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
 import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
+import { apiUrl } from "./apiClient.js"
 
 const Optimizer = () => {
   const { t } = useTranslation()
@@ -94,7 +95,10 @@ const Optimizer = () => {
   }
 
   // Determine per-ticker fractional eligibility
-  const isTickerFractional = (ticker) => fractionalOverrides[ticker] ?? allowFractional
+  const isTickerFractional = useCallback(
+    (ticker) => fractionalOverrides[ticker] ?? allowFractional,
+    [allowFractional, fractionalOverrides],
+  )
 
   const handleToggleFractional = (ticker) => {
     setFractionalOverrides(prev => ({ ...prev, [ticker]: !isTickerFractional(ticker) }))
@@ -106,7 +110,7 @@ const Optimizer = () => {
     setFractionalOverrides({})
   }
 
-  const handleAllocation = () => {
+  const handleAllocation = useCallback(() => {
     if (!investmentAmount || !optimizedPortfolio || !optimizedPortfolio.weights) return
 
     const totalInvestment = Number.parseFloat(investmentAmount)
@@ -165,14 +169,15 @@ const Optimizer = () => {
     }
 
     setAllocation({ items: entries, remainingCash: Math.max(0, remaining) })
-  }
+  }, [investmentAmount, isTickerFractional, optimizedPortfolio])
 
   // Auto-calculate allocation when fractional settings change
+  const hasAllocation = allocation !== null
   useEffect(() => {
-    if (allocation) {
+    if (hasAllocation) {
       handleAllocation()
     }
-  }, [allowFractional, fractionalOverrides, investmentAmount, optimizedPortfolio])
+  }, [handleAllocation, hasAllocation])
 
   const handleDownloadPortfolio = () => {
     if (!optimizedPortfolio) return
@@ -294,7 +299,7 @@ const Optimizer = () => {
       }
 
       // Start SSE connection
-      const eventSource = new EventSource(`http://127.0.0.1:5000/api/progress-stream/${requestId}`)
+      const eventSource = new EventSource(apiUrl(`/api/progress-stream/${encodeURIComponent(requestId)}`))
 
       eventSource.onmessage = () => {
         // Ping/Keep-alive, ignore
@@ -330,10 +335,12 @@ const Optimizer = () => {
       })
 
       // Initiate optimization
-      await axios.post("http://127.0.0.1:5000/api/optimize-portfolio", payload)
+      await axios.post(apiUrl("/api/optimize-portfolio"), payload)
 
     } catch (err) {
-      console.error(err)
+      if (import.meta.env.DEV) {
+        console.error(err)
+      }
       if (err.response && err.response.data) {
         setError(err.response.data.error || "An error occurred starting optimization")
         setErrorDetails(err.response.data.details || null)

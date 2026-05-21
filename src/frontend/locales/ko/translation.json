@@ -11,9 +11,6 @@
     "start": "시작 날짜",
     "end": "종료 날짜"
   },
-  "model": {
-    "select": "AI 모델 선택"
-  },
   "regression": {
     "title": "주가 데이터 시각화",
     "updateChart": "차트 업데이트",
@@ -52,8 +49,8 @@
     "placeholder": "예: AAPL, MSFT, GOOGL",
     "submit": "주식 데이터 표시"
   },
-  "model": { 
-    "select": "AI 모델 선택" 
+  "model": {
+    "select": "AI 모델 선택"
   },
   "future": {
     "days_to_predict": "예측일",
@@ -62,6 +59,12 @@
   "financial": {
     "title": "재무제표 분석",
     "fetch_data": "재무 데이터 가져오기",
+    "summary": "요약",
+    "income": "손익계산서",
+    "balance": "재무상태표",
+    "cash": "현금흐름표",
+    "annual": "연간",
+    "quarterly": "분기",
     "per": "주가수익비율 (P/E)",
     "per_tooltip": "회사의 현재 주가를 주당 순이익과 비교합니다. P/E가 높으면 주식이 과대평가되었거나 투자자들이 높은 성장률을 기대하고 있음을 의미할 수 있습니다.",
     "pbr": "주가순자산비율 (P/B)",

@@ -17,11 +17,12 @@ import FinancialStatement from "./FinancialStatement.jsx"
 import Optimizer from "./Optimizer.jsx"
 import PortfolioBenchmark from "./PortfolioBenchmark.jsx"
 import PortfolioManager from "./PortfolioManager.jsx"
+import { apiUrl } from "./apiClient.js"
 import "./App.css"
 
 function AppContent() {
   const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [ticker, setTicker] = useState("AAPL")
   const [modelType, setModelType] = useState("LSTM")
@@ -56,10 +57,14 @@ function AppContent() {
     setLoading(true)
     setError(null)
 
-    let url = `/api/get-data?ticker=${ticker}&regression=true&future_days=${futureDays}&model=${modelType}`
-    if (appStartDate && appEndDate) {
-      url += `&start_date=${appStartDate}&end_date=${appEndDate}`
-    }
+    const url = apiUrl("/api/get-data", {
+      ticker,
+      regression: true,
+      future_days: futureDays,
+      model: modelType,
+      start_date: appStartDate,
+      end_date: appEndDate,
+    })
 
     fetch(url, {
       method: "GET",
@@ -90,7 +95,6 @@ function AppContent() {
       })
       .catch((error) => {
         if (error.name === "AbortError") {
-          console.log("🚫 API call was cancelled")
           return
         }
         setError(error.message)
@@ -168,7 +172,7 @@ function AppContent() {
                 <TickerInput onTickerChange={handleTickerChange} initialTicker="AAPL" />
                 <ModelSelector onModelChange={setModelType} initialModel={modelType} />
               </div>
-              <DateInput onDateRangeChange={handleDateRangeChange} />
+              <DateInput onDateRangeChange={handleDateRangeChange} notifyInitial={false} inputIdPrefix="stock-date" />
               <FutureDateInput onFutureDaysChange={handleFutureDaysChange} initialDays={futureDays} />
             </div>
 
