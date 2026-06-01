@@ -1,32 +1,23 @@
 """
 Cache System Initialization for Portfolio Optimization
-Integrates the multi-level caching system with the Flask application
+Integrates the multi-level cache manager with the Flask application
 """
 
 import logging
 import time
 from cache_manager import get_cache
-from cache_warmer import start_cache_warming, get_cache_warming_status
 
 logger = logging.getLogger(__name__)
 
 def initialize_cache_system():
-    """Initialize the complete caching system for portfolio optimization"""
+    """Initialize the cache manager for portfolio optimization."""
     start_time = time.time()
     logger.info("Initializing portfolio optimization cache system...")
     
     try:
-        # Initialize the cache manager
-        cache = get_cache()
+        get_cache()
         logger.info("Cache manager initialized successfully")
-        
-        # Start cache warming system (runs in background)
-        start_cache_warming()
-        
-        # Log initial status
-        status = get_cache_warming_status()
         logger.info(f"Cache system initialized in {time.time() - start_time:.2f} seconds")
-        logger.info(f"Cache warming status: {status}")
         
         return True
         
@@ -39,12 +30,10 @@ def get_cache_status():
     try:
         cache = get_cache()
         cache_stats = cache.stats()
-        warming_status = get_cache_warming_status()
         
         return {
             'cache_initialized': True,
             'cache_stats': cache_stats,
-            'warming_status': warming_status,
             'performance_summary': {
                 'l1_hit_ratio': cache_stats['hit_ratios']['l1'],
                 'l2_hit_ratio': cache_stats['hit_ratios']['l2'],
@@ -67,11 +56,6 @@ if __name__ == "__main__":
     
     if success:
         print("✅ Cache system initialized successfully!")
-        
-        # Wait a moment for initial warming
-        time.sleep(5)
-        
-        # Show status
         status = get_cache_status()
         print(f"📊 Cache Status: {status['performance_summary']}")
     else:
