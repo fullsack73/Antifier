@@ -51,6 +51,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: pip
+          cache-dependency-path: requirements-ci.txt
 
       - name: Install Python test dependencies
         run: |
