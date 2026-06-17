@@ -155,7 +155,7 @@ jobs:
     name: Create GitHub Release
     needs: [build, test]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     permissions:
       contents: write
 
@@ -168,9 +168,31 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R ./installers
 
+      - name: Resolve release metadata
+        id: release_metadata
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            tag_name="$GITHUB_REF_NAME"
+            release_name="Antifier $GITHUB_REF_NAME"
+          else
+            branch_name="${GITHUB_REF_NAME//\//-}"
+            short_sha="${GITHUB_SHA::7}"
+            tag_name="${branch_name}-build.${GITHUB_RUN_NUMBER}"
+            release_name="Antifier ${branch_name} build ${GITHUB_RUN_NUMBER} (${short_sha})"
+          fi
+
+          {
+            echo "tag_name=${tag_name}"
+            echo "release_name=${release_name}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release_metadata.outputs.tag_name }}
+          name: ${{ steps.release_metadata.outputs.release_name }}
+          target_commitish: ${{ github.sha }}
           files: |
             installers/antifier-installer-linux/antifier-installer-linux
             installers/antifier-installer-windows.exe/antifier-installer-windows.exe
