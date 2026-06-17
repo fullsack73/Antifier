@@ -10,8 +10,59 @@ on:
   workflow_dispatch:
 
 jobs:
+  frontend-ci:
+    name: Frontend CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Test frontend
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+  backend-ci:
+    name: Backend CI
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src/backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+
+      - name: Test backend
+        run: python -m pytest tests
+
   build:
     name: Build on ${{ matrix.os }}
+    needs: [frontend-ci, backend-ci]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
