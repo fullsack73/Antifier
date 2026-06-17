@@ -45,8 +45,8 @@ The name 'Antifier' comes from Korean slang 'Ant', which is used for referring s
 - Future price predictions with configurable forecast periods
 
 ### 💼 Portfolio Management
-- Portfolio optimization using Modern Portfolio Theory with ML-based return forecasting
-- Automated model selection (ARIMA, LSTM, XGBoost) for expected returns prediction
+- Portfolio optimization using Modern Portfolio Theory or Black-Litterman with forecasted annual simple returns
+- Configurable return forecast strategies: historical CAGR, lightweight ensemble, ARIMA + Transformer, and standalone Transformer
 - Efficient frontier calculation with optimal weight allocation
 - Risk-return analysis with customizable parameters and constraints
 
@@ -179,7 +179,7 @@ Open your browser to `http://localhost:5173`
 
 **Backend:**
 - Flask 3.1+ (Python web framework)
-- Machine Learning: LightGBM (regression), ARIMA, LSTM, XGBoost (forecasting)
+- Machine Learning: LightGBM/LSTM price regression, ARIMA + Transformer return forecasting, and lightweight fallback forecasting
 - PyPortfolioOpt for Modern Portfolio Theory optimization
 - Pandas for data manipulation
 - NumPy/SciPy for numerical computation
@@ -272,7 +272,7 @@ https://creativecommons.org/licenses/by-nc/4.0/
 ## 🙏 Acknowledgments
 
 - **Data Sources**: Financial data provided by [Yahoo Finance](https://finance.yahoo.com/)
-- **Machine Learning**: Powered by [LightGBM](https://github.com/microsoft/LightGBM), [XGBoost](https://xgboost.readthedocs.io/), ARIMA, and LSTM
+- **Machine Learning**: Powered by [LightGBM](https://github.com/microsoft/LightGBM), ARIMA, Transformer models, and lightweight statistical forecasts
 - **Optimization**: [PyPortfolioOpt](https://pypi.org/project/pyportfolioopt/) for Modern Portfolio Theory
 - **Visualization**: Charts rendered with [Plotly.js](https://plotly.com/javascript/)
 

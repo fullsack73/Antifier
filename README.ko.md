@@ -45,8 +45,8 @@
 - 예측 기간 설정이 가능한 미래 주가 예측
 
 ### 💼 포트폴리오 관리
-- ML 기반 수익률 예측을 활용한 현대 포트폴리오 이론(MPT) 최적화
-- 기대 수익률 예측을 위한 자동 모델 선택 (ARIMA, LSTM, XGBoost)
+- 연율 단순수익률 예측을 활용한 현대 포트폴리오 이론(MPT) 및 Black-Litterman 최적화
+- 기대 수익률 예측 전략 선택: 과거 CAGR, 경량 앙상블, ARIMA + Transformer, 단독 Transformer
 - 최적 자산 배분 비중을 계산하는 효율적 투자선(Efficient Frontier) 구현
 - 사용자 설정 파라미터 및 제약 조건을 통한 위험-수익 분석
 
@@ -179,7 +179,7 @@ npm run dev
 
 **백엔드 (Backend):**
 - Flask 3.1+ (Python 웹 프레임워크)
-- 머신러닝: LightGBM (회귀), ARIMA, LSTM, XGBoost (예측)
+- 머신러닝: LightGBM/LSTM 주가 회귀, ARIMA + Transformer 수익률 예측, 경량 통계 예측 fallback
 - PyPortfolioOpt (현대 포트폴리오 이론 최적화)
 - Pandas (데이터 조작)
 - NumPy/SciPy (수치 계산)
@@ -272,7 +272,7 @@ https://creativecommons.org/licenses/by-nc/4.0/
 ## 🙏 감사의 말 (Acknowledgments)
 
 - **데이터 소스**: [Yahoo Finance](https://finance.yahoo.com/)에서 금융 데이터 제공
-- **머신러닝**: [LightGBM](https://github.com/microsoft/LightGBM), [XGBoost](https://xgboost.readthedocs.io/), ARIMA, LSTM 활용
+- **머신러닝**: [LightGBM](https://github.com/microsoft/LightGBM), ARIMA, Transformer 모델, 경량 통계 예측 활용
 - **최적화**: 현대 포트폴리오 이론 구현을 위한 [PyPortfolioOpt](https://pypi.org/project/pyportfolioopt/)
 - **시각화**: [Plotly.js](https://plotly.com/javascript/)로 차트 렌더링
 

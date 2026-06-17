@@ -34,6 +34,13 @@ logger = logging.getLogger(__name__)
 RESULTS_DIR = Path("logs/portfolio_results")
 BASE_CURRENCY = "USD"
 PORTFOLIO_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+EXPECTED_RETURN_LOWER_BOUND = -0.99
+EXPECTED_RETURN_UPPER_BOUND = 10.0
+DEFAULT_FORECAST_UNCERTAINTY = 0.20
+CONFIDENCE_REFERENCE_UNCERTAINTY = 0.20
+MIN_FORECAST_CONFIDENCE = 0.05
+MAX_FORECAST_CONFIDENCE = 0.95
+MAX_FORECAST_UNCERTAINTY = 5.0
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
@@ -106,6 +113,138 @@ def _to_serializable(value):
     if isinstance(value, (list, tuple, set)):
         return [_to_serializable(v) for v in value]
     return value
+
+
+def _annual_log_return_to_simple_return(annual_log_return):
+    """Convert an annualized log return into an annualized simple return."""
+    try:
+        annual_log_return = float(annual_log_return)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if not np.isfinite(annual_log_return):
+        return 0.0
+
+    log_lower = np.log1p(EXPECTED_RETURN_LOWER_BOUND)
+    log_upper = np.log1p(EXPECTED_RETURN_UPPER_BOUND)
+    return float(np.expm1(np.clip(annual_log_return, log_lower, log_upper)))
+
+
+def _period_return_to_annual_simple_return(period_return, horizon):
+    """Annualize a forecast horizon return into a simple annual return."""
+    try:
+        period_return = float(period_return)
+    except (TypeError, ValueError):
+        return 0.0
+
+    if not np.isfinite(period_return):
+        return 0.0
+
+    period_return = np.clip(period_return, EXPECTED_RETURN_LOWER_BOUND, None)
+    annual_log_return = np.log1p(period_return) * (252 / max(1, int(horizon)))
+    return _annual_log_return_to_simple_return(annual_log_return)
+
+
+def _annual_log_uncertainty_to_simple_uncertainty(annual_log_return, annual_log_uncertainty):
+    """Approximate annual log-return uncertainty on the annual simple-return scale."""
+    try:
+        annual_log_uncertainty = abs(float(annual_log_uncertainty))
+    except (TypeError, ValueError):
+        return DEFAULT_FORECAST_UNCERTAINTY
+
+    if not np.isfinite(annual_log_uncertainty):
+        return DEFAULT_FORECAST_UNCERTAINTY
+
+    try:
+        annual_log_return = float(annual_log_return)
+    except (TypeError, ValueError):
+        annual_log_return = 0.0
+
+    if not np.isfinite(annual_log_return):
+        annual_log_return = 0.0
+
+    log_lower = np.log1p(EXPECTED_RETURN_LOWER_BOUND)
+    log_upper = np.log1p(EXPECTED_RETURN_UPPER_BOUND)
+    scale = np.exp(np.clip(annual_log_return, log_lower, log_upper))
+    return float(np.clip(scale * annual_log_uncertainty, 1e-4, MAX_FORECAST_UNCERTAINTY))
+
+
+def _annual_log_uncertainty_series_to_simple(mu_log, uncertainties):
+    """Convert forecast uncertainty from annual log-return scale to simple-return scale."""
+    mu_log = pd.Series(mu_log)
+    uncertainties = pd.Series(uncertainties).reindex(mu_log.index).fillna(DEFAULT_FORECAST_UNCERTAINTY)
+    return pd.Series(
+        {
+            ticker: _annual_log_uncertainty_to_simple_uncertainty(mu_log.loc[ticker], uncertainties.loc[ticker])
+            for ticker in mu_log.index
+        }
+    )
+
+
+def _normalize_expected_return_series(mu):
+    """Sanitize optimizer expected returns as annualized simple returns."""
+    return (
+        pd.Series(mu)
+        .replace([np.inf, -np.inf], 0.0)
+        .fillna(0.0)
+        .clip(lower=EXPECTED_RETURN_LOWER_BOUND, upper=EXPECTED_RETURN_UPPER_BOUND)
+    )
+
+
+def _normalize_uncertainty_series(uncertainties, index):
+    """Sanitize annualized simple-return uncertainty inputs."""
+    if uncertainties is None:
+        uncertainties = pd.Series({ticker: DEFAULT_FORECAST_UNCERTAINTY for ticker in index})
+    return (
+        pd.Series(uncertainties)
+        .reindex(index)
+        .replace([np.inf, -np.inf], DEFAULT_FORECAST_UNCERTAINTY)
+        .fillna(DEFAULT_FORECAST_UNCERTAINTY)
+        .abs()
+        .clip(lower=1e-4, upper=MAX_FORECAST_UNCERTAINTY)
+    )
+
+
+def _confidence_from_uncertainty(uncertainties):
+    """Map return uncertainty to a bounded forecast confidence score."""
+    uncertainties = _normalize_uncertainty_series(uncertainties, pd.Series(uncertainties).index)
+    confidence = 1.0 / (1.0 + (uncertainties / CONFIDENCE_REFERENCE_UNCERTAINTY) ** 2)
+    return confidence.clip(lower=MIN_FORECAST_CONFIDENCE, upper=MAX_FORECAST_CONFIDENCE)
+
+
+def _shrink_expected_returns(forecast_mu, prior_mu, confidence):
+    """Blend forecasts toward a prior according to forecast confidence."""
+    forecast_mu = _normalize_expected_return_series(forecast_mu)
+    prior_mu = _normalize_expected_return_series(prior_mu).reindex(forecast_mu.index).fillna(0.0)
+    confidence = pd.Series(confidence).reindex(forecast_mu.index).fillna(MIN_FORECAST_CONFIDENCE)
+    adjusted_mu = prior_mu + confidence * (forecast_mu - prior_mu)
+    return _normalize_expected_return_series(adjusted_mu)
+
+
+def _calculate_historical_cagr(data):
+    """Calculate annualized simple returns from the available price history."""
+    cagr_series = {}
+    for ticker in data.columns:
+        try:
+            prices = data[ticker].dropna()
+            if len(prices) >= 2:
+                start_price = float(prices.iloc[0])
+                end_price = float(prices.iloc[-1])
+                years = len(prices) / 252.0
+                if start_price > 0 and end_price > 0 and years > 0:
+                    cagr_series[ticker] = (end_price / start_price) ** (1 / years) - 1
+                else:
+                    cagr_series[ticker] = EXPECTED_RETURN_LOWER_BOUND
+            else:
+                cagr_series[ticker] = 0.0
+        except Exception:
+            cagr_series[ticker] = 0.0
+    return _normalize_expected_return_series(pd.Series(cagr_series))
+
+
+def _series_to_float_dict(series):
+    """Return a JSON-friendly float dictionary from a pandas Series-like object."""
+    return {str(k): float(v) for k, v in pd.Series(series).items() if np.isfinite(v)}
 
 
 def _dedupe_tickers(tickers):
@@ -614,7 +753,7 @@ def forecast_single_ticker_with_arima_transformer(ticker, ticker_data, horizon=2
         annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
         return {
             'expected_return': float(annual_log_return),
-            'uncertainty': 0.05,
+            'uncertainty': DEFAULT_FORECAST_UNCERTAINTY,
             'components': {},
             'source': 'lightweight_fallback'
         }
@@ -626,7 +765,7 @@ def forecast_single_ticker_with_arima_transformer(ticker, ticker_data, horizon=2
         annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
         return {
             'expected_return': float(annual_log_return),
-            'uncertainty': 0.05,
+            'uncertainty': DEFAULT_FORECAST_UNCERTAINTY,
             'components': {},
             'source': 'lightweight_fallback'
         }
@@ -656,7 +795,7 @@ def forecast_single_ticker_with_transformer(ticker, ticker_data, horizon=252):
         annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
         return {
             'expected_return': float(annual_log_return),
-            'uncertainty': 0.05,
+            'uncertainty': DEFAULT_FORECAST_UNCERTAINTY,
             'components': {},
             'source': 'lightweight_fallback'
         }
@@ -668,7 +807,7 @@ def forecast_single_ticker_with_transformer(ticker, ticker_data, horizon=252):
         annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
         return {
             'expected_return': float(annual_log_return),
-            'uncertainty': 0.05,
+            'uncertainty': DEFAULT_FORECAST_UNCERTAINTY,
             'components': {},
             'source': 'lightweight_fallback'
         }
@@ -694,7 +833,7 @@ def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
             logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ARIMA + Transformer)")
             period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
             annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-            return ticker, {'expected_return': annual_log_return, 'uncertainty': 0.05}
+            return ticker, {'expected_return': annual_log_return, 'uncertainty': DEFAULT_FORECAST_UNCERTAINTY}
         
         prediction = _generate_arima_transformer_prediction(ticker, ticker_data, horizon=horizon)
         
@@ -703,7 +842,7 @@ def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
             logger.warning(f"ARIMA + Transformer training failed for {ticker}, using lightweight forecast")
             period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
             annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-            return ticker, {'expected_return': annual_log_return, 'uncertainty': 0.05}
+            return ticker, {'expected_return': annual_log_return, 'uncertainty': DEFAULT_FORECAST_UNCERTAINTY}
         
         return ticker, prediction
         
@@ -722,7 +861,7 @@ def _transformer_forecast_single_ticker(ticker, ticker_data, horizon=252):
             logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for Transformer)")
             forecast_value = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
             annual_log_return = np.log1p(np.clip(forecast_value, -0.95, None)) * (252 / horizon)
-            return ticker, {'expected_return': annual_log_return, 'uncertainty': 0.05}
+            return ticker, {'expected_return': annual_log_return, 'uncertainty': DEFAULT_FORECAST_UNCERTAINTY}
 
         prediction = _generate_transformer_prediction(ticker, ticker_data, horizon=horizon)
 
@@ -730,7 +869,7 @@ def _transformer_forecast_single_ticker(ticker, ticker_data, horizon=252):
             logger.warning(f"Transformer training failed for {ticker}, using lightweight forecast")
             forecast_value = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
             annual_log_return = np.log1p(np.clip(forecast_value, -0.95, None)) * (252 / horizon)
-            return ticker, {'expected_return': annual_log_return, 'uncertainty': 0.05}
+            return ticker, {'expected_return': annual_log_return, 'uncertainty': DEFAULT_FORECAST_UNCERTAINTY}
 
         return ticker, prediction
 
@@ -796,14 +935,14 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
                         # Handle old return type (float) vs new (dict) for safety during transition
                         if isinstance(prediction_result, dict):
                             forecasts[result_ticker] = prediction_result.get('expected_return', 0.05)
-                            uncertainties[result_ticker] = prediction_result.get('uncertainty', 0.05)
+                            uncertainties[result_ticker] = prediction_result.get('uncertainty', DEFAULT_FORECAST_UNCERTAINTY)
                         else:
                             forecasts[result_ticker] = float(prediction_result)
-                            uncertainties[result_ticker] = 0.05
+                            uncertainties[result_ticker] = DEFAULT_FORECAST_UNCERTAINTY
                     except Exception as exc:
                         logger.error(f"ML forecasting exception for {ticker}: {exc}")
                         forecasts[ticker] = 0.08
-                        uncertainties[ticker] = 0.05
+                        uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
             
             # 배치 완료 후 메모리 정리
             gc.collect()
@@ -855,13 +994,13 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
                 if len(valid_prices) >= 10:
                     period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
                     forecasts[ticker] = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-                    uncertainties[ticker] = 0.05
+                    uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
                 else:
                     forecasts[ticker] = 0.05
-                    uncertainties[ticker] = 0.05
+                    uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
             except Exception:
                 forecasts[ticker] = 0.05
-                uncertainties[ticker] = 0.05
+                uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
@@ -910,11 +1049,11 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
                     try:
                         result_ticker, prediction_result = future.result()
                         forecasts[result_ticker] = prediction_result.get('expected_return', 0.05)
-                        uncertainties[result_ticker] = prediction_result.get('uncertainty', 0.05)
+                        uncertainties[result_ticker] = prediction_result.get('uncertainty', DEFAULT_FORECAST_UNCERTAINTY)
                     except Exception as exc:
                         logger.error(f"Transformer forecasting exception for {ticker}: {exc}")
                         forecasts[ticker] = 0.08
-                        uncertainties[ticker] = 0.05
+                        uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
 
             gc.collect()
 
@@ -940,10 +1079,10 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
                     forecasts[ticker] = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
                 else:
                     forecasts[ticker] = 0.05
-                uncertainties[ticker] = 0.05
+                uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
             except Exception:
                 forecasts[ticker] = 0.05
-                uncertainties[ticker] = 0.05
+                uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
@@ -1023,7 +1162,7 @@ def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_met
         tickers_str = ",".join(sorted(tickers))
     else:
         tickers_str = "None"
-    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_v1"
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v2"
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
@@ -1155,29 +1294,13 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
     
     if forecast_method in ["HISTORICAL", "MPT", "CLASSIC_MPT"]:
         logger.info("Using Historical CAGR for Forecasting")
-        cagr_series = {}
-        for ticker in final_tickers:
-            try:
-                prices = data[ticker].dropna()
-                if len(prices) >= 2:
-                    start_price = prices.iloc[0]
-                    end_price = prices.iloc[-1]
-                    years = len(prices) / 252.0
-                    cagr = (end_price / start_price) ** (1 / years) - 1 if (start_price>0 and end_price>0 and years>0) else -0.99
-                    cagr_series[ticker] = cagr
-                else:
-                    cagr_series[ticker] = 0.0
-            except Exception:
-                cagr_series[ticker] = 0.0
-        mu_forecast = pd.Series(cagr_series).fillna(0)
-        # Fix for NoneType error: Ensure uncertainties is initialized for HISTORICAL mode
-        uncertainties = pd.Series({t: 0.0 for t in final_tickers})
+        mu_forecast = _calculate_historical_cagr(data[final_tickers])
+        uncertainties = pd.Series({t: DEFAULT_FORECAST_UNCERTAINTY for t in final_tickers})
     
     elif forecast_method in ["LIGHTWEIGHT", "Lightweight"]:
         logger.info(f"Using Lightweight Ensemble Forecast (Horizon={forecast_horizon})")
         forecasts = {}
         uncertainties_dict = {}
-        annualization_factor = 252 / max(1, int(forecast_horizon))
         for i, ticker in enumerate(final_tickers):
             if i % 10 == 0:
                 ml_callback(i, len(final_tickers), f"Lightweight forecasting {i}/{len(final_tickers)}")
@@ -1186,51 +1309,54 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
                 valid_prices = prices[~np.isnan(prices)]
                 if len(valid_prices) > 0:
                     period_return = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon)
-                    val = np.log1p(np.clip(period_return, -0.95, None)) * annualization_factor
+                    val = _period_return_to_annual_simple_return(period_return, forecast_horizon)
                 else:
                     val = 0.05
                 forecasts[ticker] = val
-                uncertainties_dict[ticker] = 0.05
+                uncertainties_dict[ticker] = DEFAULT_FORECAST_UNCERTAINTY
             except Exception:
                 forecasts[ticker] = 0.05
-                uncertainties_dict[ticker] = 0.05
+                uncertainties_dict[ticker] = DEFAULT_FORECAST_UNCERTAINTY
         
         mu_forecast = pd.Series(forecasts).fillna(0.0)
-        uncertainties = pd.Series(uncertainties_dict).fillna(0.05)
+        uncertainties = pd.Series(uncertainties_dict).fillna(DEFAULT_FORECAST_UNCERTAINTY)
         
     elif forecast_method in ["DEEP_LEARNING", "Ensemble", "ARIMA_TRANSFORMER", "ARIMA + Transformer"]:
         logger.info(f"Using ARIMA + Transformer Forecast (Horizon={forecast_horizon})")
-        mu_forecast, uncertainties = ml_forecast_returns(
+        mu_log_forecast, uncertainties = ml_forecast_returns(
             data,
             progress_callback=ml_callback,
             horizon=forecast_horizon
         )
+        mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
+        uncertainties = _annual_log_uncertainty_series_to_simple(mu_log_forecast, uncertainties)
 
     elif forecast_method in ["TRANSFORMER", "Transformer"]:
         logger.info(f"Using Transformer Forecast (Horizon={forecast_horizon})")
-        mu_forecast, uncertainties = transformer_forecast_returns(
+        mu_log_forecast, uncertainties = transformer_forecast_returns(
             data,
             progress_callback=ml_callback,
             horizon=forecast_horizon
         )
+        mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
+        uncertainties = _annual_log_uncertainty_series_to_simple(mu_log_forecast, uncertainties)
     
     else:
         logger.warning(f"Unknown forecast method '{forecast_method}', defaulting to Lightweight")
         forecasts = {}
         uncertainties_dict = {}
-        annualization_factor = 252 / max(1, int(forecast_horizon))
         for ticker in final_tickers:
             prices = data[ticker].dropna().values
             valid_prices = prices[~np.isnan(prices)]
             if len(valid_prices) > 0:
                 period_return = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon)
-                val = np.log1p(np.clip(period_return, -0.95, None)) * annualization_factor
+                val = _period_return_to_annual_simple_return(period_return, forecast_horizon)
             else:
                 val = 0.05
             forecasts[ticker] = val
-            uncertainties_dict[ticker] = 0.05
+            uncertainties_dict[ticker] = DEFAULT_FORECAST_UNCERTAINTY
         mu_forecast = pd.Series(forecasts).fillna(0.0)
-        uncertainties = pd.Series(uncertainties_dict).fillna(0.05)
+        uncertainties = pd.Series(uncertainties_dict).fillna(DEFAULT_FORECAST_UNCERTAINTY)
 
     # DEBUG: Check Forecasts
     if mu_forecast is not None:
@@ -1238,9 +1364,8 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
          if np.isinf(mu_forecast).any() or (mu_forecast.abs() > 1e6).any():
              logger.error("DEBUG: mu_forecast contains INF or huge values!")
              logger.error(f"DEBUG: Bad forecasts: {mu_forecast[np.isinf(mu_forecast) | (mu_forecast.abs() > 1e6)]}")
-         # Sanitize Forecasts
-         mu_forecast = mu_forecast.replace([np.inf, -np.inf], 0.0)
-         mu_forecast = mu_forecast.clip(lower=-1.0, upper=10.0) # Clip unreasonable returns
+         # Sanitize annualized simple returns before optimization.
+         mu_forecast = _normalize_expected_return_series(mu_forecast)
 
     aligned_data = data[mu_forecast.index]
 
@@ -1279,13 +1404,14 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
     
     aligned_data = aligned_data[common_tickers]
     mu_forecast = mu_forecast[common_tickers]
-    uncertainties = uncertainties[common_tickers]
+    uncertainties = _normalize_uncertainty_series(uncertainties, common_tickers)
     final_tickers = common_tickers
 
     if aligned_data.empty:
         logger.error("All tickers were dropped due to data quality issues.")
         raise ValueError("No valid data remaining after sanitization.")
 
+    prior_mu = _calculate_historical_cagr(aligned_data)
     S_hist = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
     
     latest_prices = {}
@@ -1299,6 +1425,7 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
             
     return {
         "mu": mu_forecast,
+        "prior_mu": prior_mu,
         "S": S_hist,
         "tickers": final_tickers,
         "uncertainties": uncertainties,
@@ -1387,9 +1514,15 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     if "error" in pipeline_result:
         return pipeline_result
 
-    mu = pipeline_result["mu"]
+    raw_mu = _normalize_expected_return_series(pipeline_result["mu"])
+    prior_mu = _normalize_expected_return_series(
+        pipeline_result.get("prior_mu", pd.Series({t: risk_free_rate for t in raw_mu.index}))
+    ).reindex(raw_mu.index).fillna(risk_free_rate)
     S = pipeline_result["S"]
-    uncertainties = pipeline_result["uncertainties"]
+    uncertainties = _normalize_uncertainty_series(pipeline_result.get("uncertainties"), raw_mu.index)
+    confidence = _confidence_from_uncertainty(uncertainties)
+    adjusted_mu = _shrink_expected_returns(raw_mu, prior_mu, confidence)
+    mu = adjusted_mu.copy()
     final_tickers = pipeline_result["tickers"]
     latest_prices = pipeline_result.get("latest_prices", {})
     price_currency = pipeline_result.get("price_currency", BASE_CURRENCY)
@@ -1399,15 +1532,8 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     if optimization_method in ["BL", "Black-Litterman"]:
         logger.info("Applying Black-Litterman Optimization")
         try:
-            # If uncertainties missing, set default
-            if uncertainties is None:
-                uncertainties = pd.Series({t: 0.05 for t in mu.index})
-            
-            # Ensure uncertainties are positive to prevent divide-by-zero
-            uncertainties = uncertainties.clip(lower=1e-4)
-            
             # Market Caps
-            mcaps = get_market_caps(list(mu.index))
+            mcaps = get_market_caps(list(raw_mu.index))
             
             # Delta from Market
             delta = get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate)
@@ -1415,11 +1541,28 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             if mcaps:
                 logger.info("Applying Black-Litterman with Market Prior")
                 market_prior = black_litterman.market_implied_prior_returns(mcaps, delta, S, risk_free_rate=risk_free_rate)
+                prior_mu = (
+                    _normalize_expected_return_series(market_prior)
+                    .reindex(raw_mu.index)
+                    .fillna(prior_mu)
+                )
+                adjusted_mu = _shrink_expected_returns(raw_mu, prior_mu, confidence)
                 
-                curr_uncertainties = uncertainties.reindex(mu.index).fillna(0.05)
-                omega = np.diag(curr_uncertainties ** 2)
+                effective_uncertainties = (
+                    uncertainties.reindex(raw_mu.index).fillna(DEFAULT_FORECAST_UNCERTAINTY)
+                    / confidence.reindex(raw_mu.index).fillna(MIN_FORECAST_CONFIDENCE)
+                ).clip(lower=1e-4, upper=MAX_FORECAST_UNCERTAINTY)
+                omega = np.diag(effective_uncertainties ** 2)
+                mu = adjusted_mu.copy()
                 
-                bl = BlackLittermanModel(S, pi=market_prior, absolute_views=mu, omega=omega, risk_aversion=delta, tau=bl_tau)
+                bl = BlackLittermanModel(
+                    S,
+                    pi=prior_mu,
+                    absolute_views=adjusted_mu,
+                    omega=omega,
+                    risk_aversion=delta,
+                    tau=bl_tau,
+                )
                 mu = bl.bl_returns()
                 S = bl.bl_cov()
                 logger.info("Black-Litterman optimization successful.")
@@ -1486,7 +1629,13 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "prices": final_prices,
             "asset_names": get_asset_names(final_weights.keys()),
             "price_currency": price_currency,
-            "source_currencies": {t: source_currencies.get(t, BASE_CURRENCY) for t in final_tickers}
+            "source_currencies": {t: source_currencies.get(t, BASE_CURRENCY) for t in final_tickers},
+            "raw_expected_returns": _series_to_float_dict(raw_mu),
+            "prior_expected_returns": _series_to_float_dict(prior_mu),
+            "adjusted_expected_returns": _series_to_float_dict(adjusted_mu),
+            "optimizer_expected_returns": _series_to_float_dict(mu),
+            "return_uncertainty": _series_to_float_dict(uncertainties),
+            "return_confidence": _series_to_float_dict(confidence),
         }
 
         if portfolio_id and persist_result:

@@ -241,41 +241,6 @@ class LSTMModel():
             logger.error(f"LSTM training failed: {e}")
             self.model = None
     
-    def forecast(self):
-        """
-        Forecast expected annual log return.
-        
-        Returns:
-            float: Expected annual log return
-        """
-        if self.model is None:
-            logger.warning("LSTM model not trained, returning default")
-            return 0.08
-        
-        try:
-            # This is a simplified forecast - in production, you'd forecast multiple steps
-            # or iterate predictions. 
-            # For now, we assume the model predicts the next daily log return.
-            # We then scale usage (simplification as iterating involves scaling/unscaling)
-            
-            # Since simpler forecast: assume avg prediction is trend
-            # In real scenario: input last sequence -> predict next -> append -> repeat
-            
-            # Return mean annual log return (placeholder logic to be improved in future if needed)
-            # Just return a reasonable placeholder based on recent training data mean
-            # or actually predict next step and annualize.
-            
-            # Let's assume prediction of 1 step:
-            # We would need the last sequence here, but `forecast` signature doesn't take input.
-            # Assuming state is somehow preserved or we just return a conservative estimate.
-            
-            # For this task, ensure the interface returns LOG return.
-            return 0.08
-            
-        except Exception as e:
-            logger.error(f"LSTM forecast failed: {e}")
-            return 0.08
-
 class XGBoostModel:
     """XGBoost forecasting model."""
     
