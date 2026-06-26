@@ -5,6 +5,7 @@ import DateInput from "./DateInput.jsx"
 import BenchmarkChart from "./BenchmarkChart.jsx"
 import BenchmarkResultsTable from "./BenchmarkResultsTable.jsx"
 import { apiUrl } from "./apiClient.js"
+import { BenchmarkSkeleton } from "./SkeletonScreens.jsx"
 
 const PortfolioBenchmark = () => {
   const { t } = useTranslation()
@@ -183,6 +184,8 @@ const PortfolioBenchmark = () => {
           <p>{error}</p>
         </div>
       )}
+
+      {loading && <BenchmarkSkeleton />}
 
       {/* Results Display */}
       {benchmarkData && !loading && (

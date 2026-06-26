@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import axios from "axios"
 import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
 import { apiUrl } from "./apiClient.js"
+import { OptimizerSkeleton } from "./SkeletonScreens.jsx"
 
 const Optimizer = () => {
   const { t } = useTranslation()
@@ -672,7 +673,9 @@ const Optimizer = () => {
         </div>
       )}
 
-      {optimizedPortfolio && (
+      {loading && <OptimizerSkeleton />}
+
+      {!loading && optimizedPortfolio && (
         <>
           <div className="optimizer-results-container">
             <h3>{t("optimizer.results")}</h3>

@@ -12,6 +12,7 @@ import {
 } from "./portfolioManagerExports"
 import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
 import { apiUrl } from "./apiClient.js"
+import { ManagerSkeleton } from "./SkeletonScreens.jsx"
 
 const PORTFOLIO_MANAGER_STORAGE_KEY = "portfolio-manager-saved-input-v1"
 const DEFAULT_HOLDINGS = [{ ticker: "", quantity: "" }]
@@ -989,8 +990,10 @@ const PortfolioManager = () => {
         </div>
       )}
 
+      {loading && <ManagerSkeleton />}
+
       {/* Results */}
-      {results && (
+      {!loading && results && (
         <div className="manager-results" ref={resultsPrintRef}>
           <h3 className="manager-results-title">
             {t("manager.resultsTitle", "Rebalancing Results")}

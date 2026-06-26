@@ -714,6 +714,16 @@ h2 {
    ============================================================================ */
 
 /* Metric Card */
+.metrics-container {
+  margin-top: var(--spacing-xl);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-lg);
+}
+
 .metric-card {
   background: linear-gradient(135deg, var(--color-bg-card) 0%, var(--color-bg-elevated) 100%);
   padding: var(--spacing-xl);
@@ -2339,6 +2349,140 @@ h2 {
   padding: var(--spacing-2xl);
   color: var(--color-text-muted);
   font-size: 1.1rem;
+}
+
+
+/* ============================================================================
+   15b. SKELETON SCREENS
+   ============================================================================ */
+
+.skeleton-screen {
+  margin-top: var(--spacing-xl);
+}
+
+.skeleton-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skeleton-shimmer,
+.skeleton-line,
+.skeleton-cell {
+  background-color: rgba(37, 43, 69, 0.78);
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 38%,
+    rgba(51, 133, 255, 0.2) 48%,
+    rgba(0, 212, 170, 0.16) 55%,
+    transparent 66%,
+    transparent 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 260% 100%;
+  animation: skeleton-shimmer 1.25s linear infinite;
+}
+
+.skeleton-line,
+.skeleton-cell {
+  display: inline-block;
+  width: var(--skeleton-width, 100%);
+  max-width: 100%;
+  border-radius: 999px;
+}
+
+.skeleton-line {
+  height: 0.9rem;
+}
+
+.skeleton-cell {
+  height: 0.8rem;
+  vertical-align: middle;
+}
+
+.skeleton-title-line {
+  display: block;
+  height: 1.25rem;
+  margin: 0 auto var(--spacing-xl);
+}
+
+.skeleton-value-line {
+  height: 1.9rem;
+  margin-top: var(--spacing-md);
+}
+
+.skeleton-chart-card {
+  min-height: 360px;
+}
+
+.skeleton-chart-body {
+  height: 260px;
+  margin-top: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  opacity: 0.85;
+}
+
+.skeleton-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.skeleton-pie {
+  width: min(230px, 70%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  margin: var(--spacing-xl) auto var(--spacing-md);
+}
+
+.skeleton-metric-card .skeleton-line,
+.skeleton-stat-card .skeleton-line,
+.manager-summary-card .skeleton-line,
+.optimizer-result-card .skeleton-line {
+  display: block;
+}
+
+.skeleton-table-wrapper {
+  overflow-x: auto;
+}
+
+.skeleton-table th,
+.skeleton-table td {
+  pointer-events: none;
+}
+
+.skeleton-list li {
+  min-height: 2.5rem;
+}
+
+.stock-skeleton .skeleton-title-line {
+  margin-left: 0;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -180% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer,
+  .skeleton-line,
+  .skeleton-cell {
+    animation: none;
+    background-position: 0 0;
+  }
 }
 
 

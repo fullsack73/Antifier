@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import StockScreener from './StockScreener';
 import { apiUrl } from './apiClient.js';
+import { FinancialTableSkeleton, MetricCardsSkeleton } from './SkeletonScreens.jsx';
 import './App.css'; // Ensure CSS is imported
 
 const FinancialStatement = () => {
@@ -209,7 +210,11 @@ const FinancialStatement = () => {
             {error && <div className="error-message">{t('common.error')}: {error}</div>}
 
             <div className="financial-content">
-                {view === 'summary' ? renderSummary() : renderTable()}
+                {loading
+                    ? view === 'summary'
+                        ? <MetricCardsSkeleton cards={5} label="Loading financial metrics" />
+                        : <FinancialTableSkeleton rows={8} columns={6} />
+                    : view === 'summary' ? renderSummary() : renderTable()}
 
                 {!loading && !error && !data && !statementData && (
                     <div className="empty-state">

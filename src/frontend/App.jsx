@@ -18,11 +18,12 @@ import Optimizer from "./Optimizer.jsx"
 import PortfolioBenchmark from "./PortfolioBenchmark.jsx"
 import PortfolioManager from "./PortfolioManager.jsx"
 import { apiUrl } from "./apiClient.js"
+import { StockChartsSkeleton } from "./SkeletonScreens.jsx"
 import "./App.css"
 
 function AppContent() {
   const [data, setData] = useState(null)
-  const [, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [ticker, setTicker] = useState("AAPL")
   const [modelType, setModelType] = useState("LSTM")
@@ -176,13 +177,15 @@ function AppContent() {
               <FutureDateInput onFutureDaysChange={handleFutureDaysChange} initialDays={futureDays} />
             </div>
 
-            {error && (
+            {loading && <StockChartsSkeleton />}
+
+            {!loading && error && (
               <p className="error">
                 {t("common.error")}: {error}
               </p>
             )}
 
-            {showChart && data && (
+            {!loading && showChart && data && (
               <>
                 <h2>
                   {companyName} ({ticker})

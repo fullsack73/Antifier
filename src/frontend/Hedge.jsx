@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiUrl } from './apiClient.js';
+import { ResultCardsSkeleton } from './SkeletonScreens.jsx';
 import './App.css';
 
 const HedgeAnalysis = () => {
@@ -110,7 +111,9 @@ const HedgeAnalysis = () => {
 
             {error && <div className="error-message">{error}</div>}
 
-            {hedgeData && (
+            {loading && <ResultCardsSkeleton cards={4} label="Loading hedge analysis" />}
+
+            {!loading && hedgeData && (
                 <div style={{ marginTop: "2rem" }}>
                     <h2>{t('hedge.results')}</h2>
                     <div className="grid-auto">

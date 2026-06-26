@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiUrl } from './apiClient.js';
+import { ScreenerSkeleton } from './SkeletonScreens.jsx';
 import './App.css';
 
 // Define available metrics
@@ -338,7 +339,9 @@ const StockScreener = () => {
 
             {error && <div className="error-banner">{error}</div>}
 
-            {results.length > 0 && (
+            {loading && <ScreenerSkeleton />}
+
+            {!loading && results.length > 0 && (
                 <div className="results-section fade-in">
                     <div className="results-header">
                         <h3>Results ({results.length})</h3>
