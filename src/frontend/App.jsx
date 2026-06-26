@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { I18nextProvider, useTranslation } from "react-i18next"
 import i18n from "./config/i18n"
 import StockChart from "./StockChart.jsx"
@@ -20,6 +20,8 @@ import PortfolioManager from "./PortfolioManager.jsx"
 import { apiUrl } from "./apiClient.js"
 import { StockChartsSkeleton } from "./SkeletonScreens.jsx"
 import "./App.css"
+
+const STOCK_FETCH_DEBOUNCE_MS = 1800
 
 function AppContent() {
   const [data, setData] = useState(null)
@@ -46,74 +48,101 @@ function AppContent() {
   const abortControllerRef = useRef(null)
 
   // Unified data fetching function
-  const fetchData = () => {
+  const fetchData = useCallback(async ({
+    ticker: requestedTicker,
+    modelType: requestedModelType,
+    appStartDate: requestedStartDate,
+    appEndDate: requestedEndDate,
+    futureDays: requestedFutureDays,
+  }) => {
     // Cancel any previous API call
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
     }
 
     // Create new AbortController for this request
-    abortControllerRef.current = new AbortController()
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     setLoading(true)
     setError(null)
 
     const url = apiUrl("/api/get-data", {
-      ticker,
+      ticker: requestedTicker,
       regression: true,
-      future_days: futureDays,
-      model: modelType,
-      start_date: appStartDate,
-      end_date: appEndDate,
+      future_days: requestedFutureDays,
+      model: requestedModelType,
+      start_date: requestedStartDate,
+      end_date: requestedEndDate,
     })
 
-    fetch(url, {
-      method: "GET",
-      mode: "cors",
-      credentials: "include",
-      signal: abortControllerRef.current.signal,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        return response.json()
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        mode: "cors",
+        credentials: "include",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
       })
-      .then((responseData) => {
-        setData(responseData.prices)
-        setRegressionData(responseData.regression)
-        setFuturePredictions(responseData.future_predictions)
-        setCompanyName(responseData.companyName)
-        setFormula(responseData.formula)
-        setPriceCurrency(responseData.price_currency || "USD")
-        setSourceCurrency(responseData.source_currency || responseData.price_currency || "USD")
-        setLoading(false)
-        setShowChart(true)
-      })
-      .catch((error) => {
-        if (error.name === "AbortError") {
-          return
-        }
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const responseData = await response.json()
+
+      if (abortControllerRef.current !== controller) return
+
+      setData(responseData.prices)
+      setRegressionData(responseData.regression)
+      setFuturePredictions(responseData.future_predictions)
+      setCompanyName(responseData.companyName)
+      setFormula(responseData.formula)
+      setPriceCurrency(responseData.price_currency || "USD")
+      setSourceCurrency(responseData.source_currency || responseData.price_currency || "USD")
+      setShowChart(true)
+    } catch (error) {
+      if (abortControllerRef.current !== controller) return
+
+      if (error.name !== "AbortError") {
         setError(error.message)
+      }
+    } finally {
+      if (abortControllerRef.current === controller) {
         setLoading(false)
-      })
-  }
+        abortControllerRef.current = null
+      }
+    }
+  }, [])
 
   // useEffect for debounced data fetching
   useEffect(() => {
-    const debounceTimeout = setTimeout(() => {
-      if (appStartDate && appEndDate && ticker) {
-        fetchData()
-      }
-    }, 800) // 800ms debounce delay
+    if (activeView !== "stock" || !appStartDate || !appEndDate || !ticker) {
+      return undefined
+    }
 
-    return () => clearTimeout(debounceTimeout)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appStartDate, appEndDate, ticker, futureDays, modelType])
+    const requestSnapshot = {
+      ticker,
+      modelType,
+      appStartDate,
+      appEndDate,
+      futureDays,
+    }
+
+    const debounceTimeout = setTimeout(() => {
+      fetchData(requestSnapshot)
+    }, STOCK_FETCH_DEBOUNCE_MS)
+
+    return () => {
+      clearTimeout(debounceTimeout)
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [activeView, appStartDate, appEndDate, fetchData, futureDays, modelType, ticker])
 
   // Initial date setup
   useEffect(() => {
