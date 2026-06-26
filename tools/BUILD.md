@@ -110,6 +110,7 @@ Test that the executable runs and shows help:
 Expected output:
 ```
 usage: antifier-installer-{platform} [-h] [--install-dir INSTALL_DIR] [--verbose]
+                                      [--install-build-tools]
 
 Antifier Webapp Installer - Automated setup tool
 
@@ -118,6 +119,9 @@ options:
   --install-dir INSTALL_DIR
                         Installation directory (default: current directory)
   --verbose             Enable verbose logging
+  --install-build-tools
+                        Install Visual Studio Build Tools automatically when
+                        the Windows C++ compiler is missing
 ```
 
 ### Verify Self-Contained Execution
@@ -356,6 +360,9 @@ The installer will check for and help you install:
 - Node.js (required)
 - Python 3.8+ (required)
 - Vite (automatically installed if missing)
+
+On Windows, Visual Studio Build Tools installation is non-interactive and opt-in.
+Run `antifier-installer-windows.exe --install-build-tools` to install it automatically when the C++ compiler is missing.
 ```
 
 ## Build Automation (CI/CD)

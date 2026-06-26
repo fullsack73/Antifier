@@ -168,7 +168,7 @@ const FinancialStatement = () => {
                         {loading ? t('common.loading') : t('financial.fetch_data')}
                     </button>
                 </form>
-                <div className="optimizer-actions-row" style={{ justifyContent: 'center', marginTop: '1rem' }}>
+                <div className="financial-segment-row" role="tablist" aria-label={t('financial.title')}>
                     {[
                         { key: 'summary', label: t('financial.summary', 'Summary') },
                         { key: 'income', label: t('financial.income', 'Income') },
@@ -178,15 +178,16 @@ const FinancialStatement = () => {
                         <button
                             key={item.key}
                             type="button"
-                            className={view === item.key ? 'optimizer-submit-button' : 'optimizer-secondary-button'}
+                            className={`financial-segment-button${view === item.key ? ' is-active' : ''}`}
                             onClick={() => setView(item.key)}
+                            aria-pressed={view === item.key}
                         >
                             {item.label}
                         </button>
                     ))}
                 </div>
                 {view !== 'summary' && (
-                    <div className="optimizer-actions-row" style={{ justifyContent: 'center', marginTop: '0.5rem' }}>
+                    <div className="financial-segment-row financial-frequency-row" aria-label={t('financial.frequency', 'Frequency')}>
                         {[
                             { key: 'annual', label: t('financial.annual', 'Annual') },
                             { key: 'quarterly', label: t('financial.quarterly', 'Quarterly') },
@@ -194,8 +195,9 @@ const FinancialStatement = () => {
                             <button
                                 key={item.key}
                                 type="button"
-                                className={frequency === item.key ? 'optimizer-submit-button' : 'optimizer-secondary-button'}
+                                className={`financial-segment-button${frequency === item.key ? ' is-active' : ''}`}
                                 onClick={() => setFrequency(item.key)}
+                                aria-pressed={frequency === item.key}
                             >
                                 {item.label}
                             </button>

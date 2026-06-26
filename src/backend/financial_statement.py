@@ -1,5 +1,19 @@
-import yfinance as yf
+import math
+from numbers import Real
+
 import pandas as pd
+import yfinance as yf
+
+
+def _json_safe_value(value):
+    if isinstance(value, Real) and math.isinf(value):
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return value
 
 def get_financial_ratios(ticker_symbol):
     """
@@ -90,9 +104,6 @@ def get_financial_statements(ticker_symbol, statement_type="income", frequency="
         # Format columns (dates) to string 'YYYY-MM-DD'
         data.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in data.columns]
         
-        # Replace NaN with None (null in JSON)
-        data = data.where(pd.notnull(data), None)
-
         # Prepare structure: columns list and rows dictionary
         result = {
             "dates": list(data.columns),
@@ -102,7 +113,7 @@ def get_financial_statements(ticker_symbol, statement_type="income", frequency="
         for index, row in data.iterrows():
             result["breakdown"].append({
                 "row_label": index,
-                "values": row.tolist()
+                "values": [_json_safe_value(value) for value in row.tolist()]
             })
             
         return result

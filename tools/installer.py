@@ -662,7 +662,6 @@ echo   Frontend: http://localhost:5173
 echo   Backend: http://localhost:5000
 echo.
 echo Close the terminal windows to stop the servers
-pause
 """
         
         self.log(f"Writing Windows launcher script to {script_path}")
@@ -842,9 +841,15 @@ class WebappLauncher:
 class Installer:
     """Main installer orchestration class"""
     
-    def __init__(self, install_dir: Optional[Path] = None, verbose: bool = False):
+    def __init__(
+        self,
+        install_dir: Optional[Path] = None,
+        verbose: bool = False,
+        install_build_tools: bool = False
+    ):
         self.install_dir = install_dir or Path.cwd()
         self.verbose = verbose
+        self.install_build_tools = install_build_tools
         self.platform = PlatformInfo()
         self.validator = SystemValidator(self.install_dir)
         self.config_manager = ConfigManager(self.install_dir / 'config.json')
@@ -929,13 +934,14 @@ class Installer:
                 print("⚠️  Warning: C++ compiler not found")
                 print("   Some Python packages (like pmdarima) require a C++ compiler to install.")
                 
-                print("\n❓ Do you want to install Visual Studio Build Tools? (y/n): ", end='')
-                if input().strip().lower() in ['y', 'yes']:
+                if self.install_build_tools:
+                    print("   Installing Visual Studio Build Tools because --install-build-tools was provided.")
                     if not self.validator.install_cpp_compiler():
                         print("⚠️  Compiler installation failed. You may need to install it manually.")
                         print("   https://visualstudio.microsoft.com/visual-cpp-build-tools/")
                 else:
                     print("⚠️  Skipping compiler installation. Installation may fail.")
+                    print("   Re-run with --install-build-tools to install it automatically.")
             else:
                 print("  ✅ C++ compiler detected")
             
@@ -1049,11 +1055,8 @@ class Installer:
         print(f"  Python version: {existing_config.get('python_version', 'Unknown')}")
         print(f"  Node.js version: {existing_config.get('nodejs_version', 'Unknown')}")
         
-        # Ask user if they want to update
-        print("\n❓ Do you want to update the installation? (y/n): ", end='')
-        response = input().strip().lower()
-        
-        return response in ['y', 'yes']
+        print("\nℹ️  Updating existing installation automatically.")
+        return True
     
     def run(self) -> bool:
         """Execute complete installation process"""
@@ -1154,13 +1157,19 @@ def main():
         action='store_true',
         help='Enable verbose logging'
     )
+    parser.add_argument(
+        '--install-build-tools',
+        action='store_true',
+        help='Install Visual Studio Build Tools automatically when the Windows C++ compiler is missing'
+    )
     
     args = parser.parse_args()
     
     try:
         installer = Installer(
             install_dir=args.install_dir,
-            verbose=args.verbose
+            verbose=args.verbose,
+            install_build_tools=args.install_build_tools
         )
         
         success = installer.run()
