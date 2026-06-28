@@ -7,16 +7,18 @@ Generates self-contained executable for distribution via GitHub releases
 import sys
 from pathlib import Path
 
+# Get project root directory
+project_root = Path(SPECPATH).parent
+version_file = None
+
 # Determine platform-specific executable name
 if sys.platform == 'darwin':
     exe_name = 'antifier-installer-macos'
 elif sys.platform == 'win32':
     exe_name = 'antifier-installer-windows'
+    version_file = project_root / 'tools' / 'installer-version.txt'
 else:  # Linux and other Unix
     exe_name = 'antifier-installer-linux'
-
-# Get project root directory
-project_root = Path(SPECPATH).parent
 
 # Data files to include in the executable
 # Bundle the entire application (src/, package.json, etc.)
@@ -63,10 +65,11 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
+    version=str(version_file) if version_file else None,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

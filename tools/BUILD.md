@@ -245,23 +245,20 @@ Executable is larger than expected (>50MB).
 - UPX compression disabled or not working
 
 **Solutions:**
-1. **Enable UPX compression** (if disabled):
-   ```python
-   upx=True
-   ```
-
-2. **Exclude unnecessary modules:**
+1. **Exclude unnecessary modules:**
    ```python
    excludes=['tkinter', 'matplotlib', 'PyQt5']
    ```
 
-3. **Use virtual environment** to minimize dependencies:
+2. **Use virtual environment** to minimize dependencies:
    ```bash
    python -m venv build_env
    source build_env/bin/activate  # or build_env\Scripts\activate on Windows
    pip install pyinstaller
    ./tools/build-macos.sh
    ```
+
+Do not enable UPX for release builds. Smaller UPX-compressed executables are more likely to be flagged by antivirus software.
 
 ### Issue: Antivirus flags executable as suspicious
 
@@ -272,10 +269,13 @@ Windows Defender or other antivirus software blocks the executable.
 PyInstaller executables are sometimes flagged as suspicious because they use self-extracting archive techniques. This is a false positive.
 
 **Solutions:**
-1. **Add to antivirus exclusions** during testing
-2. **Code signing** (recommended for production):
+1. **Build without UPX compression**. The default `tools/installer.spec` sets `upx=False` for this reason.
+2. **Keep Windows version metadata**. The build uses `tools/installer-version.txt` to add product details to the executable.
+3. **Code signing** (recommended for production):
    - macOS: `codesign -s "Developer ID" dist/antifier-installer-macos`
    - Windows: Use signtool.exe with a code signing certificate
+4. **Submit the unsigned build to antivirus vendors** as a false positive if it is still blocked.
+5. **Add to antivirus exclusions** during local testing only.
 
 ### Issue: Build fails on macOS with codesign error
 
