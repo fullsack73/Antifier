@@ -31,7 +31,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 - Stock Analysis: ticker, 기간, 모델, forecast horizon을 선택하고 가격/회귀/미래 예측 차트를 확인
 - Hedge Analysis: 두 종목의 상관관계와 회귀 기반 hedge 관계 분석
-- Financial Statement: ticker별 주요 재무 ratio와 재무제표 확인
+- Financial Statement: ticker별 주요 재무 지표, 규칙 기반 투자 신호, 점수화 결과를 대시보드로 확인하고 전체 재무제표는 팝업에서 확인
 - Optimizer: MPT 또는 Black-Litterman 기반 포트폴리오 최적화
 - Benchmark: 포트폴리오 성과를 S&P 500과 risk-free asset 기준으로 비교
 - Portfolio Manager: 현재 보유 종목과 현금 주입을 바탕으로 리밸런싱 주문 계산
@@ -43,7 +43,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 인터랙티브 주가 차트와 기간 선택
 - LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, lightweight ensemble 계열 forecast/회귀 흐름
 - 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
-- 재무제표 및 주요 재무 ratio 조회
+- 재무제표, 주요 재무 지표, 규칙 기반 투자 신호 대시보드 조회
 - predefined ticker universe 기반 screening
 - MPT/Black-Litterman 포트폴리오 최적화
 - forecast method 선택과 expected return 기반 optimization
@@ -74,6 +74,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 - predefined universe는 CSV와 helper 모듈을 통해 관리합니다.
 - filter는 잘못된 숫자, 빈 데이터, 외부 데이터 실패를 방어해야 합니다.
+- Financial Statement의 STRONG BUY/BUY/HOLD 등 신호는 데이터 기반 분석 보조 신호이며 투자 자문이나 자동 매매 지시로 표현하지 않습니다.
+- 업종/섹터 평균 비교는 외부 데이터가 제공되는 범위에서만 사용하고, 제공되지 않으면 절대 기준 점수화임을 UI에 명확히 표시합니다.
 - custom CSV universe 지원은 TODO로 추적 중입니다.
 
 ### 4. Portfolio Management / Benchmark

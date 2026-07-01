@@ -70,7 +70,7 @@
 
 - `GET /api/get-data`: ticker price, regression, future prediction, currency metadata
 - `GET /api/analyze-hedge`: 두 ticker의 hedge/correlation/regression 분석
-- `GET /api/financial-statement`: ratio와 재무제표 조회
+- `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
 - `POST /api/optimize-portfolio`: 포트폴리오 최적화 작업 시작
 - `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE
 - `GET /api/portfolio-results`: 저장된 최적화 결과 목록

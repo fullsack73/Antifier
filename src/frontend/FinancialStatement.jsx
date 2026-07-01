@@ -1,36 +1,40 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import StockScreener from './StockScreener';
 import { apiUrl } from './apiClient.js';
-import { FinancialTableSkeleton, MetricCardsSkeleton } from './SkeletonScreens.jsx';
-import './App.css'; // Ensure CSS is imported
+import { MetricCardsSkeleton } from './SkeletonScreens.jsx';
+import './App.css';
+
+const DECISION_LABEL_KEYS = {
+    'STRONG BUY': 'strong_buy',
+    BUY: 'buy',
+    HOLD: 'hold',
+    REDUCE: 'reduce',
+    SELL: 'sell',
+    'INSUFFICIENT DATA': 'insufficient_data',
+};
+
+const CATEGORY_ORDER = ['valuation', 'profitability', 'growth', 'stability', 'risk'];
+const STATEMENT_TYPES = ['income', 'balance', 'cash'];
+const FREQUENCIES = ['annual', 'quarterly'];
 
 const FinancialStatement = () => {
     const { t } = useTranslation();
     const [ticker, setTicker] = useState('AAPL');
-    const [view, setView] = useState('summary'); // 'summary', 'income', 'balance', 'cash'
-    const [frequency, setFrequency] = useState('annual'); // 'annual', 'quarterly'
-
-    const [data, setData] = useState(null); // For summary/ratios
-    const [statementData, setStatementData] = useState(null); // For tables
+    const [data, setData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-
-    const [hoveredMetric, setHoveredMetric] = useState(null);
-    const hasFetchedRef = useRef(false);
+    const [showStatements, setShowStatements] = useState(false);
+    const [statementType, setStatementType] = useState('income');
+    const [frequency, setFrequency] = useState('annual');
 
     const fetchFinancialData = useCallback(async () => {
-        if (!ticker) return;
-        hasFetchedRef.current = true;
+        if (!ticker.trim()) return;
         setLoading(true);
         setError(null);
 
         try {
-            const response = await fetch(apiUrl('/api/financial-statement', {
-                ticker,
-                type: view !== 'summary' ? view : undefined,
-                frequency: view !== 'summary' ? frequency : undefined,
-            }));
+            const response = await fetch(apiUrl('/api/financial-statement', { ticker }));
             const result = await response.json();
 
             if (!response.ok) {
@@ -41,33 +45,27 @@ const FinancialStatement = () => {
                 throw new Error(result.error);
             }
 
-            if (view === 'summary') {
-                setData(result);
-                setStatementData(null);
-            } else {
-                setStatementData(result);
-            }
-
+            setData(result);
         } catch (err) {
             if (import.meta.env.DEV) {
-                console.error("Fetch error:", err);
+                console.error('Fetch error:', err);
             }
             setError(err.message);
-            if (view !== 'summary') setStatementData(null);
-            else setData(null);
+            setData(null);
         } finally {
             setLoading(false);
         }
-    }, [frequency, ticker, view]);
+    }, [ticker]);
 
-    // Re-fetch when view or frequency changes, if we have a ticker and have already fetched once (optional auto-refresh logic)
-    // For now, let's rely on the "Fetch" button for the initial load, and auto-fetch on view change if we already have data.
-    // Actually, user expects tabs to switch views immediately.
-    useEffect(() => {
-        if (hasFetchedRef.current) {
-            fetchFinancialData();
-        }
-    }, [fetchFinancialData]);
+    const groupedMetrics = useMemo(() => {
+        const groups = {};
+        (data?.metrics || []).forEach((metric) => {
+            const category = metric.category || 'other';
+            if (!groups[category]) groups[category] = [];
+            groups[category].push(metric);
+        });
+        return groups;
+    }, [data]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -79,73 +77,228 @@ const FinancialStatement = () => {
         if (typeof val === 'number') {
             return new Intl.NumberFormat('en-US', {
                 maximumFractionDigits: 0,
-                notation: Math.abs(val) > 1000000 ? 'compact' : 'standard'
+                notation: Math.abs(val) > 1000000 ? 'compact' : 'standard',
             }).format(val);
         }
         return val;
     };
 
-    const renderMetricCard = (title, value, tooltip) => (
-        <div
-            className="metric-card"
-            onMouseEnter={() => setHoveredMetric(title)}
-            onMouseLeave={() => setHoveredMetric(null)}
-        >
-            <h4>{title}</h4>
-            <p>{value}</p>
-            {tooltip && (
-                <div className={`metric-tooltip ${hoveredMetric === title ? 'visible' : ''}`}>
-                    {tooltip}
-                </div>
-            )}
-        </div>
-    );
+    const decisionKey = (label) => DECISION_LABEL_KEYS[label] || 'insufficient_data';
 
-    const renderSummary = () => {
-        if (!data) return null;
+    const renderDecision = () => {
+        const decision = data?.decision;
+        if (!decision) return null;
+
+        const labelKey = decisionKey(decision.label);
+        const label = t(`financial.decision_labels.${labelKey}`, decision.label);
+        const scoreText = decision.score === null || decision.score === undefined
+            ? '-'
+            : `${decision.score}/${decision.max_score || 100}`;
+
         return (
-            <div className="metrics-container animate-fade-in">
-                <div className="text-center mb-8">
-                    <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400">
-                        {data.longName} ({data.ticker})
-                    </h2>
+            <section className={`financial-decision-panel decision-${labelKey}`}>
+                <div className="financial-company-summary">
+                    <span className="financial-dashboard-kicker">
+                        {data.company?.sector || t('financial.not_available')} · {data.company?.industry || t('financial.not_available')}
+                    </span>
+                    <h3>{data.company?.name || data.longName || data.ticker} ({data.ticker})</h3>
+                    <div className="financial-company-meta">
+                        <span>{t('financial.market_cap')}: {data.company?.market_cap_display || t('financial.not_available')}</span>
+                        <span>{t('financial.currency')}: {data.company?.currency || t('financial.not_available')}</span>
+                    </div>
                 </div>
-                <div className="metrics-grid">
-                    {renderMetricCard(t('financial.per'), data.per, t('financial.per_tooltip'))}
-                    {renderMetricCard(t('financial.pbr'), data.pbr, t('financial.pbr_tooltip'))}
-                    {renderMetricCard(t('financial.psr'), data.psr, t('financial.psr_tooltip'))}
-                    {renderMetricCard(t('financial.debt_ratio'), data.debt_ratio, t('financial.debt_ratio_tooltip'))}
-                    {renderMetricCard(t('financial.liquidity_ratio'), data.liquidity_ratio, t('financial.liquidity_ratio_tooltip'))}
+                <div className="financial-score-summary">
+                    <span className="financial-decision-label">{label}</span>
+                    <strong>{scoreText}</strong>
+                    <span>
+                        {t('financial.confidence', {
+                            confidence: decision.confidence ?? 0,
+                            available: decision.available_metrics ?? 0,
+                            total: decision.total_metrics ?? 0,
+                        })}
+                    </span>
                 </div>
+            </section>
+        );
+    };
+
+    const renderComparison = (metric) => {
+        const comparison = metric.comparison || {};
+        if (comparison.status === 'available') {
+            const position = t(`financial.benchmark_position.${comparison.position}`, comparison.position);
+            return t('financial.benchmark_available', {
+                benchmark: comparison.benchmark_name || comparison.industry || t('financial.not_available'),
+                average: comparison.industry_average_display || '-',
+                position,
+                difference: comparison.relative_difference_display || '-',
+            });
+        }
+
+        return t('financial.benchmark_unavailable', {
+            industry: comparison.industry || data?.company?.industry || t('financial.not_available'),
+        });
+    };
+
+    const renderMetricCard = (metric) => {
+        const metricLabel = t(`financial.metric_labels.${metric.key}`, metric.label);
+        const description = t(`financial.metric_descriptions.${metric.key}`, '');
+        const signal = t(`financial.signal_descriptions.${metric.signal}`, metric.signal);
+        const category = t(`financial.metric_categories.${metric.category}`, metric.category);
+        const score = metric.score === null || metric.score === undefined ? '-' : metric.score;
+
+        return (
+            <article className={`financial-insight-card signal-${metric.signal}`} key={metric.key}>
+                <div className="financial-insight-card-header">
+                    <span className="financial-metric-category">{category}</span>
+                    <span className="financial-metric-score">{score}/100</span>
+                </div>
+                <h4>{metricLabel}</h4>
+                <p className="financial-metric-value">{metric.display_value || t('financial.not_available')}</p>
+                <p className="financial-metric-description">{description}</p>
+                <p className="financial-metric-signal">{signal}</p>
+                <p className="financial-metric-comparison">{renderComparison(metric)}</p>
+                <span className="financial-threshold">{t('financial.rule')}: {metric.threshold}</span>
+            </article>
+        );
+    };
+
+    const renderDashboard = () => {
+        if (!data) return null;
+
+        return (
+            <div className="financial-dashboard animate-fade-in">
+                {renderDecision()}
+
+                <div className="financial-dashboard-actions">
+                    <p>{t('financial.analysis_note')}</p>
+                    <button
+                        type="button"
+                        className="financial-secondary-button"
+                        onClick={() => setShowStatements(true)}
+                    >
+                        {t('financial.view_full_statements')}
+                    </button>
+                </div>
+
+                {CATEGORY_ORDER.map((category) => {
+                    const metrics = groupedMetrics[category] || [];
+                    if (!metrics.length) return null;
+
+                    return (
+                        <section className="financial-metric-section" key={category}>
+                            <h3>{t(`financial.metric_categories.${category}`, category)}</h3>
+                            <div className="financial-insights-grid">
+                                {metrics.map(renderMetricCard)}
+                            </div>
+                        </section>
+                    );
+                })}
             </div>
         );
     };
 
-    const renderTable = () => {
-        if (!statementData || !statementData.dates) return null;
+    const renderTable = (tableData, tableError) => {
+        if (tableError && !tableData) {
+            return <div className="empty-state"><p>{tableError}</p></div>;
+        }
+
+        if (!tableData || !tableData.dates) {
+            return <div className="empty-state"><p>{t('financial.no_statement_data')}</p></div>;
+        }
 
         return (
             <div className="financial-table-container animate-fade-in">
                 <table className="financial-table">
                     <thead>
                         <tr>
-                            <th>Breakdown</th>
-                            {statementData.dates.map((date, i) => (
-                                <th key={i}>{date}</th>
+                            <th>{t('financial.breakdown')}</th>
+                            {tableData.dates.map((date) => (
+                                <th key={date}>{date}</th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {statementData.breakdown.map((row, i) => (
-                            <tr key={i}>
+                        {tableData.breakdown.map((row) => (
+                            <tr key={row.row_label}>
                                 <td>{row.row_label}</td>
-                                {row.values.map((val, j) => (
-                                    <td key={j}>{formatNumber(val)}</td>
+                                {row.values.map((val, index) => (
+                                    <td key={`${row.row_label}-${index}`}>{formatNumber(val)}</td>
                                 ))}
                             </tr>
                         ))}
                     </tbody>
                 </table>
+            </div>
+        );
+    };
+
+    const renderStatementsModal = () => {
+        if (!showStatements || !data) return null;
+
+        const tableData = data.statements?.[frequency]?.[statementType];
+        const tableError = data.statement_errors?.[frequency]?.[statementType];
+
+        return (
+            <div className="optimizer-modal-overlay" onClick={() => setShowStatements(false)}>
+                <div
+                    className="optimizer-modal-content financial-statement-modal"
+                    onClick={(event) => event.stopPropagation()}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="financial-statement-modal-title"
+                >
+                    <div className="optimizer-modal-header">
+                        <h3 className="optimizer-modal-title" id="financial-statement-modal-title">
+                            {t('financial.full_statements_title')}
+                        </h3>
+                        <button
+                            type="button"
+                            className="optimizer-modal-close"
+                            onClick={() => setShowStatements(false)}
+                            aria-label={t('common.close')}
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <div className="optimizer-modal-body financial-statement-modal-body">
+                        <div className="financial-segment-row" role="tablist" aria-label={t('financial.full_statements_title')}>
+                            {STATEMENT_TYPES.map((type) => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    className={`financial-segment-button${statementType === type ? ' is-active' : ''}`}
+                                    onClick={() => setStatementType(type)}
+                                    aria-pressed={statementType === type}
+                                >
+                                    {t(`financial.${type}`)}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="financial-segment-row financial-frequency-row" aria-label={t('financial.frequency')}>
+                            {FREQUENCIES.map((item) => (
+                                <button
+                                    key={item}
+                                    type="button"
+                                    className={`financial-segment-button${frequency === item ? ' is-active' : ''}`}
+                                    onClick={() => setFrequency(item)}
+                                    aria-pressed={frequency === item}
+                                >
+                                    {t(`financial.${item}`)}
+                                </button>
+                            ))}
+                        </div>
+                        {renderTable(tableData, tableError)}
+                    </div>
+                    <div className="optimizer-modal-footer">
+                        <button
+                            type="button"
+                            className="financial-secondary-button"
+                            onClick={() => setShowStatements(false)}
+                        >
+                            {t('common.close')}
+                        </button>
+                    </div>
+                </div>
             </div>
         );
     };
@@ -164,66 +317,29 @@ const FinancialStatement = () => {
                         onChange={(e) => setTicker(e.target.value.toUpperCase())}
                         placeholder={t('ticker.placeholder')}
                     />
-                    <div style={{ height: '10px' }}></div>
                     <button type="submit" className="ticker-search-btn" disabled={loading}>
                         {loading ? t('common.loading') : t('financial.fetch_data')}
                     </button>
                 </form>
-                <div className="financial-segment-row" role="tablist" aria-label={t('financial.title')}>
-                    {[
-                        { key: 'summary', label: t('financial.summary', 'Summary') },
-                        { key: 'income', label: t('financial.income', 'Income') },
-                        { key: 'balance', label: t('financial.balance', 'Balance') },
-                        { key: 'cash', label: t('financial.cash', 'Cash Flow') },
-                    ].map((item) => (
-                        <button
-                            key={item.key}
-                            type="button"
-                            className={`financial-segment-button${view === item.key ? ' is-active' : ''}`}
-                            onClick={() => setView(item.key)}
-                            aria-pressed={view === item.key}
-                        >
-                            {item.label}
-                        </button>
-                    ))}
-                </div>
-                {view !== 'summary' && (
-                    <div className="financial-segment-row financial-frequency-row" aria-label={t('financial.frequency', 'Frequency')}>
-                        {[
-                            { key: 'annual', label: t('financial.annual', 'Annual') },
-                            { key: 'quarterly', label: t('financial.quarterly', 'Quarterly') },
-                        ].map((item) => (
-                            <button
-                                key={item.key}
-                                type="button"
-                                className={`financial-segment-button${frequency === item.key ? ' is-active' : ''}`}
-                                onClick={() => setFrequency(item.key)}
-                                aria-pressed={frequency === item.key}
-                            >
-                                {item.label}
-                            </button>
-                        ))}
-                    </div>
-                )}
             </div>
 
             {error && <div className="error-message">{t('common.error')}: {error}</div>}
 
             <div className="financial-content">
-                {loading
-                    ? view === 'summary'
-                        ? <MetricCardsSkeleton cards={5} label="Loading financial metrics" />
-                        : <FinancialTableSkeleton rows={8} columns={6} />
-                    : view === 'summary' ? renderSummary() : renderTable()}
+                {loading ? (
+                    <MetricCardsSkeleton cards={8} label={t('financial.loading_dashboard')} />
+                ) : renderDashboard()}
 
-                {!loading && !error && !data && !statementData && (
+                {!loading && !error && !data && (
                     <div className="empty-state">
-                        <p>Enter a ticker symbol and click Fetch Data to begin analysis.</p>
+                        <p>{t('financial.empty_dashboard')}</p>
                     </div>
                 )}
             </div>
 
-            <div className="mt-16 pt-8 border-t border-gray-800">
+            {renderStatementsModal()}
+
+            <div className="financial-screener-section">
                 <StockScreener />
             </div>
         </div>

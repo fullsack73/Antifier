@@ -18,7 +18,7 @@ from portfolio_benchmark import calculate_portfolio_benchmark
 
 from forecast_models import LSTMPriceModel, LightGBMPriceModel, ARIMAPriceModel
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from financial_statement import get_financial_ratios, get_financial_statements
+from financial_statement import get_financial_dashboard, get_financial_statements
 from portfolio_optimization import (
     optimize_portfolio,
     load_portfolio_result,
@@ -844,8 +844,7 @@ def financial_statement():
     if statement_type:
         data = get_financial_statements(ticker, statement_type, frequency)
     else:
-        # Default to ratios for backward compatibility or initial view
-        data = get_financial_ratios(ticker)
+        data = get_financial_dashboard(ticker)
 
     if 'error' in data:
         # If it's just a "unavailable data" error, we might still want to return 200 with the error message
