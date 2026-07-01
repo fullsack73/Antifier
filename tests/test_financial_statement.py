@@ -11,6 +11,11 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../s
 import financial_statement
 
 
+def setup_function():
+    financial_statement._BENCHMARK_TABLE_CACHE.clear()
+    financial_statement._PEER_BENCHMARK_CACHE.clear()
+
+
 def test_financial_statements_replace_non_json_numbers(monkeypatch):
     class FakeTicker:
         financials = pd.DataFrame(
@@ -39,7 +44,8 @@ def test_financial_dashboard_scores_metrics_and_bundles_statements(monkeypatch):
         info = {
             "longName": "Example Corp",
             "sector": "Technology",
-            "industry": "Software",
+            "industry": "Software - Infrastructure",
+            "country": "United States",
             "currency": "USD",
             "marketCap": 1_500_000_000,
             "trailingPE": 12,
@@ -76,19 +82,18 @@ def test_financial_dashboard_scores_metrics_and_bundles_statements(monkeypatch):
 
     monkeypatch.setattr(financial_statement.yf, "Ticker", lambda _ticker: FakeTicker())
     monkeypatch.setattr(
-        financial_statement.yf,
-        "screen",
-        lambda *_args, **_kwargs: {
-            "quotes": [
-                {"symbol": "PEER1", "trailingPE": 18, "forwardPE": 17, "priceToBook": 2.0},
-                {"symbol": "PEER2", "trailingPE": 16, "forwardPE": 16, "priceToBook": 2.4},
+        financial_statement,
+        "_load_finviz_group_table",
+        lambda group: pd.DataFrame(
+            [
+                {"Name": "Software - Infrastructure", "P/E": 18, "Fwd P/E": 17, "P/B": 2.2, "P/S": 3.0, "PEG": 1.4}
             ]
-        },
+        ) if group == "Industry" else pd.DataFrame(),
     )
 
     result = financial_statement.get_financial_dashboard("FAKE")
 
-    assert result["company"]["industry"] == "Software"
+    assert result["company"]["industry"] == "Software - Infrastructure"
     assert result["decision"]["label"] == "STRONG BUY"
     assert result["decision"]["score"] == 100
     assert result["decision"]["confidence"] == 100
@@ -103,8 +108,47 @@ def test_financial_dashboard_scores_metrics_and_bundles_statements(monkeypatch):
     assert metrics_by_key["pbr"]["comparison"]["status"] == "available"
     assert metrics_by_key["pbr"]["comparison"]["position"] == "below"
     assert metrics_by_key["pbr"]["comparison"]["industry_average"] == 2.2
+    assert metrics_by_key["pbr"]["comparison"]["basis"] == "industry_average"
+    assert metrics_by_key["pbr"]["comparison"]["source"] == "finvizfinance_group_valuation"
     assert metrics_by_key["debt_to_equity"]["value"] == 0.4
     json.dumps(result, allow_nan=False)
+
+
+def test_financial_benchmarks_fallback_to_representative_peers(monkeypatch):
+    company_info = {
+        "sector": "Technology",
+        "industry": "Unknown Industry",
+        "country": "United States",
+    }
+    peer_payloads = {
+        "NVDA": {"trailingPE": 30, "forwardPE": 20, "priceToBook": 10, "priceToSalesTrailing12Months": 8, "pegRatio": 1.2},
+        "MSFT": {"trailingPE": 25, "forwardPE": 18, "priceToBook": 8, "priceToSalesTrailing12Months": 7, "pegRatio": 1.8},
+        "AAPL": {"trailingPE": 35, "forwardPE": 22, "priceToBook": 12, "priceToSalesTrailing12Months": 9, "pegRatio": 2.0},
+    }
+
+    class FakeTicker:
+        def __init__(self, ticker):
+            self.info = peer_payloads.get(ticker, {})
+
+    monkeypatch.setattr(
+        financial_statement,
+        "_load_finviz_group_table",
+        lambda _group: pd.DataFrame([{"Name": "Other", "P/E": 99}]),
+    )
+    monkeypatch.setattr(
+        financial_statement,
+        "SECTOR_REPRESENTATIVE_TICKERS",
+        {"Technology": ["NVDA", "MSFT", "AAPL"]},
+    )
+    monkeypatch.setattr(financial_statement.yf, "Ticker", lambda ticker: FakeTicker(ticker))
+
+    benchmarks = financial_statement._fetch_financial_benchmarks(company_info, "FAKE")
+
+    assert benchmarks["per"]["basis"] == "sector_representative_average"
+    assert benchmarks["per"]["source"] == "yfinance_representative_peers"
+    assert benchmarks["per"]["sample_size"] == 3
+    assert benchmarks["per"]["value"] == 30
+    assert benchmarks["pbr"]["value"] == 10
 
 
 def test_financial_dashboard_low_data_confidence_is_insufficient(monkeypatch):

@@ -12,7 +12,7 @@ Antifier의 문서가 매 작업의 실행 컨텍스트가 되도록 유지하�
 - `docs/03-product-plan.md`
 - `docs/todo/00-todo-list.md`
 
-작업이 기존 `agent-os/` 스펙과 직접 연결되어 있으면 관련 `agent-os/specs/*` 문서도 함께 확인합니다. 다만 현재 저장소의 우선 문서 체계는 루트의 `AGENTS.md`와 `docs/`입니다.
+현재 저장소의 우선 문서 체계는 루트의 `AGENTS.md`와 `docs/`입니다.
 
 ## 작업 시작 체크리스트
 
@@ -59,6 +59,5 @@ Antifier의 문서가 매 작업의 실행 컨텍스트가 되도록 유지하�
 
 1. `AGENTS.md`와 `docs/`
 2. 현재 코드와 테스트
-3. `agent-os/product` 및 관련 `agent-os/specs`
-4. README와 빌드 문서
-5. 과거 작업 기록과 TODO
+3. README와 빌드 문서
+4. 과거 작업 기록과 TODO

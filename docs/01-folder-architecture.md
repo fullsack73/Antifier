@@ -18,7 +18,6 @@ antifier/
 │  └─ frontend/                      # React/Vite SPA
 ├─ tests/                            # pytest와 Vitest/Testing Library 테스트
 ├─ tools/                            # 설치 프로그램, 빌드 스크립트, 분석/튜닝 도구
-├─ agent-os/                         # 기존 제품/스펙/역할 문서 아카이브
 ├─ .github/workflows/                # CI, installer build, release automation
 ├─ public/                           # Vite 정적 파일
 ├─ *.csv                             # 기본 ticker universe 데이터
@@ -146,6 +145,6 @@ tools/
 
 테스트는 변경 범위에 맞춰 선택적으로 실행하되, 공유 API나 포트폴리오 계산 로직을 건드리면 백엔드 테스트를 우선 실행합니다. 프론트엔드 렌더링/API client 변경은 lint, Vitest, build 중 최소 하나 이상으로 확인합니다.
 
-## F. 기존 agent-os 문서와의 관계
+## F. 레거시 에이전트 문서
 
-`agent-os/`는 이전 제품 기획, 스펙, 작업 분해, 검증 기록을 보존합니다. 새 작업의 기본 진입점은 `AGENTS.md`와 `docs/`이며, `agent-os/`는 더 상세한 과거 맥락이 필요할 때 참조합니다. 같은 내용이 충돌하면 현재 코드와 `docs/`를 우선하고, 필요한 경우 `agent-os/`와 README는 별도 정리 작업으로 맞춥니다.
+이전 `agent-os/` 문서 아카이브는 더 이상 저장소에서 추적하지 않습니다. 새 작업의 기본 진입점은 `AGENTS.md`와 `docs/`이며, 과거 작업 기록은 `docs/reports/`, 후속 작업은 `docs/todo/`에서 관리합니다.

@@ -1,4 +1,6 @@
 import math
+import re
+import time
 from numbers import Real
 
 import pandas as pd
@@ -15,6 +17,55 @@ DECISION_THRESHOLDS = (
     (35, "REDUCE"),
     (0, "SELL"),
 )
+
+BENCHMARK_CACHE_TTL_SECONDS = 24 * 60 * 60
+_BENCHMARK_TABLE_CACHE = {}
+_PEER_BENCHMARK_CACHE = {}
+
+BENCHMARK_FIELD_MAP = {
+    "per": "P/E",
+    "forward_pe": "Fwd P/E",
+    "pbr": "P/B",
+    "psr": "P/S",
+    "peg": "PEG",
+}
+
+YFINANCE_PEER_FIELD_MAP = {
+    "per": "trailingPE",
+    "forward_pe": "forwardPE",
+    "pbr": "priceToBook",
+    "psr": "priceToSalesTrailing12Months",
+    "peg": ("pegRatio", "trailingPegRatio"),
+}
+
+SECTOR_NAME_ALIASES = {
+    "basic materials": "Basic Materials",
+    "communication services": "Communication Services",
+    "consumer cyclical": "Consumer Cyclical",
+    "consumer defensive": "Consumer Defensive",
+    "energy": "Energy",
+    "financial": "Financial",
+    "financial services": "Financial",
+    "healthcare": "Healthcare",
+    "industrials": "Industrials",
+    "real estate": "Real Estate",
+    "technology": "Technology",
+    "utilities": "Utilities",
+}
+
+SECTOR_REPRESENTATIVE_TICKERS = {
+    "Basic Materials": ["LIN", "SHW", "FCX", "ECL", "APD", "NEM", "NUE", "DOW", "DD", "MLM"],
+    "Communication Services": ["GOOGL", "GOOG", "META", "NFLX", "TMUS", "DIS", "VZ", "T", "CMCSA", "CHTR"],
+    "Consumer Cyclical": ["AMZN", "TSLA", "HD", "MCD", "BKNG", "LOW", "TJX", "NKE", "SBUX", "ORLY"],
+    "Consumer Defensive": ["WMT", "COST", "PG", "KO", "PEP", "PM", "MDLZ", "CL", "MO", "TGT"],
+    "Energy": ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "KMI"],
+    "Financial": ["BRK-B", "JPM", "V", "MA", "BAC", "WFC", "GS", "MS", "AXP", "C"],
+    "Healthcare": ["LLY", "UNH", "JNJ", "ABBV", "MRK", "TMO", "ABT", "ISRG", "DHR", "PFE"],
+    "Industrials": ["GE", "CAT", "RTX", "UBER", "BA", "HON", "UNP", "DE", "ETN", "ADP"],
+    "Real Estate": ["PLD", "AMT", "EQIX", "WELL", "SPG", "O", "DLR", "PSA", "CCI", "CBRE"],
+    "Technology": ["NVDA", "MSFT", "AAPL", "AVGO", "ORCL", "AMD", "CRM", "ADBE", "CSCO", "ACN"],
+    "Utilities": ["NEE", "SO", "DUK", "CEG", "AEP", "SRE", "D", "PCG", "EXC", "XEL"],
+}
 
 
 def _json_safe_value(value):
@@ -236,7 +287,7 @@ def _benchmark_comparison(key, value, benchmarks, industry):
         position = "near"
 
     return {
-        "basis": benchmark.get("basis", "sector_average"),
+        "basis": benchmark.get("basis", "industry_average"),
         "industry": industry,
         "benchmark_name": benchmark.get("name"),
         "industry_average": benchmark_value,
@@ -244,6 +295,8 @@ def _benchmark_comparison(key, value, benchmarks, industry):
         "relative_difference": difference,
         "relative_difference_display": _format_percent(difference),
         "position": position,
+        "source": benchmark.get("source"),
+        "sample_size": benchmark.get("sample_size"),
         "status": "available",
     }
 
@@ -290,57 +343,166 @@ def _average(values):
     return sum(cleaned) / len(cleaned)
 
 
-def _fetch_sector_benchmarks(info, ticker_symbol, sample_size=25):
-    sector = info.get("sector")
-    if not sector:
-        return {}
+def _normalize_name(value):
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
+
+
+def _is_us_company(info):
     country = str(info.get("country") or "").strip().lower()
-    if country and country not in {"united states", "usa", "us"}:
-        return {}
+    return not country or country in {"united states", "usa", "us"}
 
-    try:
-        query = yf.EquityQuery("and", [
-            yf.EquityQuery("eq", ["region", "us"]),
-            yf.EquityQuery("eq", ["sector", sector]),
-        ])
-        response = yf.screen(
-            query,
-            size=sample_size,
-            sortField="intradaymarketcap",
-            sortAsc=False,
-        )
-    except Exception:
-        return {}
 
-    quotes = response.get("quotes", []) if isinstance(response, dict) else []
-    if not quotes:
-        return {}
+def _normalize_sector_name(sector):
+    normalized = _normalize_name(sector)
+    return SECTOR_NAME_ALIASES.get(normalized, sector)
 
-    current_symbol = str(ticker_symbol or "").upper()
-    peer_quotes = [
-        quote for quote in quotes
-        if str(quote.get("symbol", "")).upper() != current_symbol
-    ] or quotes
 
-    field_map = {
-        "per": "trailingPE",
-        "forward_pe": "forwardPE",
-        "pbr": "priceToBook",
-        "psr": "priceToSalesTrailing12Months",
+def _load_finviz_group_table(group):
+    from finvizfinance.group.valuation import Valuation
+
+    return Valuation().screener_view(group=group, order="Name")
+
+
+def _get_cached_finviz_group_table(group):
+    now = time.time()
+    cached = _BENCHMARK_TABLE_CACHE.get(group)
+    if cached and now - cached["fetched_at"] < BENCHMARK_CACHE_TTL_SECONDS:
+        return cached["data"]
+
+    table = _load_finviz_group_table(group)
+    _BENCHMARK_TABLE_CACHE[group] = {
+        "data": table,
+        "fetched_at": now,
     }
-    benchmarks = {}
+    return table
 
-    for metric_key, quote_field in field_map.items():
-        average = _average(quote.get(quote_field) for quote in peer_quotes)
-        if average is not None:
-            benchmarks[metric_key] = {
-                "basis": "sector_average",
-                "name": sector,
-                "value": average,
-                "sample_size": len(peer_quotes),
-            }
+
+def _find_finviz_group_row(table, name):
+    if table is None or table.empty or not name:
+        return None
+
+    normalized_name = _normalize_name(name)
+    if not normalized_name:
+        return None
+
+    name_matches = table["Name"].map(_normalize_name) == normalized_name
+    matches = table[name_matches]
+    if matches.empty:
+        return None
+    return matches.iloc[0].to_dict()
+
+
+def _benchmarks_from_finviz_row(row, basis, name):
+    benchmarks = {}
+    if not row:
+        return benchmarks
+
+    for metric_key, column in BENCHMARK_FIELD_MAP.items():
+        value = _safe_number(row.get(column))
+        if value is None or value <= 0:
+            continue
+        benchmarks[metric_key] = {
+            "basis": basis,
+            "name": name,
+            "value": value,
+            "source": "finvizfinance_group_valuation",
+        }
 
     return benchmarks
+
+
+def _fetch_finviz_group_benchmarks(info):
+    if not _is_us_company(info):
+        return {}
+
+    industry = info.get("industry")
+    sector = _normalize_sector_name(info.get("sector"))
+    lookup_order = [
+        ("Industry", industry, "industry_average"),
+        ("Sector", sector, "sector_average"),
+    ]
+
+    for group, name, basis in lookup_order:
+        if not name:
+            continue
+        try:
+            table = _get_cached_finviz_group_table(group)
+            row = _find_finviz_group_row(table, name)
+            benchmarks = _benchmarks_from_finviz_row(row, basis, name)
+        except Exception:
+            benchmarks = {}
+        if benchmarks:
+            return benchmarks
+
+    return {}
+
+
+def _read_yfinance_peer_metric(info, fields):
+    field_names = fields if isinstance(fields, tuple) else (fields,)
+    for field in field_names:
+        value = _safe_number(info.get(field))
+        if value is not None and value > 0:
+            return value
+    return None
+
+
+def _fetch_representative_peer_benchmarks(info, ticker_symbol):
+    if not _is_us_company(info):
+        return {}
+
+    sector = _normalize_sector_name(info.get("sector"))
+    tickers = SECTOR_REPRESENTATIVE_TICKERS.get(sector)
+    if not tickers:
+        return {}
+
+    now = time.time()
+    cached = _PEER_BENCHMARK_CACHE.get(sector)
+    if cached and now - cached["fetched_at"] < BENCHMARK_CACHE_TTL_SECONDS:
+        return cached["data"]
+
+    current_symbol = str(ticker_symbol or "").upper()
+    peer_tickers = [ticker for ticker in tickers if ticker.upper() != current_symbol] or tickers
+    peer_values = {metric_key: [] for metric_key in YFINANCE_PEER_FIELD_MAP}
+
+    for peer_ticker in peer_tickers[:10]:
+        try:
+            peer_info = yf.Ticker(peer_ticker).info or {}
+        except Exception:
+            continue
+        if not isinstance(peer_info, dict):
+            continue
+        for metric_key, fields in YFINANCE_PEER_FIELD_MAP.items():
+            value = _read_yfinance_peer_metric(peer_info, fields)
+            if value is not None:
+                peer_values[metric_key].append(value)
+
+    benchmarks = {}
+
+    for metric_key, values in peer_values.items():
+        average = _average(values)
+        if average is not None:
+            benchmarks[metric_key] = {
+                "basis": "sector_representative_average",
+                "name": f"{sector} representative peers",
+                "value": average,
+                "source": "yfinance_representative_peers",
+                "sample_size": len(values),
+            }
+
+    if benchmarks:
+        _PEER_BENCHMARK_CACHE[sector] = {
+            "data": benchmarks,
+            "fetched_at": now,
+        }
+
+    return benchmarks
+
+
+def _fetch_financial_benchmarks(info, ticker_symbol):
+    benchmarks = _fetch_finviz_group_benchmarks(info)
+    if benchmarks:
+        return benchmarks
+    return _fetch_representative_peer_benchmarks(info, ticker_symbol)
 
 
 def _build_investment_metrics(info, debt_ratio, benchmarks=None):
@@ -506,7 +668,7 @@ def get_financial_dashboard(ticker_symbol):
 
         balance_sheet = _get_statement_frame(ticker, "balance", "annual")
         debt_ratio = _calculate_debt_ratio(balance_sheet)
-        benchmarks = _fetch_sector_benchmarks(info, ticker_symbol)
+        benchmarks = _fetch_financial_benchmarks(info, ticker_symbol)
         metrics = _build_investment_metrics(info, debt_ratio, benchmarks)
         decision = _score_dashboard_metrics(metrics)
         statements, statement_errors = _collect_all_statements(ticker)

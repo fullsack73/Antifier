@@ -184,6 +184,7 @@ npm run dev
 - Pandas (데이터 조작)
 - NumPy/SciPy (수치 계산)
 - yfinance (주식 데이터 수집)
+- finvizfinance (Finviz 섹터/산업 밸류에이션 벤치마크)
 
 **빌드 및 배포 (Build & Distribution):**
 - PyInstaller (실행 파일 패키징)

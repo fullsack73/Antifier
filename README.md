@@ -184,6 +184,7 @@ Open your browser to `http://localhost:5173`
 - Pandas for data manipulation
 - NumPy/SciPy for numerical computation
 - yfinance for stock data retrieval
+- finvizfinance for Finviz sector/industry valuation benchmarks
 
 **Build & Distribution:**
 - PyInstaller for executable packaging

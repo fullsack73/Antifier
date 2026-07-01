@@ -126,8 +126,12 @@ const FinancialStatement = () => {
         const comparison = metric.comparison || {};
         if (comparison.status === 'available') {
             const position = t(`financial.benchmark_position.${comparison.position}`, comparison.position);
+            const basis = t(`financial.benchmark_basis.${comparison.basis}`, comparison.basis);
+            const source = t(`financial.benchmark_source.${comparison.source}`, comparison.source);
             return t('financial.benchmark_available', {
+                basis,
                 benchmark: comparison.benchmark_name || comparison.industry || t('financial.not_available'),
+                source,
                 average: comparison.industry_average_display || '-',
                 position,
                 difference: comparison.relative_difference_display || '-',

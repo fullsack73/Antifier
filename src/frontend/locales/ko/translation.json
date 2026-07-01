@@ -92,12 +92,21 @@
     "rule": "판정 기준",
     "loading_dashboard": "재무 대시보드 로딩 중",
     "empty_dashboard": "티커를 입력하고 재무 데이터를 가져오면 투자 신호 대시보드를 볼 수 있습니다.",
-    "benchmark_available": "{{benchmark}} 평균 {{average}} 대비 {{position}}이며 차이는 {{difference}}입니다.",
+    "benchmark_available": "{{source}} 기준 {{benchmark}}의 {{basis}}은 {{average}}이며, 이 종목은 {{position}}이고 차이는 {{difference}}입니다.",
     "benchmark_unavailable": "현재 데이터 소스에서 {{industry}}의 신뢰 가능한 산업/섹터 평균을 제공하지 않아 절대 기준으로 평가했습니다.",
     "benchmark_position": {
       "below": "낮음",
       "above": "높음",
       "near": "유사함"
+    },
+    "benchmark_basis": {
+      "industry_average": "산업 평균",
+      "sector_average": "섹터 평균",
+      "sector_representative_average": "대표 종목 평균"
+    },
+    "benchmark_source": {
+      "finvizfinance_group_valuation": "Finviz",
+      "yfinance_representative_peers": "yfinance"
     },
     "decision_labels": {
       "strong_buy": "STRONG BUY",

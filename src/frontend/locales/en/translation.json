@@ -92,12 +92,21 @@
     "rule": "Rule",
     "loading_dashboard": "Loading financial dashboard",
     "empty_dashboard": "Enter a ticker symbol and fetch data to see the investment signal dashboard.",
-    "benchmark_available": "{{benchmark}} average is {{average}}; this metric is {{position}} by {{difference}}.",
+    "benchmark_available": "{{basis}} for {{benchmark}} from {{source}} is {{average}}; this metric is {{position}} by {{difference}}.",
     "benchmark_unavailable": "No reliable industry or sector average is available from the current source for {{industry}}, so this metric uses absolute thresholds.",
     "benchmark_position": {
       "below": "below",
       "above": "above",
       "near": "near"
+    },
+    "benchmark_basis": {
+      "industry_average": "Industry average",
+      "sector_average": "Sector average",
+      "sector_representative_average": "Representative peer average"
+    },
+    "benchmark_source": {
+      "finvizfinance_group_valuation": "Finviz",
+      "yfinance_representative_peers": "yfinance"
     },
     "decision_labels": {
       "strong_buy": "STRONG BUY",

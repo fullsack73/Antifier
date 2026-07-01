@@ -26,3 +26,6 @@ dist-ssr
 __pycache__
 .cache
 .venv
+
+# Legacy Agent OS archive is no longer tracked in this repository.
+agent-os/

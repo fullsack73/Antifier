@@ -39,6 +39,8 @@
 - 데이터 처리: pandas, numpy, scipy
 - ML/통계: scikit-learn, statsmodels, pmdarima, TensorFlow, Keras, XGBoost, LightGBM
 - 금융 데이터: yfinance, finvizfinance
+  - `finvizfinance.group.valuation.Valuation`은 Financial Statement의 Finviz sector/industry valuation benchmark 1차 소스로 사용합니다.
+  - Finviz benchmark가 실패하거나 해당 산업/섹터 행을 찾지 못하면 yfinance로 섹터 대표 대형주 10개 내외의 단순 평균을 계산하는 fallback을 사용합니다.
 - 포트폴리오 최적화: PyPortfolioOpt
 - 캐시/운영 보조: joblib, tenacity, rich, psutil, custom cache manager
 - 패키징: PyInstaller
@@ -70,7 +72,7 @@
 
 - `GET /api/get-data`: ticker price, regression, future prediction, currency metadata
 - `GET /api/analyze-hedge`: 두 ticker의 hedge/correlation/regression 분석
-- `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
+- `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
 - `POST /api/optimize-portfolio`: 포트폴리오 최적화 작업 시작
 - `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE
 - `GET /api/portfolio-results`: 저장된 최적화 결과 목록
