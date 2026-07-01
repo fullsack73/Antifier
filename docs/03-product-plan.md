@@ -1,0 +1,102 @@
+# 3) 제품 기획안
+
+본 문서는 Antifier의 제품 범위, 사용자, 핵심 기능, 현재 로드맵을 정리합니다.
+
+## A. 서비스 개요
+
+Antifier는 개인 투자자, 트레이더, 금융 분석가가 주식 데이터 분석, 예측, 재무제표 확인, 포트폴리오 최적화를 한 곳에서 수행하도록 돕는 금융 분석 웹앱입니다. 이름은 소액 개인 투자자를 뜻하는 한국어 표현인 "개미"에서 출발했습니다.
+
+Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 데이터 기반 의사결정을 지원하는 분석 도구입니다.
+
+## B. 대상 사용자
+
+- 개인 투자자: 여러 종목의 가격, 추세, 재무 지표를 빠르게 비교하고 싶은 사용자
+- 활동적인 트레이더: 단기 기회 탐색을 위해 차트, 회귀, 예측, hedge 분석이 필요한 사용자
+- 금융 분석가/학습자: 포트폴리오 이론, forecast strategy, 재무제표 지표를 실험하고 검증하려는 사용자
+
+대표 문제:
+
+- 데이터 수집, 차트 작성, 회귀/예측, 재무제표 확인, 포트폴리오 계산이 여러 도구에 흩어져 있음
+- 반복 분석이 수동으로 이루어져 시간이 오래 걸리고 일관성이 떨어짐
+- 모델 선택, 수익률 가정, 포트폴리오 제약을 한 화면에서 실험하기 어려움
+
+제품 해법:
+
+- 주식 시각화부터 forecast, screening, hedge, benchmark, portfolio optimization까지 한 SPA 안에서 연결합니다.
+- 자동 계산을 제공하되 모델/기간/위험 가정은 사용자가 조정하도록 유지합니다.
+
+## C. 앱 구성
+
+현재 UI는 외부 라우터 없이 sidebar/view state 기반으로 주요 화면을 전환합니다.
+
+- Stock Analysis: ticker, 기간, 모델, forecast horizon을 선택하고 가격/회귀/미래 예측 차트를 확인
+- Hedge Analysis: 두 종목의 상관관계와 회귀 기반 hedge 관계 분석
+- Financial Statement: ticker별 주요 재무 ratio와 재무제표 확인
+- Optimizer: MPT 또는 Black-Litterman 기반 포트폴리오 최적화
+- Benchmark: 포트폴리오 성과를 S&P 500과 risk-free asset 기준으로 비교
+- Portfolio Manager: 현재 보유 종목과 현금 주입을 바탕으로 리밸런싱 주문 계산
+- Stock Screener: predefined universe와 filter 조건을 기반으로 종목 탐색
+- Language Selector: 영어/한국어 UI 전환
+
+## D. 구현 완료 범위
+
+- 인터랙티브 주가 차트와 기간 선택
+- LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, lightweight ensemble 계열 forecast/회귀 흐름
+- 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
+- 재무제표 및 주요 재무 ratio 조회
+- predefined ticker universe 기반 screening
+- MPT/Black-Litterman 포트폴리오 최적화
+- forecast method 선택과 expected return 기반 optimization
+- 최적화 진행률 SSE stream
+- 저장된 portfolio result 조회
+- 포트폴리오 benchmark와 리밸런싱 계산
+- hedge/pairs trading 분석
+- 영어/한국어 국제화
+- PyInstaller 기반 installer build와 GitHub Actions CI
+
+## E. 핵심 요구사항
+
+### 1. Stock Analysis
+
+- ticker는 안전한 문자 집합으로 제한합니다.
+- 날짜 범위는 미래 종료일을 허용하지 않고 시작일이 종료일보다 앞서야 합니다.
+- chart는 historical price, regression, future prediction을 분리해 보여줍니다.
+- 통화 변환이 발생하면 원 통화와 표시 통화를 UI/응답에 드러냅니다.
+
+### 2. Portfolio Optimization
+
+- 사용자는 ticker group 또는 개별 ticker를 입력할 수 있어야 합니다.
+- forecast method는 historical CAGR, lightweight ensemble, ARIMA + Transformer, Transformer 등 기존 선택지를 유지합니다.
+- 데이터 길이가 부족하거나 결측치가 많은 ticker는 명확한 처리 정책을 가져야 합니다.
+- 결과는 저장/조회 가능해야 하고, 진행률은 SSE로 확인 가능해야 합니다.
+
+### 3. Screening / Financial Statement
+
+- predefined universe는 CSV와 helper 모듈을 통해 관리합니다.
+- filter는 잘못된 숫자, 빈 데이터, 외부 데이터 실패를 방어해야 합니다.
+- custom CSV universe 지원은 TODO로 추적 중입니다.
+
+### 4. Portfolio Management / Benchmark
+
+- 현재 보유 수량, 현금 주입, 목표 weight를 바탕으로 리밸런싱 주문을 계산합니다.
+- fractional share 허용 여부와 ticker별 예외를 고려합니다.
+- benchmark는 동일한 기간과 통화 기준으로 비교해야 합니다.
+
+## F. 다음 우선순위
+
+현재 로드맵과 TODO 기준 우선순위:
+
+- 포트폴리오 최적화에서 최소 거래일 수 미만 ticker 처리 정책 확정
+- Stock Screener custom CSV universe 지원
+- 회귀/forecast 모델 선택 UX와 LSTM 사용 의도 재검토
+- 사용자 인증과 저장된 portfolio/watchlist/screening criteria
+- 실시간 또는 준실시간 가격 데이터 연동
+- alert/notification system
+- RSI, MACD, Bollinger Bands, Moving Average 등 technical indicator 확장
+
+## G. 비범위
+
+- 매수/매도 추천을 단정적으로 제공하지 않습니다.
+- 수익률 보장, 투자 자문, 자동 주문 실행은 현재 범위가 아닙니다.
+- 계좌 연동, 실거래 broker API, 결제/구독 시스템은 현재 범위가 아닙니다.
+- 대규모 멀티테넌트 서버 배포와 사용자별 데이터베이스 운영은 인증/저장 기능 결정 전까지 범위 밖입니다.
