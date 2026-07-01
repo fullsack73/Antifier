@@ -14,6 +14,7 @@ import financial_statement
 def setup_function():
     financial_statement._BENCHMARK_TABLE_CACHE.clear()
     financial_statement._PEER_BENCHMARK_CACHE.clear()
+    financial_statement._FX_RATE_CACHE.clear()
 
 
 def test_financial_statements_replace_non_json_numbers(monkeypatch):
@@ -114,6 +115,92 @@ def test_financial_dashboard_scores_metrics_and_bundles_statements(monkeypatch):
     json.dumps(result, allow_nan=False)
 
 
+def test_financial_dashboard_normalizes_non_usd_company_values(monkeypatch):
+    class FakeTicker:
+        info = {
+            "longName": "Swedish Example",
+            "sector": "Communication Services",
+            "industry": "Electronic Gaming & Multimedia",
+            "currency": "SEK",
+            "financialCurrency": "SEK",
+            "marketCap": 1_000_000_000,
+            "currentPrice": 100,
+            "regularMarketPrice": 100,
+            "trailingEps": 10,
+            "forwardEps": 20,
+            "bookValue": 25,
+            "revenuePerShare": 50,
+            "trailingPE": 100,
+            "forwardPE": 100,
+            "priceToBook": 100,
+            "priceToSalesTrailing12Months": 100,
+        }
+        financials = pd.DataFrame({pd.Timestamp("2024-12-31"): [1000]}, index=["Total Revenue"])
+        quarterly_financials = financials
+        balance_sheet = pd.DataFrame({pd.Timestamp("2024-12-31"): [400, 1000]}, index=["Total Liabilities", "Total Assets"])
+        quarterly_balance_sheet = balance_sheet
+        cashflow = pd.DataFrame({pd.Timestamp("2024-12-31"): [100]}, index=["Operating Cash Flow"])
+        quarterly_cashflow = cashflow
+
+    fx_data = pd.DataFrame({"Close": [10.0]}, index=pd.to_datetime(["2024-01-02"]))
+
+    monkeypatch.setattr(financial_statement.yf, "Ticker", lambda _ticker: FakeTicker())
+    monkeypatch.setattr(financial_statement.yf, "download", lambda *_args, **_kwargs: fx_data)
+    monkeypatch.setattr(financial_statement, "_fetch_financial_benchmarks", lambda *_args, **_kwargs: {})
+
+    result = financial_statement.get_financial_dashboard("PDX.ST")
+    metrics_by_key = {metric["key"]: metric for metric in result["metrics"]}
+
+    assert result["company"]["currency"] == "USD"
+    assert result["company"]["display_currency"] == "USD"
+    assert result["company"]["source_currency"] == "SEK"
+    assert result["company"]["market_cap"] == 100_000_000
+    assert result["company"]["market_cap_display"] == "100.00M"
+    assert result["company"]["currency_conversion"]["quote_to_usd"] == 0.1
+    assert metrics_by_key["per"]["value"] == 10
+    assert metrics_by_key["forward_pe"]["value"] == 5
+    assert metrics_by_key["pbr"]["value"] == 4
+    assert metrics_by_key["psr"]["value"] == 2
+    json.dumps(result, allow_nan=False)
+
+
+def test_financial_dashboard_recalculates_mixed_currency_valuation_ratios(monkeypatch):
+    class FakeTicker:
+        info = {
+            "longName": "London Example",
+            "sector": "Technology",
+            "industry": "Software - Application",
+            "currency": "GBp",
+            "financialCurrency": "GBP",
+            "currentPrice": 1000,
+            "regularMarketPrice": 1000,
+            "trailingEps": 1,
+            "trailingPE": 1000,
+        }
+        financials = pd.DataFrame({pd.Timestamp("2024-12-31"): [1000]}, index=["Total Revenue"])
+        quarterly_financials = financials
+        balance_sheet = pd.DataFrame({pd.Timestamp("2024-12-31"): [400, 1000]}, index=["Total Liabilities", "Total Assets"])
+        quarterly_balance_sheet = balance_sheet
+        cashflow = pd.DataFrame({pd.Timestamp("2024-12-31"): [100]}, index=["Operating Cash Flow"])
+        quarterly_cashflow = cashflow
+
+    fx_data = pd.DataFrame({"Close": [1.25]}, index=pd.to_datetime(["2024-01-02"]))
+
+    monkeypatch.setattr(financial_statement.yf, "Ticker", lambda _ticker: FakeTicker())
+    monkeypatch.setattr(financial_statement.yf, "download", lambda *_args, **_kwargs: fx_data)
+    monkeypatch.setattr(financial_statement, "_fetch_financial_benchmarks", lambda *_args, **_kwargs: {})
+
+    result = financial_statement.get_financial_dashboard("FAKE.L")
+    metrics_by_key = {metric["key"]: metric for metric in result["metrics"]}
+
+    assert result["company"]["currency"] == "USD"
+    assert result["company"]["source_currency"] == "GBp"
+    assert result["company"]["financial_currency"] == "GBP"
+    assert metrics_by_key["per"]["value"] == 10
+    assert metrics_by_key["per"]["display_value"] == "10.00"
+    json.dumps(result, allow_nan=False)
+
+
 def test_financial_benchmarks_fallback_to_representative_peers(monkeypatch):
     company_info = {
         "sector": "Technology",
@@ -181,6 +268,49 @@ def test_non_us_financial_benchmarks_use_industry_representative_dataset(monkeyp
     assert benchmarks["per"]["sample_size"] == 3
     assert benchmarks["per"]["value"] == 16
     assert round(benchmarks["pbr"]["value"], 4) == 5.4
+
+
+def test_financial_benchmarks_merge_finviz_with_representative_peer_metrics(monkeypatch):
+    company_info = {
+        "sector": "Technology",
+        "industry": "Consumer Electronics",
+        "country": "South Korea",
+    }
+    peer_payloads = {
+        "AAPL": {"returnOnEquity": 0.24, "debtToEquity": 40},
+        "SONY": {"returnOnEquity": 0.12, "debtToEquity": 30},
+        "SSNLF": {"returnOnEquity": 0.06, "debtToEquity": 20},
+    }
+
+    class FakeTicker:
+        def __init__(self, ticker):
+            self.info = peer_payloads.get(ticker, {})
+
+    monkeypatch.setattr(
+        financial_statement,
+        "_load_finviz_group_table",
+        lambda group: pd.DataFrame(
+            [
+                {
+                    "Name": "Consumer Electronics",
+                    "P/E": 22,
+                    "P/B": 4.5,
+                }
+            ]
+        ) if group == "Industry" else pd.DataFrame(),
+    )
+    monkeypatch.setattr(financial_statement.yf, "Ticker", lambda ticker: FakeTicker(ticker))
+
+    benchmarks = financial_statement._fetch_financial_benchmarks(company_info, "005930.KS")
+
+    assert benchmarks["per"]["basis"] == "industry_average"
+    assert benchmarks["per"]["source"] == "finvizfinance_group_valuation"
+    assert benchmarks["per"]["value"] == 22
+    assert benchmarks["roe"]["basis"] == "industry_representative_average"
+    assert benchmarks["roe"]["source"] == "yfinance_representative_peers"
+    assert benchmarks["roe"]["sample_size"] == 3
+    assert round(benchmarks["roe"]["value"], 4) == 0.14
+    assert round(benchmarks["debt_to_equity"]["value"], 4) == 0.3
 
 
 def test_financial_dashboard_low_data_confidence_is_insufficient(monkeypatch):

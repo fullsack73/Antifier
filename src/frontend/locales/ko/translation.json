@@ -83,6 +83,7 @@
     "not_available": "N/A",
     "market_cap": "시가총액",
     "currency": "통화",
+    "source_currency": "원 통화",
     "confidence": "신뢰도 {{confidence}}% · 사용 가능 지표 {{available}}/{{total}}개",
     "analysis_note": "사용 가능한 데이터로 계산한 규칙 기반 재무 신호입니다. 투자 조언이 아니라 분석 참고 자료로 사용하세요.",
     "view_full_statements": "전체 재무제표 보기",

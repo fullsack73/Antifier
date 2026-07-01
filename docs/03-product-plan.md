@@ -75,8 +75,10 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - predefined universe는 CSV와 helper 모듈을 통해 관리합니다.
 - filter는 잘못된 숫자, 빈 데이터, 외부 데이터 실패를 방어해야 합니다.
 - Financial Statement의 STRONG BUY/BUY/HOLD 등 신호는 데이터 기반 분석 보조 신호이며 투자 자문이나 자동 매매 지시로 표현하지 않습니다.
-- 업종/섹터 평균 비교는 Finviz group valuation의 산업 평균을 우선 사용하고, 없으면 섹터 평균, 그래도 없으면 yfinance 기반 산업별 대표 대형주 단순 평균을 사용합니다.
+- 업종/섹터 평균 비교는 Finviz group valuation의 산업 평균을 우선 사용하고, Finviz가 제공하지 않는 수익성/성장성/안정성/위험 지표는 yfinance 기반 산업별 대표 대형주 단순 평균으로 보완합니다.
+- Finviz 산업/섹터 평균을 찾지 못하면 yfinance 기반 산업별 대표 대형주 단순 평균을 전체 benchmark fallback으로 사용합니다.
 - 산업별 대표 ticker dataset이 없는 경우에는 섹터 대표 대형주 단순 평균을 마지막 benchmark fallback으로 사용합니다.
+- 해외 종목의 Financial Statement 대시보드는 가격/주당 재무 값과 시가총액을 USD 기준으로 정규화하고, 원 통화와 표시 통화를 함께 보여줍니다.
 - 비교 benchmark를 만들 수 없는 경우에는 절대 기준 점수화임을 UI에 명확히 표시합니다.
 - custom CSV universe 지원은 TODO로 추적 중입니다.
 

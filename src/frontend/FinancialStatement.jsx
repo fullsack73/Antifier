@@ -91,6 +91,11 @@ const FinancialStatement = () => {
 
         const labelKey = decisionKey(decision.label);
         const label = t(`financial.decision_labels.${labelKey}`, decision.label);
+        const displayCurrency = data.company?.display_currency || data.company?.currency;
+        const sourceCurrency = data.company?.source_currency;
+        const currencyText = sourceCurrency && displayCurrency && sourceCurrency !== displayCurrency
+            ? `${displayCurrency} (${t('financial.source_currency')}: ${sourceCurrency})`
+            : displayCurrency;
         const scoreText = decision.score === null || decision.score === undefined
             ? '-'
             : `${decision.score}/${decision.max_score || 100}`;
@@ -104,7 +109,7 @@ const FinancialStatement = () => {
                     <h3>{data.company?.name || data.longName || data.ticker} ({data.ticker})</h3>
                     <div className="financial-company-meta">
                         <span>{t('financial.market_cap')}: {data.company?.market_cap_display || t('financial.not_available')}</span>
-                        <span>{t('financial.currency')}: {data.company?.currency || t('financial.not_available')}</span>
+                        <span>{t('financial.currency')}: {currencyText || t('financial.not_available')}</span>
                     </div>
                 </div>
                 <div className="financial-score-summary">

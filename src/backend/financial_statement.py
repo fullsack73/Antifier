@@ -8,6 +8,38 @@ import yfinance as yf
 
 STATEMENT_TYPES = ("income", "balance", "cash")
 STATEMENT_FREQUENCIES = ("annual", "quarterly")
+BASE_CURRENCY = "USD"
+DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
+TICKER_SUFFIX_CURRENCIES = {
+    ".KS": "KRW",
+    ".KQ": "KRW",
+    ".T": "JPY",
+    ".HK": "HKD",
+    ".L": "GBp",
+    ".AX": "AUD",
+    ".TO": "CAD",
+    ".V": "CAD",
+    ".PA": "EUR",
+    ".DE": "EUR",
+    ".F": "EUR",
+    ".MI": "EUR",
+    ".MC": "EUR",
+    ".AS": "EUR",
+    ".BR": "EUR",
+    ".SW": "CHF",
+    ".ST": "SEK",
+    ".OL": "NOK",
+    ".CO": "DKK",
+    ".SS": "CNY",
+    ".SZ": "CNY",
+    ".TW": "TWD",
+    ".SI": "SGD",
+    ".BO": "INR",
+    ".NS": "INR",
+    ".SA": "BRL",
+    ".MX": "MXN",
+    ".JO": "ZAR",
+}
 
 TOTAL_SCORE_WEIGHT = 100
 DECISION_THRESHOLDS = (
@@ -21,6 +53,7 @@ DECISION_THRESHOLDS = (
 BENCHMARK_CACHE_TTL_SECONDS = 24 * 60 * 60
 _BENCHMARK_TABLE_CACHE = {}
 _PEER_BENCHMARK_CACHE = {}
+_FX_RATE_CACHE = {}
 
 BENCHMARK_FIELD_MAP = {
     "per": "P/E",
@@ -36,7 +69,47 @@ YFINANCE_PEER_FIELD_MAP = {
     "pbr": "priceToBook",
     "psr": "priceToSalesTrailing12Months",
     "peg": ("pegRatio", "trailingPegRatio"),
+    "roe": "returnOnEquity",
+    "roa": "returnOnAssets",
+    "profit_margin": ("profitMargins", "profitMargin"),
+    "operating_margin": "operatingMargins",
+    "revenue_growth": "revenueGrowth",
+    "earnings_growth": "earningsGrowth",
+    "debt_to_equity": "debtToEquity",
+    "current_ratio": "currentRatio",
+    "quick_ratio": "quickRatio",
+    "beta": "beta",
 }
+
+ALLOW_NEGATIVE_PEER_AVERAGE_METRICS = {
+    "roe",
+    "roa",
+    "profit_margin",
+    "operating_margin",
+    "revenue_growth",
+    "earnings_growth",
+}
+
+QUOTE_CURRENCY_FIELDS = (
+    "currentPrice",
+    "regularMarketPrice",
+    "previousClose",
+    "open",
+    "dayLow",
+    "dayHigh",
+    "fiftyTwoWeekLow",
+    "fiftyTwoWeekHigh",
+    "marketCap",
+    "enterpriseValue",
+)
+
+FINANCIAL_CURRENCY_FIELDS = (
+    "trailingEps",
+    "forwardEps",
+    "bookValue",
+    "revenuePerShare",
+    "totalRevenue",
+)
 
 SECTOR_NAME_ALIASES = {
     "basic materials": "Basic Materials",
@@ -189,6 +262,171 @@ def _format_market_cap(value):
     if abs_number >= 1_000_000:
         return f"{number / 1_000_000:.2f}M"
     return f"{number:,.0f}"
+
+
+def _normalize_currency(currency):
+    if not currency:
+        return None
+    currency = str(currency).strip()
+    if currency in {"GBp", "GBX"}:
+        return "GBp"
+    return currency.upper()
+
+
+def _infer_currency_from_ticker(ticker_symbol):
+    ticker_upper = str(ticker_symbol or "").upper()
+    for suffix, currency in TICKER_SUFFIX_CURRENCIES.items():
+        if ticker_upper.endswith(suffix):
+            return currency
+    return None
+
+
+def _fx_spec_for_currency(currency):
+    currency = _normalize_currency(currency)
+    if not currency or currency == BASE_CURRENCY:
+        return None
+    if currency == "GBp":
+        return "GBPUSD=X", "multiply", 0.01
+    if currency in DIRECT_USD_QUOTE_CURRENCIES:
+        return f"{currency}USD=X", "multiply", 1.0
+    return f"{currency}=X", "divide", 1.0
+
+
+def _extract_close_series(raw_data):
+    if raw_data is None or raw_data.empty:
+        return pd.Series(dtype=float)
+    if isinstance(raw_data.columns, pd.MultiIndex):
+        if "Close" in raw_data.columns.get_level_values(0):
+            close_data = raw_data["Close"]
+        else:
+            close_data = raw_data
+        if isinstance(close_data, pd.DataFrame):
+            return close_data.iloc[:, 0]
+        return close_data
+    if "Close" in raw_data.columns:
+        close_data = raw_data["Close"]
+        if isinstance(close_data, pd.DataFrame):
+            return close_data.iloc[:, 0]
+        return close_data
+    return raw_data.iloc[:, 0]
+
+
+def _fetch_latest_usd_conversion_scalar(currency):
+    currency = _normalize_currency(currency)
+    spec = _fx_spec_for_currency(currency)
+    if spec is None:
+        return 1.0
+
+    now = time.time()
+    cached = _FX_RATE_CACHE.get(currency)
+    if cached and now - cached["fetched_at"] < BENCHMARK_CACHE_TTL_SECONDS:
+        return cached["value"]
+
+    fx_ticker, operation, unit_multiplier = spec
+    try:
+        raw_fx_data = yf.download(fx_ticker, period="5d", progress=False, auto_adjust=True)
+        fx_close = _extract_close_series(raw_fx_data).dropna()
+        if fx_close.empty:
+            return None
+
+        latest_fx = _safe_number(fx_close.iloc[-1])
+        if latest_fx is None or latest_fx <= 0:
+            return None
+
+        if operation == "multiply":
+            factor = latest_fx * unit_multiplier
+        else:
+            factor = unit_multiplier / latest_fx
+
+        _FX_RATE_CACHE[currency] = {
+            "value": factor,
+            "fetched_at": now,
+        }
+        return factor
+    except Exception:
+        return None
+
+
+def _convert_currency_value(value, conversion_factor):
+    number = _safe_number(value)
+    factor = _safe_number(conversion_factor)
+    if number is None or factor is None:
+        return number
+    return number * factor
+
+
+def _first_positive(*values):
+    for value in values:
+        number = _safe_number(value)
+        if number is not None and number > 0:
+            return number
+    return None
+
+
+def _ratio_or_existing(numerator, denominator, existing):
+    numerator = _safe_number(numerator)
+    denominator = _safe_number(denominator)
+    if numerator is not None and denominator is not None and numerator > 0 and denominator > 0:
+        return numerator / denominator
+    return _safe_number(existing)
+
+
+def _financial_currency_context(info, ticker_symbol):
+    quote_currency = _normalize_currency(info.get("currency")) or _infer_currency_from_ticker(ticker_symbol) or BASE_CURRENCY
+    financial_currency = _normalize_currency(info.get("financialCurrency")) or quote_currency
+    quote_factor = _fetch_latest_usd_conversion_scalar(quote_currency)
+    financial_factor = _fetch_latest_usd_conversion_scalar(financial_currency)
+
+    quote_conversion_available = quote_factor is not None
+    financial_conversion_available = financial_factor is not None
+    display_currency = BASE_CURRENCY if quote_conversion_available and financial_conversion_available else quote_currency
+
+    return {
+        "source_currency": quote_currency,
+        "financial_currency": financial_currency,
+        "display_currency": display_currency,
+        "quote_to_usd": quote_factor,
+        "financial_to_usd": financial_factor,
+        "conversion_available": quote_conversion_available and financial_conversion_available,
+    }
+
+
+def _normalize_financial_info_to_usd(info, ticker_symbol):
+    normalized = dict(info or {})
+    currency_context = _financial_currency_context(normalized, ticker_symbol)
+
+    quote_factor = currency_context["quote_to_usd"]
+    financial_factor = currency_context["financial_to_usd"]
+    if currency_context["conversion_available"]:
+        for field in QUOTE_CURRENCY_FIELDS:
+            if field in normalized:
+                normalized[field] = _convert_currency_value(normalized.get(field), quote_factor)
+        for field in FINANCIAL_CURRENCY_FIELDS:
+            if field in normalized:
+                normalized[field] = _convert_currency_value(normalized.get(field), financial_factor)
+
+        price = _first_positive(normalized.get("currentPrice"), normalized.get("regularMarketPrice"))
+        shares = _first_positive(normalized.get("sharesOutstanding"), normalized.get("impliedSharesOutstanding"))
+        total_revenue = _first_positive(normalized.get("totalRevenue"))
+        revenue_per_share = _first_positive(normalized.get("revenuePerShare"))
+
+        if not revenue_per_share and total_revenue and shares:
+            revenue_per_share = total_revenue / shares
+            normalized["revenuePerShare"] = revenue_per_share
+
+        normalized["trailingPE"] = _ratio_or_existing(price, normalized.get("trailingEps"), normalized.get("trailingPE"))
+        normalized["forwardPE"] = _ratio_or_existing(price, normalized.get("forwardEps"), normalized.get("forwardPE"))
+        normalized["priceToBook"] = _ratio_or_existing(price, normalized.get("bookValue"), normalized.get("priceToBook"))
+        normalized["priceToSalesTrailing12Months"] = _ratio_or_existing(
+            price,
+            revenue_per_share,
+            normalized.get("priceToSalesTrailing12Months"),
+        )
+
+        normalized["currency"] = BASE_CURRENCY
+        normalized["financialCurrency"] = BASE_CURRENCY
+
+    return normalized, currency_context
 
 
 def _get_statement_frame(ticker, statement_type="income", frequency="annual"):
@@ -402,9 +640,12 @@ def _metric(
     }
 
 
-def _average(values):
+def _average(values, positive_only=True):
     cleaned = [_safe_number(value) for value in values]
-    cleaned = [value for value in cleaned if value is not None and value > 0]
+    if positive_only:
+        cleaned = [value for value in cleaned if value is not None and value > 0]
+    else:
+        cleaned = [value for value in cleaned if value is not None]
     if not cleaned:
         return None
     return sum(cleaned) / len(cleaned)
@@ -496,11 +737,17 @@ def _fetch_finviz_group_benchmarks(info):
     return {}
 
 
-def _read_yfinance_peer_metric(info, fields):
+def _read_yfinance_peer_metric(metric_key, info, fields):
     field_names = fields if isinstance(fields, tuple) else (fields,)
     for field in field_names:
         value = _safe_number(info.get(field))
-        if value is not None and value > 0:
+        if value is None:
+            continue
+        if metric_key == "debt_to_equity":
+            value = _normalize_debt_to_equity(value)
+            if value is None:
+                continue
+        if metric_key in ALLOW_NEGATIVE_PEER_AVERAGE_METRICS or value > 0:
             return value
     return None
 
@@ -551,14 +798,14 @@ def _fetch_representative_peer_benchmarks(info, ticker_symbol):
         if not isinstance(peer_info, dict):
             continue
         for metric_key, fields in YFINANCE_PEER_FIELD_MAP.items():
-            value = _read_yfinance_peer_metric(peer_info, fields)
+            value = _read_yfinance_peer_metric(metric_key, peer_info, fields)
             if value is not None:
                 peer_values[metric_key].append(value)
 
     benchmarks = {}
 
     for metric_key, values in peer_values.items():
-        average = _average(values)
+        average = _average(values, positive_only=metric_key not in ALLOW_NEGATIVE_PEER_AVERAGE_METRICS)
         if average is not None:
             benchmarks[metric_key] = {
                 "basis": dataset["basis"],
@@ -578,10 +825,15 @@ def _fetch_representative_peer_benchmarks(info, ticker_symbol):
 
 
 def _fetch_financial_benchmarks(info, ticker_symbol):
-    benchmarks = _fetch_finviz_group_benchmarks(info)
-    if benchmarks:
-        return benchmarks
-    return _fetch_representative_peer_benchmarks(info, ticker_symbol)
+    finviz_benchmarks = _fetch_finviz_group_benchmarks(info)
+    representative_benchmarks = _fetch_representative_peer_benchmarks(info, ticker_symbol)
+    if not finviz_benchmarks:
+        return representative_benchmarks
+
+    return {
+        **representative_benchmarks,
+        **finviz_benchmarks,
+    }
 
 
 def _build_investment_metrics(info, debt_ratio, benchmarks=None):
@@ -726,6 +978,7 @@ def get_financial_ratios(ticker_symbol):
     try:
         ticker = yf.Ticker(ticker_symbol)
         info = ticker.info or {}
+        info, _currency_context = _normalize_financial_info_to_usd(info, ticker_symbol)
         debt_ratio = _calculate_debt_ratio(ticker.balance_sheet)
         metrics = _build_investment_metrics(info, debt_ratio)
         return _legacy_ratios_from_metrics(ticker_symbol, info, metrics)
@@ -744,25 +997,42 @@ def get_financial_dashboard(ticker_symbol):
         info = ticker.info or {}
         if not isinstance(info, dict):
             info = {}
+        normalized_info, currency_context = _normalize_financial_info_to_usd(info, ticker_symbol)
 
         balance_sheet = _get_statement_frame(ticker, "balance", "annual")
         debt_ratio = _calculate_debt_ratio(balance_sheet)
-        benchmarks = _fetch_financial_benchmarks(info, ticker_symbol)
-        metrics = _build_investment_metrics(info, debt_ratio, benchmarks)
+        benchmarks = _fetch_financial_benchmarks(normalized_info, ticker_symbol)
+        metrics = _build_investment_metrics(normalized_info, debt_ratio, benchmarks)
         decision = _score_dashboard_metrics(metrics)
         statements, statement_errors = _collect_all_statements(ticker)
-        ratios = _legacy_ratios_from_metrics(ticker_symbol, info, metrics)
+        ratios = _legacy_ratios_from_metrics(ticker_symbol, normalized_info, metrics)
+        display_currency = currency_context.get("display_currency") or normalized_info.get("currency") or "N/A"
+        source_currency = currency_context.get("source_currency") or info.get("currency") or "N/A"
+        financial_currency = currency_context.get("financial_currency") or info.get("financialCurrency") or source_currency
 
         return {
             **ratios,
             "company": {
                 "ticker": ticker_symbol,
-                "name": info.get("longName") or info.get("shortName") or ticker_symbol,
-                "sector": info.get("sector") or "N/A",
-                "industry": info.get("industry") or "N/A",
-                "currency": info.get("currency") or info.get("financialCurrency") or "N/A",
-                "market_cap": _safe_number(info.get("marketCap")),
-                "market_cap_display": _format_market_cap(info.get("marketCap")),
+                "name": normalized_info.get("longName") or normalized_info.get("shortName") or ticker_symbol,
+                "sector": normalized_info.get("sector") or "N/A",
+                "industry": normalized_info.get("industry") or "N/A",
+                "currency": display_currency,
+                "display_currency": display_currency,
+                "source_currency": source_currency,
+                "financial_currency": financial_currency,
+                "market_cap": _safe_number(normalized_info.get("marketCap")),
+                "market_cap_display": _format_market_cap(normalized_info.get("marketCap")),
+                "source_market_cap": _safe_number(info.get("marketCap")),
+                "source_market_cap_display": _format_market_cap(info.get("marketCap")),
+                "currency_conversion": {
+                    "source_currency": source_currency,
+                    "financial_currency": financial_currency,
+                    "display_currency": display_currency,
+                    "quote_to_usd": _safe_number(currency_context.get("quote_to_usd")),
+                    "financial_to_usd": _safe_number(currency_context.get("financial_to_usd")),
+                    "conversion_available": bool(currency_context.get("conversion_available")),
+                },
             },
             "metrics": metrics,
             "decision": decision,

@@ -83,6 +83,7 @@
     "not_available": "N/A",
     "market_cap": "Market Cap",
     "currency": "Currency",
+    "source_currency": "source",
     "confidence": "{{confidence}}% confidence · {{available}}/{{total}} metrics available",
     "analysis_note": "Rule-based financial signal from available data. Use it as analytical context, not investment advice.",
     "view_full_statements": "View Full Statements",
