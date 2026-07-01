@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
-import Plot from "react-plotly.js"
+import Plot from "./LazyPlot.jsx"
 import {
   buildExportBaseName,
   buildPortfolioExportPayload,

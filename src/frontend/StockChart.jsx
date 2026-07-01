@@ -1,4 +1,4 @@
-import Plot from "react-plotly.js"
+import Plot from "./LazyPlot.jsx"
 
 function StockChart({ data, ticker, priceCurrency = "USD" }) {
   return (

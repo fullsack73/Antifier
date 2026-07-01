@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next"
-import Plot from "react-plotly.js"
+import Plot from "./LazyPlot.jsx"
 
 function BenchmarkChart({ portfolioData, sp500Data, riskfreeData }) {
   const { t } = useTranslation()
