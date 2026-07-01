@@ -1,4 +1,4 @@
-import Plot from "react-plotly.js"
+import Plot from "./LazyPlot.jsx"
 
 function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
   return (

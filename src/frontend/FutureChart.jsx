@@ -1,4 +1,4 @@
-import Plot from "react-plotly.js"
+import Plot from "./LazyPlot.jsx"
 import { useTranslation } from "react-i18next"
 
 const toSeries = (data = {}) =>
