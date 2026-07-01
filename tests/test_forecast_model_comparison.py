@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src/backend")))
 
-import forecast_models
+import forecast_model_comparison_utils as comparison_utils
 
 
 def test_summarize_forecast_records_calculates_error_metrics():
@@ -17,7 +17,7 @@ def test_summarize_forecast_records_calculates_error_metrics():
         {"predicted_log_return": None, "actual_log_return": 0.05, "elapsed_seconds": 2.0},
     ]
 
-    summary = forecast_models._summarize_forecast_records(records)
+    summary = comparison_utils._summarize_forecast_records(records)
 
     assert summary["n"] == 2
     assert summary["failures"] == 1
@@ -32,22 +32,22 @@ def test_compare_forecasters_on_series_uses_same_windows(monkeypatch):
     prices = np.linspace(100.0, 160.0, 180)
 
     monkeypatch.setattr(
-        forecast_models,
+        comparison_utils,
         "_forecast_ensemble_period_log_return",
         lambda train_prices, horizon: 0.01,
     )
     monkeypatch.setattr(
-        forecast_models,
+        comparison_utils,
         "_forecast_transformer_period_log_return",
         lambda train_prices, horizon, transformer_kwargs=None: 0.02,
     )
     monkeypatch.setattr(
-        forecast_models,
+        comparison_utils,
         "_forecast_arima_transformer_period_log_return",
         lambda train_prices, horizon, transformer_kwargs=None: 0.015,
     )
 
-    result = forecast_models.compare_forecasters_on_series(
+    result = comparison_utils.compare_forecasters_on_series(
         prices,
         horizon=5,
         min_train_size=100,
@@ -76,12 +76,12 @@ def test_legacy_ensemble_comparison_path_uses_arima_transformer(monkeypatch):
         return 0.0123
 
     monkeypatch.setattr(
-        forecast_models,
+        comparison_utils,
         "_forecast_arima_transformer_period_log_return",
         fake_arima_transformer,
     )
 
-    result = forecast_models.compare_forecasters_on_series(
+    result = comparison_utils.compare_forecasters_on_series(
         np.linspace(100.0, 140.0, 130),
         horizon=5,
         min_train_size=100,
@@ -121,3 +121,77 @@ def test_legacy_portfolio_ensemble_alias_uses_arima_transformer(monkeypatch):
     assert result["expected_return"] == pytest.approx(0.12)
     assert result["source"] == "arima_transformer"
     assert calls == [("AAPL", 130, 21)]
+
+
+def test_compare_forecasters_by_horizon_selects_best_model_per_window(monkeypatch):
+    prices = np.exp(np.arange(180) * 0.001)
+
+    monkeypatch.setattr(
+        comparison_utils,
+        "_forecast_transformer_period_log_return",
+        lambda train_prices, horizon, transformer_kwargs=None: (
+            0.001 * horizon if horizon == 5 else 0.0
+        ),
+    )
+    monkeypatch.setattr(
+        comparison_utils,
+        "_forecast_arima_transformer_period_log_return",
+        lambda train_prices, horizon, transformer_kwargs=None: (
+            0.0 if horizon == 5 else 0.001 * horizon
+        ),
+    )
+
+    result = comparison_utils.compare_forecasters_by_horizon(
+        prices,
+        horizons={"short": 5, "medium": 10, "long": 20},
+        min_train_size=100,
+        step=20,
+        max_windows=2,
+    )
+
+    assert result["models"] == ["transformer", "arima_transformer"]
+    assert result["best_by_horizon"]["short"]["model"] == "transformer"
+    assert result["best_by_horizon"]["medium"]["model"] == "arima_transformer"
+    assert result["best_by_horizon"]["long"]["model"] == "arima_transformer"
+    assert result["horizons"]["short"]["ranking"][0]["model"] == "transformer"
+    assert result["horizons"]["long"]["comparison"]["transformer"]["metrics"]["n"] == 2
+
+
+def test_compare_single_ticker_forecasters_includes_ticker(monkeypatch):
+    monkeypatch.setattr(
+        comparison_utils,
+        "compare_forecasters_by_horizon",
+        lambda prices, **kwargs: {"best_by_horizon": {"short": {"model": "transformer"}}},
+    )
+
+    result = comparison_utils.compare_single_ticker_forecasters(
+        "AAPL",
+        np.linspace(100.0, 130.0, 130),
+        horizons={"short": 5},
+    )
+
+    assert result["ticker"] == "AAPL"
+    assert result["best_by_horizon"]["short"]["model"] == "transformer"
+
+
+def test_compare_forecasters_by_horizon_keeps_other_windows_when_one_is_too_long(monkeypatch):
+    prices = np.exp(np.arange(115) * 0.001)
+
+    monkeypatch.setattr(
+        comparison_utils,
+        "_forecast_transformer_period_log_return",
+        lambda train_prices, horizon, transformer_kwargs=None: 0.001 * horizon,
+    )
+
+    result = comparison_utils.compare_forecasters_by_horizon(
+        prices,
+        horizons={"short": 5, "long": 20},
+        min_train_size=100,
+        step=5,
+        max_windows=1,
+        models=("transformer",),
+    )
+
+    assert result["best_by_horizon"]["short"]["model"] == "transformer"
+    assert result["best_by_horizon"]["long"] is None
+    assert "Need at least" in result["horizons"]["long"]["error"]

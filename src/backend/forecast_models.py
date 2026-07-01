@@ -6,10 +6,132 @@ import numpy as np
 import logging
 from scipy.stats import linregress
 import warnings
-import time
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 logger = logging.getLogger(__name__)
+
+TRANSFORMER_HPO_PARAM_KEYS = (
+    "lookback",
+    "d_model",
+    "num_heads",
+    "ff_dim",
+    "dropout",
+    "epochs",
+    "batch_size",
+    "learning_rate",
+    "dense_units",
+    "num_blocks",
+    "patience",
+    "forecast_clip",
+)
+
+DEFAULT_TRANSFORMER_HPO_SPACE = (
+    {
+        "name": "baseline",
+        "lookback": 60,
+        "d_model": 32,
+        "num_heads": 2,
+        "ff_dim": 64,
+        "dropout": 0.1,
+        "epochs": 5,
+        "batch_size": 32,
+        "learning_rate": 0.001,
+        "dense_units": 32,
+        "num_blocks": 1,
+        "patience": 2,
+        "forecast_clip": 0.2,
+    },
+    {
+        "name": "short_context",
+        "lookback": 30,
+        "d_model": 32,
+        "num_heads": 2,
+        "ff_dim": 64,
+        "dropout": 0.05,
+        "epochs": 5,
+        "batch_size": 32,
+        "learning_rate": 0.001,
+        "dense_units": 32,
+        "num_blocks": 1,
+        "patience": 2,
+        "forecast_clip": 0.15,
+    },
+    {
+        "name": "wide_context",
+        "lookback": 60,
+        "d_model": 64,
+        "num_heads": 4,
+        "ff_dim": 128,
+        "dropout": 0.1,
+        "epochs": 5,
+        "batch_size": 32,
+        "learning_rate": 0.0007,
+        "dense_units": 64,
+        "num_blocks": 1,
+        "patience": 2,
+        "forecast_clip": 0.15,
+    },
+    {
+        "name": "short_wide",
+        "lookback": 30,
+        "d_model": 64,
+        "num_heads": 4,
+        "ff_dim": 128,
+        "dropout": 0.05,
+        "epochs": 5,
+        "batch_size": 32,
+        "learning_rate": 0.0007,
+        "dense_units": 64,
+        "num_blocks": 1,
+        "patience": 2,
+        "forecast_clip": 0.15,
+    },
+    {
+        "name": "regularized",
+        "lookback": 60,
+        "d_model": 32,
+        "num_heads": 2,
+        "ff_dim": 128,
+        "dropout": 0.2,
+        "epochs": 6,
+        "batch_size": 32,
+        "learning_rate": 0.0005,
+        "dense_units": 32,
+        "num_blocks": 1,
+        "patience": 2,
+        "forecast_clip": 0.12,
+    },
+    {
+        "name": "small_fast",
+        "lookback": 20,
+        "d_model": 16,
+        "num_heads": 2,
+        "ff_dim": 32,
+        "dropout": 0.05,
+        "epochs": 5,
+        "batch_size": 32,
+        "learning_rate": 0.001,
+        "dense_units": 16,
+        "num_blocks": 1,
+        "patience": 2,
+        "forecast_clip": 0.15,
+    },
+    {
+        "name": "two_block",
+        "lookback": 45,
+        "d_model": 32,
+        "num_heads": 2,
+        "ff_dim": 64,
+        "dropout": 0.1,
+        "epochs": 6,
+        "batch_size": 32,
+        "learning_rate": 0.0007,
+        "dense_units": 32,
+        "num_blocks": 2,
+        "patience": 2,
+        "forecast_clip": 0.12,
+    },
+)
 
 
 def _load_auto_arima():
@@ -389,6 +511,11 @@ class TransformerForecastModel:
         forecast_clip=0.2,
         validation_split=0.1,
         random_state=42,
+        hpo_enabled=False,
+        hpo_trials=None,
+        hpo_space=None,
+        hpo_validation_split=0.2,
+        hpo_min_train_sequences=20,
     ):
         self.lookback = lookback
         self.d_model = d_model
@@ -404,10 +531,17 @@ class TransformerForecastModel:
         self.forecast_clip = forecast_clip
         self.validation_split = validation_split
         self.random_state = random_state
+        self.hpo_enabled = hpo_enabled
+        self.hpo_trials = hpo_trials
+        self.hpo_space = hpo_space
+        self.hpo_validation_split = hpo_validation_split
+        self.hpo_min_train_sequences = hpo_min_train_sequences
         self.model = None
         self.scaler = None
         self.last_sequence = None
         self.training_daily_rmse = None
+        self.best_hpo_params = None
+        self.hpo_results = []
 
     def cleanup(self):
         if self.model is not None:
@@ -431,7 +565,206 @@ class TransformerForecastModel:
             y.append(data[i])
         return np.array(X), np.array(y)
 
-    def _build_model(self, sequence_length):
+    def _current_model_config(self):
+        return {
+            key: getattr(self, key)
+            for key in TRANSFORMER_HPO_PARAM_KEYS
+        }
+
+    def _sanitize_model_config(self, config):
+        sanitized = {
+            key: config[key]
+            for key in TRANSFORMER_HPO_PARAM_KEYS
+            if key in config
+        }
+
+        sanitized["lookback"] = max(10, int(sanitized.get("lookback", self.lookback)))
+        sanitized["d_model"] = max(4, int(sanitized.get("d_model", self.d_model)))
+        sanitized["num_heads"] = max(1, int(sanitized.get("num_heads", self.num_heads)))
+        sanitized["num_heads"] = min(sanitized["num_heads"], sanitized["d_model"])
+        sanitized["ff_dim"] = max(4, int(sanitized.get("ff_dim", self.ff_dim)))
+        sanitized["dropout"] = float(np.clip(sanitized.get("dropout", self.dropout), 0.0, 0.8))
+        sanitized["epochs"] = max(1, int(sanitized.get("epochs", self.epochs)))
+        sanitized["batch_size"] = max(1, int(sanitized.get("batch_size", self.batch_size)))
+        sanitized["learning_rate"] = max(1e-6, float(sanitized.get("learning_rate", self.learning_rate)))
+        sanitized["dense_units"] = max(1, int(sanitized.get("dense_units", self.dense_units)))
+        sanitized["num_blocks"] = max(1, int(sanitized.get("num_blocks", self.num_blocks)))
+        sanitized["patience"] = max(0, int(sanitized.get("patience", self.patience)))
+        sanitized["forecast_clip"] = float(np.clip(sanitized.get("forecast_clip", self.forecast_clip), 0.001, 1.0))
+
+        if "name" in config:
+            sanitized["name"] = str(config["name"])
+        return sanitized
+
+    def _merge_model_config(self, overrides=None):
+        config = self._current_model_config()
+        if overrides:
+            for key in TRANSFORMER_HPO_PARAM_KEYS:
+                if key in overrides:
+                    config[key] = overrides[key]
+            if "name" in overrides:
+                config["name"] = overrides["name"]
+        return self._sanitize_model_config(config)
+
+    def _apply_model_config(self, config):
+        sanitized = self._merge_model_config(config)
+        for key in TRANSFORMER_HPO_PARAM_KEYS:
+            setattr(self, key, sanitized[key])
+        return sanitized
+
+    def _candidate_hpo_configs(self):
+        raw_candidates = [{"name": "current", **self._current_model_config()}]
+        raw_candidates.extend(
+            DEFAULT_TRANSFORMER_HPO_SPACE
+            if self.hpo_space is None
+            else self.hpo_space
+        )
+
+        candidates = []
+        seen = set()
+        for raw_config in raw_candidates:
+            config = self._merge_model_config(raw_config)
+            config.setdefault("name", f"trial_{len(candidates) + 1}")
+            signature = tuple(config[key] for key in TRANSFORMER_HPO_PARAM_KEYS)
+            if signature in seen:
+                continue
+            seen.add(signature)
+            candidates.append(config)
+
+        if self.hpo_trials is not None:
+            candidates = candidates[:max(1, int(self.hpo_trials))]
+        return candidates
+
+    def _split_hpo_validation(self, X, y):
+        min_train = max(1, int(self.hpo_min_train_sequences))
+        if len(X) <= min_train + 1:
+            return None
+
+        validation_fraction = float(np.clip(self.hpo_validation_split, 0.05, 0.5))
+        validation_size = max(1, int(round(len(X) * validation_fraction)))
+        validation_size = min(validation_size, len(X) - min_train)
+        if validation_size < 1:
+            return None
+
+        return (
+            X[:-validation_size],
+            y[:-validation_size],
+            X[-validation_size:],
+            y[-validation_size:],
+        )
+
+    def _run_hpo(self, scaled_returns, tf):
+        self.hpo_results = []
+        best_result = None
+
+        for trial_index, config in enumerate(self._candidate_hpo_configs()):
+            model = None
+            sequence_length = min(config["lookback"], max(10, len(scaled_returns) // 3))
+            X, y = self._create_sequences(scaled_returns, sequence_length)
+            split = self._split_hpo_validation(X, y)
+            if split is None:
+                self.hpo_results.append({
+                    "config": dict(config),
+                    "effective_lookback": int(sequence_length),
+                    "val_loss": None,
+                    "train_loss": None,
+                    "epochs_run": 0,
+                    "error": "insufficient validation sequences",
+                })
+                continue
+
+            X_train, y_train, X_val, y_val = split
+            try:
+                tf.keras.backend.clear_session()
+                try:
+                    tf.random.set_seed(int(self.random_state) + trial_index)
+                except Exception:
+                    pass
+
+                model = self._build_model(sequence_length, config=config)
+                callbacks = [
+                    tf.keras.callbacks.EarlyStopping(
+                        monitor="val_loss",
+                        patience=config["patience"],
+                        restore_best_weights=True,
+                    )
+                ]
+                history = model.fit(
+                    X_train,
+                    y_train,
+                    epochs=config["epochs"],
+                    batch_size=config["batch_size"],
+                    verbose=0,
+                    validation_data=(X_val, y_val),
+                    callbacks=callbacks,
+                    shuffle=False,
+                )
+
+                val_losses = [
+                    float(value)
+                    for value in history.history.get("val_loss", [])
+                    if np.isfinite(value)
+                ]
+                train_losses = [
+                    float(value)
+                    for value in history.history.get("loss", [])
+                    if np.isfinite(value)
+                ]
+                val_loss = min(val_losses) if val_losses else float("inf")
+                train_loss = min(train_losses) if train_losses else None
+                result = {
+                    "config": dict(config),
+                    "effective_lookback": int(sequence_length),
+                    "val_loss": None if not np.isfinite(val_loss) else float(val_loss),
+                    "train_loss": train_loss,
+                    "epochs_run": len(history.history.get("loss", [])),
+                    "error": None,
+                }
+            except Exception as exc:
+                result = {
+                    "config": dict(config),
+                    "effective_lookback": int(sequence_length),
+                    "val_loss": None,
+                    "train_loss": None,
+                    "epochs_run": 0,
+                    "error": str(exc),
+                }
+            finally:
+                if model is not None:
+                    try:
+                        del model
+                    except Exception:
+                        pass
+                try:
+                    tf.keras.backend.clear_session()
+                except Exception:
+                    pass
+
+            self.hpo_results.append(result)
+            val_loss = result["val_loss"]
+            if val_loss is not None and (
+                best_result is None or val_loss < best_result["val_loss"]
+            ):
+                best_result = result
+
+        if best_result is None:
+            logger.warning("Transformer HPO found no valid trial; using current hyperparameters")
+            self.best_hpo_params = None
+            return self._current_model_config()
+
+        selected_config = self._apply_model_config(best_result["config"])
+        selected_config["name"] = best_result["config"].get("name", "selected")
+        selected_config["effective_lookback"] = best_result["effective_lookback"]
+        selected_config["val_loss"] = best_result["val_loss"]
+        self.best_hpo_params = selected_config
+        logger.info(
+            "Transformer HPO selected %s with val_loss %.6f",
+            selected_config["name"],
+            selected_config["val_loss"],
+        )
+        return selected_config
+
+    def _build_model(self, sequence_length, config=None):
         try:
             import tensorflow as tf
             from tensorflow import keras
@@ -439,32 +772,33 @@ class TransformerForecastModel:
         except Exception as exc:
             raise RuntimeError("TensorFlow is required for Transformer models but is not installed") from exc
 
+        config = self._merge_model_config(config)
         tf.keras.backend.clear_session()
 
         inputs = keras.Input(shape=(sequence_length, 1))
-        x = layers.Dense(self.d_model)(inputs)
+        x = layers.Dense(config["d_model"])(inputs)
 
-        for _ in range(max(1, int(self.num_blocks))):
+        for _ in range(config["num_blocks"]):
             attention = layers.MultiHeadAttention(
-                num_heads=self.num_heads,
-                key_dim=max(1, self.d_model // self.num_heads),
-                dropout=self.dropout,
+                num_heads=config["num_heads"],
+                key_dim=max(1, config["d_model"] // config["num_heads"]),
+                dropout=config["dropout"],
             )(x, x)
-            attention = layers.Dropout(self.dropout)(attention)
+            attention = layers.Dropout(config["dropout"])(attention)
             x = layers.LayerNormalization(epsilon=1e-6)(x + attention)
 
-            feed_forward = layers.Dense(self.ff_dim, activation="relu")(x)
-            feed_forward = layers.Dense(self.d_model)(feed_forward)
-            feed_forward = layers.Dropout(self.dropout)(feed_forward)
+            feed_forward = layers.Dense(config["ff_dim"], activation="relu")(x)
+            feed_forward = layers.Dense(config["d_model"])(feed_forward)
+            feed_forward = layers.Dropout(config["dropout"])(feed_forward)
             x = layers.LayerNormalization(epsilon=1e-6)(x + feed_forward)
 
         x = layers.GlobalAveragePooling1D()(x)
-        x = layers.Dense(self.dense_units, activation="relu")(x)
-        x = layers.Dropout(self.dropout)(x)
+        x = layers.Dense(config["dense_units"], activation="relu")(x)
+        x = layers.Dropout(config["dropout"])(x)
         outputs = layers.Dense(1)(x)
 
         model = keras.Model(inputs=inputs, outputs=outputs)
-        model.compile(optimizer=keras.optimizers.Adam(learning_rate=self.learning_rate), loss="mse")
+        model.compile(optimizer=keras.optimizers.Adam(learning_rate=config["learning_rate"]), loss="mse")
         return model
 
     def train(self, prices):
@@ -481,7 +815,13 @@ class TransformerForecastModel:
 
             prices = np.asarray(prices, dtype=float)
             prices = prices[np.isfinite(prices) & (prices > 0)]
-            if len(prices) < max(100, self.lookback + 30):
+            candidate_lookbacks = (
+                [config["lookback"] for config in self._candidate_hpo_configs()]
+                if self.hpo_enabled
+                else [self.lookback]
+            )
+            min_required_lookback = min(candidate_lookbacks)
+            if len(prices) < max(100, min_required_lookback + 30):
                 logger.warning("Insufficient data for Transformer training")
                 self.model = None
                 return
@@ -490,7 +830,14 @@ class TransformerForecastModel:
             self.scaler = StandardScaler()
             scaled_returns = self.scaler.fit_transform(log_returns)
 
-            lookback = min(self.lookback, max(10, len(scaled_returns) // 3))
+            if self.hpo_enabled:
+                self._run_hpo(scaled_returns, tf)
+            else:
+                self.best_hpo_params = None
+                self.hpo_results = []
+
+            final_config = self._current_model_config()
+            lookback = min(final_config["lookback"], max(10, len(scaled_returns) // 3))
             X, y = self._create_sequences(scaled_returns, lookback)
             if len(X) < 30:
                 logger.warning("Insufficient sequences for Transformer training")
@@ -499,20 +846,20 @@ class TransformerForecastModel:
 
             self.lookback = lookback
             self.last_sequence = scaled_returns[-lookback:].reshape(lookback, 1)
-            self.model = self._build_model(lookback)
+            self.model = self._build_model(lookback, config=final_config)
 
             callbacks = [
                 tf.keras.callbacks.EarlyStopping(
                     monitor="val_loss",
-                    patience=self.patience,
+                    patience=final_config["patience"],
                     restore_best_weights=True,
                 )
             ]
             self.model.fit(
                 X,
                 y,
-                epochs=self.epochs,
-                batch_size=self.batch_size,
+                epochs=final_config["epochs"],
+                batch_size=final_config["batch_size"],
                 verbose=0,
                 validation_split=self.validation_split,
                 callbacks=callbacks,
@@ -642,201 +989,6 @@ class ARIMATransformerPredictor:
             'uncertainty': uncertainty,
             'components': component_results
         }
-
-
-def _forecast_ensemble_period_log_return(prices, horizon):
-    return _forecast_arima_transformer_period_log_return(prices, horizon)
-
-
-def _forecast_transformer_period_log_return(prices, horizon, transformer_kwargs=None):
-    model = TransformerForecastModel(**(transformer_kwargs or {}))
-    try:
-        model.train(prices)
-        return model.forecast(horizon=horizon, annualize=False)
-    finally:
-        model.cleanup()
-
-
-def _forecast_arima_transformer_period_log_return(prices, horizon, transformer_kwargs=None):
-    predictor = ARIMATransformerPredictor(transformer_kwargs=transformer_kwargs)
-    try:
-        predictor.train_all(prices)
-        prediction = predictor.predict(horizon=horizon)
-        annual_log_return = float(prediction.get("expected_return", 0.08))
-        return annual_log_return * (horizon / 252)
-    finally:
-        predictor.cleanup()
-
-
-def _summarize_forecast_records(records):
-    valid_records = [
-        record for record in records
-        if record.get("predicted_log_return") is not None
-        and np.isfinite(record.get("predicted_log_return"))
-        and np.isfinite(record.get("actual_log_return"))
-    ]
-    failures = len(records) - len(valid_records)
-    if not valid_records:
-        return {
-            "n": 0,
-            "failures": failures,
-            "mae": None,
-            "rmse": None,
-            "bias": None,
-            "directional_accuracy": None,
-            "correlation": None,
-            "avg_seconds": None,
-        }
-
-    predicted = np.array([record["predicted_log_return"] for record in valid_records], dtype=float)
-    actual = np.array([record["actual_log_return"] for record in valid_records], dtype=float)
-    errors = predicted - actual
-    actual_sign = np.sign(actual)
-    predicted_sign = np.sign(predicted)
-    if len(valid_records) > 1 and np.std(predicted) > 0 and np.std(actual) > 0:
-        correlation = float(np.corrcoef(predicted, actual)[0, 1])
-    else:
-        correlation = None
-
-    return {
-        "n": len(valid_records),
-        "failures": failures,
-        "mae": float(np.mean(np.abs(errors))),
-        "rmse": float(np.sqrt(np.mean(errors ** 2))),
-        "bias": float(np.mean(errors)),
-        "directional_accuracy": float(np.mean(predicted_sign == actual_sign)),
-        "correlation": correlation,
-        "avg_seconds": float(np.mean([record.get("elapsed_seconds", 0.0) for record in valid_records])),
-    }
-
-
-def compare_forecasters_on_series(
-    prices,
-    horizon=21,
-    min_train_size=252,
-    step=None,
-    max_windows=5,
-    models=("ensemble", "transformer", "arima_transformer"),
-    transformer_kwargs=None,
-):
-    """
-    Walk-forward comparison for ensemble vs Transformer forecasts on one price series.
-
-    Metrics are based on horizon log-return prediction error. Lower MAE/RMSE is
-    better; higher directional_accuracy/correlation is better.
-    """
-    prices = np.asarray(prices, dtype=float)
-    prices = prices[np.isfinite(prices) & (prices > 0)]
-    step = step or horizon
-    min_train_size = max(100, int(min_train_size))
-    horizon = max(1, int(horizon))
-
-    if len(prices) < min_train_size + horizon + 1:
-        raise ValueError(
-            f"Need at least {min_train_size + horizon + 1} valid prices for comparison; got {len(prices)}"
-        )
-
-    last_cutoff = len(prices) - horizon - 1
-    cutoffs = list(range(min_train_size - 1, last_cutoff + 1, max(1, int(step))))
-    if max_windows:
-        cutoffs = cutoffs[-int(max_windows):]
-
-    results = {model_name: {"records": []} for model_name in models}
-
-    for cutoff in cutoffs:
-        train_prices = prices[:cutoff + 1]
-        actual_log_return = float(np.log(prices[cutoff + horizon] / prices[cutoff]))
-
-        for model_name in models:
-            started_at = time.perf_counter()
-            predicted = None
-            error = None
-            try:
-                normalized_name = model_name.lower()
-                if normalized_name in {"ensemble", "deep_learning", "deep-learning"}:
-                    predicted = _forecast_ensemble_period_log_return(train_prices, horizon)
-                elif normalized_name == "transformer":
-                    predicted = _forecast_transformer_period_log_return(
-                        train_prices,
-                        horizon,
-                        transformer_kwargs=transformer_kwargs,
-                    )
-                elif normalized_name in {"arima_transformer", "arima+transformer", "arima-transformer"}:
-                    predicted = _forecast_arima_transformer_period_log_return(
-                        train_prices,
-                        horizon,
-                        transformer_kwargs=transformer_kwargs,
-                    )
-                else:
-                    raise ValueError(f"Unsupported model for comparison: {model_name}")
-            except Exception as exc:
-                error = str(exc)
-
-            results[model_name]["records"].append({
-                "cutoff_index": int(cutoff),
-                "horizon": int(horizon),
-                "actual_log_return": actual_log_return,
-                "predicted_log_return": None if predicted is None else float(predicted),
-                "elapsed_seconds": float(time.perf_counter() - started_at),
-                "error": error,
-            })
-
-    for model_name, payload in results.items():
-        payload["metrics"] = _summarize_forecast_records(payload["records"])
-
-    return results
-
-
-def compare_forecasters_on_frame(
-    price_frame,
-    horizon=21,
-    min_train_size=252,
-    step=None,
-    max_windows=5,
-    models=("ensemble", "transformer", "arima_transformer"),
-    transformer_kwargs=None,
-):
-    """Run the same walk-forward comparison across every column in a price DataFrame."""
-    import pandas as pd
-
-    if not isinstance(price_frame, pd.DataFrame):
-        raise TypeError("price_frame must be a pandas DataFrame")
-
-    per_ticker = {}
-    all_records = {model_name: [] for model_name in models}
-
-    for ticker in price_frame.columns:
-        series = price_frame[ticker].dropna().values
-        try:
-            ticker_result = compare_forecasters_on_series(
-                series,
-                horizon=horizon,
-                min_train_size=min_train_size,
-                step=step,
-                max_windows=max_windows,
-                models=models,
-                transformer_kwargs=transformer_kwargs,
-            )
-        except ValueError as exc:
-            per_ticker[ticker] = {"error": str(exc)}
-            continue
-
-        per_ticker[ticker] = ticker_result
-        for model_name in models:
-            for record in ticker_result[model_name]["records"]:
-                merged_record = dict(record)
-                merged_record["ticker"] = ticker
-                all_records[model_name].append(merged_record)
-
-    summary = {
-        model_name: _summarize_forecast_records(records)
-        for model_name, records in all_records.items()
-    }
-
-    return {
-        "summary": summary,
-        "per_ticker": per_ticker,
-    }
 
 
 class LSTMPriceModel:

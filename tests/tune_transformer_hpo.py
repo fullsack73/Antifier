@@ -3,16 +3,11 @@
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-BACKEND = ROOT / "src" / "backend"
-sys.path.insert(0, str(BACKEND))
-
-from forecast_models import compare_forecasters_on_frame  # noqa: E402
+from forecast_model_comparison_utils import compare_forecasters_on_frame
 
 
 DEFAULT_CONFIGS = [
