@@ -102,6 +102,7 @@
     "benchmark_basis": {
       "industry_average": "산업 평균",
       "sector_average": "섹터 평균",
+      "industry_representative_average": "산업 대표 종목 평균",
       "sector_representative_average": "대표 종목 평균"
     },
     "benchmark_source": {

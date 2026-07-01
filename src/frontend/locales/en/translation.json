@@ -102,6 +102,7 @@
     "benchmark_basis": {
       "industry_average": "Industry average",
       "sector_average": "Sector average",
+      "industry_representative_average": "Representative industry peer average",
       "sector_representative_average": "Representative peer average"
     },
     "benchmark_source": {

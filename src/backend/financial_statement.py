@@ -67,6 +67,73 @@ SECTOR_REPRESENTATIVE_TICKERS = {
     "Utilities": ["NEE", "SO", "DUK", "CEG", "AEP", "SRE", "D", "PCG", "EXC", "XEL"],
 }
 
+INDUSTRY_REPRESENTATIVE_TICKERS = {
+    "auto manufacturers": {
+        "name": "Auto Manufacturers",
+        "tickers": ["TSLA", "TM", "BYDDY", "RACE", "GM", "F", "HMC", "STLA", "VWAGY", "MBGYY"],
+    },
+    "banks diversified": {
+        "name": "Banks - Diversified",
+        "tickers": ["JPM", "BAC", "WFC", "C", "HSBC", "RY", "TD", "UBS", "DB", "BCS"],
+    },
+    "biotechnology": {
+        "name": "Biotechnology",
+        "tickers": ["AMGN", "GILD", "REGN", "VRTX", "MRNA", "BIIB", "ALNY", "ILMN", "BNTX", "INCY"],
+    },
+    "communication equipment": {
+        "name": "Communication Equipment",
+        "tickers": ["CSCO", "ANET", "MSI", "NOK", "ERIC", "JNPR", "UI", "CIEN", "LITE", "COMM"],
+    },
+    "consumer electronics": {
+        "name": "Consumer Electronics",
+        "tickers": ["AAPL", "SONY", "SSNLF", "PCRFY", "LPL", "GRMN", "SONO", "GPRO", "VZIO", "HEAR"],
+    },
+    "drug manufacturers general": {
+        "name": "Drug Manufacturers - General",
+        "tickers": ["LLY", "JNJ", "MRK", "NVO", "NVS", "AZN", "PFE", "SNY", "GSK", "BMY"],
+    },
+    "electronic components": {
+        "name": "Electronic Components",
+        "tickers": ["APH", "GLW", "TEL", "TDY", "TRMB", "FLEX", "SANM", "PLXS", "VSH", "CLS"],
+    },
+    "internet content information": {
+        "name": "Internet Content & Information",
+        "tickers": ["GOOGL", "META", "TCEHY", "BIDU", "SPOT", "RDDT", "PINS", "SNAP", "MTCH", "YELP"],
+    },
+    "oil gas integrated": {
+        "name": "Oil & Gas Integrated",
+        "tickers": ["XOM", "CVX", "SHEL", "TTE", "BP", "EQNR", "ENI", "PBR", "SU", "CNQ"],
+    },
+    "semiconductor equipment materials": {
+        "name": "Semiconductor Equipment & Materials",
+        "tickers": ["ASML", "AMAT", "LRCX", "KLAC", "TEL", "TER", "TOELY", "MKSI", "UCTT", "ACLS"],
+    },
+    "semiconductors": {
+        "name": "Semiconductors",
+        "tickers": ["NVDA", "TSM", "AVGO", "ASML", "AMD", "QCOM", "TXN", "AMAT", "MU", "INTC"],
+    },
+    "software application": {
+        "name": "Software - Application",
+        "tickers": ["CRM", "SAP", "INTU", "UBER", "SHOP", "ADSK", "NOW", "ADP", "WDAY", "TEAM"],
+    },
+    "software infrastructure": {
+        "name": "Software - Infrastructure",
+        "tickers": ["MSFT", "ORCL", "ADBE", "PLTR", "SNOW", "CRWD", "DDOG", "NET", "MDB", "ZS"],
+    },
+    "specialty industrial machinery": {
+        "name": "Specialty Industrial Machinery",
+        "tickers": ["GE", "HON", "ETN", "EMR", "ROK", "AME", "DOV", "XYL", "IR", "PH"],
+    },
+    "steel": {
+        "name": "Steel",
+        "tickers": ["NUE", "STLD", "MT", "PKX", "RS", "X", "CLF", "TX", "GGB", "SID"],
+    },
+    "telecom services": {
+        "name": "Telecom Services",
+        "tickers": ["TMUS", "VZ", "T", "CHT", "BCE", "TU", "TEF", "VOD", "ORAN", "SKM"],
+    },
+}
+
 
 def _json_safe_value(value):
     if isinstance(value, Real) and math.isinf(value):
@@ -347,11 +414,6 @@ def _normalize_name(value):
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").lower()).strip()
 
 
-def _is_us_company(info):
-    country = str(info.get("country") or "").strip().lower()
-    return not country or country in {"united states", "usa", "us"}
-
-
 def _normalize_sector_name(sector):
     normalized = _normalize_name(sector)
     return SECTOR_NAME_ALIASES.get(normalized, sector)
@@ -412,9 +474,6 @@ def _benchmarks_from_finviz_row(row, basis, name):
 
 
 def _fetch_finviz_group_benchmarks(info):
-    if not _is_us_company(info):
-        return {}
-
     industry = info.get("industry")
     sector = _normalize_sector_name(info.get("sector"))
     lookup_order = [
@@ -446,22 +505,42 @@ def _read_yfinance_peer_metric(info, fields):
     return None
 
 
-def _fetch_representative_peer_benchmarks(info, ticker_symbol):
-    if not _is_us_company(info):
-        return {}
+def _representative_ticker_dataset(info):
+    industry = _normalize_name(info.get("industry"))
+    industry_dataset = INDUSTRY_REPRESENTATIVE_TICKERS.get(industry)
+    if industry_dataset:
+        return {
+            "basis": "industry_representative_average",
+            "name": f"{industry_dataset['name']} representative peers",
+            "tickers": industry_dataset["tickers"],
+            "cache_key": f"industry:{industry}",
+        }
 
     sector = _normalize_sector_name(info.get("sector"))
     tickers = SECTOR_REPRESENTATIVE_TICKERS.get(sector)
     if not tickers:
+        return None
+
+    return {
+        "basis": "sector_representative_average",
+        "name": f"{sector} representative peers",
+        "tickers": tickers,
+        "cache_key": f"sector:{sector}",
+    }
+
+
+def _fetch_representative_peer_benchmarks(info, ticker_symbol):
+    dataset = _representative_ticker_dataset(info)
+    if not dataset:
         return {}
 
     now = time.time()
-    cached = _PEER_BENCHMARK_CACHE.get(sector)
+    cached = _PEER_BENCHMARK_CACHE.get(dataset["cache_key"])
     if cached and now - cached["fetched_at"] < BENCHMARK_CACHE_TTL_SECONDS:
         return cached["data"]
 
     current_symbol = str(ticker_symbol or "").upper()
-    peer_tickers = [ticker for ticker in tickers if ticker.upper() != current_symbol] or tickers
+    peer_tickers = [ticker for ticker in dataset["tickers"] if ticker.upper() != current_symbol] or dataset["tickers"]
     peer_values = {metric_key: [] for metric_key in YFINANCE_PEER_FIELD_MAP}
 
     for peer_ticker in peer_tickers[:10]:
@@ -482,15 +561,15 @@ def _fetch_representative_peer_benchmarks(info, ticker_symbol):
         average = _average(values)
         if average is not None:
             benchmarks[metric_key] = {
-                "basis": "sector_representative_average",
-                "name": f"{sector} representative peers",
+                "basis": dataset["basis"],
+                "name": dataset["name"],
                 "value": average,
                 "source": "yfinance_representative_peers",
                 "sample_size": len(values),
             }
 
     if benchmarks:
-        _PEER_BENCHMARK_CACHE[sector] = {
+        _PEER_BENCHMARK_CACHE[dataset["cache_key"]] = {
             "data": benchmarks,
             "fetched_at": now,
         }

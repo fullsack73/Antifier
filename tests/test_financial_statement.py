@@ -151,6 +151,38 @@ def test_financial_benchmarks_fallback_to_representative_peers(monkeypatch):
     assert benchmarks["pbr"]["value"] == 10
 
 
+def test_non_us_financial_benchmarks_use_industry_representative_dataset(monkeypatch):
+    company_info = {
+        "sector": "Technology",
+        "industry": "Consumer Electronics",
+        "country": "South Korea",
+    }
+    peer_payloads = {
+        "AAPL": {"trailingPE": 20, "forwardPE": 18, "priceToBook": 12, "priceToSalesTrailing12Months": 7, "pegRatio": 2.0},
+        "SONY": {"trailingPE": 18, "forwardPE": 16, "priceToBook": 3, "priceToSalesTrailing12Months": 2, "pegRatio": 1.4},
+        "SSNLF": {"trailingPE": 10, "forwardPE": 9, "priceToBook": 1.2, "priceToSalesTrailing12Months": 1.1, "pegRatio": 0.8},
+    }
+
+    class FakeTicker:
+        def __init__(self, ticker):
+            self.info = peer_payloads.get(ticker, {})
+
+    monkeypatch.setattr(
+        financial_statement,
+        "_load_finviz_group_table",
+        lambda _group: pd.DataFrame([{"Name": "Other", "P/E": 99}]),
+    )
+    monkeypatch.setattr(financial_statement.yf, "Ticker", lambda ticker: FakeTicker(ticker))
+
+    benchmarks = financial_statement._fetch_financial_benchmarks(company_info, "005930.KS")
+
+    assert benchmarks["per"]["basis"] == "industry_representative_average"
+    assert benchmarks["per"]["source"] == "yfinance_representative_peers"
+    assert benchmarks["per"]["sample_size"] == 3
+    assert benchmarks["per"]["value"] == 16
+    assert round(benchmarks["pbr"]["value"], 4) == 5.4
+
+
 def test_financial_dashboard_low_data_confidence_is_insufficient(monkeypatch):
     class FakeTicker:
         info = {}

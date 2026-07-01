@@ -40,7 +40,8 @@
 - ML/통계: scikit-learn, statsmodels, pmdarima, TensorFlow, Keras, XGBoost, LightGBM
 - 금융 데이터: yfinance, finvizfinance
   - `finvizfinance.group.valuation.Valuation`은 Financial Statement의 Finviz sector/industry valuation benchmark 1차 소스로 사용합니다.
-  - Finviz benchmark가 실패하거나 해당 산업/섹터 행을 찾지 못하면 yfinance로 섹터 대표 대형주 10개 내외의 단순 평균을 계산하는 fallback을 사용합니다.
+  - Finviz benchmark가 실패하거나 해당 산업/섹터 행을 찾지 못하면 yfinance로 산업별 대표 대형주 10개 내외의 단순 평균을 계산하는 fallback을 사용합니다.
+  - 산업별 대표 ticker dataset이 없으면 섹터 대표 대형주 평균을 마지막 benchmark fallback으로 사용합니다.
 - 포트폴리오 최적화: PyPortfolioOpt
 - 캐시/운영 보조: joblib, tenacity, rich, psutil, custom cache manager
 - 패키징: PyInstaller
