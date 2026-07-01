@@ -9,6 +9,7 @@ import yfinance as yf
 import warnings
 import re
 import os
+import hashlib
 from datetime import datetime, timedelta
 import pandas as pd
 from hedge_analysis import analyze_hedge_relationship
@@ -42,6 +43,9 @@ class ModelExecutionError(RuntimeError):
 
 BASE_CURRENCY = "USD"
 TRADING_DAYS_PER_YEAR = 252
+MONTE_CARLO_SIMULATIONS = 500
+MIN_DAILY_VOLATILITY = 0.0025
+MAX_DAILY_VOLATILITY = 0.12
 ENSEMBLE_MODEL_TYPES = {
     "DEEP_LEARNING",
     "ENSEMBLE",
@@ -370,6 +374,73 @@ def build_arima_in_sample_regression(close_series):
         return build_historical_log_trend_regression(close_series)
 
 
+def generate_monte_carlo_future_predictions(
+    ticker,
+    close_series,
+    future_days,
+    expected_prices=None,
+    daily_log_return=None,
+    simulations=MONTE_CARLO_SIMULATIONS
+):
+    close_series = close_series.dropna()
+    close_series = close_series[close_series > 0]
+    if future_days <= 0 or close_series.empty:
+        return {}
+
+    last_price = float(close_series.iloc[-1])
+    last_date = close_series.index[-1]
+    future_dates = [
+        (last_date + timedelta(days=i)).strftime('%Y-%m-%d')
+        for i in range(1, future_days + 1)
+    ]
+
+    log_returns = np.log(close_series / close_series.shift(1)).replace([np.inf, -np.inf], np.nan).dropna()
+    fallback_drift = float(log_returns.mean()) if not log_returns.empty and np.isfinite(log_returns.mean()) else 0.0
+    volatility = float(log_returns.std(ddof=1)) if len(log_returns) > 1 else np.nan
+    if not np.isfinite(volatility) or volatility <= 0:
+        volatility = max(abs(fallback_drift), 0.01)
+    volatility = float(np.clip(volatility, MIN_DAILY_VOLATILITY, MAX_DAILY_VOLATILITY))
+
+    if expected_prices is not None:
+        expected_prices = np.asarray(expected_prices, dtype=float).reshape(-1)[:future_days]
+        if len(expected_prices) == 0:
+            expected_prices = np.full(future_days, last_price)
+        elif len(expected_prices) < future_days:
+            expected_prices = np.pad(
+                expected_prices,
+                (0, future_days - len(expected_prices)),
+                mode='edge'
+            )
+        expected_prices = np.where(np.isfinite(expected_prices) & (expected_prices > 0), expected_prices, last_price)
+        expected_path = np.concatenate(([last_price], expected_prices))
+        daily_drifts = np.diff(np.log(expected_path))
+        daily_drifts = np.where(np.isfinite(daily_drifts), daily_drifts, fallback_drift)
+    elif daily_log_return is not None and np.isfinite(daily_log_return):
+        daily_drifts = np.full(future_days, float(daily_log_return))
+    else:
+        daily_drifts = np.full(future_days, fallback_drift)
+
+    seed_input = f"{ticker}:{last_date.strftime('%Y-%m-%d')}:{last_price:.6f}:{future_days}:{simulations}"
+    seed = int(hashlib.sha256(seed_input.encode("utf-8")).hexdigest()[:16], 16) % (2 ** 32)
+    rng = np.random.default_rng(seed)
+    shocks = rng.normal(loc=0.0, scale=volatility, size=(simulations, future_days))
+    simulated_log_returns = daily_drifts.reshape(1, -1) + shocks
+    simulated_paths = last_price * np.exp(np.cumsum(simulated_log_returns, axis=1))
+
+    mean_prices = simulated_paths.mean(axis=0)
+    min_prices = simulated_paths.min(axis=0)
+    max_prices = simulated_paths.max(axis=0)
+
+    return {
+        date: {
+            "mean": float(mean_price),
+            "min": float(min_price),
+            "max": float(max_price)
+        }
+        for date, mean_price, min_price, max_price in zip(future_dates, mean_prices, min_prices, max_prices)
+    }
+
+
 def generate_forecast_regression_response(ticker, stock, close_series, future_days, price_currency, currency_metadata, model_type):
     close_series = close_series.dropna()
     if close_series.empty:
@@ -397,14 +468,12 @@ def generate_forecast_regression_response(ticker, stock, close_series, future_da
     else:
         regression_data = build_arima_in_sample_regression(close_series)
 
-    future_predictions = {}
-    if future_days > 0:
-        last_price = float(close_series.iloc[-1])
-        last_date = close_series.index[-1]
-        for i in range(1, future_days + 1):
-            next_date = last_date + timedelta(days=i)
-            next_price = last_price * np.exp(daily_log_return * i)
-            future_predictions[next_date.strftime('%Y-%m-%d')] = float(next_price)
+    future_predictions = generate_monte_carlo_future_predictions(
+        ticker,
+        close_series,
+        future_days,
+        daily_log_return=daily_log_return
+    )
 
     info = stock.info
     company_name = info.get('longName', ticker)
@@ -506,10 +575,12 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
             future_predictions = {}
             if future_days > 0:
                 future_prices = arima_model.predict(n_periods=future_days)
-                last_date = close_series.index[-1]
-                for i, predicted_price in enumerate(future_prices, start=1):
-                    next_date = last_date + timedelta(days=i)
-                    future_predictions[next_date.strftime('%Y-%m-%d')] = float(predicted_price)
+                future_predictions = generate_monte_carlo_future_predictions(
+                    ticker,
+                    close_series,
+                    future_days,
+                    expected_prices=future_prices
+                )
 
             info = stock.info
             company_name = info.get('longName', ticker)
@@ -588,10 +659,9 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
         info = stock.info
         company_name = info.get('longName', ticker)
 
-        future_predictions = {}
+        future_prices = []
         if future_days > 0 and not X_reshaped.size == 0:
             last_known_price = df['Close'].iloc[-1]
-            last_date = df.index[-1]
 
             # Use the last row of features as the starting point for future predictions.
             # Keep MA/Volume constant as a lightweight approximation.
@@ -609,17 +679,20 @@ def generate_regression_data(ticker="", start_date=None, end_date=None, future_d
                 # Calculate the new price
                 next_price = last_known_price + predicted_change
 
-                # Update features for the next iteration
-                next_date = last_date + timedelta(days=i + 1)
-
                 last_features['Time'] += 1
                 last_features['Lag1'] = last_known_price
 
-                # Store prediction
-                future_predictions[next_date.strftime('%Y-%m-%d')] = float(next_price)
+                future_prices.append(float(next_price))
 
                 # Update last known price for the next prediction
                 last_known_price = next_price
+
+        future_predictions = generate_monte_carlo_future_predictions(
+            ticker,
+            df['Close'],
+            future_days,
+            expected_prices=future_prices
+        )
         
         return {
             'prices': original_data,

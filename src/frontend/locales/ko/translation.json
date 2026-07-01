@@ -54,7 +54,11 @@
   },
   "future": {
     "days_to_predict": "예측일",
-    "update_prediction": "예측 업데이트"
+    "update_prediction": "예측 업데이트",
+    "historical_price": "과거 가격",
+    "mean_forecast": "평균 예측",
+    "forecast_range": "예측 범위 (최소-최대)",
+    "monte_carlo_chart_title": "미래 가격 예측"
   },
   "financial": {
     "title": "재무제표 분석",

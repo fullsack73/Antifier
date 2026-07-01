@@ -54,7 +54,11 @@
   },
   "future": {
     "days_to_predict": "Days to Predict",
-    "update_prediction": "Update Prediction"
+    "update_prediction": "Update Prediction",
+    "historical_price": "Historical Price",
+    "mean_forecast": "Mean Forecast",
+    "forecast_range": "Forecast Range (Min-Max)",
+    "monte_carlo_chart_title": "Future Price Forecast"
   },
   "financial": {
     "title": "Financial Statement Analysis",

@@ -228,10 +228,10 @@ function AppContent() {
                     <RegressionChart data={data} regression={regressionData} ticker={ticker} formula={formula} priceCurrency={priceCurrency} />
                   </div>
                 </div>
-                {futurePredictions && (
+                {futurePredictions && Object.keys(futurePredictions).length > 0 && (
                   <div className="charts-container">
                     <div className="chart-wrapper">
-                      <FutureChart data={futurePredictions} ticker={ticker} priceCurrency={priceCurrency} />
+                      <FutureChart data={futurePredictions} historicalData={data} ticker={ticker} priceCurrency={priceCurrency} />
                     </div>
                   </div>
                 )}
