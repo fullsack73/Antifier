@@ -217,10 +217,13 @@ antifier/
 
 ## 📚 문서 (Documentation)
 
-- **사용자 가이드**: [docs/USER_GUIDE.md](docs/USER_GUIDE.md) 참고 *(준비 중)*
-- **API 문서**: [docs/API.md](docs/API.md) 참고 *(준비 중)*
+- **에이전트 작업 규칙**: [AGENTS.md](AGENTS.md) 참고
+- **폴더 아키텍처**: [docs/01-folder-architecture.md](docs/01-folder-architecture.md) 참고
+- **기술 스펙**: [docs/02-specs.md](docs/02-specs.md) 참고
+- **제품 기획안**: [docs/03-product-plan.md](docs/03-product-plan.md) 참고
+- **TODO 인덱스**: [docs/todo/00-todo-list.md](docs/todo/00-todo-list.md) 참고
+- **작업 기록**: [docs/reports/](docs/reports/) 참고
 - **빌드 가이드**: [tools/BUILD.md](tools/BUILD.md) 참고
-- **개발 가이드**: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) 참고 *(준비 중)*
 
 ---
 

@@ -1,0 +1,151 @@
+# 1) 폴더 아키텍처
+
+본 문서는 Antifier 저장소의 실제 폴더 구조와 책임을 정의합니다. 목표는 금융 분석 웹앱의 프론트엔드, Flask API, ML/포트폴리오 계산 로직, 테스트, 설치 도구, 에이전트 문서를 분명히 나누는 것입니다.
+
+## A. Top-level 구조
+
+```txt
+antifier/
+├─ AGENTS.md                         # 에이전트 공통 작업 규칙
+├─ docs/                             # docs-driven 실행 컨텍스트
+│  ├─ 01-folder-architecture.md
+│  ├─ 02-specs.md
+│  ├─ 03-product-plan.md
+│  ├─ reports/
+│  └─ todo/
+├─ src/
+│  ├─ backend/                       # Flask API, 금융 데이터, ML, 포트폴리오 로직
+│  └─ frontend/                      # React/Vite SPA
+├─ tests/                            # pytest와 Vitest/Testing Library 테스트
+├─ tools/                            # 설치 프로그램, 빌드 스크립트, 분석/튜닝 도구
+├─ agent-os/                         # 기존 제품/스펙/역할 문서 아카이브
+├─ .github/workflows/                # CI, installer build, release automation
+├─ public/                           # Vite 정적 파일
+├─ *.csv                             # 기본 ticker universe 데이터
+├─ README.md / README.ko.md          # 사용자용 프로젝트 소개와 설치 안내
+├─ requirements-pypi.txt             # 런타임 Python 의존성
+├─ requirements-ci.txt               # CI용 경량 Python 테스트 의존성
+├─ package.json / package-lock.json  # 프론트엔드 의존성 및 npm scripts
+├─ vite.config.js                    # Vite dev server, proxy, test 설정
+└─ eslint.config.js                  # 프론트엔드 lint 설정
+```
+
+생성물과 로컬 환경 폴더인 `node_modules/`, `.venv/`, `.cache/`, `.pytest_cache/`, `dist/`, `build/`, `__pycache__/`는 수동 편집 대상이 아닙니다. 빌드나 테스트 결과를 확인할 때만 읽습니다.
+
+## B. docs 구조
+
+```txt
+docs/
+├─ 01-folder-architecture.md         # 저장소 구조와 책임
+├─ 02-specs.md                       # 기술 스택, API, 구현 규칙
+├─ 03-product-plan.md                # 제품 범위, 사용자, 로드맵
+├─ reports/
+│  ├─ _template.md                   # 작업 기록 템플릿
+│  └─ yymmdd-HHMM-NN-keyword.md      # 완료/결정 기록
+└─ todo/
+   ├─ 00-todo-list.md                # 후속 작업 단일 인덱스
+   ├─ _template.md                   # TODO 템플릿
+   └─ *.md                           # 개별 TODO 상세
+```
+
+`docs/todo/00-todo-list.md`가 TODO의 단일 발견 지점입니다. 루트 `TODO.md`는 호환용 안내 파일로만 유지합니다.
+
+## C. 백엔드 구조
+
+```txt
+src/backend/
+├─ app.py                            # Flask 앱, REST endpoint, request/response orchestration
+├─ portfolio_optimization.py         # 데이터 수집, 예측 수익률, MPT/Black-Litterman 최적화
+├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
+├─ lightweight_forecast.py           # 경량 통계 forecast fallback
+├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
+├─ hedge_analysis.py                 # 상관/회귀 기반 hedge 분석
+├─ financial_statement.py            # 재무제표와 주요 ratio 조회
+├─ stock_screener.py                 # universe 조회, 필터 적용, screening
+├─ ticker_lists.py                   # CSV 기반 ticker group 로딩
+├─ cache_manager.py                  # multi-level cache 구현
+├─ cache_init.py                     # cache 초기화 보조
+└─ native_threading.py               # native/ML thread 제한과 worker cap
+```
+
+백엔드 책임 분리 규칙:
+
+- `app.py`는 HTTP 요청 파싱, 입력 검증, endpoint 조합, 응답 shaping을 담당합니다.
+- 계산 로직은 가능한 한 도메인 모듈에 둡니다.
+- 외부 데이터 호출은 빈 데이터와 네트워크 실패를 정상적인 실패 경로로 취급합니다.
+- portfolio optimization 경로는 진행률 callback/SSE 구조를 유지합니다.
+- ticker, 날짜, 숫자 파라미터는 기존 normalize/parse/validate 함수를 우선 사용합니다.
+
+주요 API endpoint:
+
+- `GET /api/get-data`
+- `GET /api/analyze-hedge`
+- `GET /api/financial-statement`
+- `GET /api/progress-stream/<request_id>`
+- `POST /api/optimize-portfolio`
+- `GET /api/portfolio-results`
+- `GET /api/portfolio-results/<portfolio_id>`
+- `POST /api/stock-screener`
+- `POST /api/asset-names`
+- `POST /api/benchmark-portfolio`
+- `POST /api/manage-portfolio`
+
+## D. 프론트엔드 구조
+
+```txt
+src/frontend/
+├─ main.jsx                          # React root bootstrap
+├─ App.jsx                           # view selection, top-level state, data fetch orchestration
+├─ App.css                           # 전역 UI 스타일
+├─ apiClient.js                      # API URL 생성, VITE_API_BASE_URL 처리
+├─ config/
+│  ├─ i18n.js                        # i18next 설정
+│  └─ translationLoader.js           # locale loading
+├─ locales/
+│  ├─ en/translation.json
+│  └─ ko/translation.json
+├─ *Chart.jsx                        # Plotly 기반 차트 컴포넌트
+├─ Optimizer.jsx                     # 포트폴리오 최적화 UI
+├─ PortfolioBenchmark.jsx            # 벤치마크 UI
+├─ PortfolioManager.jsx              # 보유 종목/리밸런싱 UI
+├─ FinancialStatement.jsx            # 재무제표 UI
+├─ StockScreener.jsx                 # 종목 스크리닝 UI
+├─ Hedge.jsx                         # hedge 분석 UI
+└─ *Input.jsx / *Selector.jsx        # 입력, 선택, 사이드바 컨트롤
+```
+
+프론트엔드 책임 분리 규칙:
+
+- `App.jsx`는 현재처럼 최상위 view 선택과 stock analysis 기본 상태를 관리합니다.
+- 기능별 UI는 독립 컴포넌트 파일에 유지합니다.
+- API URL은 `apiClient.js`를 통해 생성합니다.
+- chart 렌더링은 Plotly 래퍼 컴포넌트로 분리합니다.
+- 신규 UI 문구는 영어/한국어 locale을 동시에 갱신합니다.
+- 기존 CSS 기반 스타일 구조를 유지하고, 별도 UI 프레임워크를 도입하지 않습니다.
+
+## E. 테스트와 도구
+
+```txt
+tests/
+├─ conftest.py
+├─ test_*.py                         # 백엔드 pytest
+├─ *.test.js                         # 프론트엔드 Vitest
+└─ ...
+
+tools/
+├─ installer.py                      # 대화형/비대화형 설치 orchestration
+├─ installer.spec                    # PyInstaller spec
+├─ build-macos.sh
+├─ build-linux.sh
+├─ build-windows.bat
+├─ BUILD.md
+├─ sanitize_requirements.py
+├─ compare_forecast_models.py
+└─ tune_transformer_hpo.py
+```
+
+테스트는 변경 범위에 맞춰 선택적으로 실행하되, 공유 API나 포트폴리오 계산 로직을 건드리면 백엔드 테스트를 우선 실행합니다. 프론트엔드 렌더링/API client 변경은 lint, Vitest, build 중 최소 하나 이상으로 확인합니다.
+
+## F. 기존 agent-os 문서와의 관계
+
+`agent-os/`는 이전 제품 기획, 스펙, 작업 분해, 검증 기록을 보존합니다. 새 작업의 기본 진입점은 `AGENTS.md`와 `docs/`이며, `agent-os/`는 더 상세한 과거 맥락이 필요할 때 참조합니다. 같은 내용이 충돌하면 현재 코드와 `docs/`를 우선하고, 필요한 경우 `agent-os/`와 README는 별도 정리 작업으로 맞춥니다.

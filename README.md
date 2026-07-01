@@ -217,10 +217,13 @@ antifier/
 
 ## 📚 Documentation
 
-- **User Guide**: See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) *(coming soon)*
-- **API Documentation**: See [docs/API.md](docs/API.md) *(coming soon)*
+- **Agent Workflow**: See [AGENTS.md](AGENTS.md)
+- **Folder Architecture**: See [docs/01-folder-architecture.md](docs/01-folder-architecture.md)
+- **Technical Specs**: See [docs/02-specs.md](docs/02-specs.md)
+- **Product Plan**: See [docs/03-product-plan.md](docs/03-product-plan.md)
+- **TODO Index**: See [docs/todo/00-todo-list.md](docs/todo/00-todo-list.md)
+- **Work Reports**: See [docs/reports/](docs/reports/)
 - **Build Instructions**: See [tools/BUILD.md](tools/BUILD.md)
-- **Development Guide**: See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) *(coming soon)*
 
 ---
 
