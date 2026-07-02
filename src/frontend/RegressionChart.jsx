@@ -1,6 +1,10 @@
 import Plot from "./LazyPlot.jsx"
 
 function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
+  const chartText = "#f4f1e8"
+  const chartMuted = "#aeb49f"
+  const chartGrid = "rgba(174, 186, 154, 0.12)"
+
   return (
     <Plot
       data={[
@@ -11,7 +15,7 @@ function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
           mode: "markers",
           name: "Actual Prices",
           marker: {
-            color: "#06b6d4", // cyan
+            color: "#d6a85f",
             size: 8,
             opacity: 0.7,
           },
@@ -23,7 +27,7 @@ function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
           mode: "lines",
           name: "Regression Line",
           line: {
-            color: "#3b82f6", // blue
+            color: "#a8c77a",
             width: 3,
           },
         },
@@ -32,21 +36,21 @@ function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
         autosize: true,
         title: {
           text: `${ticker} Price Regression`,
-          font: { color: "#e5e7eb", size: 18, family: "Inter, system-ui, sans-serif" },
+          font: { color: chartText, size: 18, family: "Outfit, Pretendard, sans-serif" },
         },
-        paper_bgcolor: "rgba(30, 41, 59, 0.5)",
-        plot_bgcolor: "rgba(15, 23, 42, 0.3)",
+        paper_bgcolor: "rgba(17, 22, 17, 0.64)",
+        plot_bgcolor: "rgba(8, 11, 8, 0.24)",
         xaxis: {
-          title: { text: "Date", font: { color: "#94a3b8" } },
+          title: { text: "Date", font: { color: chartMuted } },
           tickangle: 45,
           tickformat: "%Y-%m-%d",
-          color: "#94a3b8",
-          gridcolor: "rgba(148, 163, 184, 0.1)",
+          color: chartMuted,
+          gridcolor: chartGrid,
         },
         yaxis: {
-          title: { text: `Price (${priceCurrency})`, font: { color: "#94a3b8" } },
-          color: "#94a3b8",
-          gridcolor: "rgba(148, 163, 184, 0.1)",
+          title: { text: `Price (${priceCurrency})`, font: { color: chartMuted } },
+          color: chartMuted,
+          gridcolor: chartGrid,
         },
         // height: 600, // let container control height
         margin: { t: 50, b: 100, l: 50, r: 50 },
@@ -56,8 +60,8 @@ function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
           y: 1,
           xanchor: "left",
           yanchor: "top",
-          font: { color: "#e5e7eb" },
-          bgcolor: "rgba(30, 41, 59, 0.8)",
+          font: { color: chartText },
+          bgcolor: "rgba(17, 22, 17, 0.82)",
         },
       }}
       style={{ width: "100%", height: "100%" }}

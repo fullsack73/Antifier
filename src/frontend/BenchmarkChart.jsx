@@ -3,6 +3,9 @@ import Plot from "./LazyPlot.jsx"
 
 function BenchmarkChart({ portfolioData, sp500Data, riskfreeData }) {
   const { t } = useTranslation()
+  const chartText = "#f4f1e8"
+  const chartMuted = "#aeb49f"
+  const chartGrid = "rgba(174, 186, 154, 0.12)"
 
   return (
     <Plot
@@ -14,7 +17,7 @@ function BenchmarkChart({ portfolioData, sp500Data, riskfreeData }) {
           mode: "lines",
           name: t("benchmark.portfolio"),
           line: {
-            color: "#06b6d4", // cyan
+            color: "#a8c77a",
             width: 3,
           },
         },
@@ -25,7 +28,7 @@ function BenchmarkChart({ portfolioData, sp500Data, riskfreeData }) {
           mode: "lines",
           name: t("benchmark.sp500"),
           line: {
-            color: "#3b82f6", // blue
+            color: "#d6a85f",
             width: 3,
           },
         },
@@ -36,7 +39,7 @@ function BenchmarkChart({ portfolioData, sp500Data, riskfreeData }) {
           mode: "lines",
           name: t("benchmark.riskFree"),
           line: {
-            color: "#94a3b8", // gray
+            color: "#aeb49f",
             width: 3,
           },
         },
@@ -45,21 +48,21 @@ function BenchmarkChart({ portfolioData, sp500Data, riskfreeData }) {
         autosize: true,
         title: {
           text: t("benchmark.chartTitle"),
-          font: { color: "#e5e7eb", size: 18, family: "Inter, system-ui, sans-serif" },
+          font: { color: chartText, size: 18, family: "Outfit, Pretendard, sans-serif" },
         },
-        paper_bgcolor: "rgba(30, 41, 59, 0.5)",
-        plot_bgcolor: "rgba(15, 23, 42, 0.3)",
+        paper_bgcolor: "rgba(17, 22, 17, 0.64)",
+        plot_bgcolor: "rgba(8, 11, 8, 0.24)",
         xaxis: {
-          title: { text: t("benchmark.date"), font: { color: "#94a3b8" } },
+          title: { text: t("benchmark.date"), font: { color: chartMuted } },
           tickangle: 45,
           tickformat: "%Y-%m-%d",
-          color: "#94a3b8",
-          gridcolor: "rgba(148, 163, 184, 0.1)",
+          color: chartMuted,
+          gridcolor: chartGrid,
         },
         yaxis: {
-          title: { text: t("benchmark.portfolioValue"), font: { color: "#94a3b8" } },
-          color: "#94a3b8",
-          gridcolor: "rgba(148, 163, 184, 0.1)",
+          title: { text: t("benchmark.portfolioValue"), font: { color: chartMuted } },
+          color: chartMuted,
+          gridcolor: chartGrid,
         },
         margin: { t: 50, b: 100, l: 70, r: 50 },
         showlegend: true,
@@ -68,8 +71,8 @@ function BenchmarkChart({ portfolioData, sp500Data, riskfreeData }) {
           y: 1,
           xanchor: "left",
           yanchor: "top",
-          font: { color: "#e5e7eb" },
-          bgcolor: "rgba(30, 41, 59, 0.8)",
+          font: { color: chartText },
+          bgcolor: "rgba(17, 22, 17, 0.82)",
         },
       }}
       style={{ width: "100%", height: "100%" }}

@@ -357,7 +357,7 @@ const Optimizer = () => {
   return (
     <div className="optimizer-container">
       <h2 className="page-header">{t("optimizer.title")}</h2>
-      <div className="optimizer-actions-row" style={{ marginBottom: "1rem" }}>
+      <div className="optimizer-actions-row optimizer-actions-row-compact">
         <button className="optimizer-secondary-button" type="button" onClick={triggerPortfolioUpload}>
           {t("optimizer.loadPortfolio", "Load JSON")}
         </button>
@@ -368,7 +368,7 @@ const Optimizer = () => {
           type="file"
           accept="application/json"
           ref={portfolioFileInputRef}
-          style={{ display: "none" }}
+          className="hidden-file-input"
           onChange={handlePortfolioUpload}
         />
       </div>
@@ -379,9 +379,8 @@ const Optimizer = () => {
             {tickerGroup === "CUSTOM" && customTickers.length > 0 ? (
               <button
                 type="button"
-                className="optimizer-select"
+                className="optimizer-select optimizer-select-button"
                 onClick={() => setShowUploadModal(true)}
-                style={{ cursor: 'pointer', textAlign: 'left' }}
               >
                 {uploadFileName} ({customTickers.length})
               </button>
@@ -582,14 +581,13 @@ const Optimizer = () => {
                   <button type="button" className="optimizer-modal-close" onClick={handleCloseUploadModal}>×</button>
                 </div>
                 <div className="optimizer-modal-body">
-                  <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
+                  <p className="modal-helper-text">
                     Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like &quot;Symbol&quot; or &quot;Ticker&quot; are automatically ignored.
                   </p>
                   <button
                     type="button"
-                    className="optimizer-secondary-button"
+                    className="optimizer-secondary-button modal-full-width-button"
                     onClick={() => csvFileInputRef.current?.click()}
-                    style={{ width: '100%', marginBottom: 'var(--spacing-md)' }}
                   >
                     {uploadFileName ? t("optimizer.changeFile", "Change File") : t("optimizer.chooseCsvFile", "Choose CSV File")}
                   </button>
@@ -597,18 +595,18 @@ const Optimizer = () => {
                     type="file"
                     accept=".csv"
                     ref={csvFileInputRef}
-                    style={{ display: 'none' }}
+                    className="hidden-file-input"
                     onChange={handleFileUpload}
                   />
                   {uploadError && (
-                    <div style={{ fontSize: '0.85rem', color: 'var(--color-danger)', marginBottom: 'var(--spacing-md)' }}>
+                    <div className="modal-error-text">
                       {uploadError}
                     </div>
                   )}
                   {customTickers.length > 0 && (
-                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
+                    <div className="modal-muted-text">
                       <strong>{uploadFileName}</strong> — {customTickers.length} ticker{customTickers.length !== 1 ? 's' : ''} loaded
-                      <ul className="optimizer-weights-list" style={{ marginTop: 'var(--spacing-sm)', maxHeight: '150px' }}>
+                      <ul className="optimizer-weights-list optimizer-compact-list">
                         {customTickers.map(t => <li key={t}><span>{t}</span></li>)}
                       </ul>
                     </div>
@@ -629,31 +627,14 @@ const Optimizer = () => {
           )}
 
           {loading && progress && (
-            <div className="optimizer-progress-container" style={{
-              marginTop: '1rem',
-              width: '100%',
-              gridColumn: '1 / -1',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <div className="optimizer-progress-bar-bg" style={{
-                background: '#e0e0e0',
-                borderRadius: '8px',
-                height: '10px',
-                overflow: 'hidden',
-                width: '100%',
-                maxWidth: '600px' // Optional: limit width for better aesthetics on wide screens
-              }}>
-                <div className="optimizer-progress-bar-fill" style={{
-                  width: `${progress.percentage}%`,
-                  background: '#4CAF50',
-                  height: '100%',
-                  transition: 'width 0.5s ease-in-out'
-                }}></div>
+            <div className="optimizer-progress-container">
+              <div className="optimizer-progress-bar-bg">
+                <div
+                  className="optimizer-progress-bar-fill"
+                  style={{ "--optimizer-progress": `${progress.percentage}%` }}
+                />
               </div>
-              <p style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.9rem', color: '#666' }}>
+              <p className="optimizer-progress-copy">
                 {progress.percentage}% - {progress.message}
               </p>
             </div>
@@ -662,11 +643,11 @@ const Optimizer = () => {
       </form>
 
       {error && (
-        <div className="optimizer-error" style={{ padding: '1rem', backgroundColor: '#fee2e2', border: '1px solid #ef4444', borderRadius: '6px', color: '#991b1b', marginBottom: '1rem' }}>
-          <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{t("common.error", "Error")}</div>
+        <div className="optimizer-error optimizer-error-strong">
+          <div className="optimizer-error-title">{t("common.error", "Error")}</div>
           <div>{error}</div>
           {errorDetails && (
-            <div style={{ marginTop: '0.5rem', fontSize: '0.875rem', opacity: 0.9, whiteSpace: 'pre-wrap' }}>
+            <div className="optimizer-error-details">
               {errorDetails}
             </div>
           )}
@@ -690,7 +671,7 @@ const Optimizer = () => {
               </button>
             </div>
             <div className="manager-display-toggle no-print">
-              <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginRight: '0.25rem' }}>
+              <span className="display-toggle-label">
                 {t("optimizer.securityDisplay", "Show:")}
               </span>
               {[
@@ -701,8 +682,7 @@ const Optimizer = () => {
                   key={mode.key}
                   type="button"
                   onClick={() => setSecurityDisplayMode(mode.key)}
-                  className={`manager-display-toggle-button ${securityDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}`}
-                  style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', minWidth: 'unset' }}
+                  className={`manager-display-toggle-button is-compact ${securityDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}`}
                 >
                   {mode.label}
                 </button>
@@ -739,7 +719,7 @@ const Optimizer = () => {
             <h3>{t("optimizer.investmentAllocation")}</h3>
             <div className="investment-allocation-form">
               <div className="optimizer-form-group">
-                <label style={{ textAlign: 'center' }}>{t("optimizer.investmentBudget")}</label>
+                <label className="label-center">{t("optimizer.investmentBudget")}</label>
                 <input
                   className="optimizer-input"
                   type="number"
@@ -804,7 +784,7 @@ const Optimizer = () => {
                         </tr>
                       ))}
                     {allocation.remainingCash > 0.01 && (
-                      <tr style={{ fontStyle: 'italic', opacity: 0.8 }}>
+                      <tr className="allocation-muted-row">
                         <td>{t("optimizer.remainingCash", "Remaining Cash")}</td>
                         <td>—</td>
                         <td>—</td>
@@ -814,7 +794,7 @@ const Optimizer = () => {
                     )}
                   </tbody>
                 </table>
-                <small style={{ display: 'block', marginTop: '0.5rem', color: 'var(--color-text-muted)', fontSize: '0.75rem' }}>
+                <small className="optimizer-field-note">
                   {t("optimizer.hybridNote", "Toggle fractional per ticker. Integer-only tickers are floored; freed capital is redistributed to fractional-eligible tickers.")}
                 </small>
               </div>

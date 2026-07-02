@@ -119,7 +119,7 @@ const PortfolioBenchmark = () => {
             type="file"
             accept=".json"
             onChange={handleFileUpload}
-            style={{ display: "none" }}
+            className="hidden-file-input"
           />
           <button
             type="button"
@@ -167,7 +167,7 @@ const PortfolioBenchmark = () => {
         </div>
 
         {/* Submit Button */}
-        <div style={{ display: "flex", justifyContent: "center", width: "100%" }}>
+        <div className="optimizer-submit-row">
           <button
             type="submit"
             className="optimizer-submit-button"

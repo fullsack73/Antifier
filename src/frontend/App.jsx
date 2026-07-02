@@ -182,6 +182,9 @@ function AppContent() {
 
   return (
     <div className="app-container">
+      <a className="skip-link" href="#main-content">
+        {t("common.skipToContent", "Skip to content")}
+      </a>
       <Selector
         activeView={activeView}
         onViewChange={setActiveView}
@@ -193,10 +196,20 @@ function AppContent() {
         selectedLanguage={selectedLanguage}
         onLanguageChange={setSelectedLanguage}
       />
-      <main className="main-content">
+      <main className="main-content" id="main-content">
         {activeView === "stock" ? (
-          <>
-            <h1>{t("regression.title")}</h1>
+          <section className="stock-dashboard" aria-labelledby="stock-dashboard-title">
+            <div className="stock-dashboard-header">
+              <div>
+                <span className="page-kicker">{t("stock.title")}</span>
+                <h1 id="stock-dashboard-title">{t("regression.title")}</h1>
+              </div>
+              <div className="stock-context-strip" aria-label={t("stock.selectionSummary", "Current analysis settings")}>
+                <span>{ticker}</span>
+                <span>{modelType}</span>
+                <span>{futureDays}D</span>
+              </div>
+            </div>
             <div className="controls-container">
               <div className="control-column">
                 <TickerInput onTickerChange={handleTickerChange} initialTicker="AAPL" />
@@ -215,7 +228,7 @@ function AppContent() {
             )}
 
             {!loading && showChart && data && (
-              <>
+              <section className="stock-results" aria-label={t("regression.data")}>
                 <h2>
                   {companyName} ({ticker})
                   {sourceCurrency !== priceCurrency ? ` ${sourceCurrency} -> ${priceCurrency}` : ""}
@@ -235,9 +248,16 @@ function AppContent() {
                     </div>
                   </div>
                 )}
-              </>
+              </section>
             )}
-          </>
+
+            {!loading && !error && !showChart && (
+              <section className="empty-state stock-empty-state" aria-live="polite">
+                <p className="empty-state-title">{t("stock.emptyTitle", "Market data is pending")}</p>
+                <p>{t("stock.emptyDescription", "The selected symbol and date window will appear here when data returns.")}</p>
+              </section>
+            )}
+          </section>
         ) : activeView === "hedge" ? (
           <HedgeAnalysis />
         ) : activeView === "financial" ? (

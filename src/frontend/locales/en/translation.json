@@ -35,14 +35,18 @@
     "search": "Search",
     "submit": "Submit",
     "close": "Close",
-    "menu": "Menu"
+    "menu": "Menu",
+    "skipToContent": "Skip to content"
   },
   "stock": {
     "title": "Stock Analysis",
     "ticker": "Ticker Symbol",
     "dateRange": "Date Range",
     "start": "Start Date",
-    "end": "End Date"
+    "end": "End Date",
+    "selectionSummary": "Current analysis settings",
+    "emptyTitle": "Market data is pending",
+    "emptyDescription": "The selected symbol and date window will appear here when data returns."
   },
   "ticker": {
     "label": "Enter Stock Symbol",

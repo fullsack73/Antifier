@@ -35,14 +35,18 @@
     "close": "닫기",
     "menu": "메뉴",
     "loading": "로딩 중...",
-    "error": "에러"
+    "error": "에러",
+    "skipToContent": "본문으로 건너뛰기"
   },
   "stock": {
     "title": "주식 분석",
     "ticker": "티커 심볼",
     "dateRange": "날짜 범위",
     "start": "시작 날짜",
-    "end": "종료 날짜"
+    "end": "종료 날짜",
+    "selectionSummary": "현재 분석 설정",
+    "emptyTitle": "시장 데이터를 기다리는 중",
+    "emptyDescription": "선택한 종목과 기간의 데이터가 준비되면 이 영역에 표시됩니다."
   },
   "ticker": {
     "label": "주식 심볼 입력",

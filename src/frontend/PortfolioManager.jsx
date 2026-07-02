@@ -509,12 +509,16 @@ const PortfolioManager = () => {
   const chartLayout = {
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
-    font: { color: "#e5e7eb", family: "IBM Plex Sans, Pretendard, sans-serif" },
+    font: { color: "#f4f1e8", family: "Outfit, Pretendard, sans-serif" },
     margin: { t: 40, b: 20, l: 20, r: 20 },
     showlegend: true,
     legend: { font: { size: 11 } },
     height: 350,
   }
+  const chartPalette = [
+    "#a8c77a", "#d6a85f", "#9ec979", "#e06d5f", "#aeb49f",
+    "#c1a57b", "#87946f", "#b7cf8a", "#d0b17a", "#8fa66b",
+  ]
 
   const currentPie = buildCurrentPieData()
   const targetPie = buildTargetPieData()
@@ -1097,19 +1101,15 @@ const PortfolioManager = () => {
                       values: currentPie.values,
                       hole: 0.4,
                       textinfo: "label+percent",
-                      textfont: { size: 11, color: "#e5e7eb" },
+                      textfont: { size: 11, color: "#f4f1e8" },
                       marker: {
-                        colors: [
-                          "#3b82f6", "#06b6d4", "#10b981", "#f59e0b",
-                          "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6",
-                          "#f97316", "#6366f1",
-                        ],
+                        colors: chartPalette,
                       },
                     },
                   ]}
                   layout={{
                     ...chartLayout,
-                    title: { text: t("manager.currentAllocation", "Current Allocation"), font: { color: "#e5e7eb", size: 14 } },
+                    title: { text: t("manager.currentAllocation", "Current Allocation"), font: { color: "#f4f1e8", size: 14 } },
                   }}
                   config={{ displayModeBar: false, responsive: true }}
                   style={{ width: "100%" }}
@@ -1129,19 +1129,15 @@ const PortfolioManager = () => {
                       values: targetPie.values,
                       hole: 0.4,
                       textinfo: "label+percent",
-                      textfont: { size: 11, color: "#e5e7eb" },
+                      textfont: { size: 11, color: "#f4f1e8" },
                       marker: {
-                        colors: [
-                          "#3b82f6", "#06b6d4", "#10b981", "#f59e0b",
-                          "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6",
-                          "#f97316", "#6366f1",
-                        ],
+                        colors: chartPalette,
                       },
                     },
                   ]}
                   layout={{
                     ...chartLayout,
-                    title: { text: t("manager.targetAllocation", "Target Allocation"), font: { color: "#e5e7eb", size: 14 } },
+                    title: { text: t("manager.targetAllocation", "Target Allocation"), font: { color: "#f4f1e8", size: 14 } },
                   }}
                   config={{ displayModeBar: false, responsive: true }}
                   style={{ width: "100%" }}

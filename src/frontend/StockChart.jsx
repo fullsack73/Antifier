@@ -1,6 +1,10 @@
 import Plot from "./LazyPlot.jsx"
 
 function StockChart({ data, ticker, priceCurrency = "USD" }) {
+  const chartText = "#f4f1e8"
+  const chartMuted = "#aeb49f"
+  const chartGrid = "rgba(174, 186, 154, 0.12)"
+
   return (
     <Plot
       data={[
@@ -10,32 +14,32 @@ function StockChart({ data, ticker, priceCurrency = "USD" }) {
           type: "scatter",
           mode: "lines",
           line: {
-            color: "#06b6d4",
+            color: "#a8c77a",
             width: 2.5,
           },
           fill: "tozeroy",
-          fillcolor: "rgba(6, 182, 212, 0.1)",
+          fillcolor: "rgba(168, 199, 122, 0.12)",
         },
       ]}
       layout={{
         autosize: true,
         title: {
           text: `${ticker} Stock Data`,
-          font: { color: "#e5e7eb", size: 18, family: "Inter, system-ui, sans-serif" },
+          font: { color: chartText, size: 18, family: "Outfit, Pretendard, sans-serif" },
         },
-        paper_bgcolor: "rgba(30, 41, 59, 0.5)",
-        plot_bgcolor: "rgba(15, 23, 42, 0.3)",
+        paper_bgcolor: "rgba(17, 22, 17, 0.64)",
+        plot_bgcolor: "rgba(8, 11, 8, 0.24)",
         xaxis: {
-          title: { text: "Date", font: { color: "#94a3b8" } },
+          title: { text: "Date", font: { color: chartMuted } },
           tickangle: 45,
           tickformat: "%Y-%m-%d",
-          color: "#94a3b8",
-          gridcolor: "rgba(148, 163, 184, 0.1)",
+          color: chartMuted,
+          gridcolor: chartGrid,
         },
         yaxis: {
-          title: { text: `Price (${priceCurrency})`, font: { color: "#94a3b8" } },
-          color: "#94a3b8",
-          gridcolor: "rgba(148, 163, 184, 0.1)",
+          title: { text: `Price (${priceCurrency})`, font: { color: chartMuted } },
+          color: chartMuted,
+          gridcolor: chartGrid,
         },
         // height: 600, // let container control height
         margin: { t: 50, b: 100, l: 50, r: 50 },
