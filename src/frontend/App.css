@@ -2063,6 +2063,7 @@ h2 {
   gap: var(--spacing-lg);
   min-height: 0;
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .financial-statement-modal .optimizer-modal-header {
@@ -2091,6 +2092,7 @@ h2 {
   flex: 1 1 auto;
   min-height: 260px;
   overflow: auto;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 
@@ -3066,6 +3068,7 @@ h2 {
   justify-content: center;
   z-index: var(--z-modal);
   backdrop-filter: blur(10px);
+  overscroll-behavior: none;
 }
 
 .optimizer-modal-content {
@@ -3077,6 +3080,7 @@ h2 {
   box-shadow: var(--shadow-xl);
   border: 1px solid var(--color-border);
   animation: modalFadeIn 0.2s ease-out;
+  overscroll-behavior: contain;
 }
 
 .optimizer-advanced-modal {
