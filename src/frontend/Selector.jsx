@@ -91,7 +91,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <img src="/portfolio-transparent.png" className="icon" alt="Manager" />
+                        <img src="/portfolio-manager-transparent.png" className="icon" alt="Manager" />
                         {t('navigation.manager')}
                     </button>
                 </nav>
