@@ -22,50 +22,50 @@
 
 ## 🎯 Overview
 
-**Antifier** is a comprehensive financial analysis webapp that helps investors and traders make data-driven investment decisions by automating quantitative stock analysis, predictive forecasting, and portfolio optimization.
+**Antifier** is a local React + Flask financial analysis webapp for stock research, predictive forecasting, financial statement review, screening, hedge analysis, portfolio optimization, benchmarking, and rebalancing.
 
-The name 'Antifier' comes from Korean slang 'Ant', which is used for referring small investors.
+The name "Antifier" comes from the Korean slang "ant," a nickname for small individual investors. Antifier is designed as an analysis support tool, not as investment advice or a return guarantee.
 
 ### Why Antifier?
 
-- **🔄 End-to-End Analysis**: From stock visualization to portfolio optimization in one integrated platform
-- **🤖 Intelligent Automation**: Machine learning-powered forecasting and regression analysis
-- **📈 Real-Time Insights**: Interactive charts with historical data and future predictions
-- **🎯 Portfolio Optimization**: Modern Portfolio Theory implementation with efficient frontier analysis
-- **⚡ Fast & Responsive**: React frontend with Flask backend for seamless performance
+- **🔄 One Connected Workflow**: Move from price charts and forecasts to financial ratios, screening, hedge checks, portfolio optimization, benchmarking, and rebalancing without switching tools
+- **🤖 Forecast-Aware Modeling**: Compare LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, and lightweight forecast paths where they fit the workflow
+- **📊 Financial Context**: Review company fundamentals with valuation, profitability, growth, stability, and risk metrics plus sector/industry benchmark context
+- **🎯 Portfolio Lifecycle**: Optimize with MPT or Black-Litterman, export portfolio JSON, benchmark against S&P 500 and risk-free assets, then translate target weights into rebalance orders
+- **🌐 Local, Bilingual App**: Run the React/Vite frontend and Flask API locally with English/Korean UI, `/api` proxy support, and installer/build tooling
 
 ---
 
 ## ✨ Features
 
-### 📊 Stock Analysis & Visualization
-- Interactive historical stock price charts with customizable date ranges
-- Multi-ticker comparison and analysis
-- LightGBM-powered regression and trend analysis
-- Future price predictions with configurable forecast periods
+### 📊 Stock Analysis & Forecasting
+- Single-ticker historical price charts with configurable date ranges
+- Regression and forecast model selection across LSTM, LightGBM, ARIMA, ARIMA + Transformer, and Transformer
+- Future price forecast charts with configurable horizons and forecast ranges
+- Currency metadata for prices when source and display currencies differ
 
-### 💼 Portfolio Management
-- Portfolio optimization using Modern Portfolio Theory or Black-Litterman with forecasted annual simple returns
-- Configurable return forecast strategies: historical CAGR, lightweight ensemble, ARIMA + Transformer, and standalone Transformer
-- Efficient frontier calculation with optimal weight allocation
-- Risk-return analysis with customizable parameters and constraints
+### 📋 Financial Statements & Screening
+- Financial dashboard with company summary, market cap, currency context, metric scores, and rule-based analysis signals
+- Valuation, profitability, growth, stability, and risk metrics with industry/sector benchmark comparisons
+- Finviz sector/industry valuation benchmarks with yfinance representative-peer fallbacks for missing metrics
+- Stock screener for S&P 500, Dow Jones, or uploaded CSV ticker universes with multi-criteria financial filters and CSV export
 
-### 🔍 Stock Screening & Filtering
-- Custom financial metric filters (P/E, P/B, ROE, etc.)
-- Pre-defined stock groups (S&P 500, Dow Jones, KOSPI 200)
-- Multi-criteria screening for investment opportunities
-- Financial statement analysis with key ratios
+### 💼 Portfolio Optimization
+- Modern Portfolio Theory and Black-Litterman optimization with forecast-based expected returns
+- Forecast strategies for lightweight prediction, ARIMA + Transformer, and standalone Transformer
+- Advanced controls for risk-free rate, target return, risk tolerance, forecast horizon, minimum history, and Black-Litterman tau
+- Progress streaming for long-running optimization jobs, downloadable portfolio JSON, return/risk/Sharpe summaries, and weight tables
+- Budget-to-shares allocation with global and per-ticker fractional-share controls
 
-### 📉 Advanced Analysis Tools
-- Portfolio benchmarking against S&P 500 and risk-free assets
-- Hedge analysis and pairs trading strategies
-- Statistical correlation and regression analysis
-- Technical indicators and pattern recognition
-- Risk-adjusted return calculations
+### 📈 Portfolio Benchmarking & Rebalancing
+- Portfolio JSON upload and benchmark comparison against S&P 500 and a configurable risk-free asset
+- Current-holdings portfolio manager with cash injection, target asset space selection, and rebalance order calculation
+- Save/load portfolio inputs locally, export target holdings CSV, download portfolio JSON, and print/save rebalance results
+- Hedge analysis for two tickers using correlation and regression over a selected date range
 
 ---
 
-## � Prerequisites
+## 📋 Prerequisites
 
 Before installing Antifier, ensure you have the following installed on your system:
 
@@ -81,11 +81,11 @@ These are required for both the one-click installer and manual installation meth
 
 ---
 
-## �🚀 Installation
+## 🚀 Installation
 
 ### Option 1: One-Click Installer (Recommended)
 
-Download the self-contained installer for your platform from [Releases](https://github.com/yourusername/antifier/releases):
+Download the self-contained installer for your platform from [Releases](https://github.com/fullsack73/Antifier/releases):
 
 **macOS:**
 ```bash
