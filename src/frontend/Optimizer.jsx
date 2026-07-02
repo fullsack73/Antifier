@@ -46,7 +46,7 @@ const Optimizer = () => {
     setUploadFileName(file.name)
 
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      setUploadError('Only .csv files are accepted.')
+      setUploadError(t("optimizer.csvOnly", "Only .csv files are accepted."))
       setCustomTickers([])
       setUploadFileName('')
       e.target.value = ''
@@ -67,14 +67,14 @@ const Optimizer = () => {
         .filter(t => /^[A-Z0-9.\-^]+$/i.test(t))
 
       if (tickers.length === 0) {
-        setUploadError('No valid ticker symbols found in the file.')
+        setUploadError(t("optimizer.noValidTickers", "No valid ticker symbols found in the file."))
         setCustomTickers([])
       } else {
         setCustomTickers(tickers)
       }
     }
     reader.onerror = () => {
-      setUploadError('Failed to read the file.')
+      setUploadError(t("optimizer.readCsvError", "Failed to read the file."))
       setCustomTickers([])
     }
     reader.readAsText(file)
@@ -210,16 +210,16 @@ const Optimizer = () => {
       try {
         const parsed = JSON.parse(e.target.result)
         if (!parsed || typeof parsed !== "object" || !parsed.weights) {
-          throw new Error("Invalid portfolio file: missing weights")
+          throw new Error(t("optimizer.invalidPortfolioFile", "Invalid portfolio file: missing weights"))
         }
         setOptimizedPortfolio(parsed)
         setAllocation(null)
         setError(null)
       } catch (uploadError) {
-        setError(uploadError.message || "Failed to load portfolio file")
+        setError(uploadError.message || t("optimizer.loadPortfolioError", "Failed to load portfolio file"))
       }
     }
-    reader.onerror = () => setError("Failed to read portfolio file")
+    reader.onerror = () => setError(t("optimizer.readPortfolioError", "Failed to read portfolio file"))
     reader.readAsText(file)
 
     // Reset input value to allow uploading the same file again if needed
@@ -313,7 +313,7 @@ const Optimizer = () => {
 
       eventSource.addEventListener('complete', (e) => {
         const data = JSON.parse(e.data)
-        setProgress({ percentage: 100, message: 'Optimization complete!' })
+        setProgress({ percentage: 100, message: t("optimizer.complete", "Optimization complete!") })
         eventSource.close()
 
         // The result is passed in the complete event for simplicity in this refactor
@@ -343,10 +343,10 @@ const Optimizer = () => {
         console.error(err)
       }
       if (err.response && err.response.data) {
-        setError(err.response.data.error || "An error occurred starting optimization")
+        setError(err.response.data.error || t("optimizer.startError", "An error occurred starting optimization"))
         setErrorDetails(err.response.data.details || null)
       } else {
-        setError("An error occurred starting optimization")
+        setError(t("optimizer.startError", "An error occurred starting optimization"))
         setErrorDetails(err.message)
       }
       setOptimizedPortfolio(null)
@@ -463,7 +463,7 @@ const Optimizer = () => {
                 type="number"
                 value={riskFreeRate}
                 onChange={(e) => setRiskFreeRate(e.target.value)}
-                placeholder="e.g., 2"
+                placeholder={t("optimizer.riskFreePlaceholder", "e.g., 2")}
                 required
               />
             </div>
@@ -477,7 +477,7 @@ const Optimizer = () => {
               <div className="optimizer-modal-content optimizer-advanced-modal" onClick={e => e.stopPropagation()}>
                 <div className="optimizer-modal-header">
                   <h3 className="optimizer-modal-title">{t("optimizer.advancedSettings", "Advanced Settings")}</h3>
-                  <button type="button" className="optimizer-modal-close" onClick={() => setShowAdvanced(false)}>×</button>
+                  <button type="button" className="optimizer-modal-close" onClick={() => setShowAdvanced(false)} aria-label={t("common.close", "Close")}>×</button>
                 </div>
                 <div className="optimizer-modal-body optimizer-advanced-modal-body">
                   <div className="optimizer-advanced-section">
@@ -495,7 +495,7 @@ const Optimizer = () => {
                               setTargetReturn(e.target.value)
                               if (e.target.value) setRiskTolerance("")
                             }}
-                            placeholder="e.g., 20"
+                            placeholder={t("optimizer.targetReturnPlaceholder", "e.g., 20")}
                           />
                         </div>
                       </div>
@@ -512,7 +512,7 @@ const Optimizer = () => {
                               setRiskTolerance(e.target.value)
                               if (e.target.value) setTargetReturn("")
                             }}
-                            placeholder="e.g., 15"
+                            placeholder={t("optimizer.riskTolerancePlaceholder", "e.g., 15")}
                           />
                         </div>
                       </div>
@@ -523,7 +523,7 @@ const Optimizer = () => {
                     <div className="optimizer-advanced-section-title">{t("optimizer.forecastControls", "Forecast Controls")}</div>
                     <div className="optimizer-advanced-grid">
                       <div className="optimizer-form-group">
-                        <label htmlFor="forecastHorizon" title="Number of trading days to forecast into the future. Default is 63 (roughly one quarter).">{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
+                        <label htmlFor="forecastHorizon" title={t("optimizer.forecastHorizonTitle", "Number of trading days to forecast into the future. Default is 63 (roughly one quarter).")}>{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
                         <input
                           id="forecastHorizon"
                           className="optimizer-input"
@@ -535,7 +535,7 @@ const Optimizer = () => {
                       </div>
 
                       <div className="optimizer-form-group">
-                        <label htmlFor="minHistory" title="Minimum number of historical data points required for a ticker to be included.">{t("optimizer.minHistory", "Min. Data History (Days)")}</label>
+                        <label htmlFor="minHistory" title={t("optimizer.minHistoryTitle", "Minimum number of historical data points required for a ticker to be included.")}>{t("optimizer.minHistory", "Min. Data History (Days)")}</label>
                         <input
                           id="minHistory"
                           className="optimizer-input"
@@ -548,7 +548,7 @@ const Optimizer = () => {
 
                       {optimizationMethod === "BL" && (
                         <div className="optimizer-form-group optimizer-advanced-field-wide">
-                          <label htmlFor="blTau" title="A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.">{t("optimizer.blTau", "Black-Litterman Tau")}</label>
+                          <label htmlFor="blTau" title={t("optimizer.blTauTitle", "A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.")}>{t("optimizer.blTau", "Black-Litterman Tau")}</label>
                           <input
                             id="blTau"
                             className="optimizer-input"
@@ -578,11 +578,11 @@ const Optimizer = () => {
               <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
                 <div className="optimizer-modal-header">
                   <h3 className="optimizer-modal-title">{t("optimizer.uploadCustomTickers", "Upload Custom Tickers")}</h3>
-                  <button type="button" className="optimizer-modal-close" onClick={handleCloseUploadModal}>×</button>
+                  <button type="button" className="optimizer-modal-close" onClick={handleCloseUploadModal} aria-label={t("common.close", "Close")}>×</button>
                 </div>
                 <div className="optimizer-modal-body">
                   <p className="modal-helper-text">
-                    Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like &quot;Symbol&quot; or &quot;Ticker&quot; are automatically ignored.
+                    {t("optimizer.customTickersHelp", "Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like \"Symbol\" or \"Ticker\" are automatically ignored.")}
                   </p>
                   <button
                     type="button"
@@ -605,7 +605,7 @@ const Optimizer = () => {
                   )}
                   {customTickers.length > 0 && (
                     <div className="modal-muted-text">
-                      <strong>{uploadFileName}</strong> — {customTickers.length} ticker{customTickers.length !== 1 ? 's' : ''} loaded
+                      <strong>{uploadFileName}</strong> - {t("optimizer.tickersLoaded", "Loaded tickers: {{count}}", { count: customTickers.length })}
                       <ul className="optimizer-weights-list optimizer-compact-list">
                         {customTickers.map(t => <li key={t}><span>{t}</span></li>)}
                       </ul>

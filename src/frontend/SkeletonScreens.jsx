@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next"
+
 const range = (count) => Array.from({ length: count }, (_, index) => index)
 
 const SkeletonLine = ({ className = "", width }) => (
@@ -11,13 +13,14 @@ const SkeletonCell = ({ width }) => (
   <span className="skeleton-cell skeleton-shimmer" style={width ? { "--skeleton-width": width } : undefined} />
 )
 
-const SkeletonStatus = ({ label = "Loading content" }) => (
-  <span className="skeleton-sr">{label}</span>
-)
+const SkeletonStatus = ({ label, i18nKey = "skeleton.loadingContent" }) => {
+  const { t } = useTranslation()
+  return <span className="skeleton-sr">{label || t(i18nKey)}</span>
+}
 
 export const StockChartsSkeleton = () => (
   <section className="skeleton-screen stock-skeleton" role="status" aria-live="polite">
-    <SkeletonStatus label="Loading stock charts" />
+    <SkeletonStatus i18nKey="skeleton.loadingStockCharts" />
     <SkeletonLine className="skeleton-title-line" width="24rem" />
     <div className="charts-container">
       {range(2).map((item) => (
@@ -35,9 +38,9 @@ export const StockChartsSkeleton = () => (
   </section>
 )
 
-export const MetricCardsSkeleton = ({ cards = 5, label = "Loading metrics" }) => (
+export const MetricCardsSkeleton = ({ cards = 5, label }) => (
   <section className="metrics-container skeleton-screen" role="status" aria-live="polite">
-    <SkeletonStatus label={label} />
+    <SkeletonStatus label={label} i18nKey="skeleton.loadingMetrics" />
     <div className="text-center mb-8">
       <SkeletonLine className="skeleton-title-line" width="18rem" />
     </div>
@@ -52,9 +55,9 @@ export const MetricCardsSkeleton = ({ cards = 5, label = "Loading metrics" }) =>
   </section>
 )
 
-export const ResultCardsSkeleton = ({ cards = 4, label = "Loading results" }) => (
+export const ResultCardsSkeleton = ({ cards = 4, label }) => (
   <section className="skeleton-screen" role="status" aria-live="polite">
-    <SkeletonStatus label={label} />
+    <SkeletonStatus label={label} i18nKey="skeleton.loadingResults" />
     <div className="grid-auto">
       {range(cards).map((card) => (
         <div className="stat-card skeleton-stat-card" key={card}>
@@ -69,7 +72,7 @@ export const ResultCardsSkeleton = ({ cards = 4, label = "Loading results" }) =>
 
 export const FinancialTableSkeleton = ({ rows = 8, columns = 5 }) => (
   <div className="financial-table-container skeleton-table-wrapper" role="status" aria-live="polite">
-    <SkeletonStatus label="Loading financial table" />
+    <SkeletonStatus i18nKey="skeleton.loadingFinancialTable" />
     <table className="financial-table skeleton-table">
       <thead>
         <tr>
@@ -95,9 +98,9 @@ export const FinancialTableSkeleton = ({ rows = 8, columns = 5 }) => (
   </div>
 )
 
-export const GenericTableSkeleton = ({ rows = 6, columns = 6, label = "Loading table" }) => (
+export const GenericTableSkeleton = ({ rows = 6, columns = 6, label, i18nKey = "skeleton.loadingTable" }) => (
   <div className="table-wrapper skeleton-table-wrapper" role="status" aria-live="polite">
-    <SkeletonStatus label={label} />
+    <SkeletonStatus label={label} i18nKey={i18nKey} />
     <table className="premium-table skeleton-table">
       <thead>
         <tr>
@@ -125,7 +128,7 @@ export const GenericTableSkeleton = ({ rows = 6, columns = 6, label = "Loading t
 
 export const OptimizerSkeleton = () => (
   <section className="optimizer-results-container skeleton-screen" role="status" aria-live="polite">
-    <SkeletonStatus label="Loading optimization results" />
+    <SkeletonStatus i18nKey="skeleton.loadingOptimizationResults" />
     <SkeletonLine className="skeleton-title-line" width="16rem" />
     <div className="optimizer-results-grid">
       {range(3).map((card) => (
@@ -151,7 +154,7 @@ export const OptimizerSkeleton = () => (
 
 export const BenchmarkSkeleton = () => (
   <section className="benchmark-results skeleton-screen" role="status" aria-live="polite">
-    <SkeletonStatus label="Loading benchmark results" />
+    <SkeletonStatus i18nKey="skeleton.loadingBenchmarkResults" />
     <SkeletonLine className="skeleton-title-line" width="14rem" />
     <div className="charts-container">
       <div className="chart-wrapper skeleton-chart-card">
@@ -160,14 +163,14 @@ export const BenchmarkSkeleton = () => (
       </div>
     </div>
     <div className="benchmark-table-container">
-      <GenericTableSkeleton rows={3} columns={5} label="Loading benchmark table" />
+      <GenericTableSkeleton rows={3} columns={5} i18nKey="skeleton.loadingBenchmarkTable" />
     </div>
   </section>
 )
 
 export const ManagerSkeleton = () => (
   <section className="manager-results skeleton-screen" role="status" aria-live="polite">
-    <SkeletonStatus label="Loading rebalancing results" />
+    <SkeletonStatus i18nKey="skeleton.loadingRebalancingResults" />
     <SkeletonLine className="skeleton-title-line" width="16rem" />
     <div className="manager-summary-grid">
       <div className="manager-summary-card manager-summary-card-wide">
@@ -191,18 +194,18 @@ export const ManagerSkeleton = () => (
     </div>
     <div className="manager-order-section">
       <SkeletonLine className="skeleton-title-line" width="8rem" />
-      <GenericTableSkeleton rows={5} columns={4} label="Loading order table" />
+      <GenericTableSkeleton rows={5} columns={4} i18nKey="skeleton.loadingOrderTable" />
     </div>
   </section>
 )
 
 export const ScreenerSkeleton = () => (
   <section className="results-section fade-in skeleton-screen" role="status" aria-live="polite">
-    <SkeletonStatus label="Loading screener results" />
+    <SkeletonStatus i18nKey="skeleton.loadingScreenerResults" />
     <div className="results-header">
       <SkeletonLine width="8rem" />
       <SkeletonLine width="7rem" />
     </div>
-    <GenericTableSkeleton rows={7} columns={8} label="Loading screener table" />
+    <GenericTableSkeleton rows={7} columns={8} i18nKey="skeleton.loadingScreenerTable" />
   </section>
 )

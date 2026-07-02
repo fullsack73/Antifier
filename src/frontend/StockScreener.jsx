@@ -7,23 +7,23 @@ import './App.css';
 // Define available metrics
 // Matches backend keys
 const METRICS = [
-    { value: 'P/E', label: 'P/E Ratio' },
-    { value: 'Forward P/E', label: 'Forward P/E' },
-    { value: 'P/B', label: 'Price/Book (P/B)' },
-    { value: 'Price/Sales', label: 'Price/Sales (P/S)' },
-    { value: 'PEG', label: 'PEG Ratio' },
-    { value: 'Debt/Equity', label: 'Debt/Equity' },
-    { value: 'ROE', label: 'Return on Equity (ROE)' },
-    { value: 'ROA', label: 'Return on Assets (ROA)' },
-    { value: 'Profit Margin', label: 'Profit Margin' },
-    { value: 'Market Cap', label: 'Market Cap' },
-    { value: 'Price', label: 'Current Price' },
+    { value: 'P/E', labelKey: 'stockScreener.metrics.pe' },
+    { value: 'Forward P/E', labelKey: 'stockScreener.metrics.forwardPe' },
+    { value: 'P/B', labelKey: 'stockScreener.metrics.pb' },
+    { value: 'Price/Sales', labelKey: 'stockScreener.metrics.priceSales' },
+    { value: 'PEG', labelKey: 'stockScreener.metrics.peg' },
+    { value: 'Debt/Equity', labelKey: 'stockScreener.metrics.debtEquity' },
+    { value: 'ROE', labelKey: 'stockScreener.metrics.roe' },
+    { value: 'ROA', labelKey: 'stockScreener.metrics.roa' },
+    { value: 'Profit Margin', labelKey: 'stockScreener.metrics.profitMargin' },
+    { value: 'Market Cap', labelKey: 'stockScreener.metrics.marketCap' },
+    { value: 'Price', labelKey: 'stockScreener.metrics.currentPrice' },
 ];
 
 const OPERATORS = [
-    { value: 'Under', label: 'Under (<)' },
-    { value: 'Over', label: 'Over (>)' },
-    { value: 'Equals', label: 'Equals (=)' },
+    { value: 'Under', labelKey: 'stockScreener.operators.under' },
+    { value: 'Over', labelKey: 'stockScreener.operators.over' },
+    { value: 'Equals', labelKey: 'stockScreener.operators.equals' },
 ];
 
 const StockScreener = () => {
@@ -64,7 +64,7 @@ const StockScreener = () => {
         setUploadFileName(file.name);
 
         if (!file.name.toLowerCase().endsWith('.csv')) {
-            setUploadError('Only .csv files are accepted.');
+            setUploadError(t('stockScreener.csvOnly'));
             setCustomTickers([]);
             setUploadFileName('');
             e.target.value = '';
@@ -85,14 +85,14 @@ const StockScreener = () => {
                 .filter(t => /^[A-Z0-9.\-^]+$/i.test(t));
 
             if (tickers.length === 0) {
-                setUploadError('No valid ticker symbols found in the file.');
+                setUploadError(t('stockScreener.noValidTickers'));
                 setCustomTickers([]);
             } else {
                 setCustomTickers(tickers);
             }
         };
         reader.onerror = () => {
-            setUploadError('Failed to read the file.');
+            setUploadError(t('stockScreener.readError'));
             setCustomTickers([]);
         };
         reader.readAsText(file);
@@ -127,7 +127,7 @@ const StockScreener = () => {
         // My backend uses `get_ticker_group`. I'll stick to predefined groups for now as per "exhaustive search" request.
 
         if (tickerGroup === 'Custom' && customTickers.length === 0) {
-            setError('Please upload a CSV file with valid ticker symbols.');
+            setError(t('stockScreener.uploadCsvRequired'));
             setLoading(false);
             return;
         }
@@ -155,20 +155,20 @@ const StockScreener = () => {
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.error || 'Network response was not ok');
+                throw new Error(errData.error || t('stockScreener.networkError'));
             }
 
             const data = await response.json();
             setResults(data);
         } catch (err) {
-            setError(err.message || 'Failed to fetch screener results.');
+            setError(err.message || t('stockScreener.fetchError'));
             if (import.meta.env.DEV) {
                 console.error(err);
             }
         } finally {
             setLoading(false);
         }
-    }, [filters, tickerGroup, customTickers]);
+    }, [filters, tickerGroup, customTickers, t]);
 
     const handleDownloadCSV = () => {
         if (results.length === 0) return;
@@ -209,9 +209,9 @@ const StockScreener = () => {
 
             <div className="screener-controls-card">
                 <div className="control-header">
-                    <h3>Screening Criteria</h3>
+                    <h3>{t('stockScreener.screeningCriteria')}</h3>
                     <div className="universe-selector">
-                        <label>Universe:</label>
+                        <label>{t('stockScreener.universe')}</label>
                         {tickerGroup === 'Custom' && customTickers.length > 0 ? (
                             <button
                                 type="button"
@@ -236,7 +236,7 @@ const StockScreener = () => {
                             >
                                 <option value="S&P 500">S&P 500</option>
                                 <option value="Dow Jones">Dow Jones</option>
-                                <option value="Custom">Custom (CSV)</option>
+                                <option value="Custom">{t('stockScreener.customCsv')}</option>
                             </select>
                         )}
                     </div>
@@ -250,23 +250,27 @@ const StockScreener = () => {
                                 value={filter.metric}
                                 onChange={(e) => handleFilterChange(index, 'metric', e.target.value)}
                             >
-                                {METRICS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                                {METRICS.map(m => <option key={m.value} value={m.value}>{t(m.labelKey)}</option>)}
                             </select>
                             <select
                                 className="premium-select operator-select"
                                 value={filter.operator}
                                 onChange={(e) => handleFilterChange(index, 'operator', e.target.value)}
                             >
-                                {OPERATORS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                {OPERATORS.map(o => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
                             </select>
                             <input
                                 type="text"
                                 className="premium-input value-input"
                                 value={filter.value}
                                 onChange={(e) => handleFilterChange(index, 'value', e.target.value)}
-                                placeholder="Value (e.g. 15)"
+                                placeholder={t('stockScreener.valuePlaceholder')}
                             />
-                            <button className="remove-filter-btn" onClick={() => handleRemoveFilter(index)}>
+                            <button
+                                className="remove-filter-btn"
+                                onClick={() => handleRemoveFilter(index)}
+                                aria-label={t('stockScreener.removeFilter')}
+                            >
                                 ×
                             </button>
                         </div>
@@ -275,10 +279,10 @@ const StockScreener = () => {
 
                 <div className="action-row">
                     <button className="secondary-btn" onClick={handleAddFilter}>
-                        + Add Filter
+                        {t('stockScreener.add_filter')}
                     </button>
                     <button className="primary-btn search-btn" onClick={handleSearch} disabled={loading}>
-                        {loading ? 'Screening...' : 'Search Stocks'}
+                        {loading ? t('stockScreener.screening') : t('stockScreener.searchStocks')}
                     </button>
                 </div>
             </div>
@@ -287,12 +291,12 @@ const StockScreener = () => {
                 <div className="optimizer-modal-overlay" onClick={handleCloseUploadModal}>
                     <div className="optimizer-modal-content" onClick={e => e.stopPropagation()}>
                         <div className="optimizer-modal-header">
-                            <h3 className="optimizer-modal-title">Upload Custom Tickers</h3>
-                            <button type="button" className="optimizer-modal-close" onClick={handleCloseUploadModal}>×</button>
+                            <h3 className="optimizer-modal-title">{t('optimizer.uploadCustomTickers')}</h3>
+                            <button type="button" className="optimizer-modal-close" onClick={handleCloseUploadModal} aria-label={t('common.close')}>×</button>
                         </div>
                         <div className="optimizer-modal-body">
                             <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: 'var(--spacing-md)' }}>
-                                Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like &quot;Symbol&quot; or &quot;Ticker&quot; are automatically ignored.
+                                {t('optimizer.customTickersHelp')}
                             </p>
                             <button
                                 type="button"
@@ -300,7 +304,7 @@ const StockScreener = () => {
                                 onClick={() => fileInputRef.current?.click()}
                                 style={{ width: '100%', marginBottom: 'var(--spacing-md)' }}
                             >
-                                {uploadFileName ? 'Change File' : 'Choose CSV File'}
+                                {uploadFileName ? t('optimizer.changeFile') : t('optimizer.chooseCsvFile')}
                             </button>
                             <input
                                 type="file"
@@ -316,7 +320,7 @@ const StockScreener = () => {
                             )}
                             {customTickers.length > 0 && (
                                 <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
-                                    <strong>{uploadFileName}</strong> — {customTickers.length} ticker{customTickers.length !== 1 ? 's' : ''} loaded
+                                    <strong>{uploadFileName}</strong> - {t('optimizer.tickersLoaded', { count: customTickers.length })}
                                     <ul className="optimizer-weights-list" style={{ marginTop: 'var(--spacing-sm)', maxHeight: '150px' }}>
                                         {customTickers.map(t => <li key={t}><span>{t}</span></li>)}
                                     </ul>
@@ -326,11 +330,11 @@ const StockScreener = () => {
                         <div className="optimizer-modal-footer">
                             {customTickers.length > 0 && (
                                 <button type="button" className="secondary-btn" onClick={handleClearUpload}>
-                                    Clear
+                                    {t('common.clear')}
                                 </button>
                             )}
                             <button type="button" className="primary-btn" onClick={handleCloseUploadModal}>
-                                Done
+                                {t('common.done')}
                             </button>
                         </div>
                     </div>
@@ -344,9 +348,9 @@ const StockScreener = () => {
             {!loading && results.length > 0 && (
                 <div className="results-section fade-in">
                     <div className="results-header">
-                        <h3>Results ({results.length})</h3>
+                        <h3>{t('stockScreener.resultsWithCount', { count: results.length })}</h3>
                         <button className="download-btn" onClick={handleDownloadCSV}>
-                            Download CSV
+                            {t('stockScreener.download_csv')}
                         </button>
                     </div>
 
@@ -354,14 +358,14 @@ const StockScreener = () => {
                         <table className="premium-table">
                             <thead>
                                 <tr>
-                                    <th>Ticker</th>
-                                    <th>Company</th>
-                                    <th>Price</th>
-                                    <th>P/E</th>
-                                    <th>P/B</th>
-                                    <th>ROE</th>
-                                    <th>Debt/Eq</th>
-                                    <th>Sector</th>
+                                    <th>{t('stockScreener.table.ticker')}</th>
+                                    <th>{t('stockScreener.table.company')}</th>
+                                    <th>{t('stockScreener.table.price')}</th>
+                                    <th>{t('stockScreener.table.pe')}</th>
+                                    <th>{t('stockScreener.table.pb')}</th>
+                                    <th>{t('stockScreener.table.roe')}</th>
+                                    <th>{t('stockScreener.table.debtEquity')}</th>
+                                    <th>{t('stockScreener.table.sector')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -385,7 +389,7 @@ const StockScreener = () => {
 
             {results.length === 0 && !loading && !error && (
                 <div className="empty-state">
-                    <p>Select criteria and hit Search to find stocks.</p>
+                    <p>{t('stockScreener.emptyState')}</p>
                 </div>
             )}
         </div>

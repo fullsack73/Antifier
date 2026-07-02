@@ -39,7 +39,7 @@ const FutureDateInput = ({ onFutureDaysChange, initialDays = 30 }) => {
           onChange={handleChange}
           min="1"
           max="365"
-          title="Predictions will auto-update when you change this value"
+          title={t("future.auto_update_title", "Predictions will auto-update when you change this value")}
         />
       </div>
     </div>

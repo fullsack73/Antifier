@@ -37,7 +37,7 @@ function TickerInput({ onTickerChange, initialTicker = '' }) {
           value={ticker}
           onChange={handleInputChange}
           placeholder={t('ticker.placeholder')}
-          title="Charts will auto-update as you type"
+          title={t('ticker.autoUpdateTitle', 'Charts will auto-update as you type')}
           maxLength="10"
         />
       </div>

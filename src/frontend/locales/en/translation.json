@@ -9,12 +9,20 @@
   },
   "date": {
     "start": "Start Date",
-    "end": "End Date"
+    "end": "End Date",
+    "autoUpdateTitle": "Chart will auto-update when both dates are selected"
+  },
+  "chart": {
+    "date": "Date",
+    "priceWithCurrency": "Price ({{currency}})"
   },
   "regression": {
     "title": "Stock Data Visualization",
     "updateChart": "Update Chart",
-    "data": "Stock Data"
+    "data": "Stock Data",
+    "chartTitle": "{{ticker}} Price Regression",
+    "actualPrices": "Actual Prices",
+    "regressionLine": "Regression Line"
   },
   "hedge": {
     "title": "Hedge Relationship Analysis",
@@ -27,16 +35,29 @@
     "correlation": "Correlation",
     "pValue": "P-value",
     "strength": "Strength",
-    "results": "Results"
+    "results": "Results",
+    "enterBothTickers": "Please enter both tickers",
+    "fetchError": "Failed to fetch hedge analysis data",
+    "ticker1Placeholder": "e.g., AAPL",
+    "ticker2Placeholder": "e.g., MSFT",
+    "loadingAnalysis": "Loading hedge analysis"
   },
   "common": {
     "loading": "Loading...",
+    "processing": "Processing...",
+    "starting": "Starting...",
     "error": "Error",
     "search": "Search",
     "submit": "Submit",
     "close": "Close",
+    "clear": "Clear",
+    "done": "Done",
     "menu": "Menu",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "toggleMenu": "Toggle menu",
+    "toggleLanguage": "Toggle language",
+    "yes": "Yes",
+    "no": "No"
   },
   "stock": {
     "title": "Stock Analysis",
@@ -44,6 +65,7 @@
     "dateRange": "Date Range",
     "start": "Start Date",
     "end": "End Date",
+    "chartTitle": "{{ticker}} Stock Data",
     "selectionSummary": "Current analysis settings",
     "emptyTitle": "Market data is pending",
     "emptyDescription": "The selected symbol and date window will appear here when data returns."
@@ -51,10 +73,16 @@
   "ticker": {
     "label": "Enter Stock Symbol",
     "placeholder": "e.g., AAPL, MSFT, GOOGL",
-    "submit": "Show Stock Data"
+    "submit": "Show Stock Data",
+    "autoUpdateTitle": "Charts will auto-update as you type"
   },
   "model": {
-    "select": "Select AI Model"
+    "select": "Select AI Model",
+    "lstm": "LSTM (Neural Network)",
+    "lightgbm": "LightGBM (Gradient Boosting)",
+    "arima": "ARIMA (Time Series)",
+    "arimaTransformer": "ARIMA + Transformer",
+    "transformer": "Transformer"
   },
   "future": {
     "days_to_predict": "Days to Predict",
@@ -62,7 +90,8 @@
     "historical_price": "Historical Price",
     "mean_forecast": "Mean Forecast",
     "forecast_range": "Forecast Range (Min-Max)",
-    "monte_carlo_chart_title": "Future Price Forecast"
+    "monte_carlo_chart_title": "Future Price Forecast",
+    "auto_update_title": "Predictions will auto-update when you change this value"
   },
   "financial": {
     "title": "Financial Statement Analysis",
@@ -177,6 +206,10 @@
     "title": "Portfolio Optimizer",
     "tickerGroup": "Ticker Group",
     "modelStrategy": "Model Strategy",
+    "forecastMethod": "Forecast Method",
+    "optimizationMethod": "Optimization Method",
+    "advancedSettings": "Advanced Settings",
+    "loadPortfolio": "Load JSON",
     "bl": "Black-Litterman (Default)",
     "ensemble": "ARIMA + Transformer",
     "transformer": "Transformer",
@@ -185,12 +218,25 @@
     "startDate": "Start Date",
     "endDate": "End Date",
     "riskFreeRate": "Risk-Free Rate (%)",
+    "riskFreePlaceholder": "e.g., 2",
     "targetReturn": "Target Return (%)",
+    "targetReturnPlaceholder": "e.g., 20",
     "riskTolerance": "Risk Tolerance (%)",
+    "riskTolerancePlaceholder": "e.g., 15",
     "constraints": "Constraints",
     "forecastControls": "Forecast Controls",
+    "forecastHorizon": "Forecast Horizon (Days)",
+    "forecastHorizonTitle": "Number of trading days to forecast into the future. Default is 63 (roughly one quarter).",
+    "minHistory": "Min. Data History (Days)",
+    "minHistoryTitle": "Minimum number of historical data points required for a ticker to be included.",
+    "blTau": "Black-Litterman Tau",
+    "blTauTitle": "A scalar indicating the uncertainty of the CAPM prior (0 to 1). Lower values mean higher confidence in the market equilibrium. Standard default is 0.05.",
+    "blTauHelp": "Confidence in market equilibrium: Lower = Higher Confidence",
     "submit": "Optimize Portfolio",
+    "complete": "Optimization complete!",
+    "startError": "An error occurred starting optimization",
     "results": "Optimized Portfolio",
+    "downloadPortfolio": "Download JSON",
     "weights": "Weights",
     "return": "Expected Return",
     "risk": "Risk (Std. Dev)",
@@ -209,8 +255,21 @@
     "shares": "Shares",
     "price": "Price",
     "custom": "Custom",
+    "uploadCustomTickers": "Upload Custom Tickers",
+    "customTickersHelp": "Upload a .csv file containing ticker symbols (one per line or comma-separated). Header rows like \"Symbol\" or \"Ticker\" are automatically ignored.",
+    "changeFile": "Change File",
+    "chooseCsvFile": "Choose CSV File",
+    "tickersLoaded": "Loaded tickers: {{count}}",
+    "csvOnly": "Only .csv files are accepted.",
+    "noValidTickers": "No valid ticker symbols found in the file.",
+    "readCsvError": "Failed to read the file.",
+    "invalidPortfolioFile": "Invalid portfolio file: missing weights",
+    "loadPortfolioError": "Failed to load portfolio file",
+    "readPortfolioError": "Failed to read portfolio file",
     "allowFractional": "Allow Fractional Shares",
     "allowFractionalAll": "All Fractional Shares",
+    "fractionalSettings": "Fractional Settings",
+    "fractionalAllowed": "Fractional Allowed",
     "fractional": "Fractional",
     "remainingCash": "Remaining Cash",
     "integerShareNote": "Shares are rounded to whole units. Remaining capital is redistributed by weight priority.",
@@ -218,14 +277,57 @@
   },
   "stockScreener": {
     "stock_screener": "Stock Screener",
-    "add_filter": "Add Filter",
+    "screeningCriteria": "Screening Criteria",
+    "universe": "Universe:",
+    "customCsv": "Custom (CSV)",
+    "add_filter": "+ Add Filter",
+    "removeFilter": "Remove filter",
     "search": "Search",
-    "download_csv": "Save",
+    "searchStocks": "Search Stocks",
+    "screening": "Screening...",
+    "download_csv": "Download CSV",
     "loading": "Loading...",
     "screener_results": "Screener Results",
+    "resultsWithCount": "Results ({{count}})",
+    "valuePlaceholder": "Value (e.g. 15)",
+    "emptyState": "Select criteria and hit Search to find stocks.",
+    "csvOnly": "Only .csv files are accepted.",
+    "noValidTickers": "No valid ticker symbols found in the file.",
+    "readError": "Failed to read the file.",
+    "uploadCsvRequired": "Please upload a CSV file with valid ticker symbols.",
+    "networkError": "Network response was not ok",
+    "fetchError": "Failed to fetch screener results.",
     "Under": "Under",
     "Over": "Over",
-    "Avg": "Avg"
+    "Avg": "Avg",
+    "operators": {
+      "under": "Under (<)",
+      "over": "Over (>)",
+      "equals": "Equals (=)"
+    },
+    "metrics": {
+      "pe": "P/E Ratio",
+      "forwardPe": "Forward P/E",
+      "pb": "Price/Book (P/B)",
+      "priceSales": "Price/Sales (P/S)",
+      "peg": "PEG Ratio",
+      "debtEquity": "Debt/Equity",
+      "roe": "Return on Equity (ROE)",
+      "roa": "Return on Assets (ROA)",
+      "profitMargin": "Profit Margin",
+      "marketCap": "Market Cap",
+      "currentPrice": "Current Price"
+    },
+    "table": {
+      "ticker": "Ticker",
+      "company": "Company",
+      "price": "Price",
+      "pe": "P/E",
+      "pb": "P/B",
+      "roe": "ROE",
+      "debtEquity": "Debt/Eq",
+      "sector": "Sector"
+    }
   },
   "benchmark": {
     "title": "Portfolio Benchmark",
@@ -280,11 +382,17 @@
     "downloadCsv": "Download Holdings CSV",
     "uploadHoldings": "Upload Holdings",
     "csvInstructions": "Upload a .csv file with TICKER,QUANTITY per line (e.g., AAPL,10).",
+    "noValidHoldings": "No valid holdings found. Format: TICKER,QUANTITY per line.",
+    "readCsvError": "Failed to read file.",
     "chooseCsvFile": "Choose CSV File",
     "currentHoldings": "Current Holdings",
+    "currentHoldingsOnly": "Current Holdings Only",
+    "sp500PlusHoldings": "S&P 500 (+ Holdings)",
+    "dowPlusHoldings": "Dow Jones (+ Holdings)",
     "tickerPlaceholder": "e.g., AAPL",
     "quantityPlaceholder": "e.g., 10",
     "addHolding": "+ Add Holding",
+    "removeHolding": "Remove holding",
     "cashInjection": "Cash Injection ($)",
     "cashPlaceholder": "e.g., 5000",
     "rebalance": "Rebalance Portfolio",
@@ -295,8 +403,27 @@
     "downloadTargetHoldingsCsv": "Download New Holdings CSV",
     "currentAllocation": "Current Allocation",
     "targetAllocation": "Target Allocation",
+    "displayMode": "Display:",
+    "displayAll": "All",
+    "fractionalReconfigureNote": "Re-configure how non-fractional orders behave by overriding settings below, and resubmit.",
+    "recalculate": "Recalculate Orders",
     "buyList": "Buy List",
     "sellList": "Sell List",
     "totalTargetValue": "Total Target Value"
+  },
+  "skeleton": {
+    "loadingContent": "Loading content",
+    "loadingStockCharts": "Loading stock charts",
+    "loadingMetrics": "Loading metrics",
+    "loadingResults": "Loading results",
+    "loadingFinancialTable": "Loading financial table",
+    "loadingTable": "Loading table",
+    "loadingOptimizationResults": "Loading optimization results",
+    "loadingBenchmarkResults": "Loading benchmark results",
+    "loadingBenchmarkTable": "Loading benchmark table",
+    "loadingRebalancingResults": "Loading rebalancing results",
+    "loadingOrderTable": "Loading order table",
+    "loadingScreenerResults": "Loading screener results",
+    "loadingScreenerTable": "Loading screener table"
   }
 }

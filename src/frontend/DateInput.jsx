@@ -55,7 +55,7 @@ function DateInput({ onDateRangeChange, notifyInitial = true, inputIdPrefix = "d
           id={startDateId}
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          title="Chart will auto-update when both dates are selected"
+          title={t("date.autoUpdateTitle", "Chart will auto-update when both dates are selected")}
         />
       </div>
       <div className="date-input-group">
@@ -65,7 +65,7 @@ function DateInput({ onDateRangeChange, notifyInitial = true, inputIdPrefix = "d
           id={endDateId}
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          title="Chart will auto-update when both dates are selected"
+          title={t("date.autoUpdateTitle", "Chart will auto-update when both dates are selected")}
         />
       </div>
     </div>

@@ -16,7 +16,7 @@ const HedgeAnalysis = () => {
 
     const fetchHedgeData = async () => {
         if (!ticker1 || !ticker2) {
-            setError('Please enter both tickers');
+            setError(t('hedge.enterBothTickers', 'Please enter both tickers'));
             return;
         }
 
@@ -39,7 +39,7 @@ const HedgeAnalysis = () => {
 
             setHedgeData(data);
         } catch (err) {
-            setError('Failed to fetch hedge analysis data');
+            setError(t('hedge.fetchError', 'Failed to fetch hedge analysis data'));
             if (import.meta.env.DEV) {
                 console.error('Error fetching hedge data:', err);
             }
@@ -66,7 +66,7 @@ const HedgeAnalysis = () => {
                             id="ticker1"
                             value={ticker1}
                             onChange={(e) => setTicker1(e.target.value.toUpperCase())}
-                            placeholder="e.g., AAPL"
+                            placeholder={t('hedge.ticker1Placeholder', 'e.g., AAPL')}
                         />
                     </div>
                 </div>
@@ -100,7 +100,7 @@ const HedgeAnalysis = () => {
                             id="ticker2"
                             value={ticker2}
                             onChange={(e) => setTicker2(e.target.value.toUpperCase())}
-                            placeholder="e.g., MSFT"
+                            placeholder={t('hedge.ticker2Placeholder', 'e.g., MSFT')}
                         />
                     </div>
                 </div>
@@ -111,7 +111,7 @@ const HedgeAnalysis = () => {
 
             {error && <div className="error-message">{error}</div>}
 
-            {loading && <ResultCardsSkeleton cards={4} label="Loading hedge analysis" />}
+            {loading && <ResultCardsSkeleton cards={4} label={t('hedge.loadingAnalysis', 'Loading hedge analysis')} />}
 
             {!loading && hedgeData && (
                 <div style={{ marginTop: "2rem" }}>
@@ -127,7 +127,7 @@ const HedgeAnalysis = () => {
                         <div className="stat-card">
                             <h4>{t('hedge.relationship')}</h4>
                             <p className={`value ${hedgeData.is_hedge ? 'text-accent' : 'text-danger'}`}>
-                                {hedgeData.is_hedge ? 'Yes' : 'No'}
+                                {hedgeData.is_hedge ? t('common.yes', 'Yes') : t('common.no', 'No')}
                             </p>
                             <p>{t('hedge.strength')}: {hedgeData.strength}</p>
                         </div>

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import './App.css';
 
 const LanguageSelector = ({ isOpen }) => {
-    const { i18n } = useTranslation();
+    const { i18n, t } = useTranslation();
     const currentLanguage = i18n.language;
 
     const toggleLanguage = () => {
@@ -14,9 +14,9 @@ const LanguageSelector = ({ isOpen }) => {
         <button
             className={`language-toggle ${isOpen ? 'hidden' : ''}`}
             onClick={toggleLanguage}
-            aria-label="Toggle language"
+            aria-label={t('common.toggleLanguage', 'Toggle language')}
         >
-            <img src="/lang-transparent.png" className="icon" alt="Language" />
+            <img src="/lang-transparent.png" className="icon" alt="" />
         </button>
     );
 };

@@ -91,7 +91,7 @@ const FutureChart = ({ data, historicalData = {}, ticker, priceCurrency = "USD" 
         paper_bgcolor: "rgba(17, 22, 17, 0.64)",
         plot_bgcolor: "rgba(8, 11, 8, 0.24)",
         xaxis: {
-          title: { text: "Date", font: { color: chartMuted } },
+          title: { text: t("chart.date", "Date"), font: { color: chartMuted } },
           type: "date",
           tickangle: 45,
           tickformat: "%Y-%m-%d",
@@ -99,7 +99,7 @@ const FutureChart = ({ data, historicalData = {}, ticker, priceCurrency = "USD" 
           gridcolor: chartGrid,
         },
         yaxis: {
-          title: { text: `Price (${priceCurrency})`, font: { color: chartMuted } },
+          title: { text: t("chart.priceWithCurrency", "Price ({{currency}})", { currency: priceCurrency }), font: { color: chartMuted } },
           color: chartMuted,
           gridcolor: chartGrid,
         },

@@ -2107,6 +2107,10 @@ h2 {
   vertical-align: top;
 }
 
+.financial-statement-modal .financial-table thead th {
+  background: var(--color-bg-elevated);
+}
+
 .financial-statement-modal .financial-table th:not(:first-child),
 .financial-statement-modal .financial-table td:not(:first-child) {
   min-width: 118px;
