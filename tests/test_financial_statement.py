@@ -95,8 +95,8 @@ def test_financial_dashboard_scores_metrics_and_bundles_statements(monkeypatch):
     result = financial_statement.get_financial_dashboard("FAKE")
 
     assert result["company"]["industry"] == "Software - Infrastructure"
-    assert result["decision"]["label"] == "STRONG BUY"
-    assert result["decision"]["score"] == 100
+    assert result["decision"]["label"] == "BUY"
+    assert result["decision"]["score"] == 79
     assert result["decision"]["confidence"] == 100
     assert result["per"] == "12.00"
     assert result["debt_ratio"] == "0.40"
@@ -113,6 +113,37 @@ def test_financial_dashboard_scores_metrics_and_bundles_statements(monkeypatch):
     assert metrics_by_key["pbr"]["comparison"]["source"] == "finvizfinance_group_valuation"
     assert metrics_by_key["debt_to_equity"]["value"] == 0.4
     json.dumps(result, allow_nan=False)
+
+
+def test_financial_metric_scores_use_benchmark_when_available():
+    info = {
+        "industry": "Computer Hardware",
+        "priceToBook": 21.83,
+    }
+    benchmarks = {
+        "pbr": {
+            "basis": "industry_average",
+            "name": "Computer Hardware",
+            "value": 21.72,
+            "source": "finvizfinance_group_valuation",
+        }
+    }
+
+    metrics = financial_statement._build_investment_metrics(info, None, benchmarks)
+    metrics_by_key = {metric["key"]: metric for metric in metrics}
+
+    pbr = metrics_by_key["pbr"]
+    assert pbr["score"] == 65
+    assert pbr["signal"] == "neutral"
+    assert pbr["threshold"].startswith("Benchmark-relative:")
+    assert pbr["comparison"]["status"] == "available"
+    assert pbr["comparison"]["position"] == "near"
+
+    fallback_metrics = financial_statement._build_investment_metrics(info, None, {})
+    fallback_pbr = {metric["key"]: metric for metric in fallback_metrics}["pbr"]
+    assert fallback_pbr["score"] == 10
+    assert fallback_pbr["signal"] == "negative"
+    assert fallback_pbr["threshold"].startswith("<=1.5 attractive")
 
 
 def test_financial_dashboard_normalizes_non_usd_company_values(monkeypatch):

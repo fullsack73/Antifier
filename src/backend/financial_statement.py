@@ -90,6 +90,36 @@ ALLOW_NEGATIVE_PEER_AVERAGE_METRICS = {
     "earnings_growth",
 }
 
+BENCHMARK_NEAR_THRESHOLD = 0.05
+BENCHMARK_WEAK_THRESHOLD = 0.25
+BENCHMARK_THRESHOLD_LABELS = {
+    "lower": (
+        "Benchmark-relative: >=5% below average favorable, within +/-5% fair, "
+        "5-25% above caution, >25% above unfavorable"
+    ),
+    "higher": (
+        "Benchmark-relative: >=5% above average favorable, within +/-5% fair, "
+        "5-25% below caution, >25% below unfavorable"
+    ),
+}
+BENCHMARK_SCORE_DIRECTIONS = {
+    "per": "lower",
+    "forward_pe": "lower",
+    "pbr": "lower",
+    "psr": "lower",
+    "peg": "lower",
+    "roe": "higher",
+    "roa": "higher",
+    "profit_margin": "higher",
+    "operating_margin": "higher",
+    "revenue_growth": "higher",
+    "earnings_growth": "higher",
+    "debt_to_equity": "lower",
+    "current_ratio": "higher",
+    "quick_ratio": "higher",
+    "beta": "lower",
+}
+
 QUOTE_CURRENCY_FIELDS = (
     "currentPrice",
     "regularMarketPrice",
@@ -529,6 +559,73 @@ def _score_higher_better(value, good, fair, weak):
     return 10, "negative"
 
 
+def _benchmark_value_for_metric(key, benchmarks):
+    benchmark = benchmarks.get(key) if benchmarks else None
+    if not isinstance(benchmark, dict):
+        return None
+    benchmark_value = _safe_number(benchmark.get("value"))
+    if benchmark_value in (None, 0):
+        return None
+    return benchmark_value
+
+
+def _score_against_benchmark(value, benchmark_value, direction):
+    number = _safe_number(value)
+    benchmark = _safe_number(benchmark_value)
+    if number is None or benchmark in (None, 0):
+        return None
+
+    if direction == "lower" and number <= 0:
+        return 0, "negative"
+
+    difference = (number - benchmark) / abs(benchmark)
+
+    if direction == "lower":
+        if difference <= -BENCHMARK_NEAR_THRESHOLD:
+            return 100, "positive"
+        if difference <= BENCHMARK_NEAR_THRESHOLD:
+            return 65, "neutral"
+        if difference <= BENCHMARK_WEAK_THRESHOLD:
+            return 35, "caution"
+        return 10, "negative"
+
+    if direction == "higher":
+        if difference >= BENCHMARK_NEAR_THRESHOLD:
+            return 100, "positive"
+        if difference >= -BENCHMARK_NEAR_THRESHOLD:
+            return 65, "neutral"
+        if difference >= -BENCHMARK_WEAK_THRESHOLD:
+            return 35, "caution"
+        return 10, "negative"
+
+    return None
+
+
+def _score_with_benchmark(key, value, direction, absolute_score_result, absolute_threshold_label, benchmarks):
+    benchmark_score = _score_against_benchmark(
+        value,
+        _benchmark_value_for_metric(key, benchmarks),
+        direction,
+    )
+    if benchmark_score is None:
+        return absolute_score_result, absolute_threshold_label
+    return benchmark_score, BENCHMARK_THRESHOLD_LABELS[direction]
+
+
+def _score_metric(key, value, absolute_score_result, absolute_threshold_label, benchmarks):
+    direction = BENCHMARK_SCORE_DIRECTIONS.get(key)
+    if not direction:
+        return absolute_score_result, absolute_threshold_label
+    return _score_with_benchmark(
+        key,
+        value,
+        direction,
+        absolute_score_result,
+        absolute_threshold_label,
+        benchmarks,
+    )
+
+
 def _score_current_ratio(value):
     number = _safe_number(value)
     if number is None:
@@ -854,39 +951,71 @@ def _build_investment_metrics(info, debt_ratio, benchmarks=None):
     earnings_growth = _safe_number(info.get("earningsGrowth"))
     beta = _safe_number(info.get("beta"))
 
+    def scored_metric(
+        key,
+        label,
+        category,
+        value,
+        display_value,
+        unit,
+        weight,
+        absolute_score_result,
+        absolute_threshold_label,
+    ):
+        score_result, threshold_label = _score_metric(
+            key,
+            value,
+            absolute_score_result,
+            absolute_threshold_label,
+            benchmarks,
+        )
+        return _metric(
+            key,
+            label,
+            category,
+            value,
+            display_value,
+            unit,
+            weight,
+            score_result,
+            threshold_label,
+            industry,
+            benchmarks,
+        )
+
     return [
-        _metric("per", "P/E", "valuation", pe_ratio, _format_number(pe_ratio), "ratio", 8,
-                _score_lower_better(pe_ratio, 15, 25, 40), "<=15 attractive, 15-25 fair, >40 expensive", industry, benchmarks),
-        _metric("forward_pe", "Forward P/E", "valuation", forward_pe, _format_number(forward_pe), "ratio", 6,
-                _score_lower_better(forward_pe, 15, 25, 40), "<=15 attractive, 15-25 fair, >40 expensive", industry, benchmarks),
-        _metric("pbr", "P/B", "valuation", pb_ratio, _format_number(pb_ratio), "ratio", 7,
-                _score_lower_better(pb_ratio, 1.5, 3, 6), "<=1.5 attractive, 1.5-3 fair, >6 expensive", industry, benchmarks),
-        _metric("psr", "P/S", "valuation", ps_ratio, _format_number(ps_ratio), "ratio", 5,
-                _score_lower_better(ps_ratio, 2, 5, 10), "<=2 attractive, 2-5 fair, >10 expensive", industry, benchmarks),
-        _metric("peg", "PEG", "valuation", peg_ratio, _format_number(peg_ratio), "ratio", 7,
-                _score_lower_better(peg_ratio, 1, 2, 3), "<=1 attractive, 1-2 fair, >3 expensive", industry, benchmarks),
-        _metric("roe", "ROE", "profitability", roe, _format_percent(roe), "percent", 9,
-                _score_higher_better(roe, 0.15, 0.08, 0), ">=15% strong, 8-15% fair, <0% weak", industry, benchmarks),
-        _metric("roa", "ROA", "profitability", roa, _format_percent(roa), "percent", 5,
-                _score_higher_better(roa, 0.07, 0.03, 0), ">=7% strong, 3-7% fair, <0% weak", industry, benchmarks),
-        _metric("profit_margin", "Profit Margin", "profitability", profit_margin, _format_percent(profit_margin), "percent", 8,
-                _score_higher_better(profit_margin, 0.15, 0.05, 0), ">=15% strong, 5-15% fair, <0% weak", industry, benchmarks),
-        _metric("operating_margin", "Operating Margin", "profitability", operating_margin, _format_percent(operating_margin), "percent", 5,
-                _score_higher_better(operating_margin, 0.15, 0.05, 0), ">=15% strong, 5-15% fair, <0% weak", industry, benchmarks),
-        _metric("revenue_growth", "Revenue Growth", "growth", revenue_growth, _format_percent(revenue_growth), "percent", 7,
-                _score_higher_better(revenue_growth, 0.10, 0, -0.05), ">=10% strong, 0-10% fair, <-5% weak", industry, benchmarks),
-        _metric("earnings_growth", "Earnings Growth", "growth", earnings_growth, _format_percent(earnings_growth), "percent", 7,
-                _score_higher_better(earnings_growth, 0.10, 0, -0.05), ">=10% strong, 0-10% fair, <-5% weak", industry, benchmarks),
-        _metric("debt_to_equity", "Debt/Equity", "stability", debt_to_equity, _format_number(debt_to_equity), "ratio", 7,
-                _score_lower_better(debt_to_equity, 0.8, 1.5, 3), "<=0.8 conservative, 0.8-1.5 fair, >3 stretched", industry, benchmarks),
-        _metric("debt_ratio", "Debt Ratio", "stability", debt_ratio, _format_number(debt_ratio), "ratio", 6,
-                _score_debt_ratio(debt_ratio), "<=0.5 conservative, 0.5-0.75 fair, >1 stretched", industry, benchmarks),
-        _metric("current_ratio", "Current Ratio", "stability", current_ratio, _format_number(current_ratio), "ratio", 5,
-                _score_current_ratio(current_ratio), "1.5-3 healthy, <1 liquidity risk, >4 potential idle capital", industry, benchmarks),
-        _metric("quick_ratio", "Quick Ratio", "stability", quick_ratio, _format_number(quick_ratio), "ratio", 4,
-                _score_current_ratio(quick_ratio), "1.5-3 healthy, <1 liquidity risk, >4 potential idle capital", industry, benchmarks),
-        _metric("beta", "Beta", "risk", beta, _format_number(beta), "ratio", 4,
-                _score_beta(beta), "0.7-1.2 balanced, >1.5 volatile, <0 defensive", industry, benchmarks),
+        scored_metric("per", "P/E", "valuation", pe_ratio, _format_number(pe_ratio), "ratio", 8,
+                      _score_lower_better(pe_ratio, 15, 25, 40), "<=15 attractive, 15-25 fair, >40 expensive"),
+        scored_metric("forward_pe", "Forward P/E", "valuation", forward_pe, _format_number(forward_pe), "ratio", 6,
+                      _score_lower_better(forward_pe, 15, 25, 40), "<=15 attractive, 15-25 fair, >40 expensive"),
+        scored_metric("pbr", "P/B", "valuation", pb_ratio, _format_number(pb_ratio), "ratio", 7,
+                      _score_lower_better(pb_ratio, 1.5, 3, 6), "<=1.5 attractive, 1.5-3 fair, >6 expensive"),
+        scored_metric("psr", "P/S", "valuation", ps_ratio, _format_number(ps_ratio), "ratio", 5,
+                      _score_lower_better(ps_ratio, 2, 5, 10), "<=2 attractive, 2-5 fair, >10 expensive"),
+        scored_metric("peg", "PEG", "valuation", peg_ratio, _format_number(peg_ratio), "ratio", 7,
+                      _score_lower_better(peg_ratio, 1, 2, 3), "<=1 attractive, 1-2 fair, >3 expensive"),
+        scored_metric("roe", "ROE", "profitability", roe, _format_percent(roe), "percent", 9,
+                      _score_higher_better(roe, 0.15, 0.08, 0), ">=15% strong, 8-15% fair, <0% weak"),
+        scored_metric("roa", "ROA", "profitability", roa, _format_percent(roa), "percent", 5,
+                      _score_higher_better(roa, 0.07, 0.03, 0), ">=7% strong, 3-7% fair, <0% weak"),
+        scored_metric("profit_margin", "Profit Margin", "profitability", profit_margin, _format_percent(profit_margin), "percent", 8,
+                      _score_higher_better(profit_margin, 0.15, 0.05, 0), ">=15% strong, 5-15% fair, <0% weak"),
+        scored_metric("operating_margin", "Operating Margin", "profitability", operating_margin, _format_percent(operating_margin), "percent", 5,
+                      _score_higher_better(operating_margin, 0.15, 0.05, 0), ">=15% strong, 5-15% fair, <0% weak"),
+        scored_metric("revenue_growth", "Revenue Growth", "growth", revenue_growth, _format_percent(revenue_growth), "percent", 7,
+                      _score_higher_better(revenue_growth, 0.10, 0, -0.05), ">=10% strong, 0-10% fair, <-5% weak"),
+        scored_metric("earnings_growth", "Earnings Growth", "growth", earnings_growth, _format_percent(earnings_growth), "percent", 7,
+                      _score_higher_better(earnings_growth, 0.10, 0, -0.05), ">=10% strong, 0-10% fair, <-5% weak"),
+        scored_metric("debt_to_equity", "Debt/Equity", "stability", debt_to_equity, _format_number(debt_to_equity), "ratio", 7,
+                      _score_lower_better(debt_to_equity, 0.8, 1.5, 3), "<=0.8 conservative, 0.8-1.5 fair, >3 stretched"),
+        scored_metric("debt_ratio", "Debt Ratio", "stability", debt_ratio, _format_number(debt_ratio), "ratio", 6,
+                      _score_debt_ratio(debt_ratio), "<=0.5 conservative, 0.5-0.75 fair, >1 stretched"),
+        scored_metric("current_ratio", "Current Ratio", "stability", current_ratio, _format_number(current_ratio), "ratio", 5,
+                      _score_current_ratio(current_ratio), "1.5-3 healthy, <1 liquidity risk, >4 potential idle capital"),
+        scored_metric("quick_ratio", "Quick Ratio", "stability", quick_ratio, _format_number(quick_ratio), "ratio", 4,
+                      _score_current_ratio(quick_ratio), "1.5-3 healthy, <1 liquidity risk, >4 potential idle capital"),
+        scored_metric("beta", "Beta", "risk", beta, _format_number(beta), "ratio", 4,
+                      _score_beta(beta), "0.7-1.2 balanced, >1.5 volatile, <0 defensive"),
     ]
 
 
