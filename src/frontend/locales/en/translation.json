@@ -300,8 +300,8 @@
     "loading": "Loading...",
     "screener_results": "Screener Results",
     "resultsWithCount": "Results ({{count}})",
-    "valuePlaceholder": "Value (e.g. 15)",
-    "emptyState": "Select criteria and hit Search to find stocks.",
+    "valuePlaceholder": "Value (e.g. 65)",
+    "emptyState": "Select a financial score threshold and hit Search to find stocks.",
     "csvOnly": "Only .csv files are accepted.",
     "noValidTickers": "No valid ticker symbols found in the file.",
     "readError": "Failed to read the file.",
@@ -317,6 +317,7 @@
       "equals": "Equals (=)"
     },
     "metrics": {
+      "financialScore": "Financial Score",
       "pe": "P/E Ratio",
       "forwardPe": "Forward P/E",
       "pb": "Price/Book (P/B)",
@@ -332,6 +333,9 @@
     "table": {
       "ticker": "Ticker",
       "company": "Company",
+      "score": "Score",
+      "signal": "Signal",
+      "confidence": "Confidence",
       "price": "Price",
       "pe": "P/E",
       "pb": "P/B",

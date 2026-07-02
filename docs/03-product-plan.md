@@ -44,7 +44,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, lightweight ensemble 계열 forecast/회귀 흐름
 - 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
 - 재무제표, 주요 재무 지표, 규칙 기반 투자 신호 대시보드 조회
-- predefined ticker universe 기반 screening
+- Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - MPT/Black-Litterman 포트폴리오 최적화
 - forecast method 선택과 expected return 기반 optimization
 - 최적화 진행률 SSE stream
@@ -73,7 +73,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 ### 3. Screening / Financial Statement
 
 - predefined universe는 CSV와 helper 모듈을 통해 관리합니다.
-- filter는 잘못된 숫자, 빈 데이터, 외부 데이터 실패를 방어해야 합니다.
+- Stock Screener의 기본 검색 기준은 Financial Statement 대시보드와 같은 0-100 종합 점수이며, raw 재무 지표가 비어 있거나 외부 데이터 호출이 실패해도 방어적으로 처리해야 합니다.
 - Financial Statement의 STRONG BUY/BUY/HOLD 등 신호는 데이터 기반 분석 보조 신호이며 투자 자문이나 자동 매매 지시로 표현하지 않습니다.
 - 업종/섹터 평균 비교는 Finviz group valuation의 산업 평균을 우선 사용하고, Finviz가 제공하지 않는 수익성/성장성/안정성/위험 지표는 yfinance 기반 산업별 대표 대형주 단순 평균으로 보완합니다.
 - Finviz 산업/섹터 평균을 찾지 못하면 yfinance 기반 산업별 대표 대형주 단순 평균을 전체 benchmark fallback으로 사용합니다.

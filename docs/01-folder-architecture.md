@@ -60,7 +60,7 @@ src/backend/
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
 ├─ hedge_analysis.py                 # pairs 상관/회귀 분석
 ├─ financial_statement.py            # 재무제표와 주요 ratio 조회
-├─ stock_screener.py                 # universe 조회, 필터 적용, screening
+├─ stock_screener.py                 # universe 조회, Financial Statement 종합 점수 기반 필터 적용, screening
 ├─ ticker_lists.py                   # CSV 기반 ticker group 로딩
 ├─ cache_manager.py                  # multi-level cache 구현
 ├─ cache_init.py                     # cache 초기화 보조

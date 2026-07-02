@@ -1093,6 +1093,62 @@ def _legacy_ratios_from_metrics(ticker_symbol, info, metrics):
         "liquidity_ratio": by_key.get("current_ratio", {}).get("display_value", "N/A"),
     }
 
+
+def build_financial_decision_summary(ticker_symbol, ticker=None, info=None):
+    """
+    Build the same weighted financial decision score used by the dashboard
+    without fetching the full statement bundle.
+    """
+    ticker = ticker or yf.Ticker(ticker_symbol)
+    if info is None:
+        info = ticker.info or {}
+    if not isinstance(info, dict):
+        info = {}
+
+    normalized_info, currency_context = _normalize_financial_info_to_usd(info, ticker_symbol)
+
+    try:
+        balance_sheet = _get_statement_frame(ticker, "balance", "annual")
+    except Exception:
+        balance_sheet = None
+
+    debt_ratio = _calculate_debt_ratio(balance_sheet)
+    benchmarks = _fetch_financial_benchmarks(normalized_info, ticker_symbol)
+    metrics = _build_investment_metrics(normalized_info, debt_ratio, benchmarks)
+    decision = _score_dashboard_metrics(metrics)
+    display_currency = currency_context.get("display_currency") or normalized_info.get("currency") or "N/A"
+    source_currency = currency_context.get("source_currency") or info.get("currency") or "N/A"
+    financial_currency = currency_context.get("financial_currency") or info.get("financialCurrency") or source_currency
+
+    return {
+        "info": normalized_info,
+        "metrics": metrics,
+        "decision": decision,
+        "company": {
+            "ticker": ticker_symbol,
+            "name": normalized_info.get("longName") or normalized_info.get("shortName") or ticker_symbol,
+            "sector": normalized_info.get("sector") or "N/A",
+            "industry": normalized_info.get("industry") or "N/A",
+            "currency": display_currency,
+            "display_currency": display_currency,
+            "source_currency": source_currency,
+            "financial_currency": financial_currency,
+            "market_cap": _safe_number(normalized_info.get("marketCap")),
+            "market_cap_display": _format_market_cap(normalized_info.get("marketCap")),
+            "source_market_cap": _safe_number(info.get("marketCap")),
+            "source_market_cap_display": _format_market_cap(info.get("marketCap")),
+            "currency_conversion": {
+                "source_currency": source_currency,
+                "financial_currency": financial_currency,
+                "display_currency": display_currency,
+                "quote_to_usd": _safe_number(currency_context.get("quote_to_usd")),
+                "financial_to_usd": _safe_number(currency_context.get("financial_to_usd")),
+                "conversion_available": bool(currency_context.get("conversion_available")),
+            },
+        },
+    }
+
+
 def get_financial_ratios(ticker_symbol):
     """
     Fetches key financial ratios for a given stock ticker.
@@ -1123,46 +1179,16 @@ def get_financial_dashboard(ticker_symbol):
     """
     try:
         ticker = yf.Ticker(ticker_symbol)
-        info = ticker.info or {}
-        if not isinstance(info, dict):
-            info = {}
-        normalized_info, currency_context = _normalize_financial_info_to_usd(info, ticker_symbol)
-
-        balance_sheet = _get_statement_frame(ticker, "balance", "annual")
-        debt_ratio = _calculate_debt_ratio(balance_sheet)
-        benchmarks = _fetch_financial_benchmarks(normalized_info, ticker_symbol)
-        metrics = _build_investment_metrics(normalized_info, debt_ratio, benchmarks)
-        decision = _score_dashboard_metrics(metrics)
+        summary = build_financial_decision_summary(ticker_symbol, ticker=ticker)
+        normalized_info = summary["info"]
+        metrics = summary["metrics"]
+        decision = summary["decision"]
         statements, statement_errors = _collect_all_statements(ticker)
         ratios = _legacy_ratios_from_metrics(ticker_symbol, normalized_info, metrics)
-        display_currency = currency_context.get("display_currency") or normalized_info.get("currency") or "N/A"
-        source_currency = currency_context.get("source_currency") or info.get("currency") or "N/A"
-        financial_currency = currency_context.get("financial_currency") or info.get("financialCurrency") or source_currency
 
         return {
             **ratios,
-            "company": {
-                "ticker": ticker_symbol,
-                "name": normalized_info.get("longName") or normalized_info.get("shortName") or ticker_symbol,
-                "sector": normalized_info.get("sector") or "N/A",
-                "industry": normalized_info.get("industry") or "N/A",
-                "currency": display_currency,
-                "display_currency": display_currency,
-                "source_currency": source_currency,
-                "financial_currency": financial_currency,
-                "market_cap": _safe_number(normalized_info.get("marketCap")),
-                "market_cap_display": _format_market_cap(normalized_info.get("marketCap")),
-                "source_market_cap": _safe_number(info.get("marketCap")),
-                "source_market_cap_display": _format_market_cap(info.get("marketCap")),
-                "currency_conversion": {
-                    "source_currency": source_currency,
-                    "financial_currency": financial_currency,
-                    "display_currency": display_currency,
-                    "quote_to_usd": _safe_number(currency_context.get("quote_to_usd")),
-                    "financial_to_usd": _safe_number(currency_context.get("financial_to_usd")),
-                    "conversion_available": bool(currency_context.get("conversion_available")),
-                },
-            },
+            "company": summary["company"],
             "metrics": metrics,
             "decision": decision,
             "statements": statements,

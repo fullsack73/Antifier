@@ -80,7 +80,7 @@
 - `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE
 - `GET /api/portfolio-results`: 저장된 최적화 결과 목록
 - `GET /api/portfolio-results/<portfolio_id>`: 특정 최적화 결과 조회
-- `POST /api/stock-screener`: ticker universe와 financial filter 기반 screening
+- `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening
 - `POST /api/asset-names`: ticker display name 조회
 - `POST /api/benchmark-portfolio`: 포트폴리오 benchmark 계산
 - `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산

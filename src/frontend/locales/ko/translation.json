@@ -300,8 +300,8 @@
     "loading": "로딩 중...",
     "screener_results": "검색 결과",
     "resultsWithCount": "결과 ({{count}})",
-    "valuePlaceholder": "값 (예: 15)",
-    "emptyState": "조건을 선택하고 검색을 눌러 종목을 찾으세요.",
+    "valuePlaceholder": "값 (예: 65)",
+    "emptyState": "재무 종합 점수 기준을 선택하고 검색을 눌러 종목을 찾으세요.",
     "csvOnly": ".csv 파일만 사용할 수 있습니다.",
     "noValidTickers": "파일에서 유효한 티커 심볼을 찾지 못했습니다.",
     "readError": "파일을 읽지 못했습니다.",
@@ -317,6 +317,7 @@
       "equals": "같음 (=)"
     },
     "metrics": {
+      "financialScore": "재무 종합 점수",
       "pe": "주가수익비율 (P/E)",
       "forwardPe": "예상 주가수익비율 (Forward P/E)",
       "pb": "주가순자산비율 (P/B)",
@@ -332,6 +333,9 @@
     "table": {
       "ticker": "티커",
       "company": "회사",
+      "score": "점수",
+      "signal": "신호",
+      "confidence": "신뢰도",
       "price": "가격",
       "pe": "P/E",
       "pb": "P/B",

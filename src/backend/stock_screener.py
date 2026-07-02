@@ -3,6 +3,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from cache_manager import cached
+from financial_statement import build_financial_decision_summary
 from ticker_lists import get_ticker_group
 import time
 
@@ -13,50 +14,46 @@ import concurrent.futures
 
 def fetch_single_stock_data(ticker_symbol):
     """
-    Fetches data for a single ticker. Used for parallel execution.
+    Fetches score-oriented data for a single ticker. Used for parallel execution.
     """
     try:
         ticker = yf.Ticker(ticker_symbol)
-        # Fast info is faster for some things but .info is needed for ratios.
-        # We rely on .info
-        info = ticker.info
-        
-        # Extract relevant metrics
-        # Defaults to None if missing
-        
-        # Valuation
-        pe_ratio = info.get('trailingPE')
-        forward_pe = info.get('forwardPE')
-        pb_ratio = info.get('priceToBook')
-        ps_ratio = info.get('priceToSalesTrailing12Months')
-        peg_ratio = info.get('pegRatio')
-        
-        # Financials
-        debt_to_equity = info.get('debtToEquity')
-        roe = info.get('returnOnEquity')
-        roa = info.get('returnOnAssets')
-        profit_margin = info.get('profitMargin')
-        
-        # Price
-        current_price = info.get('currentPrice')
-        market_cap = info.get('marketCap')
-        
+        score_summary = build_financial_decision_summary(ticker_symbol, ticker=ticker)
+        info = score_summary.get("info") or {}
+        company = score_summary.get("company") or {}
+        decision = score_summary.get("decision") or {}
+        metrics_by_key = {
+            metric.get("key"): metric
+            for metric in score_summary.get("metrics", [])
+            if isinstance(metric, dict)
+        }
+
+        def metric_value(key):
+            metric = metrics_by_key.get(key) or {}
+            return metric.get("value")
+
         return {
             'Ticker': ticker_symbol,
-            'Company': info.get('longName', ticker_symbol),
-            'Sector': info.get('sector', 'N/A'),
-            'Industry': info.get('industry', 'N/A'),
-            'Price': current_price,
-            'Market Cap': market_cap,
-            'P/E': pe_ratio,
-            'Forward P/E': forward_pe,
-            'P/B': pb_ratio,
-            'Price/Sales': ps_ratio,
-            'PEG': peg_ratio,
-            'Debt/Equity': debt_to_equity,
-            'ROE': roe,
-            'ROA': roa,
-            'Profit Margin': profit_margin
+            'Company': company.get('name') or ticker_symbol,
+            'Sector': company.get('sector') or 'N/A',
+            'Industry': company.get('industry') or 'N/A',
+            'Currency': company.get('currency') or info.get('currency') or 'N/A',
+            'Price': info.get('currentPrice') or info.get('regularMarketPrice'),
+            'Market Cap': company.get('market_cap'),
+            'Financial Score': decision.get('score'),
+            'Financial Signal': decision.get('label'),
+            'Score Confidence': decision.get('confidence'),
+            'Available Metrics': decision.get('available_metrics'),
+            'Total Metrics': decision.get('total_metrics'),
+            'P/E': metric_value('per'),
+            'Forward P/E': metric_value('forward_pe'),
+            'P/B': metric_value('pbr'),
+            'Price/Sales': metric_value('psr'),
+            'PEG': metric_value('peg'),
+            'Debt/Equity': metric_value('debt_to_equity'),
+            'ROE': metric_value('roe'),
+            'ROA': metric_value('roa'),
+            'Profit Margin': metric_value('profit_margin')
         }
     except Exception as e:
         logger.debug(f"Failed to fetch data for {ticker_symbol}: {e}")
@@ -106,7 +103,7 @@ def get_universe_dataframe(group_name):
 def apply_filters(df, filters):
     """
     Applies filters to the DataFrame.
-    filters: list of dicts { 'metric': 'P/E', 'operator': 'Under', 'value': 15 }
+    filters: list of dicts { 'metric': 'Financial Score', 'operator': 'Over', 'value': 65 }
     """
     if df.empty:
         return df
@@ -149,7 +146,7 @@ def apply_filters(df, filters):
             if is_percentage_field and abs(value) > 1:
                 value = value / 100.0
                 
-            column = filtered_df[metric]
+            column = pd.to_numeric(filtered_df[metric], errors='coerce')
             
             if operator == 'Under' or operator == '<':
                 filtered_df = filtered_df[column < value]
@@ -214,7 +211,10 @@ def search_stocks(filters):
     else:
         # Parse messy string format "Under 15"
         for key, val in filters.items():
-            if key == 'Index': continue
+            if key in ('Index', 'tickers'):
+                continue
+            if not isinstance(val, str):
+                continue
             
             parts = val.split(' ')
             if len(parts) >= 2:
@@ -227,9 +227,10 @@ def search_stocks(filters):
                 })
     
     results_df = apply_filters(df_universe, filter_list)
+    if 'Financial Score' in results_df.columns:
+        results_df = results_df.sort_values(by='Financial Score', ascending=False, na_position='last')
     
     # Clean up for JSON
     results_df = results_df.replace({np.nan: None})
     
     return results_df.to_dict('records')
-

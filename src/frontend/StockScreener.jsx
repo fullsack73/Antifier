@@ -7,6 +7,7 @@ import './App.css';
 // Define available metrics
 // Matches backend keys
 const METRICS = [
+    { value: 'Financial Score', labelKey: 'stockScreener.metrics.financialScore' },
     { value: 'P/E', labelKey: 'stockScreener.metrics.pe' },
     { value: 'Forward P/E', labelKey: 'stockScreener.metrics.forwardPe' },
     { value: 'P/B', labelKey: 'stockScreener.metrics.pb' },
@@ -26,11 +27,20 @@ const OPERATORS = [
     { value: 'Equals', labelKey: 'stockScreener.operators.equals' },
 ];
 
+const DECISION_LABEL_KEYS = {
+    'STRONG BUY': 'strong_buy',
+    BUY: 'buy',
+    HOLD: 'hold',
+    REDUCE: 'reduce',
+    SELL: 'sell',
+    'INSUFFICIENT DATA': 'insufficient_data',
+};
+
 const StockScreener = () => {
     const { t } = useTranslation();
     const [tickerGroup, setTickerGroup] = useState('S&P 500');
     const [filters, setFilters] = useState([
-        { metric: 'P/E', operator: 'Under', value: '15' },
+        { metric: 'Financial Score', operator: 'Over', value: '65' },
     ]);
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -42,7 +52,7 @@ const StockScreener = () => {
     const fileInputRef = useRef(null);
 
     const handleAddFilter = () => {
-        setFilters([...filters, { metric: 'P/E', operator: 'Under', value: '' }]);
+        setFilters([...filters, { metric: 'Financial Score', operator: 'Over', value: '' }]);
     };
 
     const handleRemoveFilter = (index) => {
@@ -120,12 +130,6 @@ const StockScreener = () => {
         setError(null);
         setResults([]);
 
-        // Construct API payload
-        // If Custom, we probably need a way to send the custom list to the backend
-        // For now, let's assume 'tickerGroup' handles the predefined ones.
-        // For 'Custom', the backend might not be ready to accept a raw list of strings in the body yet based on my implementation.
-        // My backend uses `get_ticker_group`. I'll stick to predefined groups for now as per "exhaustive search" request.
-
         if (tickerGroup === 'Custom' && customTickers.length === 0) {
             setError(t('stockScreener.uploadCsvRequired'));
             setLoading(false);
@@ -197,10 +201,22 @@ const StockScreener = () => {
         if (['P/E', 'Forward P/E', 'P/B', 'Price/Sales', 'PEG'].includes(key)) {
             return parseFloat(val).toFixed(2);
         }
+        if (key === 'Financial Score') {
+            return `${Math.round(val)}/100`;
+        }
+        if (key === 'Score Confidence') {
+            return `${Math.round(val)}%`;
+        }
         if (['ROE', 'ROA', 'Profit Margin'].includes(key)) {
-            return `${(val * 100).toFixed(2)}%`; // Assuming backend returns 0.15 for 15%
+            return `${(val * 100).toFixed(2)}%`;
         }
         return val;
+    };
+
+    const formatSignal = (label) => {
+        if (!label) return '-';
+        const labelKey = DECISION_LABEL_KEYS[label];
+        return labelKey ? t(`financial.decision_labels.${labelKey}`, label) : label;
     };
 
     return (
@@ -363,6 +379,9 @@ const StockScreener = () => {
                                 <tr>
                                     <th>{t('stockScreener.table.ticker')}</th>
                                     <th>{t('stockScreener.table.company')}</th>
+                                    <th>{t('stockScreener.table.score')}</th>
+                                    <th>{t('stockScreener.table.signal')}</th>
+                                    <th>{t('stockScreener.table.confidence')}</th>
                                     <th>{t('stockScreener.table.price')}</th>
                                     <th>{t('stockScreener.table.pe')}</th>
                                     <th>{t('stockScreener.table.pb')}</th>
@@ -376,6 +395,9 @@ const StockScreener = () => {
                                     <tr key={index}>
                                         <td className="ticker-cell">{row.Ticker}</td>
                                         <td className="company-cell">{row.Company}</td>
+                                        <td className="number-cell">{formatValue('Financial Score', row['Financial Score'])}</td>
+                                        <td>{formatSignal(row['Financial Signal'])}</td>
+                                        <td className="number-cell">{formatValue('Score Confidence', row['Score Confidence'])}</td>
                                         <td className="number-cell">{formatValue('Price', row.Price)}</td>
                                         <td className="number-cell">{formatValue('P/E', row['P/E'])}</td>
                                         <td className="number-cell">{formatValue('P/B', row['P/B'])}</td>
