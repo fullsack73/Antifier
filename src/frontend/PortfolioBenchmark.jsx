@@ -106,8 +106,9 @@ const PortfolioBenchmark = () => {
 
   return (
     <div className="optimizer-container">
-      <div className="optimizer-header">
-        <h2 className="page-header">{t("benchmark.title")}</h2>
+      <div className="optimizer-header page-title-block">
+        <span className="page-kicker">{t("benchmark.kicker")}</span>
+        <h1 className="page-header">{t("benchmark.title")}</h1>
       </div>
 
       <form className="optimizer-form" onSubmit={handleSubmit}>

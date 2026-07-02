@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import StockScreener from './StockScreener';
 import { apiUrl } from './apiClient.js';
@@ -27,6 +27,46 @@ const FinancialStatement = () => {
     const [showStatements, setShowStatements] = useState(false);
     const [statementType, setStatementType] = useState('income');
     const [frequency, setFrequency] = useState('annual');
+
+    useEffect(() => {
+        if (!showStatements) return undefined;
+
+        const scrollY = window.scrollY;
+        const previousBodyOverflow = document.body.style.overflow;
+        const previousBodyPosition = document.body.style.position;
+        const previousBodyTop = document.body.style.top;
+        const previousBodyWidth = document.body.style.width;
+        const previousDocumentOverflow = document.documentElement.style.overflow;
+
+        document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.width = '100%';
+        document.documentElement.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.overflow = previousBodyOverflow;
+            document.body.style.position = previousBodyPosition;
+            document.body.style.top = previousBodyTop;
+            document.body.style.width = previousBodyWidth;
+            document.documentElement.style.overflow = previousDocumentOverflow;
+            window.scrollTo(0, scrollY);
+        };
+    }, [showStatements]);
+
+    const handleStatementTableWheel = useCallback((event) => {
+        const table = event.currentTarget;
+        const atTop = table.scrollTop <= 0;
+        const atBottom = Math.ceil(table.scrollTop + table.clientHeight) >= table.scrollHeight;
+        const scrollingUp = event.deltaY < 0;
+        const scrollingDown = event.deltaY > 0;
+
+        if ((scrollingUp && atTop) || (scrollingDown && atBottom)) {
+            event.preventDefault();
+        }
+
+        event.stopPropagation();
+    }, []);
 
     const fetchFinancialData = useCallback(async () => {
         if (!ticker.trim()) return;
@@ -216,7 +256,7 @@ const FinancialStatement = () => {
         }
 
         return (
-            <div className="financial-table-container animate-fade-in">
+            <div className="financial-table-container animate-fade-in" onWheel={handleStatementTableWheel}>
                 <table className="financial-table">
                     <thead>
                         <tr>
@@ -314,8 +354,9 @@ const FinancialStatement = () => {
 
     return (
         <div className="financial-analysis-container">
-            <div className="financial-header">
-                <h2 className="page-header">{t('financial.title')}</h2>
+            <div className="financial-header page-title-block">
+                <span className="page-kicker">{t('financial.kicker')}</span>
+                <h1 className="page-header">{t('financial.title')}</h1>
             </div>
 
             <div className="financial-controls-wrapper">

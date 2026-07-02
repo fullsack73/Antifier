@@ -4,6 +4,10 @@ import { apiUrl } from './apiClient.js';
 import { ResultCardsSkeleton } from './SkeletonScreens.jsx';
 import './App.css';
 
+const formatMetric = (value, digits = 3) => (
+    Number.isFinite(value) ? value.toFixed(digits) : 'N/A'
+);
+
 const HedgeAnalysis = () => {
     const { t } = useTranslation();
     const [ticker1, setTicker1] = useState('');
@@ -16,7 +20,7 @@ const HedgeAnalysis = () => {
 
     const fetchHedgeData = async () => {
         if (!ticker1 || !ticker2) {
-            setError('Please enter both tickers');
+            setError(t('hedge.enterBothTickers', 'Please enter both tickers'));
             return;
         }
 
@@ -39,7 +43,7 @@ const HedgeAnalysis = () => {
 
             setHedgeData(data);
         } catch (err) {
-            setError('Failed to fetch hedge analysis data');
+            setError(t('hedge.fetchError', 'Failed to fetch hedge analysis data'));
             if (import.meta.env.DEV) {
                 console.error('Error fetching hedge data:', err);
             }
@@ -54,11 +58,14 @@ const HedgeAnalysis = () => {
     };
 
     return (
-        <div className="page-container">
-            <h2 className="page-header">{t('hedge.title')}</h2>
+        <div className="page-container hedge-page">
+            <div className="page-title-block">
+                <span className="page-kicker">{t('hedge.kicker')}</span>
+                <h1 className="page-header">{t('hedge.title')}</h1>
+            </div>
 
-            <form onSubmit={handleSubmit} className="controls-container">
-                <div className="ticker-input-container">
+            <form onSubmit={handleSubmit} className="hedge-control-panel">
+                <div className="hedge-input-grid">
                     <div className="ticker-input-group">
                         <label htmlFor="ticker1">{t('hedge.label1')}</label>
                         <input
@@ -66,12 +73,21 @@ const HedgeAnalysis = () => {
                             id="ticker1"
                             value={ticker1}
                             onChange={(e) => setTicker1(e.target.value.toUpperCase())}
-                            placeholder="e.g., AAPL"
+                            placeholder={t('hedge.ticker1Placeholder', 'e.g., AAPL')}
                         />
                     </div>
-                </div>
 
-                <div className="date-input-container">
+                    <div className="ticker-input-group">
+                        <label htmlFor="ticker2">{t('hedge.label2')}</label>
+                        <input
+                            type="text"
+                            id="ticker2"
+                            value={ticker2}
+                            onChange={(e) => setTicker2(e.target.value.toUpperCase())}
+                            placeholder={t('hedge.ticker2Placeholder', 'e.g., MSFT')}
+                        />
+                    </div>
+
                     <div className="date-input-group">
                         <label htmlFor="startDate">{t('date.start')}</label>
                         <input
@@ -81,6 +97,7 @@ const HedgeAnalysis = () => {
                             onChange={(e) => setStartDate(e.target.value)}
                         />
                     </div>
+
                     <div className="date-input-group">
                         <label htmlFor="endDate">{t('date.end')}</label>
                         <input
@@ -92,59 +109,56 @@ const HedgeAnalysis = () => {
                     </div>
                 </div>
 
-                <div className="ticker-input-container">
-                    <div className="ticker-input-group">
-                        <label htmlFor="ticker2">{t('hedge.label2')}</label>
-                        <input
-                            type="text"
-                            id="ticker2"
-                            value={ticker2}
-                            onChange={(e) => setTicker2(e.target.value.toUpperCase())}
-                            placeholder="e.g., MSFT"
-                        />
-                    </div>
+                <div className="hedge-submit-row">
+                    <button type="submit" disabled={loading} className="ticker-search-btn hedge-submit-btn">
+                        {loading ? t('common.loading') : t('common.submit')}
+                    </button>
                 </div>
-                <button type="submit" onClick={handleSubmit} disabled={loading} className="ticker-search-btn" style={{ width: '100%', marginTop: '1rem' }}>
-                    {loading ? t('common.loading') : t('common.submit')}
-                </button>
             </form>
 
             {error && <div className="error-message">{error}</div>}
 
-            {loading && <ResultCardsSkeleton cards={4} label="Loading hedge analysis" />}
+            {loading && <ResultCardsSkeleton cards={4} label={t('hedge.loadingAnalysis', 'Loading hedge analysis')} />}
 
             {!loading && hedgeData && (
-                <div style={{ marginTop: "2rem" }}>
+                <section className="hedge-results-panel">
                     <h2>{t('hedge.results')}</h2>
                     <div className="grid-auto">
 
                         <div className="stat-card">
                             <h4>{t('hedge.companies')}</h4>
-                            <p className="value" style={{ fontSize: "1.2rem" }}>{hedgeData.company1} ({hedgeData.ticker1})</p>
-                            <p className="value" style={{ fontSize: "1.2rem" }}>{hedgeData.company2} ({hedgeData.ticker2})</p>
+                            <p className="value hedge-company-name">{hedgeData.company1} ({hedgeData.ticker1})</p>
+                            <p className="value hedge-company-name">{hedgeData.company2} ({hedgeData.ticker2})</p>
                         </div>
 
                         <div className="stat-card">
-                            <h4>{t('hedge.relationship')}</h4>
-                            <p className={`value ${hedgeData.is_hedge ? 'text-accent' : 'text-danger'}`}>
-                                {hedgeData.is_hedge ? 'Yes' : 'No'}
-                            </p>
-                            <p>{t('hedge.strength')}: {hedgeData.strength}</p>
+                            <h4>{t('hedge.correlationSignal')}</h4>
+                            <p className="value text-accent">{hedgeData.correlation_signal?.direction || t('common.notAvailable', 'N/A')}</p>
+                            <p>{t('hedge.strength')}: {hedgeData.correlation_signal?.strength || hedgeData.strength}</p>
+                            <p className="hedge-card-note">{hedgeData.correlation_signal?.summary}</p>
                         </div>
 
                         <div className="stat-card">
                             <h4>{t('hedge.statisticalAnalysis')}</h4>
-                            <p>{t('hedge.correlation')}: <span className="text-accent">{hedgeData.correlation.toFixed(3)}</span></p>
-                            <p>{t('hedge.pValue')}: <span className="text-accent">{hedgeData.p_value.toFixed(4)}</span></p>
+                            <p>{t('hedge.correlation')}: <span className="text-accent">{formatMetric(hedgeData.correlation)}</span></p>
+                            <p>{t('hedge.pValue')}: <span className="text-accent">{formatMetric(hedgeData.p_value, 4)}</span></p>
+                            <p>{t('hedge.observations')}: <span className="text-accent">{hedgeData.observations ?? t('common.notAvailable', 'N/A')}</span></p>
+                        </div>
+
+                        <div className="stat-card">
+                            <h4>{t('hedge.regression')}</h4>
+                            <p>{t('hedge.alpha')}: <span className="text-accent">{formatMetric(hedgeData.regression?.alpha, 5)}</span></p>
+                            <p>{t('hedge.beta')}: <span className="text-accent">{formatMetric(hedgeData.regression?.beta)}</span></p>
+                            <p>{t('hedge.rSquared')}: <span className="text-accent">{formatMetric(hedgeData.regression?.r_squared)}</span></p>
                         </div>
 
                         <div className="stat-card">
                             <h4>{t('hedge.analysisPeriod')}</h4>
-                            <p style={{ fontSize: "0.9rem" }}>{t('date.start')}: {hedgeData.period.start}</p>
-                            <p style={{ fontSize: "0.9rem" }}>{t('date.end')}: {hedgeData.period.end}</p>
+                            <p className="hedge-period-line">{t('date.start')}: {hedgeData.period.start}</p>
+                            <p className="hedge-period-line">{t('date.end')}: {hedgeData.period.end}</p>
                         </div>
                     </div>
-                </div>
+                </section>
             )}
         </div>
     );

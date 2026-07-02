@@ -1692,6 +1692,81 @@ h2 {
   margin: var(--spacing-xs) 0;
 }
 
+.hedge-page {
+  max-width: 1180px;
+}
+
+.hedge-control-panel {
+  display: grid;
+  gap: var(--spacing-xl);
+  margin-bottom: var(--spacing-2xl);
+  padding: clamp(1.25rem, 2.4vw, 2rem);
+  background:
+    linear-gradient(145deg, rgba(28, 35, 29, 0.92), rgba(18, 23, 17, 0.94)),
+    linear-gradient(180deg, rgba(244, 241, 232, 0.035), rgba(244, 241, 232, 0));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(16px);
+}
+
+.hedge-input-grid {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.15fr) minmax(10rem, 1.15fr) minmax(9rem, 1fr) minmax(9rem, 1fr);
+  gap: var(--spacing-lg);
+  align-items: end;
+}
+
+.hedge-control-panel .ticker-input-group,
+.hedge-control-panel .date-input-group {
+  min-width: 0;
+}
+
+.hedge-control-panel input {
+  width: 100%;
+}
+
+.hedge-submit-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-divider);
+}
+
+.hedge-submit-btn {
+  width: min(100%, 14rem);
+  min-height: 2.75rem;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.95rem;
+}
+
+.hedge-results-panel {
+  margin-top: var(--spacing-2xl);
+}
+
+.hedge-results-panel h2 {
+  margin-top: 0;
+}
+
+.hedge-company-name {
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.hedge-period-line {
+  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  color: var(--color-text-secondary);
+}
+
+.hedge-card-note {
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 
 /* ============================================================================
    12. COMPONENT: FINANCIAL STATEMENT
@@ -1705,7 +1780,7 @@ h2 {
 
 .financial-header {
   margin-bottom: var(--spacing-xl);
-  text-align: center;
+  text-align: left;
 }
 
 .financial-controls-wrapper {
@@ -2063,6 +2138,7 @@ h2 {
   gap: var(--spacing-lg);
   min-height: 0;
   overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .financial-statement-modal .optimizer-modal-header {
@@ -2091,6 +2167,7 @@ h2 {
   flex: 1 1 auto;
   min-height: 260px;
   overflow: auto;
+  overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 
@@ -2105,6 +2182,10 @@ h2 {
   line-height: 1.35;
   padding: 0.72rem 0.9rem;
   vertical-align: top;
+}
+
+.financial-statement-modal .financial-table thead th {
+  background: var(--color-bg-elevated);
 }
 
 .financial-statement-modal .financial-table th:not(:first-child),
@@ -3062,6 +3143,7 @@ h2 {
   justify-content: center;
   z-index: var(--z-modal);
   backdrop-filter: blur(10px);
+  overscroll-behavior: none;
 }
 
 .optimizer-modal-content {
@@ -3073,6 +3155,7 @@ h2 {
   box-shadow: var(--shadow-xl);
   border: 1px solid var(--color-border);
   animation: modalFadeIn 0.2s ease-out;
+  overscroll-behavior: contain;
 }
 
 .optimizer-advanced-modal {
@@ -3363,7 +3446,7 @@ h2,
   margin: 0;
   font-size: clamp(2.35rem, 5vw, 4.85rem);
   font-weight: 800;
-  letter-spacing: -0.035em;
+  letter-spacing: 0;
   line-height: 0.95;
 }
 
@@ -3371,8 +3454,20 @@ h2,
   margin: 0 0 var(--spacing-xl);
   font-size: clamp(2rem, 4vw, 3.35rem);
   font-weight: 800;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 1;
+}
+
+.page-title-block {
+  margin-bottom: var(--spacing-2xl);
+}
+
+.page-title-block .page-header {
+  max-width: 14ch;
+  margin-bottom: 0;
+  font-size: clamp(2.35rem, 5vw, 4.85rem);
+  letter-spacing: 0;
+  line-height: 0.95;
 }
 
 .page-kicker,
@@ -4029,6 +4124,23 @@ h2,
     grid-template-columns: 1fr;
   }
 
+  .hedge-control-panel {
+    padding: var(--spacing-lg);
+  }
+
+  .hedge-input-grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .hedge-submit-row {
+    justify-content: stretch;
+  }
+
+  .hedge-submit-btn {
+    width: 100%;
+  }
+
   .chart-wrapper {
     min-height: 320px;
     padding: var(--spacing-md);
@@ -4036,6 +4148,10 @@ h2,
 
   .page-header {
     font-size: clamp(1.8rem, 10vw, 2.5rem);
+  }
+
+  .page-title-block .page-header {
+    font-size: clamp(2.2rem, 13vw, 3.5rem);
   }
 
   .stock-context-strip span {

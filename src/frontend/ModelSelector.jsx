@@ -23,11 +23,11 @@ function ModelSelector({ onModelChange, initialModel = 'LSTM' }) {
           value={model} 
           onChange={handleChange}
         >
-          <option value="LSTM">LSTM (Neural Network)</option>
-          <option value="LightGBM">LightGBM (Gradient Boosting)</option>
-          <option value="ARIMA">ARIMA (Time Series)</option>
-          <option value="ARIMA_TRANSFORMER">ARIMA + Transformer</option>
-          <option value="TRANSFORMER">Transformer</option>
+          <option value="LSTM">{t('model.lstm', 'LSTM (Neural Network)')}</option>
+          <option value="LightGBM">{t('model.lightgbm', 'LightGBM (Gradient Boosting)')}</option>
+          <option value="ARIMA">{t('model.arima', 'ARIMA (Time Series)')}</option>
+          <option value="ARIMA_TRANSFORMER">{t('model.arimaTransformer', 'ARIMA + Transformer')}</option>
+          <option value="TRANSFORMER">{t('model.transformer', 'Transformer')}</option>
         </select>
       </div>
     </div>

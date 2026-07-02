@@ -58,9 +58,9 @@ src/backend/
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
-├─ hedge_analysis.py                 # 상관/회귀 기반 hedge 분석
+├─ hedge_analysis.py                 # pairs 상관/회귀 분석
 ├─ financial_statement.py            # 재무제표와 주요 ratio 조회
-├─ stock_screener.py                 # universe 조회, 필터 적용, screening
+├─ stock_screener.py                 # universe 조회, Financial Statement 종합 점수 기반 필터 적용, screening
 ├─ ticker_lists.py                   # CSV 기반 ticker group 로딩
 ├─ cache_manager.py                  # multi-level cache 구현
 ├─ cache_init.py                     # cache 초기화 보조
@@ -109,7 +109,7 @@ src/frontend/
 ├─ PortfolioManager.jsx              # 보유 종목/리밸런싱 UI
 ├─ FinancialStatement.jsx            # 재무제표 UI
 ├─ StockScreener.jsx                 # 종목 스크리닝 UI
-├─ Hedge.jsx                         # hedge 분석 UI
+├─ Hedge.jsx                         # pairs/correlation 분석 UI
 └─ *Input.jsx / *Selector.jsx        # 입력, 선택, 사이드바 컨트롤
 ```
 

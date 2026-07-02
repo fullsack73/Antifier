@@ -10,7 +10,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                 className={`menu-toggle ${isOpen ? 'hidden' : ''}`}
                 type="button"
                 onClick={onToggle}
-                aria-label="Toggle menu"
+                aria-label={t('common.toggleMenu', 'Toggle menu')}
                 aria-expanded={isOpen}
                 aria-controls="app-sidebar"
             >
@@ -31,7 +31,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <img src="/stock-data-transparent.png" className="icon" alt="Stock" />
+                        <img src="/stock-data-transparent.png" className="icon" alt="" />
                         {t('navigation.stock')}
                     </button>
                     <button
@@ -43,7 +43,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <img src="/hedge-transparent.png" className="icon" alt="Hedge" />
+                        <img src="/hedge-transparent.png" className="icon" alt="" />
                         {t('navigation.hedge')}
                     </button>
                     <button
@@ -55,7 +55,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <img src="/finincial-statement-transparent.png" className="icon" alt="Financial" />
+                        <img src="/finincial-statement-transparent.png" className="icon" alt="" />
                         {t('navigation.financial')}
                     </button>
                     <button
@@ -67,7 +67,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <img src="/portfolio-transparent.png" className="icon" alt="Optimizer" />
+                        <img src="/portfolio-transparent.png" className="icon" alt="" />
                         {t('navigation.optimizer')}
                     </button>
                     <button
@@ -79,7 +79,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <img src="/benchmark-transparent.png" className="icon" alt="Benchmark" />
+                        <img src="/benchmark-transparent.png" className="icon" alt="" />
                         {t('navigation.benchmark')}
                     </button>
                     <button
@@ -91,7 +91,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                             onToggle();
                         }}
                     >
-                        <img src="/portfolio-manager-transparent.png" className="icon" alt="Manager" />
+                        <img src="/portfolio-manager-transparent.png" className="icon" alt="" />
                         {t('navigation.manager')}
                     </button>
                 </nav>

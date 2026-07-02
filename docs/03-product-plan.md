@@ -11,7 +11,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 ## B. 대상 사용자
 
 - 개인 투자자: 여러 종목의 가격, 추세, 재무 지표를 빠르게 비교하고 싶은 사용자
-- 활동적인 트레이더: 단기 기회 탐색을 위해 차트, 회귀, 예측, hedge 분석이 필요한 사용자
+- 활동적인 트레이더: 단기 기회 탐색을 위해 차트, 회귀, 예측, pairs/correlation 분석이 필요한 사용자
 - 금융 분석가/학습자: 포트폴리오 이론, forecast strategy, 재무제표 지표를 실험하고 검증하려는 사용자
 
 대표 문제:
@@ -22,7 +22,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 제품 해법:
 
-- 주식 시각화부터 forecast, screening, hedge, benchmark, portfolio optimization까지 한 SPA 안에서 연결합니다.
+- 주식 시각화부터 forecast, screening, pairs/correlation analysis, benchmark, portfolio optimization까지 한 SPA 안에서 연결합니다.
 - 자동 계산을 제공하되 모델/기간/위험 가정은 사용자가 조정하도록 유지합니다.
 
 ## C. 앱 구성
@@ -30,7 +30,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 현재 UI는 외부 라우터 없이 sidebar/view state 기반으로 주요 화면을 전환합니다.
 
 - Stock Analysis: ticker, 기간, 모델, forecast horizon을 선택하고 가격/회귀/미래 예측 차트를 확인
-- Hedge Analysis: 두 종목의 상관관계와 회귀 기반 hedge 관계 분석
+- Pairs Analysis: 두 종목의 상관관계와 회귀 기반 관계 분석
 - Financial Statement: ticker별 주요 재무 지표, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 점수화 결과를 대시보드로 확인하고 전체 재무제표는 팝업에서 확인
 - Optimizer: MPT 또는 Black-Litterman 기반 포트폴리오 최적화
 - Benchmark: 포트폴리오 성과를 S&P 500과 risk-free asset 기준으로 비교
@@ -44,13 +44,13 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, lightweight ensemble 계열 forecast/회귀 흐름
 - 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
 - 재무제표, 주요 재무 지표, 규칙 기반 투자 신호 대시보드 조회
-- predefined ticker universe 기반 screening
+- Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - MPT/Black-Litterman 포트폴리오 최적화
 - forecast method 선택과 expected return 기반 optimization
 - 최적화 진행률 SSE stream
 - 저장된 portfolio result 조회
 - 포트폴리오 benchmark와 리밸런싱 계산
-- hedge/pairs trading 분석
+- pairs/correlation/regression 분석
 - 영어/한국어 국제화
 - PyInstaller 기반 installer build와 GitHub Actions CI
 
@@ -73,7 +73,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 ### 3. Screening / Financial Statement
 
 - predefined universe는 CSV와 helper 모듈을 통해 관리합니다.
-- filter는 잘못된 숫자, 빈 데이터, 외부 데이터 실패를 방어해야 합니다.
+- Stock Screener의 기본 검색 기준은 Financial Statement 대시보드와 같은 0-100 종합 점수이며, raw 재무 지표가 비어 있거나 외부 데이터 호출이 실패해도 방어적으로 처리해야 합니다.
 - Financial Statement의 STRONG BUY/BUY/HOLD 등 신호는 데이터 기반 분석 보조 신호이며 투자 자문이나 자동 매매 지시로 표현하지 않습니다.
 - 업종/섹터 평균 비교는 Finviz group valuation의 산업 평균을 우선 사용하고, Finviz가 제공하지 않는 수익성/성장성/안정성/위험 지표는 yfinance 기반 산업별 대표 대형주 단순 평균으로 보완합니다.
 - Finviz 산업/섹터 평균을 찾지 못하면 yfinance 기반 산업별 대표 대형주 단순 평균을 전체 benchmark fallback으로 사용합니다.
