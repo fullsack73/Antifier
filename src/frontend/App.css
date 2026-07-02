@@ -2045,16 +2045,88 @@ h2 {
   line-height: 1.35;
 }
 
-.financial-statement-modal {
-  max-height: calc(100vh - 48px);
-  max-width: 1120px;
-  overflow-y: auto;
-  width: min(94vw, 1120px);
+.optimizer-modal-content.financial-statement-modal {
+  display: flex;
+  flex-direction: column;
+  height: min(88dvh, 920px);
+  max-height: calc(100dvh - 32px);
+  max-width: min(96vw, 1440px);
+  overflow: hidden;
+  padding: clamp(var(--spacing-md), 2vw, var(--spacing-xl));
+  width: min(96vw, 1440px);
 }
 
 .financial-statement-modal-body {
-  display: grid;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: var(--spacing-lg);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.financial-statement-modal .optimizer-modal-header {
+  flex: 0 0 auto;
+  margin-bottom: var(--spacing-md);
+}
+
+.financial-statement-modal .optimizer-modal-footer {
+  flex: 0 0 auto;
+  margin-top: var(--spacing-md);
+}
+
+.financial-statement-modal .financial-segment-row {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+}
+
+.financial-statement-modal .financial-segment-button {
+  min-height: 38px;
+  min-width: 0;
+  padding: 0.58rem 1rem;
+}
+
+.financial-statement-modal .financial-table-container {
+  border-radius: var(--radius-md);
+  flex: 1 1 auto;
+  min-height: 260px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.financial-statement-modal .financial-table {
+  font-size: 0.82rem;
+  min-width: max(860px, 100%);
+  width: max-content;
+}
+
+.financial-statement-modal .financial-table th,
+.financial-statement-modal .financial-table td {
+  line-height: 1.35;
+  padding: 0.72rem 0.9rem;
+  vertical-align: top;
+}
+
+.financial-statement-modal .financial-table th:not(:first-child),
+.financial-statement-modal .financial-table td:not(:first-child) {
+  min-width: 118px;
+  white-space: nowrap;
+}
+
+.financial-statement-modal .financial-table th:first-child,
+.financial-statement-modal .financial-table td:first-child {
+  font-family: var(--font-sans);
+  font-variant-numeric: normal;
+  font-weight: 650;
+  max-width: 320px;
+  min-width: 240px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  width: clamp(240px, 26vw, 320px);
+}
+
+.financial-statement-modal .financial-table td:first-child {
+  color: var(--color-text-secondary);
 }
 
 .financial-screener-section {
@@ -2924,10 +2996,53 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .financial-statement-modal {
-    max-height: calc(100vh - 32px);
-    padding: var(--spacing-lg);
-    width: calc(100vw - 24px);
+  .optimizer-modal-content.financial-statement-modal {
+    border-radius: var(--radius-md);
+    height: calc(100dvh - 20px);
+    max-height: calc(100dvh - 20px);
+    padding: var(--spacing-md);
+    width: calc(100vw - 16px);
+  }
+
+  .financial-statement-modal .optimizer-modal-title {
+    font-size: 1.05rem;
+  }
+
+  .financial-statement-modal-body {
+    gap: var(--spacing-md);
+  }
+
+  .financial-statement-modal .financial-segment-row {
+    display: grid;
+    gap: var(--spacing-xs);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .financial-statement-modal .financial-frequency-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .financial-statement-modal .financial-segment-button {
+    font-size: 0.86rem;
+    min-height: 36px;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .financial-statement-modal .financial-table {
+    font-size: 0.76rem;
+    min-width: 720px;
+  }
+
+  .financial-statement-modal .financial-table th,
+  .financial-statement-modal .financial-table td {
+    padding: 0.62rem 0.72rem;
+  }
+
+  .financial-statement-modal .financial-table th:first-child,
+  .financial-statement-modal .financial-table td:first-child {
+    max-width: 220px;
+    min-width: 180px;
+    width: 180px;
   }
 }
 
