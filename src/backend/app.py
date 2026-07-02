@@ -12,7 +12,12 @@ import os
 import hashlib
 from datetime import datetime, timedelta
 import pandas as pd
-from hedge_analysis import analyze_hedge_relationship
+from hedge_analysis import (
+    HedgeAnalysisInputError,
+    HedgeDataUnavailableError,
+    HedgeUpstreamError,
+    analyze_hedge_relationship,
+)
 from portfolio_benchmark import calculate_portfolio_benchmark
 
 
@@ -820,7 +825,16 @@ def analyze_hedge():
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
 
-    result = analyze_hedge_relationship(ticker1, ticker2, start_date, end_date)
+    try:
+        result = analyze_hedge_relationship(ticker1, ticker2, start_date, end_date)
+    except HedgeAnalysisInputError as e:
+        return jsonify({'error': str(e)}), 400
+    except HedgeDataUnavailableError as e:
+        return jsonify({'error': str(e)}), 404
+    except HedgeUpstreamError as e:
+        app.logger.warning(str(e))
+        return jsonify({'error': 'Market data provider failed while analyzing the pair'}), 502
+
     return jsonify(result)
 
 

@@ -4,6 +4,10 @@ import { apiUrl } from './apiClient.js';
 import { ResultCardsSkeleton } from './SkeletonScreens.jsx';
 import './App.css';
 
+const formatMetric = (value, digits = 3) => (
+    Number.isFinite(value) ? value.toFixed(digits) : 'N/A'
+);
+
 const HedgeAnalysis = () => {
     const { t } = useTranslation();
     const [ticker1, setTicker1] = useState('');
@@ -128,17 +132,24 @@ const HedgeAnalysis = () => {
                         </div>
 
                         <div className="stat-card">
-                            <h4>{t('hedge.relationship')}</h4>
-                            <p className={`value ${hedgeData.is_hedge ? 'text-accent' : 'text-danger'}`}>
-                                {hedgeData.is_hedge ? t('common.yes', 'Yes') : t('common.no', 'No')}
-                            </p>
-                            <p>{t('hedge.strength')}: {hedgeData.strength}</p>
+                            <h4>{t('hedge.correlationSignal')}</h4>
+                            <p className="value text-accent">{hedgeData.correlation_signal?.direction || t('common.notAvailable', 'N/A')}</p>
+                            <p>{t('hedge.strength')}: {hedgeData.correlation_signal?.strength || hedgeData.strength}</p>
+                            <p className="hedge-card-note">{hedgeData.correlation_signal?.summary}</p>
                         </div>
 
                         <div className="stat-card">
                             <h4>{t('hedge.statisticalAnalysis')}</h4>
-                            <p>{t('hedge.correlation')}: <span className="text-accent">{hedgeData.correlation.toFixed(3)}</span></p>
-                            <p>{t('hedge.pValue')}: <span className="text-accent">{hedgeData.p_value.toFixed(4)}</span></p>
+                            <p>{t('hedge.correlation')}: <span className="text-accent">{formatMetric(hedgeData.correlation)}</span></p>
+                            <p>{t('hedge.pValue')}: <span className="text-accent">{formatMetric(hedgeData.p_value, 4)}</span></p>
+                            <p>{t('hedge.observations')}: <span className="text-accent">{hedgeData.observations ?? t('common.notAvailable', 'N/A')}</span></p>
+                        </div>
+
+                        <div className="stat-card">
+                            <h4>{t('hedge.regression')}</h4>
+                            <p>{t('hedge.alpha')}: <span className="text-accent">{formatMetric(hedgeData.regression?.alpha, 5)}</span></p>
+                            <p>{t('hedge.beta')}: <span className="text-accent">{formatMetric(hedgeData.regression?.beta)}</span></p>
+                            <p>{t('hedge.rSquared')}: <span className="text-accent">{formatMetric(hedgeData.regression?.r_squared)}</span></p>
                         </div>
 
                         <div className="stat-card">

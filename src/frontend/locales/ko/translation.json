@@ -1,7 +1,7 @@
 {
   "navigation": {
     "stock": "주식 데이터",
-    "hedge": "헷지 분석",
+    "hedge": "페어 분석",
     "financial": "재무제표 분석",
     "optimizer": "포트폴리오 최적화",
     "benchmark": "포트폴리오 벤치마크",
@@ -25,23 +25,29 @@
     "regressionLine": "회귀선"
   },
   "hedge": {
-    "kicker": "헷지 분석",
-    "title": "헷지 관계 분석",
+    "kicker": "페어 분석",
+    "title": "페어 / 상관 분석",
     "label1": "첫 번째 티커",
     "label2": "두 번째 티커",
     "companies": "기업",
     "relationship": "관계",
+    "correlationSignal": "상관 신호",
     "statisticalAnalysis": "통계 분석",
     "analysisPeriod": "분석 기간",
     "correlation": "상관관계",
     "pValue": "P-value",
     "strength": "강도",
+    "observations": "관측치",
+    "regression": "회귀 분석",
+    "alpha": "알파",
+    "beta": "베타",
+    "rSquared": "R-squared",
     "results": "결과",
     "enterBothTickers": "두 티커를 모두 입력하세요",
-    "fetchError": "헷지 분석 데이터를 가져오지 못했습니다",
+    "fetchError": "페어 분석 데이터를 가져오지 못했습니다",
     "ticker1Placeholder": "예: AAPL",
     "ticker2Placeholder": "예: MSFT",
-    "loadingAnalysis": "헷지 분석 로딩 중"
+    "loadingAnalysis": "페어 분석 로딩 중"
   },
   "common": {
     "search": "검색",
@@ -57,6 +63,7 @@
     "skipToContent": "본문으로 건너뛰기",
     "toggleMenu": "메뉴 열기/닫기",
     "toggleLanguage": "언어 전환",
+    "notAvailable": "N/A",
     "yes": "예",
     "no": "아니오"
   },

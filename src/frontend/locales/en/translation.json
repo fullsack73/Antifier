@@ -1,7 +1,7 @@
 {
   "navigation": {
     "stock": "Stock Data",
-    "hedge": "Hedge Analysis",
+    "hedge": "Pairs Analysis",
     "financial": "Financial Statement Analysis",
     "optimizer": "Portfolio Optimizer",
     "benchmark": "Portfolio Benchmark",
@@ -25,23 +25,29 @@
     "regressionLine": "Regression Line"
   },
   "hedge": {
-    "kicker": "Hedge Analysis",
-    "title": "Hedge Relationship Analysis",
+    "kicker": "Pairs analysis",
+    "title": "Pairs / Correlation Analysis",
     "label1": "First Ticker",
     "label2": "Second Ticker",
     "companies": "Companies",
     "relationship": "Relationship",
+    "correlationSignal": "Correlation Signal",
     "statisticalAnalysis": "Statistical Analysis",
     "analysisPeriod": "Analysis Period",
     "correlation": "Correlation",
     "pValue": "P-value",
     "strength": "Strength",
+    "observations": "Observations",
+    "regression": "Regression",
+    "alpha": "Alpha",
+    "beta": "Beta",
+    "rSquared": "R-squared",
     "results": "Results",
     "enterBothTickers": "Please enter both tickers",
-    "fetchError": "Failed to fetch hedge analysis data",
+    "fetchError": "Failed to fetch pairs analysis data",
     "ticker1Placeholder": "e.g., AAPL",
     "ticker2Placeholder": "e.g., MSFT",
-    "loadingAnalysis": "Loading hedge analysis"
+    "loadingAnalysis": "Loading pairs analysis"
   },
   "common": {
     "loading": "Loading...",
@@ -57,6 +63,7 @@
     "skipToContent": "Skip to content",
     "toggleMenu": "Toggle menu",
     "toggleLanguage": "Toggle language",
+    "notAvailable": "N/A",
     "yes": "Yes",
     "no": "No"
   },

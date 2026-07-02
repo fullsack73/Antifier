@@ -11,7 +11,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 ## B. 대상 사용자
 
 - 개인 투자자: 여러 종목의 가격, 추세, 재무 지표를 빠르게 비교하고 싶은 사용자
-- 활동적인 트레이더: 단기 기회 탐색을 위해 차트, 회귀, 예측, hedge 분석이 필요한 사용자
+- 활동적인 트레이더: 단기 기회 탐색을 위해 차트, 회귀, 예측, pairs/correlation 분석이 필요한 사용자
 - 금융 분석가/학습자: 포트폴리오 이론, forecast strategy, 재무제표 지표를 실험하고 검증하려는 사용자
 
 대표 문제:
@@ -22,7 +22,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 제품 해법:
 
-- 주식 시각화부터 forecast, screening, hedge, benchmark, portfolio optimization까지 한 SPA 안에서 연결합니다.
+- 주식 시각화부터 forecast, screening, pairs/correlation analysis, benchmark, portfolio optimization까지 한 SPA 안에서 연결합니다.
 - 자동 계산을 제공하되 모델/기간/위험 가정은 사용자가 조정하도록 유지합니다.
 
 ## C. 앱 구성
@@ -30,7 +30,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 현재 UI는 외부 라우터 없이 sidebar/view state 기반으로 주요 화면을 전환합니다.
 
 - Stock Analysis: ticker, 기간, 모델, forecast horizon을 선택하고 가격/회귀/미래 예측 차트를 확인
-- Hedge Analysis: 두 종목의 상관관계와 회귀 기반 hedge 관계 분석
+- Pairs Analysis: 두 종목의 상관관계와 회귀 기반 관계 분석
 - Financial Statement: ticker별 주요 재무 지표, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 점수화 결과를 대시보드로 확인하고 전체 재무제표는 팝업에서 확인
 - Optimizer: MPT 또는 Black-Litterman 기반 포트폴리오 최적화
 - Benchmark: 포트폴리오 성과를 S&P 500과 risk-free asset 기준으로 비교
@@ -50,7 +50,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 최적화 진행률 SSE stream
 - 저장된 portfolio result 조회
 - 포트폴리오 benchmark와 리밸런싱 계산
-- hedge/pairs trading 분석
+- pairs/correlation/regression 분석
 - 영어/한국어 국제화
 - PyInstaller 기반 installer build와 GitHub Actions CI
 

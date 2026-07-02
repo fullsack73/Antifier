@@ -74,7 +74,7 @@
 주요 endpoint와 책임:
 
 - `GET /api/get-data`: ticker price, regression, future prediction, currency metadata
-- `GET /api/analyze-hedge`: 두 ticker의 hedge/correlation/regression 분석
+- `GET /api/analyze-hedge`: 두 ticker의 pairs/correlation/regression 분석. 단정적인 hedge 성립 여부를 반환하지 않고, 상관계수, p-value, 회귀 alpha/beta/R-squared, 관측치 수, 비단정적 correlation signal을 반환합니다.
 - `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
 - `POST /api/optimize-portfolio`: 포트폴리오 최적화 작업 시작
 - `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE
