@@ -354,8 +354,9 @@ const FinancialStatement = () => {
 
     return (
         <div className="financial-analysis-container">
-            <div className="financial-header">
-                <h2 className="page-header">{t('financial.title')}</h2>
+            <div className="financial-header page-title-block">
+                <span className="page-kicker">{t('financial.kicker')}</span>
+                <h1 className="page-header">{t('financial.title')}</h1>
             </div>
 
             <div className="financial-controls-wrapper">

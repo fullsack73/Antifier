@@ -54,11 +54,14 @@ const HedgeAnalysis = () => {
     };
 
     return (
-        <div className="page-container">
-            <h2 className="page-header">{t('hedge.title')}</h2>
+        <div className="page-container hedge-page">
+            <div className="page-title-block">
+                <span className="page-kicker">{t('hedge.kicker')}</span>
+                <h1 className="page-header">{t('hedge.title')}</h1>
+            </div>
 
-            <form onSubmit={handleSubmit} className="controls-container">
-                <div className="ticker-input-container">
+            <form onSubmit={handleSubmit} className="hedge-control-panel">
+                <div className="hedge-input-grid">
                     <div className="ticker-input-group">
                         <label htmlFor="ticker1">{t('hedge.label1')}</label>
                         <input
@@ -69,9 +72,18 @@ const HedgeAnalysis = () => {
                             placeholder={t('hedge.ticker1Placeholder', 'e.g., AAPL')}
                         />
                     </div>
-                </div>
 
-                <div className="date-input-container">
+                    <div className="ticker-input-group">
+                        <label htmlFor="ticker2">{t('hedge.label2')}</label>
+                        <input
+                            type="text"
+                            id="ticker2"
+                            value={ticker2}
+                            onChange={(e) => setTicker2(e.target.value.toUpperCase())}
+                            placeholder={t('hedge.ticker2Placeholder', 'e.g., MSFT')}
+                        />
+                    </div>
+
                     <div className="date-input-group">
                         <label htmlFor="startDate">{t('date.start')}</label>
                         <input
@@ -81,6 +93,7 @@ const HedgeAnalysis = () => {
                             onChange={(e) => setStartDate(e.target.value)}
                         />
                     </div>
+
                     <div className="date-input-group">
                         <label htmlFor="endDate">{t('date.end')}</label>
                         <input
@@ -92,21 +105,11 @@ const HedgeAnalysis = () => {
                     </div>
                 </div>
 
-                <div className="ticker-input-container">
-                    <div className="ticker-input-group">
-                        <label htmlFor="ticker2">{t('hedge.label2')}</label>
-                        <input
-                            type="text"
-                            id="ticker2"
-                            value={ticker2}
-                            onChange={(e) => setTicker2(e.target.value.toUpperCase())}
-                            placeholder={t('hedge.ticker2Placeholder', 'e.g., MSFT')}
-                        />
-                    </div>
+                <div className="hedge-submit-row">
+                    <button type="submit" disabled={loading} className="ticker-search-btn hedge-submit-btn">
+                        {loading ? t('common.loading') : t('common.submit')}
+                    </button>
                 </div>
-                <button type="submit" onClick={handleSubmit} disabled={loading} className="ticker-search-btn" style={{ width: '100%', marginTop: '1rem' }}>
-                    {loading ? t('common.loading') : t('common.submit')}
-                </button>
             </form>
 
             {error && <div className="error-message">{error}</div>}
@@ -114,14 +117,14 @@ const HedgeAnalysis = () => {
             {loading && <ResultCardsSkeleton cards={4} label={t('hedge.loadingAnalysis', 'Loading hedge analysis')} />}
 
             {!loading && hedgeData && (
-                <div style={{ marginTop: "2rem" }}>
+                <section className="hedge-results-panel">
                     <h2>{t('hedge.results')}</h2>
                     <div className="grid-auto">
 
                         <div className="stat-card">
                             <h4>{t('hedge.companies')}</h4>
-                            <p className="value" style={{ fontSize: "1.2rem" }}>{hedgeData.company1} ({hedgeData.ticker1})</p>
-                            <p className="value" style={{ fontSize: "1.2rem" }}>{hedgeData.company2} ({hedgeData.ticker2})</p>
+                            <p className="value hedge-company-name">{hedgeData.company1} ({hedgeData.ticker1})</p>
+                            <p className="value hedge-company-name">{hedgeData.company2} ({hedgeData.ticker2})</p>
                         </div>
 
                         <div className="stat-card">
@@ -140,11 +143,11 @@ const HedgeAnalysis = () => {
 
                         <div className="stat-card">
                             <h4>{t('hedge.analysisPeriod')}</h4>
-                            <p style={{ fontSize: "0.9rem" }}>{t('date.start')}: {hedgeData.period.start}</p>
-                            <p style={{ fontSize: "0.9rem" }}>{t('date.end')}: {hedgeData.period.end}</p>
+                            <p className="hedge-period-line">{t('date.start')}: {hedgeData.period.start}</p>
+                            <p className="hedge-period-line">{t('date.end')}: {hedgeData.period.end}</p>
                         </div>
                     </div>
-                </div>
+                </section>
             )}
         </div>
     );

@@ -536,7 +536,10 @@ const PortfolioManager = () => {
 
   return (
     <div className="manager-container">
-      <h2 className="page-header">{t("manager.title", "Portfolio Manager")}</h2>
+      <div className="page-title-block">
+        <span className="page-kicker">{t("manager.kicker", "PORTFOLIO MANAGEMENT")}</span>
+        <h1 className="page-header">{t("manager.title", "Portfolio Manager")}</h1>
+      </div>
 
       <div className="optimizer-actions-row" style={{ marginBottom: "1rem" }}>
         <button

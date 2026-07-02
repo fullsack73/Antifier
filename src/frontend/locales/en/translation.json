@@ -25,6 +25,7 @@
     "regressionLine": "Regression Line"
   },
   "hedge": {
+    "kicker": "Hedge Analysis",
     "title": "Hedge Relationship Analysis",
     "label1": "First Ticker",
     "label2": "Second Ticker",
@@ -94,6 +95,7 @@
     "auto_update_title": "Predictions will auto-update when you change this value"
   },
   "financial": {
+    "kicker": "Financial Analysis",
     "title": "Financial Statement Analysis",
     "fetch_data": "Fetch Data",
     "summary": "Summary",
@@ -203,6 +205,7 @@
     }
   },
   "optimizer": {
+    "kicker": "Portfolio Optimization",
     "title": "Portfolio Optimizer",
     "tickerGroup": "Ticker Group",
     "modelStrategy": "Model Strategy",
@@ -276,6 +279,7 @@
     "hybridNote": "Toggle fractional per ticker. Integer-only tickers are floored; freed capital is redistributed to fractional-eligible tickers."
   },
   "stockScreener": {
+    "kicker": "Stock Screening",
     "stock_screener": "Stock Screener",
     "screeningCriteria": "Screening Criteria",
     "universe": "Universe:",
@@ -330,6 +334,7 @@
     }
   },
   "benchmark": {
+    "kicker": "Performance Benchmark",
     "title": "Portfolio Benchmark",
     "subtitle": "Compare your portfolio performance against S&P 500 and risk-free assets",
     "uploadPortfolio": "Portfolio File",
@@ -367,6 +372,7 @@
     "apiError": "Failed to calculate benchmarks"
   },
   "manager": {
+    "kicker": "Portfolio Management",
     "title": "Portfolio Manager",
     "savePortfolio": "Save Portfolio",
     "saveInputsLocally": "Save Inputs Locally",

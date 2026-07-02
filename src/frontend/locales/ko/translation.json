@@ -25,6 +25,7 @@
     "regressionLine": "회귀선"
   },
   "hedge": {
+    "kicker": "헷지 분석",
     "title": "헷지 관계 분석",
     "label1": "첫 번째 티커",
     "label2": "두 번째 티커",
@@ -94,6 +95,7 @@
     "auto_update_title": "값을 변경하면 예측이 자동으로 업데이트됩니다"
   },
   "financial": {
+    "kicker": "재무 분석",
     "title": "재무제표 분석",
     "fetch_data": "재무 데이터 가져오기",
     "summary": "요약",
@@ -203,6 +205,7 @@
     }
   },
   "optimizer": {
+    "kicker": "포트폴리오 최적화",
     "title": "포트폴리오 최적화",
     "tickerGroup": "티커 그룹",
     "modelStrategy": "모델 전략",
@@ -276,6 +279,7 @@
     "hybridNote": "종목별로 소수점 거래를 설정하세요. 정수 전용 종목은 내림 처리되며, 여유 자본은 소수점 가능 종목에 재분배됩니다."
   },
   "stockScreener": {
+    "kicker": "종목 검색",
     "stock_screener": "주식 찾기",
     "screeningCriteria": "검색 조건",
     "universe": "대상:",
@@ -330,6 +334,7 @@
     }
   },
   "benchmark": {
+    "kicker": "성과 벤치마크",
     "title": "포트폴리오 벤치마크",
     "subtitle": "S&P 500 및 무위험 자산과 포트폴리오 성과 비교",
     "uploadPortfolio": "포트폴리오 파일",
@@ -367,6 +372,7 @@
     "apiError": "벤치마크 계산 실패"
   },
   "manager": {
+    "kicker": "포트폴리오 관리",
     "title": "포트폴리오 관리",
     "savePortfolio": "포트폴리오 저장",
     "saveInputsLocally": "입력값 로컬 저장",
