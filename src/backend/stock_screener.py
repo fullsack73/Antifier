@@ -12,6 +12,125 @@ logger = logging.getLogger(__name__)
 
 import concurrent.futures
 
+
+METRIC_ALIASES = {
+    'financial score': 'Financial Score',
+    'financial_score': 'Financial Score',
+    'score': 'Financial Score',
+    'decision score': 'Financial Score',
+    'decision_score': 'Financial Score',
+    'pe': 'P/E',
+    'p/e': 'P/E',
+    'trailing pe': 'P/E',
+    'trailing_pe': 'P/E',
+    'forward pe': 'Forward P/E',
+    'forward_pe': 'Forward P/E',
+    'fwd pe': 'Forward P/E',
+    'fwd_pe': 'Forward P/E',
+    'pb': 'P/B',
+    'p/b': 'P/B',
+    'p_b': 'P/B',
+    'price book': 'P/B',
+    'price_book': 'P/B',
+    'price to book': 'P/B',
+    'price_to_book': 'P/B',
+    'price sales': 'Price/Sales',
+    'price_sales': 'Price/Sales',
+    'price/sales': 'Price/Sales',
+    'psr': 'Price/Sales',
+    'p/s': 'Price/Sales',
+    'peg': 'PEG',
+    'debt equity': 'Debt/Equity',
+    'debt_equity': 'Debt/Equity',
+    'debt/equity': 'Debt/Equity',
+    'debt to equity': 'Debt/Equity',
+    'debt_to_equity': 'Debt/Equity',
+    'roe': 'ROE',
+    'return on equity': 'ROE',
+    'return_on_equity': 'ROE',
+    'roa': 'ROA',
+    'return on assets': 'ROA',
+    'return_on_assets': 'ROA',
+    'profit margin': 'Profit Margin',
+    'profit_margin': 'Profit Margin',
+    'market cap': 'Market Cap',
+    'market_cap': 'Market Cap',
+    'market capitalization': 'Market Cap',
+    'price': 'Price',
+    'current price': 'Price',
+    'current_price': 'Price',
+}
+
+OPERATOR_ALIASES = {
+    'under': '<',
+    'below': '<',
+    'less': '<',
+    'less_than': '<',
+    'lt': '<',
+    '<': '<',
+    'over': '>',
+    'above': '>',
+    'greater': '>',
+    'greater_than': '>',
+    'gt': '>',
+    '>': '>',
+    'equals': '=',
+    'equal': '=',
+    'eq': '=',
+    '=': '=',
+    '==': '=',
+    'at least': '>=',
+    'at_least': '>=',
+    'minimum': '>=',
+    'min': '>=',
+    'gte': '>=',
+    'ge': '>=',
+    '>=': '>=',
+    'at most': '<=',
+    'at_most': '<=',
+    'maximum': '<=',
+    'max': '<=',
+    'lte': '<=',
+    'le': '<=',
+    '<=': '<=',
+}
+
+
+def _normalize_filter_token(value):
+    return str(value or '').strip().replace('-', ' ').replace('_', ' ').lower()
+
+
+def _normalize_metric_name(metric):
+    if metric is None:
+        return None
+
+    metric_str = str(metric).strip()
+    if not metric_str:
+        return None
+
+    exact_alias = METRIC_ALIASES.get(metric_str.lower())
+    if exact_alias:
+        return exact_alias
+
+    normalized = _normalize_filter_token(metric_str)
+    return METRIC_ALIASES.get(normalized, metric_str)
+
+
+def _normalize_operator(operator):
+    if operator is None:
+        return None
+
+    operator_str = str(operator).strip()
+    if not operator_str:
+        return None
+
+    exact_alias = OPERATOR_ALIASES.get(operator_str.lower())
+    if exact_alias:
+        return exact_alias
+
+    normalized = _normalize_filter_token(operator_str)
+    return OPERATOR_ALIASES.get(normalized)
+
 def fetch_single_stock_data(ticker_symbol):
     """
     Fetches score-oriented data for a single ticker. Used for parallel execution.
@@ -111,8 +230,8 @@ def apply_filters(df, filters):
     filtered_df = df.copy()
     
     for f in filters:
-        metric = f.get('metric')
-        operator = f.get('operator')
+        metric = _normalize_metric_name(f.get('metric'))
+        operator = _normalize_operator(f.get('operator'))
         value_str = str(f.get('value', ''))
         
         if not metric or not operator or not value_str:
@@ -148,12 +267,16 @@ def apply_filters(df, filters):
                 
             column = pd.to_numeric(filtered_df[metric], errors='coerce')
             
-            if operator == 'Under' or operator == '<':
+            if operator == '<':
                 filtered_df = filtered_df[column < value]
-            elif operator == 'Over' or operator == '>':
+            elif operator == '>':
                 filtered_df = filtered_df[column > value]
-            elif operator == 'Equals' or operator == '=':
+            elif operator == '=':
                 filtered_df = filtered_df[column == value]
+            elif operator == '<=':
+                filtered_df = filtered_df[column <= value]
+            elif operator == '>=':
+                filtered_df = filtered_df[column >= value]
             
         except ValueError:
             logger.warning(f"Could not parse value {value_str} for filter {metric}")

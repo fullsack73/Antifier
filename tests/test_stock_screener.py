@@ -87,3 +87,35 @@ def test_search_stocks_can_filter_below_financial_score(monkeypatch):
 
     assert [row["Ticker"] for row in results] == ["LOW"]
     assert results[0]["Financial Score"] == 49
+
+
+def test_search_stocks_accepts_financial_score_aliases(monkeypatch):
+    monkeypatch.setattr(stock_screener.yf, "Ticker", lambda _ticker: FakeTicker())
+    monkeypatch.setattr(stock_screener, "build_financial_decision_summary", _fake_score_summary)
+
+    results = stock_screener.search_stocks({
+        "Index": "Custom",
+        "tickers": ["AAPL", "MSFT", "LOW", "NODATA"],
+        "criteria": [
+            {"metric": "financial_score", "operator": "gte", "value": "67"}
+        ],
+    })
+
+    assert [row["Ticker"] for row in results] == ["MSFT", "AAPL"]
+    assert {row["Financial Score"] for row in results} == {67, 82}
+
+
+def test_apply_filters_accepts_api_style_score_alias():
+    df = stock_screener.pd.DataFrame([
+        {"Ticker": "AAPL", "Financial Score": 67},
+        {"Ticker": "MSFT", "Financial Score": 82},
+        {"Ticker": "LOW", "Financial Score": 49},
+    ])
+
+    results = stock_screener.apply_filters(df, [
+        {"metric": "score", "operator": "lt", "value": "50"}
+    ])
+
+    assert results.to_dict("records") == [
+        {"Ticker": "LOW", "Financial Score": 49}
+    ]
