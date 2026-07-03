@@ -1,5 +1,7 @@
 import os
 import sys
+import logging
+import uuid
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src/backend")))
@@ -119,3 +121,111 @@ def test_apply_filters_accepts_api_style_score_alias():
     assert results.to_dict("records") == [
         {"Ticker": "LOW", "Financial Score": 49}
     ]
+
+
+def test_fetch_single_stock_data_treats_yfinance_failure_as_missing(monkeypatch):
+    monkeypatch.setattr(stock_screener.yf, "Ticker", lambda _ticker: FakeTicker())
+
+    def raise_yfinance_error(_ticker_symbol, ticker=None):
+        raise Exception("HTTP Error 401: Invalid Crumb")
+
+    monkeypatch.setattr(stock_screener, "build_financial_decision_summary", raise_yfinance_error)
+
+    assert stock_screener.fetch_single_stock_data("BAD") is None
+
+
+def test_fetch_universe_data_quiets_and_restores_yfinance_logger(monkeypatch):
+    yfinance_logger = logging.getLogger("yfinance")
+    original_level = yfinance_logger.level
+    observed_levels = []
+
+    def fake_fetch_single_stock_data(ticker):
+        observed_levels.append(yfinance_logger.level)
+        return {"Ticker": ticker, "Financial Score": 70}
+
+    monkeypatch.setattr(stock_screener, "fetch_single_stock_data", fake_fetch_single_stock_data)
+    yfinance_logger.setLevel(logging.ERROR)
+
+    try:
+        result = stock_screener.fetch_universe_data(["AAPL", "MSFT"])
+        restored_level = yfinance_logger.level
+    finally:
+        yfinance_logger.setLevel(original_level)
+
+    assert set(result["Ticker"]) == {"AAPL", "MSFT"}
+    assert observed_levels
+    assert all(level == logging.CRITICAL for level in observed_levels)
+    assert restored_level == logging.ERROR
+
+
+def test_custom_ticker_universe_reuses_cached_raw_data(monkeypatch):
+    suffix = uuid.uuid4().hex
+    first = f"CACHEA{suffix}"
+    second = f"CACHEB{suffix}"
+    fetch_calls = []
+
+    def fake_fetch_universe_data(tickers):
+        fetch_calls.append(tuple(tickers))
+        return stock_screener.pd.DataFrame([
+            {"Ticker": first, "Financial Score": 80},
+            {"Ticker": second, "Financial Score": 60},
+        ])
+
+    monkeypatch.setattr(stock_screener, "fetch_universe_data", fake_fetch_universe_data)
+
+    filters = {
+        "Index": "Custom",
+        "tickers": [first, second],
+        "criteria": [
+            {"metric": "Financial Score", "operator": "Over", "value": "70"}
+        ],
+    }
+    reordered_filters = {
+        **filters,
+        "tickers": [second.lower(), first.lower()],
+    }
+
+    first_results = stock_screener.search_stocks(filters)
+    second_results = stock_screener.search_stocks(reordered_filters)
+
+    assert [row["Ticker"] for row in first_results] == [first]
+    assert [row["Ticker"] for row in second_results] == [first]
+    assert fetch_calls == [(first.upper(), second.upper())]
+
+
+def test_custom_ticker_universe_does_not_cache_empty_fetch(monkeypatch):
+    suffix = uuid.uuid4().hex
+    ticker = f"EMPTY{suffix}"
+    fetch_calls = []
+
+    def fake_fetch_universe_data(tickers):
+        fetch_calls.append(tuple(tickers))
+        if len(fetch_calls) == 1:
+            return stock_screener.pd.DataFrame()
+        return stock_screener.pd.DataFrame([
+            {"Ticker": ticker, "Financial Score": 80},
+        ])
+
+    monkeypatch.setattr(stock_screener, "fetch_universe_data", fake_fetch_universe_data)
+
+    filters = {
+        "Index": "Custom",
+        "tickers": [ticker],
+        "criteria": [
+            {"metric": "Financial Score", "operator": "Over", "value": "70"}
+        ],
+    }
+
+    assert stock_screener.search_stocks(filters) == []
+    assert [row["Ticker"] for row in stock_screener.search_stocks(filters)] == [ticker]
+    assert fetch_calls == [(ticker.upper(),), (ticker.upper(),)]
+
+
+def test_fetch_universe_data_warns_when_all_tickers_fail(monkeypatch, caplog):
+    monkeypatch.setattr(stock_screener, "fetch_single_stock_data", lambda _ticker: None)
+    caplog.set_level(logging.WARNING, logger="stock_screener")
+
+    result = stock_screener.fetch_universe_data(["AAPL", "MSFT"])
+
+    assert result.empty
+    assert "No stock screener data could be fetched for 2 tickers" in caplog.text

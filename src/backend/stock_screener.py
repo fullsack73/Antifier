@@ -1,16 +1,25 @@
 import logging
+import hashlib
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from cache_manager import cached
+from cache_manager import cached, get_cache
 from financial_statement import build_financial_decision_summary
 from ticker_lists import get_ticker_group
 import time
+from contextlib import contextmanager
 
 # Configure logging for this module
 logger = logging.getLogger(__name__)
 
 import concurrent.futures
+
+
+YFINANCE_BATCH_MAX_WORKERS = 6
+YFINANCE_BATCH_LOGGERS = ("yfinance",)
+CUSTOM_UNIVERSE_CACHE_NAMESPACE = "stock_screener_custom_universe"
+CUSTOM_UNIVERSE_L1_TTL = 3600
+CUSTOM_UNIVERSE_L2_TTL = 86400
 
 
 METRIC_ALIASES = {
@@ -131,6 +140,42 @@ def _normalize_operator(operator):
     normalized = _normalize_filter_token(operator_str)
     return OPERATOR_ALIASES.get(normalized)
 
+
+def _normalize_ticker_list(tickers):
+    normalized = {
+        str(ticker or '').strip().upper()
+        for ticker in (tickers or [])
+        if str(ticker or '').strip()
+    }
+    return tuple(sorted(normalized))
+
+
+def _ticker_list_cache_key(tickers):
+    ticker_key = "|".join(_normalize_ticker_list(tickers))
+    digest = hashlib.md5(ticker_key.encode()).hexdigest()
+    return f"{CUSTOM_UNIVERSE_CACHE_NAMESPACE}_{digest}"
+
+
+@contextmanager
+def _quiet_yfinance_batch_errors():
+    """
+    yfinance logs transient Yahoo auth/crumb failures at ERROR before raising.
+    During broad screening those are expected per-ticker misses, so keep the
+    application logs readable and let our caller decide how to handle failures.
+    """
+    previous_levels = []
+    for logger_name in YFINANCE_BATCH_LOGGERS:
+        yf_logger = logging.getLogger(logger_name)
+        previous_levels.append((yf_logger, yf_logger.level))
+        yf_logger.setLevel(logging.CRITICAL)
+
+    try:
+        yield
+    finally:
+        for yf_logger, previous_level in previous_levels:
+            yf_logger.setLevel(previous_level)
+
+
 def fetch_single_stock_data(ticker_symbol):
     """
     Fetches score-oriented data for a single ticker. Used for parallel execution.
@@ -189,21 +234,29 @@ def fetch_universe_data(tickers):
     logger.info(f"Fetching data for {len(tickers)} tickers in parallel...")
     
     # Use ThreadPoolExecutor for I/O bound tasks
-    # Limit max_workers to avoid hitting API rate limits or overwhelming the system
-    # 20 workers is a reasonable starting point for network requests
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-        future_to_ticker = {executor.submit(fetch_single_stock_data, t): t for t in tickers}
-        
-        for future in concurrent.futures.as_completed(future_to_ticker):
-            ticker_symbol = future_to_ticker[future]
-            try:
-                result = future.result()
-                if result:
-                    data.append(result)
-            except Exception as e:
-                logger.error(f"Exc generated for {ticker_symbol}: {e}")
+    # Limit max_workers because yfinance quoteSummary requests are prone to
+    # transient Yahoo auth/crumb failures under large parallel bursts.
+    max_workers = min(YFINANCE_BATCH_MAX_WORKERS, max(1, len(tickers)))
+    with _quiet_yfinance_batch_errors():
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_ticker = {executor.submit(fetch_single_stock_data, t): t for t in tickers}
+
+            for future in concurrent.futures.as_completed(future_to_ticker):
+                ticker_symbol = future_to_ticker[future]
+                try:
+                    result = future.result()
+                    if result:
+                        data.append(result)
+                except Exception as e:
+                    logger.error(f"Exc generated for {ticker_symbol}: {e}")
 
     logger.info(f"Fetched data for {len(data)} stocks in {time.time() - start_time:.2f}s")
+    if not data and tickers:
+        logger.warning(
+            "No stock screener data could be fetched for %s tickers. "
+            "The upstream financial data source may be unavailable or rejecting requests.",
+            len(tickers),
+        )
     return pd.DataFrame(data)
 
 @cached(l1_ttl=3600, l2_ttl=86400) # Only cache the UNIVERSE data, not the filtered result
@@ -218,6 +271,34 @@ def get_universe_dataframe(group_name):
         return pd.DataFrame() # Empty
         
     return fetch_universe_data(tickers)
+
+
+def get_custom_universe_dataframe(tickers):
+    """
+    Gets the dataframe for a custom ticker universe.
+    Values are cached by normalized ticker set, independent of input order.
+    """
+    normalized_tickers = _normalize_ticker_list(tickers)
+    if not normalized_tickers:
+        return pd.DataFrame()
+
+    cache = get_cache()
+    cache_key = _ticker_list_cache_key(normalized_tickers)
+    cached_df = cache.get(cache_key)
+    if isinstance(cached_df, pd.DataFrame) and not cached_df.empty:
+        logger.debug("Cache HIT for get_custom_universe_dataframe")
+        return cached_df.copy()
+    if isinstance(cached_df, pd.DataFrame) and cached_df.empty:
+        logger.warning("Ignoring empty cached custom screener universe and refetching.")
+
+    logger.debug("Cache MISS for get_custom_universe_dataframe")
+    df = fetch_universe_data(list(normalized_tickers))
+    if df.empty:
+        logger.warning("Custom screener universe fetch returned 0 rows; empty result was not cached.")
+        return df
+
+    cache.set(cache_key, df, CUSTOM_UNIVERSE_L1_TTL, CUSTOM_UNIVERSE_L2_TTL)
+    return df.copy()
 
 def apply_filters(df, filters):
     """
@@ -309,10 +390,10 @@ def search_stocks(filters):
     ticker_group = filters.get('Index', 'S&P 500')
     custom_tickers = filters.get('tickers', None)
     
-    # If custom tickers are provided, fetch their data directly (no cache)
+    # If custom tickers are provided, cache the raw universe data and reapply filters per request.
     if custom_tickers and isinstance(custom_tickers, list) and len(custom_tickers) > 0:
         logger.info(f"Using {len(custom_tickers)} custom tickers for screening")
-        df_universe = fetch_universe_data(custom_tickers)
+        df_universe = get_custom_universe_dataframe(custom_tickers)
     else:
         # Get universe data (Cached)
         df_universe = get_universe_dataframe(ticker_group)
