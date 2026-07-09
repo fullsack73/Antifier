@@ -10,6 +10,8 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 logger = logging.getLogger(__name__)
 
+NO_VIEW_FORECAST_UNCERTAINTY = 5.0
+
 TRANSFORMER_HPO_PARAM_KEYS = (
     "lookback",
     "d_model",
@@ -132,6 +134,17 @@ DEFAULT_TRANSFORMER_HPO_SPACE = (
         "forecast_clip": 0.12,
     },
 )
+
+
+def no_view_prediction(reason="no valid forecast", components=None):
+    """Return an explicit no-view forecast for optimizers to treat as prior-only."""
+    return {
+        "expected_return": None,
+        "uncertainty": NO_VIEW_FORECAST_UNCERTAINTY,
+        "components": components or {},
+        "source": "no_view",
+        "reason": reason,
+    }
 
 
 def _load_auto_arima():
@@ -879,9 +892,8 @@ class TransformerForecastModel:
     def forecast(self, horizon=252, annualize=True):
         """Forecast log return for the horizon, annualized by default."""
         if self.model is None or self.scaler is None or self.last_sequence is None:
-            logger.warning("Transformer model not trained, returning default")
-            default_annual_return = 0.08
-            return default_annual_return if annualize else default_annual_return * (horizon / 252)
+            logger.warning("Transformer model not trained, returning no-view forecast")
+            return None
 
         try:
             sequence = self.last_sequence.astype(float).copy()
@@ -903,11 +915,13 @@ class TransformerForecastModel:
 
         except Exception as e:
             logger.error(f"Transformer forecast failed: {e}")
-            default_annual_return = 0.08
-            return default_annual_return if annualize else default_annual_return * (horizon / 252)
+            return None
 
     def predict(self, horizon=252):
         expected_return = self.forecast(horizon=horizon, annualize=True)
+        if expected_return is None or not np.isfinite(expected_return):
+            return no_view_prediction("Transformer did not produce a valid forecast")
+
         uncertainty = self.training_daily_rmse * np.sqrt(252) if self.training_daily_rmse else 0.05
         uncertainty = float(np.clip(uncertainty, 0.01, 1.0))
         return {
@@ -940,12 +954,8 @@ class ARIMATransformerPredictor:
 
     def predict(self, horizon=252):
         if self.history is None or len(self.history) == 0:
-            logger.warning("ARIMA + Transformer predictor has no training history. Returning default.")
-            return {
-                'expected_return': 0.08,
-                'uncertainty': 0.05,
-                'components': {}
-            }
+            logger.warning("ARIMA + Transformer predictor has no training history. Returning no-view forecast.")
+            return no_view_prediction("ARIMA + Transformer has no training history")
 
         predictions = []
         component_results = {}
@@ -972,12 +982,8 @@ class ARIMATransformerPredictor:
             logger.error(f"Transformer component failed: {e}")
 
         if not predictions:
-            logger.warning("ARIMA + Transformer generated no valid predictions. Returning default.")
-            return {
-                'expected_return': 0.08,
-                'uncertainty': 0.05,
-                'components': {}
-            }
+            logger.warning("ARIMA + Transformer generated no valid predictions. Returning no-view forecast.")
+            return no_view_prediction("ARIMA + Transformer generated no valid component forecast", component_results)
 
         mean_prediction = float(np.mean(predictions))
         component_disagreement = float(np.std(predictions)) if len(predictions) > 1 else 0.0
@@ -987,7 +993,8 @@ class ARIMATransformerPredictor:
         return {
             'expected_return': mean_prediction,
             'uncertainty': uncertainty,
-            'components': component_results
+            'components': component_results,
+            'source': 'arima_transformer'
         }
 
 

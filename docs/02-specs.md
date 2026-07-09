@@ -60,6 +60,7 @@
 - Optimizer job은 `running`, `completed`, `failed`, `cancelled` 상태를 가지며, 페이지 새로고침/화면 이동 뒤에도 상태 조회와 SSE 재연결이 가능해야 합니다.
 - 클라이언트가 명시 취소하거나 일정 시간 동안 heartbeat/SSE 재연결이 없으면 backend는 cancellation event를 설정하고 계산 루프의 체크포인트에서 협력적으로 중단합니다.
 - 계산 비용이 큰 ML 모델은 cache, batch size, worker/thread 제한을 고려합니다.
+- ARIMA + Transformer와 Transformer forecast가 학습 실패, 미학습, 데이터 부족 등으로 유효한 예측을 만들지 못하면 `expected_return: null`, 최대 uncertainty, `source: "no_view"`를 반환하고 optimizer는 해당 ticker를 prior-only view로 취급합니다.
 - `requirements-ci.txt`는 CI용 경량 의존성입니다. 무거운 런타임 의존성을 CI에 추가할 때는 필요성을 분명히 합니다.
 
 ## D. 금융/분석 도메인 규칙
@@ -70,6 +71,7 @@
 - 거래일 기준 연율화는 기존 `TRADING_DAYS_PER_YEAR = 252` 관례를 따릅니다.
 - 포트폴리오 최적화는 입력 데이터 길이, 결측치, 상장 기간 부족, 무효 weight를 방어해야 합니다.
 - Black-Litterman, MPT, forecast 기반 expected return은 모델 가정과 fallback 경로를 테스트 또는 문서로 남깁니다.
+- forecast 모델을 optimizer 기본값으로 승격하기 전에는 walk-forward 포트폴리오 backtest에서 equal weight, minimum variance, historical MPT/BL baseline과 거래비용 반영 성과를 비교합니다.
 
 ## E. API Surface
 
@@ -88,6 +90,10 @@
 - `POST /api/asset-names`: ticker display name 조회
 - `POST /api/benchmark-portfolio`: 포트폴리오 benchmark 계산
 - `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산
+
+Backend-only research tool:
+
+- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. v1은 public API나 UI를 추가하지 않습니다.
 
 API 변경 규칙:
 

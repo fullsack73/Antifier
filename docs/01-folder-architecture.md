@@ -55,6 +55,7 @@ docs/
 src/backend/
 ├─ app.py                            # Flask 앱, REST endpoint, request/response orchestration
 ├─ portfolio_optimization.py         # 데이터 수집, 예측 수익률, MPT/Black-Litterman 최적화
+├─ portfolio_backtest.py             # walk-forward 포트폴리오 모델 backtest와 promotion gate 계산
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
@@ -139,6 +140,7 @@ tools/
 ├─ build-windows.bat
 ├─ BUILD.md
 ├─ sanitize_requirements.py
+├─ backtest_portfolio_models.py
 ├─ compare_forecast_models.py
 └─ tune_transformer_hpo.py
 ```

@@ -24,7 +24,12 @@ from cache_manager import (
     get_cache, cached
 )
 from ticker_lists import get_ticker_group
-from forecast_models import ARIMATransformerPredictor, TransformerForecastModel
+from forecast_models import (
+    ARIMATransformerPredictor,
+    TransformerForecastModel,
+    NO_VIEW_FORECAST_UNCERTAINTY,
+    no_view_prediction,
+)
 from lightweight_forecast import lightweight_ensemble_forecast
 
 # Configure logging for this module
@@ -238,6 +243,20 @@ def _confidence_from_uncertainty(uncertainties):
     uncertainties = _normalize_uncertainty_series(uncertainties, pd.Series(uncertainties).index)
     confidence = 1.0 / (1.0 + (uncertainties / CONFIDENCE_REFERENCE_UNCERTAINTY) ** 2)
     return confidence.clip(lower=MIN_FORECAST_CONFIDENCE, upper=MAX_FORECAST_CONFIDENCE)
+
+
+def _is_no_view_prediction(prediction):
+    """Return True when a forecast intentionally carries no alpha view."""
+    if not isinstance(prediction, dict):
+        return False
+    expected_return = prediction.get("expected_return")
+    return prediction.get("source") == "no_view" or expected_return is None
+
+
+def _no_view_for_ticker(reason):
+    prediction = no_view_prediction(reason)
+    prediction["uncertainty"] = max(NO_VIEW_FORECAST_UNCERTAINTY, MAX_FORECAST_UNCERTAINTY)
+    return prediction
 
 
 def _shrink_expected_returns(forecast_mu, prior_mu, confidence):
@@ -724,10 +743,13 @@ def _generate_arima_transformer_prediction(ticker, ticker_data, horizon=252):
         prediction = predictor.predict(horizon=horizon)
         elapsed = time.time() - start_time
         
-        logger.info(f"ARIMA + Transformer Prediction for {ticker}: "
-                   f"Return={prediction['expected_return']:.4f}, "
-                   f"Uncertainty={prediction['uncertainty']:.4f} "
-                   f"in {elapsed:.2f}s")
+        if _is_no_view_prediction(prediction):
+            logger.info(f"ARIMA + Transformer produced no view for {ticker} in {elapsed:.2f}s")
+        else:
+            logger.info(f"ARIMA + Transformer Prediction for {ticker}: "
+                       f"Return={prediction['expected_return']:.4f}, "
+                       f"Uncertainty={prediction['uncertainty']:.4f} "
+                       f"in {elapsed:.2f}s")
         
         return prediction
         
@@ -760,10 +782,13 @@ def _generate_transformer_prediction(ticker, ticker_data, horizon=252):
         prediction = model.predict(horizon=horizon)
         elapsed = time.time() - start_time
 
-        logger.info(f"Transformer Prediction for {ticker}: "
-                    f"Return={prediction['expected_return']:.4f}, "
-                    f"Uncertainty={prediction['uncertainty']:.4f} "
-                    f"in {elapsed:.2f}s")
+        if _is_no_view_prediction(prediction):
+            logger.info(f"Transformer produced no view for {ticker} in {elapsed:.2f}s")
+        else:
+            logger.info(f"Transformer Prediction for {ticker}: "
+                        f"Return={prediction['expected_return']:.4f}, "
+                        f"Uncertainty={prediction['uncertainty']:.4f} "
+                        f"in {elapsed:.2f}s")
 
         return prediction
 
@@ -780,36 +805,25 @@ def forecast_single_ticker_with_arima_transformer(ticker, ticker_data, horizon=2
     """
     Forecast a single ticker with the same ARIMA + Transformer path used by portfolio optimization.
 
-    Returns expected_return as an annualized log return so callers can convert it
-    into a daily compounded price path.
+    Returns expected_return as an annualized log return, or an explicit no-view
+    payload when this ML path cannot produce a valid forecast.
     """
     prices = ticker_data.values if hasattr(ticker_data, "values") else np.asarray(ticker_data)
     valid_prices = prices[~np.isnan(prices)]
 
     if len(valid_prices) < 100:
-        logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ARIMA + Transformer)")
-        period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-        annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-        return {
-            'expected_return': float(annual_log_return),
-            'uncertainty': DEFAULT_FORECAST_UNCERTAINTY,
-            'components': {},
-            'source': 'lightweight_fallback'
-        }
+        logger.info(f"ARIMA + Transformer no-view for {ticker}: {len(valid_prices)} points (< 100 required)")
+        return _no_view_for_ticker("insufficient data for ARIMA + Transformer")
 
     prediction = _generate_arima_transformer_prediction(ticker, ticker_data, horizon=horizon)
     if prediction is None:
-        logger.warning(f"ARIMA + Transformer training failed for {ticker}, using lightweight forecast")
-        period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-        annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-        return {
-            'expected_return': float(annual_log_return),
-            'uncertainty': DEFAULT_FORECAST_UNCERTAINTY,
-            'components': {},
-            'source': 'lightweight_fallback'
-        }
+        logger.warning(f"ARIMA + Transformer training failed for {ticker}, returning no-view")
+        return _no_view_for_ticker("ARIMA + Transformer training failed")
 
-    prediction['expected_return'] = float(prediction.get('expected_return', 0.08))
+    if _is_no_view_prediction(prediction):
+        return prediction
+
+    prediction['expected_return'] = float(prediction.get('expected_return'))
     prediction['source'] = 'arima_transformer'
     return prediction
 
@@ -823,35 +837,25 @@ def forecast_single_ticker_with_transformer(ticker, ticker_data, horizon=252):
     """
     Forecast a single ticker using the Transformer path.
 
-    Returns expected_return as an annualized log return.
+    Returns expected_return as an annualized log return, or an explicit no-view
+    payload when this ML path cannot produce a valid forecast.
     """
     prices = ticker_data.values if hasattr(ticker_data, "values") else np.asarray(ticker_data)
     valid_prices = prices[~np.isnan(prices)]
 
     if len(valid_prices) < 100:
-        logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for Transformer)")
-        period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-        annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-        return {
-            'expected_return': float(annual_log_return),
-            'uncertainty': DEFAULT_FORECAST_UNCERTAINTY,
-            'components': {},
-            'source': 'lightweight_fallback'
-        }
+        logger.info(f"Transformer no-view for {ticker}: {len(valid_prices)} points (< 100 required)")
+        return _no_view_for_ticker("insufficient data for Transformer")
 
     prediction = _generate_transformer_prediction(ticker, ticker_data, horizon=horizon)
     if prediction is None:
-        logger.warning(f"Transformer training failed for {ticker}, using lightweight forecast")
-        period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-        annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-        return {
-            'expected_return': float(annual_log_return),
-            'uncertainty': DEFAULT_FORECAST_UNCERTAINTY,
-            'components': {},
-            'source': 'lightweight_fallback'
-        }
+        logger.warning(f"Transformer training failed for {ticker}, returning no-view")
+        return _no_view_for_ticker("Transformer training failed")
 
-    prediction['expected_return'] = float(prediction.get('expected_return', 0.08))
+    if _is_no_view_prediction(prediction):
+        return prediction
+
+    prediction['expected_return'] = float(prediction.get('expected_return'))
     prediction['source'] = 'transformer'
     return prediction
 
@@ -860,28 +864,22 @@ def forecast_single_ticker_with_transformer(ticker, ticker_data, horizon=252):
 def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
     """Forecast returns for single ticker using ARIMA + Transformer with caching.
     
-    Falls back to lightweight forecasting when insufficient data.
+    Returns no-view when insufficient data or model failure prevents a valid ML forecast.
     Returns dictionary with expected_return and uncertainty.
     """
     try:
         prices = ticker_data.values
         valid_prices = prices[~np.isnan(prices)]
         
-        # Validate data - use lightweight mode if insufficient data for ML
         if len(valid_prices) < 100:
-            logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for ARIMA + Transformer)")
-            period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-            annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-            return ticker, {'expected_return': annual_log_return, 'uncertainty': DEFAULT_FORECAST_UNCERTAINTY}
+            logger.info(f"ARIMA + Transformer no-view for {ticker}: {len(valid_prices)} points (< 100 required)")
+            return ticker, _no_view_for_ticker("insufficient data for ARIMA + Transformer")
         
         prediction = _generate_arima_transformer_prediction(ticker, ticker_data, horizon=horizon)
         
         if prediction is None:
-            # Fallback to lightweight forecast
-            logger.warning(f"ARIMA + Transformer training failed for {ticker}, using lightweight forecast")
-            period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-            annual_log_return = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-            return ticker, {'expected_return': annual_log_return, 'uncertainty': DEFAULT_FORECAST_UNCERTAINTY}
+            logger.warning(f"ARIMA + Transformer training failed for {ticker}, returning no-view")
+            return ticker, _no_view_for_ticker("ARIMA + Transformer training failed")
         
         return ticker, prediction
         
@@ -897,18 +895,14 @@ def _transformer_forecast_single_ticker(ticker, ticker_data, horizon=252):
         valid_prices = prices[~np.isnan(prices)]
 
         if len(valid_prices) < 100:
-            logger.info(f"Using lightweight forecast for {ticker}: {len(valid_prices)} points (< 100 required for Transformer)")
-            forecast_value = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-            annual_log_return = np.log1p(np.clip(forecast_value, -0.95, None)) * (252 / horizon)
-            return ticker, {'expected_return': annual_log_return, 'uncertainty': DEFAULT_FORECAST_UNCERTAINTY}
+            logger.info(f"Transformer no-view for {ticker}: {len(valid_prices)} points (< 100 required)")
+            return ticker, _no_view_for_ticker("insufficient data for Transformer")
 
         prediction = _generate_transformer_prediction(ticker, ticker_data, horizon=horizon)
 
         if prediction is None:
-            logger.warning(f"Transformer training failed for {ticker}, using lightweight forecast")
-            forecast_value = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-            annual_log_return = np.log1p(np.clip(forecast_value, -0.95, None)) * (252 / horizon)
-            return ticker, {'expected_return': annual_log_return, 'uncertainty': DEFAULT_FORECAST_UNCERTAINTY}
+            logger.warning(f"Transformer training failed for {ticker}, returning no-view")
+            return ticker, _no_view_for_ticker("Transformer training failed")
 
         return ticker, prediction
 
@@ -977,15 +971,15 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
                         result_ticker, prediction_result = future.result()
                         # Handle old return type (float) vs new (dict) for safety during transition
                         if isinstance(prediction_result, dict):
-                            forecasts[result_ticker] = prediction_result.get('expected_return', 0.05)
+                            forecasts[result_ticker] = prediction_result.get('expected_return')
                             uncertainties[result_ticker] = prediction_result.get('uncertainty', DEFAULT_FORECAST_UNCERTAINTY)
                         else:
                             forecasts[result_ticker] = float(prediction_result)
                             uncertainties[result_ticker] = DEFAULT_FORECAST_UNCERTAINTY
                     except Exception as exc:
                         logger.error(f"ML forecasting exception for {ticker}: {exc}")
-                        forecasts[ticker] = 0.08
-                        uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
+                        forecasts[ticker] = None
+                        uncertainties[ticker] = MAX_FORECAST_UNCERTAINTY
             
             # 배치 완료 후 메모리 정리
             gc.collect()
@@ -1028,25 +1022,13 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
     except OptimizationCancelled:
         raise
     except Exception as e:
-        logger.error(f"ARIMA + Transformer forecasting failed critically: {e}. Using lightweight ensemble fallback.")
-        # Fallback: 경량 앙상블 방식으로 직접 예측
+        logger.error(f"ARIMA + Transformer forecasting failed critically: {e}. Returning no-view forecasts.")
         forecasts = {}
         uncertainties = {}
         for ticker in data.columns:
             _raise_if_cancelled(cancel_event)
-            try:
-                prices = data[ticker].values
-                valid_prices = prices[~np.isnan(prices)]
-                if len(valid_prices) >= 10:
-                    period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-                    forecasts[ticker] = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-                    uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
-                else:
-                    forecasts[ticker] = 0.05
-                    uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
-            except Exception:
-                forecasts[ticker] = 0.05
-                uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
+            forecasts[ticker] = None
+            uncertainties[ticker] = MAX_FORECAST_UNCERTAINTY
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
@@ -1098,12 +1080,12 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
                     ticker = future_to_ticker[future]
                     try:
                         result_ticker, prediction_result = future.result()
-                        forecasts[result_ticker] = prediction_result.get('expected_return', 0.05)
+                        forecasts[result_ticker] = prediction_result.get('expected_return')
                         uncertainties[result_ticker] = prediction_result.get('uncertainty', DEFAULT_FORECAST_UNCERTAINTY)
                     except Exception as exc:
                         logger.error(f"Transformer forecasting exception for {ticker}: {exc}")
-                        forecasts[ticker] = 0.08
-                        uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
+                        forecasts[ticker] = None
+                        uncertainties[ticker] = MAX_FORECAST_UNCERTAINTY
 
             gc.collect()
 
@@ -1119,23 +1101,13 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
     except OptimizationCancelled:
         raise
     except Exception as e:
-        logger.error(f"Transformer forecasting failed critically: {e}. Using lightweight ensemble fallback.")
+        logger.error(f"Transformer forecasting failed critically: {e}. Returning no-view forecasts.")
         forecasts = {}
         uncertainties = {}
         for ticker in data.columns:
             _raise_if_cancelled(cancel_event)
-            try:
-                prices = data[ticker].values
-                valid_prices = prices[~np.isnan(prices)]
-                if len(valid_prices) >= 10:
-                    period_return = lightweight_ensemble_forecast(valid_prices, horizon=horizon)
-                    forecasts[ticker] = np.log1p(np.clip(period_return, -0.95, None)) * (252 / horizon)
-                else:
-                    forecasts[ticker] = 0.05
-                uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
-            except Exception:
-                forecasts[ticker] = 0.05
-                uncertainties[ticker] = DEFAULT_FORECAST_UNCERTAINTY
+            forecasts[ticker] = None
+            uncertainties[ticker] = MAX_FORECAST_UNCERTAINTY
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
@@ -1366,6 +1338,7 @@ def data_and_forecast_pipeline(
 
     mu_forecast = None
     uncertainties = None
+    no_view_tickers = []
     
     if forecast_method in ["HISTORICAL", "MPT", "CLASSIC_MPT"]:
         logger.info("Using Historical CAGR for Forecasting")
@@ -1406,8 +1379,12 @@ def data_and_forecast_pipeline(
             forecast_horizon,
             cancel_event,
         )
+        mu_log_forecast = pd.Series(mu_log_forecast)
+        no_view_tickers = mu_log_forecast[mu_log_forecast.isna()].index.tolist()
         mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
         uncertainties = _annual_log_uncertainty_series_to_simple(mu_log_forecast, uncertainties)
+        if no_view_tickers:
+            uncertainties.loc[no_view_tickers] = MAX_FORECAST_UNCERTAINTY
 
     elif forecast_method in ["TRANSFORMER", "Transformer"]:
         logger.info(f"Using Transformer Forecast (Horizon={forecast_horizon})")
@@ -1418,8 +1395,12 @@ def data_and_forecast_pipeline(
             forecast_horizon,
             cancel_event,
         )
+        mu_log_forecast = pd.Series(mu_log_forecast)
+        no_view_tickers = mu_log_forecast[mu_log_forecast.isna()].index.tolist()
         mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
         uncertainties = _annual_log_uncertainty_series_to_simple(mu_log_forecast, uncertainties)
+        if no_view_tickers:
+            uncertainties.loc[no_view_tickers] = MAX_FORECAST_UNCERTAINTY
     
     else:
         logger.warning(f"Unknown forecast method '{forecast_method}', defaulting to Lightweight")
@@ -1486,6 +1467,9 @@ def data_and_forecast_pipeline(
     aligned_data = aligned_data[common_tickers]
     mu_forecast = mu_forecast[common_tickers]
     uncertainties = _normalize_uncertainty_series(uncertainties, common_tickers)
+    no_view_tickers = [ticker for ticker in no_view_tickers if ticker in common_tickers]
+    if no_view_tickers:
+        uncertainties.loc[no_view_tickers] = MAX_FORECAST_UNCERTAINTY
     final_tickers = common_tickers
 
     if aligned_data.empty:
@@ -1493,6 +1477,8 @@ def data_and_forecast_pipeline(
         raise ValueError("No valid data remaining after sanitization.")
 
     prior_mu = _calculate_historical_cagr(aligned_data)
+    if no_view_tickers:
+        mu_forecast.loc[no_view_tickers] = prior_mu.reindex(no_view_tickers).fillna(0.0)
     S_hist = risk_models.CovarianceShrinkage(aligned_data).ledoit_wolf()
     
     latest_prices = {}
@@ -1510,6 +1496,7 @@ def data_and_forecast_pipeline(
         "S": S_hist,
         "tickers": final_tickers,
         "uncertainties": uncertainties,
+        "no_view_tickers": no_view_tickers,
         "latest_prices": latest_prices,
         "price_currency": BASE_CURRENCY,
         "source_currencies": {
@@ -1605,8 +1592,16 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     prior_mu = _normalize_expected_return_series(
         pipeline_result.get("prior_mu", pd.Series({t: risk_free_rate for t in raw_mu.index}))
     ).reindex(raw_mu.index).fillna(risk_free_rate)
+    no_view_tickers = [
+        ticker for ticker in pipeline_result.get("no_view_tickers", [])
+        if ticker in raw_mu.index
+    ]
+    if no_view_tickers:
+        raw_mu.loc[no_view_tickers] = prior_mu.reindex(no_view_tickers).fillna(risk_free_rate)
     S = pipeline_result["S"]
     uncertainties = _normalize_uncertainty_series(pipeline_result.get("uncertainties"), raw_mu.index)
+    if no_view_tickers:
+        uncertainties.loc[no_view_tickers] = MAX_FORECAST_UNCERTAINTY
     confidence = _confidence_from_uncertainty(uncertainties)
     adjusted_mu = _shrink_expected_returns(raw_mu, prior_mu, confidence)
     mu = adjusted_mu.copy()
@@ -1634,6 +1629,8 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                     .reindex(raw_mu.index)
                     .fillna(prior_mu)
                 )
+                if no_view_tickers:
+                    raw_mu.loc[no_view_tickers] = prior_mu.reindex(no_view_tickers).fillna(risk_free_rate)
                 adjusted_mu = _shrink_expected_returns(raw_mu, prior_mu, confidence)
                 
                 effective_uncertainties = (
@@ -1726,6 +1723,8 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "optimizer_expected_returns": _series_to_float_dict(mu),
             "return_uncertainty": _series_to_float_dict(uncertainties),
             "return_confidence": _series_to_float_dict(confidence),
+            "no_view_tickers": no_view_tickers,
+            "failed_forecast_count": len(no_view_tickers),
         }
 
         if portfolio_id and persist_result:

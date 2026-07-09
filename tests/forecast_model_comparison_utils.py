@@ -40,7 +40,10 @@ def _forecast_arima_transformer_period_log_return(prices, horizon, transformer_k
     try:
         predictor.train_all(prices)
         prediction = predictor.predict(horizon=horizon)
-        annual_log_return = float(prediction.get("expected_return", 0.08))
+        annual_log_return = prediction.get("expected_return")
+        if annual_log_return is None:
+            return None
+        annual_log_return = float(annual_log_return)
         return annual_log_return * (horizon / 252)
     finally:
         predictor.cleanup()

@@ -462,9 +462,18 @@ def generate_forecast_regression_response(ticker, stock, close_series, future_da
         model_label = "ARIMA_TRANSFORMER"
         default_source = "arima_transformer"
 
-    annual_log_return = float(prediction.get('expected_return', 0.08))
-    annual_log_return = float(np.clip(annual_log_return, -0.69, 0.69))
-    daily_log_return = annual_log_return / TRADING_DAYS_PER_YEAR
+    raw_annual_log_return = prediction.get('expected_return')
+    try:
+        annual_log_return = float(raw_annual_log_return)
+    except (TypeError, ValueError):
+        annual_log_return = None
+
+    if annual_log_return is not None and np.isfinite(annual_log_return):
+        annual_log_return = float(np.clip(annual_log_return, -0.69, 0.69))
+        daily_log_return = annual_log_return / TRADING_DAYS_PER_YEAR
+    else:
+        annual_log_return = None
+        daily_log_return = None
 
     dates = close_series.index.strftime('%Y-%m-%d').tolist()
     original_data = {date: float(price) for date, price in zip(dates, close_series.values)}

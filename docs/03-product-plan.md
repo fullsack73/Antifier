@@ -47,6 +47,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - MPT/Black-Litterman 포트폴리오 최적화
 - forecast method 선택과 expected return 기반 optimization
+- rolling rebalance portfolio backtest CLI와 보수적 model promotion gate
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소
 - 저장된 portfolio result 조회
 - 포트폴리오 benchmark와 리밸런싱 계산
@@ -67,6 +68,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 - 사용자는 ticker group 또는 개별 ticker를 입력할 수 있어야 합니다.
 - forecast method는 historical CAGR, lightweight ensemble, ARIMA + Transformer, Transformer 등 기존 선택지를 유지합니다.
+- ARIMA + Transformer와 Transformer가 유효한 forecast를 만들지 못하면 임의의 양의 기대수익률을 넣지 않고 no-view로 처리해 prior-only view가 되도록 합니다.
+- forecast 모델 기본값 변경은 거래비용 포함 walk-forward backtest에서 equal weight, minimum variance, historical BL/MPT baseline을 이긴 경우에만 검토합니다.
 - 데이터 길이가 부족하거나 결측치가 많은 ticker는 명확한 처리 정책을 가져야 합니다.
 - 결과는 저장/조회 가능해야 하고, 진행률은 SSE로 확인 가능해야 합니다.
 - 장시간 최적화는 페이지를 떠났다가 돌아와도 진행률 또는 완료 결과를 복구할 수 있어야 합니다.
