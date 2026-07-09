@@ -82,6 +82,34 @@ def worker_initializer():
     configure_native_threading(force=True)
 
 
+class OptimizationCancelled(RuntimeError):
+    """Raised when a long-running optimization job is cancelled cooperatively."""
+
+
+def _raise_if_cancelled(cancel_event):
+    if cancel_event is not None and cancel_event.is_set():
+        raise OptimizationCancelled("Optimization cancelled")
+
+
+def _call_forecast_function(forecast_func, data, progress_callback, horizon, cancel_event):
+    try:
+        return forecast_func(
+            data,
+            progress_callback=progress_callback,
+            horizon=horizon,
+            cancel_event=cancel_event,
+        )
+    except TypeError as exc:
+        if "cancel_event" not in str(exc):
+            raise
+        _raise_if_cancelled(cancel_event)
+        return forecast_func(
+            data,
+            progress_callback=progress_callback,
+            horizon=horizon,
+        )
+
+
 def _ensure_results_dir():
     """Create persistence directory if it does not exist."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -542,9 +570,17 @@ def list_saved_portfolios():
         return []
     return sorted(p.stem for p in RESULTS_DIR.glob("*.json"))
 
-@cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache
-def get_stock_data(tickers, start_date, end_date, progress_callback=None):
+
+def _stock_data_key_func(tickers, start_date, end_date, progress_callback=None, cancel_event=None):
+    tickers_str = ",".join(tickers or [])
+    key_str = f"{tickers_str}|{start_date}|{end_date}|stock_data_v2"
+    return f"stock_data_{hashlib.md5(key_str.encode()).hexdigest()}"
+
+
+@cached(l1_ttl=900, l2_ttl=14400, key_func=_stock_data_key_func)  # 15 min L1, 4 hour L2 cache
+def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel_event=None):
     """Fetch stock data for given tickers and date range using chunked batch processing."""
+    _raise_if_cancelled(cancel_event)
     logger.info(f"GET_STOCK_DATA: Starting fetch for {len(tickers)} tickers")
     
     all_series = []
@@ -558,6 +594,7 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None):
             yield iterable[i:i + size]
 
     for chunk_idx, chunk in enumerate(chunked_iterable(tickers, BATCH_SIZE)):
+        _raise_if_cancelled(cancel_event)
         if progress_callback:
             progress_callback(chunk_idx * BATCH_SIZE, len(tickers), f"Fetching data for tickers {chunk_idx * BATCH_SIZE + 1}-{min((chunk_idx + 1) * BATCH_SIZE, len(tickers))}")
         
@@ -614,6 +651,7 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None):
             max_workers = min(32, len(chunk))
             
             def _fetch_single_safe(ticker):
+                _raise_if_cancelled(cancel_event)
                 try:
                     data = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
                     if not data.empty and 'Close' in data.columns:
@@ -628,6 +666,7 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None):
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_to_ticker = {executor.submit(_fetch_single_safe, t): t for t in chunk}
                 for future in as_completed(future_to_ticker):
+                    _raise_if_cancelled(cancel_event)
                     t = future_to_ticker[future]
                     try:
                         r_tick, r_val = future.result(timeout=5)
@@ -878,7 +917,7 @@ def _transformer_forecast_single_ticker(ticker, ticker_data, horizon=252):
 
 
 
-def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252):
+def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252, cancel_event=None):
     """
     Forecast expected returns using ARIMA + Transformer with memory-efficient batch processing.
     
@@ -890,6 +929,7 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
     Returns:
         tuple: (forecasts_series, uncertainties_series)
     """
+    _raise_if_cancelled(cancel_event)
     start_time = time.time()
     logger.info(f"Starting BATCH ARIMA + Transformer forecasting for {len(data.columns)} tickers")
     
@@ -915,6 +955,7 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
     try:
         # 배치 단위로 처리하여 메모리 관리
         for batch_idx in range(total_batches):
+            _raise_if_cancelled(cancel_event)
             batch_start = batch_idx * batch_size
             batch_end = min(batch_start + batch_size, len(tickers))
             batch_tickers = tickers[batch_start:batch_end]
@@ -925,10 +966,12 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
             with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx, initializer=worker_initializer) as executor:
                 future_to_ticker = {}
                 for ticker in batch_tickers:
+                    _raise_if_cancelled(cancel_event)
                     future = executor.submit(_ml_forecast_single_ticker, ticker, data[ticker], horizon)
                     future_to_ticker[future] = ticker
                 
                 for future in as_completed(future_to_ticker):
+                    _raise_if_cancelled(cancel_event)
                     ticker = future_to_ticker[future]
                     try:
                         result_ticker, prediction_result = future.result()
@@ -982,12 +1025,15 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
         
         return pd.Series(forecasts), pd.Series(uncertainties)
         
+    except OptimizationCancelled:
+        raise
     except Exception as e:
         logger.error(f"ARIMA + Transformer forecasting failed critically: {e}. Using lightweight ensemble fallback.")
         # Fallback: 경량 앙상블 방식으로 직접 예측
         forecasts = {}
         uncertainties = {}
         for ticker in data.columns:
+            _raise_if_cancelled(cancel_event)
             try:
                 prices = data[ticker].values
                 valid_prices = prices[~np.isnan(prices)]
@@ -1004,13 +1050,14 @@ def ml_forecast_returns(data, batch_size=50, progress_callback=None, horizon=252
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
-def transformer_forecast_returns(data, batch_size=20, progress_callback=None, horizon=252):
+def transformer_forecast_returns(data, batch_size=20, progress_callback=None, horizon=252, cancel_event=None):
     """
     Forecast expected returns using a standalone Transformer model.
 
     Returns:
         tuple: (forecasts_series, uncertainties_series)
     """
+    _raise_if_cancelled(cancel_event)
     start_time = time.time()
     logger.info(f"Starting Transformer forecasting for {len(data.columns)} tickers")
 
@@ -1032,6 +1079,7 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
 
     try:
         for batch_idx in range(total_batches):
+            _raise_if_cancelled(cancel_event)
             batch_start = batch_idx * batch_size
             batch_end = min(batch_start + batch_size, len(tickers))
             batch_tickers = tickers[batch_start:batch_end]
@@ -1041,10 +1089,12 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
             with ProcessPoolExecutor(max_workers=max_workers, mp_context=ctx, initializer=worker_initializer) as executor:
                 future_to_ticker = {}
                 for ticker in batch_tickers:
+                    _raise_if_cancelled(cancel_event)
                     future = executor.submit(_transformer_forecast_single_ticker, ticker, data[ticker], horizon)
                     future_to_ticker[future] = ticker
 
                 for future in as_completed(future_to_ticker):
+                    _raise_if_cancelled(cancel_event)
                     ticker = future_to_ticker[future]
                     try:
                         result_ticker, prediction_result = future.result()
@@ -1066,11 +1116,14 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
         logger.info(f"Transformer forecasting completed in {elapsed_time:.2f}s for {len(forecasts)} tickers")
         return pd.Series(forecasts), pd.Series(uncertainties)
 
+    except OptimizationCancelled:
+        raise
     except Exception as e:
         logger.error(f"Transformer forecasting failed critically: {e}. Using lightweight ensemble fallback.")
         forecasts = {}
         uncertainties = {}
         for ticker in data.columns:
+            _raise_if_cancelled(cancel_event)
             try:
                 prices = data[ticker].values
                 valid_prices = prices[~np.isnan(prices)]
@@ -1156,7 +1209,17 @@ def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate
 
 @cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
 
-def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=63, min_history=504, progress_callback=None):
+def _pipeline_key_func(
+    start_date,
+    end_date,
+    ticker_group,
+    tickers,
+    forecast_method,
+    forecast_horizon=63,
+    min_history=504,
+    progress_callback=None,
+    cancel_event=None,
+):
     """Generate cache key for pipeline, excluding progress callback."""
     if tickers:
         tickers_str = ",".join(sorted(tickers))
@@ -1166,11 +1229,22 @@ def _pipeline_key_func(start_date, end_date, ticker_group, tickers, forecast_met
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
-def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, forecast_method, forecast_horizon=63, min_history=504, progress_callback=None):
+def data_and_forecast_pipeline(
+    start_date,
+    end_date,
+    ticker_group,
+    tickers,
+    forecast_method,
+    forecast_horizon=63,
+    min_history=504,
+    progress_callback=None,
+    cancel_event=None,
+):
     """
     Pipeline for Data Fetching, Cleaning, and Forecasting.
     Decoupled from optimization constraints to enable 'Warm Start'.
     """
+    _raise_if_cancelled(cancel_event)
     logger.info("Executing data_and_forecast_pipeline (Refreshed/Cold Start)")
     
     if tickers:
@@ -1191,7 +1265,8 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
     def fetch_callback(current, total, message):
         _weighted_progress(0, 30, current, total, message)
         
-    data = get_stock_data(tickers, start_date, end_date, progress_callback=fetch_callback)
+    data = get_stock_data(tickers, start_date, end_date, progress_callback=fetch_callback, cancel_event=cancel_event)
+    _raise_if_cancelled(cancel_event)
     
     if data.empty:
         logger.warning("Could not fetch any valid data.")
@@ -1302,6 +1377,7 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         forecasts = {}
         uncertainties_dict = {}
         for i, ticker in enumerate(final_tickers):
+            _raise_if_cancelled(cancel_event)
             if i % 10 == 0:
                 ml_callback(i, len(final_tickers), f"Lightweight forecasting {i}/{len(final_tickers)}")
             try:
@@ -1323,20 +1399,24 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         
     elif forecast_method in ["DEEP_LEARNING", "Ensemble", "ARIMA_TRANSFORMER", "ARIMA + Transformer"]:
         logger.info(f"Using ARIMA + Transformer Forecast (Horizon={forecast_horizon})")
-        mu_log_forecast, uncertainties = ml_forecast_returns(
+        mu_log_forecast, uncertainties = _call_forecast_function(
+            ml_forecast_returns,
             data,
-            progress_callback=ml_callback,
-            horizon=forecast_horizon
+            ml_callback,
+            forecast_horizon,
+            cancel_event,
         )
         mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
         uncertainties = _annual_log_uncertainty_series_to_simple(mu_log_forecast, uncertainties)
 
     elif forecast_method in ["TRANSFORMER", "Transformer"]:
         logger.info(f"Using Transformer Forecast (Horizon={forecast_horizon})")
-        mu_log_forecast, uncertainties = transformer_forecast_returns(
+        mu_log_forecast, uncertainties = _call_forecast_function(
+            transformer_forecast_returns,
             data,
-            progress_callback=ml_callback,
-            horizon=forecast_horizon
+            ml_callback,
+            forecast_horizon,
+            cancel_event,
         )
         mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
         uncertainties = _annual_log_uncertainty_series_to_simple(mu_log_forecast, uncertainties)
@@ -1346,6 +1426,7 @@ def data_and_forecast_pipeline(start_date, end_date, ticker_group, tickers, fore
         forecasts = {}
         uncertainties_dict = {}
         for ticker in final_tickers:
+            _raise_if_cancelled(cancel_event)
             prices = data[ticker].dropna().values
             valid_prices = prices[~np.isnan(prices)]
             if len(valid_prices) > 0:
@@ -1442,8 +1523,10 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        persist_result=False, load_if_available=False, progress_callback=None,
                        l2_gamma=0.05, max_asset_weight=0.2,
                        forecast_method="LIGHTWEIGHT", optimization_method="BL",
-                       forecast_horizon=63, min_history=504, bl_tau=0.05):
+                       forecast_horizon=63, min_history=504, bl_tau=0.05,
+                       cancel_event=None):
     """Optimize portfolio and optionally persist or reuse saved results."""
+    _raise_if_cancelled(cancel_event)
 
     # Resolve ticker source as early as possible so we can sanitize/de-duplicate once.
     if not tickers and ticker_group:
@@ -1491,6 +1574,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     
     # Short-circuit if saved result should be reused (Persistence Layer)
     if portfolio_id and load_if_available:
+        _raise_if_cancelled(cancel_event)
         saved_result = load_portfolio_result(portfolio_id)
         if saved_result:
             logger.info(f"Returning previously saved result for {portfolio_id}")
@@ -1505,8 +1589,11 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             start_date, end_date, ticker_group, tickers, forecast_method, 
             forecast_horizon=forecast_horizon,
             min_history=min_history,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            cancel_event=cancel_event,
         )
+    except OptimizationCancelled:
+        raise
     except Exception as e:
         logger.error(f"Pipeline execution failed: {e}")
         return {"error": f"Pipeline execution failed: {str(e)}"}
@@ -1529,6 +1616,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     source_currencies = pipeline_result.get("source_currencies", {})
 
     # 3. Apply Optimization Logic (BL or MPT)
+    _raise_if_cancelled(cancel_event)
     if optimization_method in ["BL", "Black-Litterman"]:
         logger.info("Applying Black-Litterman Optimization")
         try:
@@ -1577,6 +1665,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
 
     # 4. Efficient Frontier Optimization
     try:
+        _raise_if_cancelled(cancel_event)
         asset_count = len(mu.index)
         if asset_count == 0:
             return {"error": "No valid assets remained after data preparation."}
@@ -1601,6 +1690,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             ef.add_objective(objective_functions.L2_reg, gamma=l2_gamma)
 
         # Set optimization objective
+        _raise_if_cancelled(cancel_event)
         if target_return:
             ef.efficient_return(target_return)
         elif risk_tolerance:
@@ -1639,6 +1729,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         }
 
         if portfolio_id and persist_result:
+            _raise_if_cancelled(cancel_event)
             metadata = {
                 "start_date": str(start_date),
                 "end_date": str(end_date),
@@ -1667,6 +1758,8 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "error": error_message,
             "details": str(e)
         }
+    except OptimizationCancelled:
+        raise
     except Exception as e:
         logger.error(f"General Optimization Exception: {e}")
         return {

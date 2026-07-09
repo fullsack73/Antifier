@@ -56,7 +56,9 @@
 - 날짜는 `YYYY-MM-DD` 형식을 사용하고 시작일이 종료일보다 앞서야 합니다.
 - JSON 응답에는 NaN, inf, pandas/numpy 타입이 그대로 노출되지 않도록 직렬화합니다.
 - 외부 데이터 부족은 4xx/5xx 의미에 맞게 메시지를 내려주고 서버 traceback을 노출하지 않습니다.
-- 장시간 최적화는 `request_id`와 `/api/progress-stream/<request_id>` SSE 흐름을 유지합니다.
+- 장시간 최적화는 `request_id` 기반 job lifecycle을 사용하고 `/api/progress-stream/<request_id>` SSE 흐름을 유지합니다.
+- Optimizer job은 `running`, `completed`, `failed`, `cancelled` 상태를 가지며, 페이지 새로고침/화면 이동 뒤에도 상태 조회와 SSE 재연결이 가능해야 합니다.
+- 클라이언트가 명시 취소하거나 일정 시간 동안 heartbeat/SSE 재연결이 없으면 backend는 cancellation event를 설정하고 계산 루프의 체크포인트에서 협력적으로 중단합니다.
 - 계산 비용이 큰 ML 모델은 cache, batch size, worker/thread 제한을 고려합니다.
 - `requirements-ci.txt`는 CI용 경량 의존성입니다. 무거운 런타임 의존성을 CI에 추가할 때는 필요성을 분명히 합니다.
 
@@ -76,8 +78,10 @@
 - `GET /api/get-data`: ticker price, regression, future prediction, currency metadata
 - `GET /api/analyze-hedge`: 두 ticker의 pairs/correlation/regression 분석. 단정적인 hedge 성립 여부를 반환하지 않고, 상관계수, p-value, 회귀 alpha/beta/R-squared, 관측치 수, 비단정적 correlation signal을 반환합니다.
 - `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
-- `POST /api/optimize-portfolio`: 포트폴리오 최적화 작업 시작
-- `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE
+- `POST /api/optimize-portfolio`: 포트폴리오 최적화 job 시작. 같은 `request_id` 재요청은 기존 job 상태를 반환합니다.
+- `GET /api/optimization-jobs/<request_id>`: 최적화 job 상태, 진행률, 완료 결과 또는 오류 조회
+- `POST /api/optimization-jobs/<request_id>/cancel`: 실행 중인 최적화 job 취소 요청
+- `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE. 연결 시 현재 상태를 먼저 전송하고 이후 이벤트를 구독합니다.
 - `GET /api/portfolio-results`: 저장된 최적화 결과 목록
 - `GET /api/portfolio-results/<portfolio_id>`: 특정 최적화 결과 조회
 - `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening

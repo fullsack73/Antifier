@@ -47,7 +47,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - MPT/Black-Litterman 포트폴리오 최적화
 - forecast method 선택과 expected return 기반 optimization
-- 최적화 진행률 SSE stream
+- 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소
 - 저장된 portfolio result 조회
 - 포트폴리오 benchmark와 리밸런싱 계산
 - pairs/correlation/regression 분석
@@ -69,6 +69,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - forecast method는 historical CAGR, lightweight ensemble, ARIMA + Transformer, Transformer 등 기존 선택지를 유지합니다.
 - 데이터 길이가 부족하거나 결측치가 많은 ticker는 명확한 처리 정책을 가져야 합니다.
 - 결과는 저장/조회 가능해야 하고, 진행률은 SSE로 확인 가능해야 합니다.
+- 장시간 최적화는 페이지를 떠났다가 돌아와도 진행률 또는 완료 결과를 복구할 수 있어야 합니다.
+- 사용자는 실행 중인 최적화를 명시적으로 취소할 수 있어야 하며, 클라이언트가 닫혀 장시간 재연결되지 않는 job은 backend가 협력적으로 중단해야 합니다.
 
 ### 3. Screening / Financial Statement
 

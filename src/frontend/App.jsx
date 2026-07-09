@@ -18,10 +18,12 @@ import Optimizer from "./Optimizer.jsx"
 import PortfolioBenchmark from "./PortfolioBenchmark.jsx"
 import PortfolioManager from "./PortfolioManager.jsx"
 import { apiUrl } from "./apiClient.js"
+import { clearOptimizerJob, isRunningOptimizerJob, readOptimizerJob, writeOptimizerJob } from "./optimizerJobStorage.js"
 import { StockChartsSkeleton } from "./SkeletonScreens.jsx"
 import "./App.css"
 
 const STOCK_FETCH_DEBOUNCE_MS = 1800
+const OPTIMIZER_JOB_HEARTBEAT_MS = 30000
 
 function AppContent() {
   const [data, setData] = useState(null)
@@ -177,6 +179,50 @@ function AppContent() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const heartbeat = async () => {
+      const job = readOptimizerJob()
+      if (!isRunningOptimizerJob(job)) return
+
+      try {
+        const response = await fetch(apiUrl(`/api/optimization-jobs/${encodeURIComponent(job.requestId)}`), {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+          },
+        })
+
+        if (cancelled) return
+        if (response.status === 404) {
+          clearOptimizerJob()
+          return
+        }
+        if (!response.ok) return
+
+        const status = await response.json()
+        writeOptimizerJob({
+          requestId: status.request_id || job.requestId,
+          portfolioId: status.portfolio_id || job.portfolioId,
+          status: status.status || job.status,
+          startedAt: job.startedAt,
+          updatedAt: new Date().toISOString(),
+        })
+      } catch {
+        // A heartbeat miss should not cancel local recovery state.
+      }
+    }
+
+    heartbeat()
+    const intervalId = window.setInterval(heartbeat, OPTIMIZER_JOB_HEARTBEAT_MS)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
     }
   }, [])
 

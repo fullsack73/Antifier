@@ -4032,6 +4032,18 @@ h2,
   font-size: 0.9rem;
 }
 
+.optimizer-progress-note {
+  max-width: 640px;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.optimizer-cancel-button {
+  min-width: 120px;
+}
+
 .display-toggle-label {
   margin-right: 0.25rem;
   color: var(--color-text-muted);

@@ -370,3 +370,147 @@ def test_progress_events_do_not_crash_after_queue_cleanup():
         status="completed",
         result={"weights": {"AAPL": 1.0}},
     )
+
+
+def _reset_optimization_jobs():
+    with app_module.OPTIMIZATION_JOBS_LOCK:
+        for job in app_module.OPTIMIZATION_JOBS.values():
+            job.cancel_event.set()
+        app_module.OPTIMIZATION_JOBS.clear()
+
+
+def _optimization_payload(request_id="job-test"):
+    return {
+        "request_id": request_id,
+        "portfolio_id": request_id,
+        "persist_result": True,
+        "load_if_available": True,
+        "ticker_group": "SP500",
+        "start_date": "2024-01-01",
+        "end_date": "2024-03-01",
+        "risk_free_rate": 0.02,
+        "forecast_method": "LIGHTWEIGHT",
+        "optimization_method": "BL",
+        "forecast_horizon": 63,
+        "min_history": 30,
+        "bl_tau": 0.05,
+    }
+
+
+def test_optimize_portfolio_request_id_is_idempotent(monkeypatch):
+    _reset_optimization_jobs()
+    app_module.app.config["TESTING"] = True
+    monkeypatch.setattr(app_module, "start_optimization_reaper_once", lambda: None)
+    calls = []
+
+    def fake_optimize_portfolio(**kwargs):
+        calls.append(kwargs)
+        return {
+            "weights": {"AAPL": 1.0},
+            "return": 0.1,
+            "risk": 0.2,
+            "sharpe_ratio": 0.5,
+            "prices": {"AAPL": 100.0},
+        }
+
+    class ImmediateThread:
+        def __init__(self, target=None, args=(), daemon=None):
+            self.target = target
+            self.args = args
+
+        def start(self):
+            self.target(*self.args)
+
+    monkeypatch.setattr(app_module, "optimize_portfolio", fake_optimize_portfolio)
+    monkeypatch.setattr(app_module.threading, "Thread", ImmediateThread)
+
+    client = app_module.app.test_client()
+    first = client.post("/api/optimize-portfolio", json=_optimization_payload("idempotent-job"))
+    second = client.post("/api/optimize-portfolio", json=_optimization_payload("idempotent-job"))
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(calls) == 1
+    assert second.get_json()["status"] == "completed"
+
+
+def test_optimization_job_status_reflects_latest_progress(monkeypatch):
+    _reset_optimization_jobs()
+    monkeypatch.setattr(app_module, "start_optimization_reaper_once", lambda: None)
+    job, _ = app_module.ensure_optimization_job("progress-job")
+
+    app_module.push_progress("progress-job", 3, 10, "Fetching data", status="running")
+
+    response = app_module.app.test_client().get("/api/optimization-jobs/progress-job")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["status"] == "running"
+    assert data["progress"] == 30
+    assert data["message"] == "Fetching data"
+    assert job.last_client_seen_at >= job.created_at
+
+
+def test_progress_stream_reconnect_receives_completed_snapshot(monkeypatch):
+    _reset_optimization_jobs()
+    monkeypatch.setattr(app_module, "start_optimization_reaper_once", lambda: None)
+    app_module.ensure_optimization_job("completed-stream-job")
+    app_module.push_progress(
+        "completed-stream-job",
+        100,
+        100,
+        "Optimization complete",
+        status="completed",
+        result={"weights": {"AAPL": 1.0}},
+    )
+
+    response = app_module.app.test_client().get("/api/progress-stream/completed-stream-job")
+    body = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "event: complete" in body
+    assert '"status": "completed"' in body
+    assert '"weights": {"AAPL": 1.0}' in body
+
+
+def test_cancel_endpoint_sets_cancel_event_and_checkpoint_marks_cancelled(monkeypatch):
+    _reset_optimization_jobs()
+    monkeypatch.setattr(app_module, "start_optimization_reaper_once", lambda: None)
+    job, _ = app_module.ensure_optimization_job("cancel-job")
+
+    response = app_module.app.test_client().post("/api/optimization-jobs/cancel-job/cancel")
+    assert response.status_code == 200
+    assert job.cancel_event.is_set()
+
+    app_module.push_progress("cancel-job", 0, 0, "Optimization cancelled", status="cancelled")
+    status_response = app_module.app.test_client().get("/api/optimization-jobs/cancel-job")
+
+    assert status_response.status_code == 200
+    assert status_response.get_json()["status"] == "cancelled"
+
+
+def test_completed_job_status_can_fall_back_to_saved_result(tmp_path, monkeypatch):
+    _reset_optimization_jobs()
+    monkeypatch.setattr(portfolio_optimization, "RESULTS_DIR", tmp_path / "portfolio_results")
+
+    portfolio_optimization.save_portfolio_result("saved-job", {"weights": {"AAPL": 1.0}})
+
+    response = app_module.app.test_client().get("/api/optimization-jobs/saved-job")
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data["status"] == "completed"
+    assert data["result"]["weights"] == {"AAPL": 1.0}
+
+
+def test_optimization_cancel_event_stops_before_fetch(monkeypatch):
+    cancel_event = app_module.threading.Event()
+    cancel_event.set()
+
+    with pytest.raises(portfolio_optimization.OptimizationCancelled):
+        portfolio_optimization.get_stock_data(
+            ["AAPL"],
+            "2024-01-01",
+            "2024-02-01",
+            cancel_event=cancel_event,
+        )

@@ -10,7 +10,7 @@ import warnings
 import re
 import os
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pandas as pd
 from hedge_analysis import (
     HedgeAnalysisInputError,
@@ -26,6 +26,7 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from financial_statement import get_financial_dashboard, get_financial_statements
 from portfolio_optimization import (
     optimize_portfolio,
+    OptimizationCancelled,
     load_portfolio_result,
     list_saved_portfolios,
     manage_portfolio_logic,
@@ -870,84 +871,412 @@ def financial_statement():
 import queue
 import threading
 import json
+import time
 from flask import Response, stream_with_context
 
-# Global store for request queues: {request_id: queue.Queue}
+# Compatibility aliases for older tests/helpers. New code stores optimization
+# lifecycle state in OPTIMIZATION_JOBS and gives each SSE subscriber its own queue.
 REQUEST_QUEUES = {}
 REQUEST_QUEUES_LOCK = threading.RLock()
-MAX_ACTIVE_REQUEST_QUEUES = 64
+OPTIMIZATION_JOBS = {}
+OPTIMIZATION_JOBS_LOCK = threading.RLock()
+MAX_ACTIVE_OPTIMIZATION_JOBS = 64
+ORPHAN_JOB_TIMEOUT_SECONDS = int(os.environ.get("OPTIMIZER_ORPHAN_TIMEOUT_SECONDS", "300"))
+OPTIMIZATION_REAPER_INTERVAL_SECONDS = int(os.environ.get("OPTIMIZER_REAPER_INTERVAL_SECONDS", "30"))
+OPTIMIZATION_TERMINAL_JOB_TTL_SECONDS = int(os.environ.get("OPTIMIZER_TERMINAL_JOB_TTL_SECONDS", "3600"))
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
+REAPER_THREAD = None
+REAPER_THREAD_LOCK = threading.Lock()
 
 
-def get_or_create_request_queue(request_id):
-    """Return a bounded, validated SSE queue for an optimization job."""
+class OptimizationJob:
+    """In-memory lifecycle state for a background portfolio optimization."""
+
+    def __init__(self, request_id, portfolio_id=None):
+        now = time.time()
+        self.request_id = request_id
+        self.portfolio_id = portfolio_id or request_id
+        self.status = "running"
+        self.progress = 0
+        self.message = "Optimization queued"
+        self.result = None
+        self.error = None
+        self.created_at = now
+        self.updated_at = now
+        self.last_client_seen_at = now
+        self.cancel_event = threading.Event()
+        self.subscribers = []
+        self.thread = None
+
+    def touch(self):
+        self.last_client_seen_at = time.time()
+
+    def snapshot(self, include_result=True):
+        payload = {
+            "request_id": self.request_id,
+            "portfolio_id": self.portfolio_id,
+            "status": self.status,
+            "progress": self.progress,
+            "message": self.message,
+            "created_at": _format_job_timestamp(self.created_at),
+            "updated_at": _format_job_timestamp(self.updated_at),
+            "last_client_seen_at": _format_job_timestamp(self.last_client_seen_at),
+        }
+        if self.error:
+            payload["error"] = self.error
+        if include_result and self.result is not None:
+            payload["result"] = self.result
+        return payload
+
+
+def _format_job_timestamp(timestamp):
+    return datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _validate_request_id(request_id):
     if not isinstance(request_id, str) or not REQUEST_ID_PATTERN.fullmatch(request_id):
         raise ValueError("request_id must be a safe identifier up to 128 characters")
 
-    with REQUEST_QUEUES_LOCK:
-        if request_id not in REQUEST_QUEUES and len(REQUEST_QUEUES) >= MAX_ACTIVE_REQUEST_QUEUES:
+
+def _active_optimization_job_count():
+    return sum(1 for job in OPTIMIZATION_JOBS.values() if job.status == "running")
+
+
+def start_optimization_reaper_once():
+    global REAPER_THREAD
+    with REAPER_THREAD_LOCK:
+        if REAPER_THREAD and REAPER_THREAD.is_alive():
+            return
+        REAPER_THREAD = threading.Thread(target=_optimization_reaper_loop, daemon=True)
+        REAPER_THREAD.start()
+
+
+def _optimization_reaper_loop():
+    while True:
+        time.sleep(OPTIMIZATION_REAPER_INTERVAL_SECONDS)
+        now = time.time()
+        stale_terminal_jobs = []
+
+        with OPTIMIZATION_JOBS_LOCK:
+            jobs = list(OPTIMIZATION_JOBS.values())
+
+        for job in jobs:
+            event = None
+            with OPTIMIZATION_JOBS_LOCK:
+                if OPTIMIZATION_JOBS.get(job.request_id) is not job:
+                    continue
+                if job.status == "running":
+                    disconnected_for = now - job.last_client_seen_at
+                    if disconnected_for >= ORPHAN_JOB_TIMEOUT_SECONDS and not job.cancel_event.is_set():
+                        job.cancel_event.set()
+                        job.message = "Optimization cancelled after client disconnect timeout"
+                        job.updated_at = now
+                        event = job.snapshot(include_result=False)
+                        event["type"] = "progress"
+                elif now - job.updated_at >= OPTIMIZATION_TERMINAL_JOB_TTL_SECONDS:
+                    stale_terminal_jobs.append(job.request_id)
+            if event:
+                publish_job_event(job, event)
+
+        if stale_terminal_jobs:
+            with OPTIMIZATION_JOBS_LOCK:
+                for request_id in stale_terminal_jobs:
+                    OPTIMIZATION_JOBS.pop(request_id, None)
+
+
+def ensure_optimization_job(request_id, portfolio_id=None):
+    _validate_request_id(request_id)
+    start_optimization_reaper_once()
+    with OPTIMIZATION_JOBS_LOCK:
+        job = OPTIMIZATION_JOBS.get(request_id)
+        if job:
+            if portfolio_id:
+                job.portfolio_id = portfolio_id
+            job.touch()
+            return job, False
+
+        if _active_optimization_job_count() >= MAX_ACTIVE_OPTIMIZATION_JOBS:
             raise RuntimeError("Too many active optimization requests")
-        return REQUEST_QUEUES.setdefault(request_id, queue.Queue())
+
+        job = OptimizationJob(request_id, portfolio_id=portfolio_id)
+        OPTIMIZATION_JOBS[request_id] = job
+        return job, True
+
+
+def get_optimization_job(request_id):
+    _validate_request_id(request_id)
+    with OPTIMIZATION_JOBS_LOCK:
+        return OPTIMIZATION_JOBS.get(request_id)
+
+
+def get_or_create_request_queue(request_id):
+    """Compatibility helper that subscribes a queue to a job's progress stream."""
+    job, _ = ensure_optimization_job(request_id)
+    subscriber_queue = queue.Queue()
+    with OPTIMIZATION_JOBS_LOCK:
+        job.subscribers.append(subscriber_queue)
+    return subscriber_queue
+
+
+def subscribe_to_job(request_id):
+    job, _ = ensure_optimization_job(request_id)
+    subscriber_queue = queue.Queue()
+    with OPTIMIZATION_JOBS_LOCK:
+        job.touch()
+        job.subscribers.append(subscriber_queue)
+        snapshot = job.snapshot()
+    return job, subscriber_queue, snapshot
+
+
+def unsubscribe_from_job(job, subscriber_queue):
+    with OPTIMIZATION_JOBS_LOCK:
+        if subscriber_queue in job.subscribers:
+            job.subscribers.remove(subscriber_queue)
+
+
+def publish_job_event(job, event, close=False):
+    with OPTIMIZATION_JOBS_LOCK:
+        subscribers = list(job.subscribers)
+    for subscriber_queue in subscribers:
+        subscriber_queue.put(event)
+        if close:
+            subscriber_queue.put(None)
 
 
 def put_progress_event(request_id, event, close=False):
-    with REQUEST_QUEUES_LOCK:
-        q = REQUEST_QUEUES.get(request_id)
-    if q is None:
+    try:
+        job = get_optimization_job(request_id)
+    except ValueError:
         return False
-    q.put(event)
-    if close:
-        q.put(None)
+    if job is None:
+        return False
+    publish_job_event(job, event, close=close)
     return True
 
 
 def push_progress(request_id, progress, total, message, status='running', result=None):
     """Helper to push progress events to the SSE queue."""
+    try:
+        job = get_optimization_job(request_id)
+    except ValueError:
+        return False
+    if job is None:
+        return False
+
+    now = time.time()
     if status == 'completed':
-        event = {'type': 'complete', 'progress': 100, 'message': message or 'Optimization complete'}
-        if result is not None:
-            event['result'] = result
-        put_progress_event(request_id, event, close=True)
+        with OPTIMIZATION_JOBS_LOCK:
+            job.status = "completed"
+            job.progress = 100
+            job.message = message or "Optimization complete"
+            job.result = result
+            job.error = None
+            job.updated_at = now
+            event = job.snapshot()
+            event["type"] = "complete"
+        publish_job_event(job, event, close=True)
     elif status == 'error':
-        put_progress_event(request_id, {'type': 'error', 'message': message}, close=True)
+        with OPTIMIZATION_JOBS_LOCK:
+            job.status = "failed"
+            job.message = message or "Optimization failed"
+            job.error = job.message
+            job.updated_at = now
+            event = job.snapshot(include_result=False)
+            event["type"] = "error"
+        publish_job_event(job, event, close=True)
+    elif status == 'cancelled':
+        with OPTIMIZATION_JOBS_LOCK:
+            job.status = "cancelled"
+            job.message = message or "Optimization cancelled"
+            job.error = job.message
+            job.updated_at = now
+            event = job.snapshot(include_result=False)
+            event["type"] = "cancelled"
+        publish_job_event(job, event, close=True)
     else:
         percentage = int((progress / total) * 100) if total > 0 else 0
-        put_progress_event(request_id, {'type': 'progress', 'progress': percentage, 'message': message})
+        percentage = max(0, min(100, percentage))
+        with OPTIMIZATION_JOBS_LOCK:
+            if job.status != "running":
+                return False
+            job.progress = percentage
+            job.message = message or job.message
+            job.updated_at = now
+            event = job.snapshot(include_result=False)
+            event["type"] = "progress"
+        publish_job_event(job, event)
+    return True
+
+
+def _sse_event_type_for_status(status):
+    if status == "completed":
+        return "complete"
+    if status == "failed":
+        return "error"
+    if status == "cancelled":
+        return "cancelled"
+    return "progress"
 
 @app.route('/api/progress-stream/<request_id>', methods=['GET'])
 def stream_progress(request_id):
     def event_stream():
+        job = None
+        subscriber_queue = None
         try:
-            # Lazy initialization: Allow connecting before POST
-            q = get_or_create_request_queue(request_id)
+            job, subscriber_queue, snapshot = subscribe_to_job(request_id)
         except ValueError as e:
             yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
             return
         except RuntimeError as e:
             yield f"event: error\ndata: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
             return
-        
-        while True:
-            try:
-                # Wait for next event
-                event = q.get(timeout=600) # 10 min timeout
-                if event is None:
+
+        snapshot["type"] = _sse_event_type_for_status(snapshot["status"])
+        yield f"event: {snapshot['type']}\ndata: {json.dumps(snapshot)}\n\n"
+        if snapshot["status"] != "running":
+            unsubscribe_from_job(job, subscriber_queue)
+            return
+
+        try:
+            while True:
+                try:
+                    event = subscriber_queue.get(timeout=15)
+                    if event is None:
+                        break
+                    yield f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+                except queue.Empty:
+                    with OPTIMIZATION_JOBS_LOCK:
+                        if OPTIMIZATION_JOBS.get(request_id) is job:
+                            job.touch()
+                    yield f"event: ping\ndata: keep-alive\n\n"
+                except Exception as e:
+                    app.logger.error(f"SSE stream error: {str(e)}")
                     break
-                
-                # Format as SSE
-                yield f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
-            except queue.Empty:
-                yield f"event: ping\ndata: keep-alive\n\n"
-            except Exception as e:
-                app.logger.error(f"SSE stream error: {str(e)}")
-                break
-        
-        # Cleanup
-        with REQUEST_QUEUES_LOCK:
-            if REQUEST_QUEUES.get(request_id) is q:
-                del REQUEST_QUEUES[request_id]
+        finally:
+            if job is not None and subscriber_queue is not None:
+                unsubscribe_from_job(job, subscriber_queue)
 
     return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+
+
+@app.route('/api/optimization-jobs/<request_id>', methods=['GET'])
+def get_optimization_job_endpoint(request_id):
+    try:
+        job = get_optimization_job(request_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    if job:
+        with OPTIMIZATION_JOBS_LOCK:
+            job.touch()
+            return jsonify(job.snapshot())
+
+    try:
+        saved_result = load_portfolio_result(request_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    if saved_result:
+        return jsonify({
+            "request_id": request_id,
+            "portfolio_id": saved_result.get("portfolio_id", request_id),
+            "status": "completed",
+            "progress": 100,
+            "message": "Optimization complete",
+            "result": saved_result,
+        })
+
+    return jsonify({"error": f"Optimization job {request_id} not found"}), 404
+
+
+@app.route('/api/optimization-jobs/<request_id>/cancel', methods=['POST'])
+def cancel_optimization_job_endpoint(request_id):
+    try:
+        job = get_optimization_job(request_id)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    if job is None:
+        return jsonify({"error": f"Optimization job {request_id} not found"}), 404
+
+    with OPTIMIZATION_JOBS_LOCK:
+        job.touch()
+        if job.status == "running":
+            job.cancel_event.set()
+            job.message = "Cancellation requested"
+            job.updated_at = time.time()
+            event = job.snapshot(include_result=False)
+            event["type"] = "progress"
+        else:
+            event = None
+        snapshot = job.snapshot()
+    if event:
+        publish_job_event(job, event)
+    return jsonify(snapshot)
+
+
+def background_optimization(req_id, params):
+    try:
+        job = get_optimization_job(req_id)
+        if job is None:
+            return
+
+        def progress_adapter(current, total, message):
+            current_job = get_optimization_job(req_id)
+            if current_job is not None and current_job.cancel_event.is_set():
+                raise OptimizationCancelled("Optimization cancelled")
+            push_progress(req_id, current, total, message, status='running')
+
+        result = optimize_portfolio(
+            start_date=params['start_date'],
+            end_date=params['end_date'],
+            risk_free_rate=params['risk_free_rate'],
+            ticker_group=params['ticker_group'],
+            tickers=params['tickers'],
+            target_return=params['target_return'],
+            risk_tolerance=params['risk_tolerance'],
+            portfolio_id=params['portfolio_id'],
+            persist_result=params['persist_result'],
+            load_if_available=params['load_if_available'],
+            progress_callback=progress_adapter,
+            forecast_method=params.get('forecast_method', 'LIGHTWEIGHT'),
+            optimization_method=params.get('optimization_method', 'BL'),
+            forecast_horizon=params.get('forecast_horizon', 63),
+            min_history=params.get('min_history', 504),
+            bl_tau=params.get('bl_tau', 0.05),
+            cancel_event=job.cancel_event,
+        )
+
+        if job.cancel_event.is_set():
+            raise OptimizationCancelled("Optimization cancelled")
+
+        if "error" in result:
+            push_progress(req_id, 0, 0, result["error"], status='error')
+        else:
+            push_progress(
+                req_id,
+                100,
+                100,
+                'Optimization complete',
+                status='completed',
+                result=result
+            )
+
+    except OptimizationCancelled as e:
+        push_progress(req_id, 0, 0, str(e), status='cancelled')
+    except Exception as e:
+        app.logger.error(f"Background optimization failed: {e}")
+        push_progress(req_id, 0, 0, str(e), status='error')
+
+
+def _start_optimization_thread_if_needed(job, params):
+    with OPTIMIZATION_JOBS_LOCK:
+        if job.thread is not None or job.status != "running":
+            return False
+        thread = threading.Thread(target=background_optimization, args=(job.request_id, params), daemon=True)
+        job.thread = thread
+    thread.start()
+    return True
+
 
 @app.route('/api/optimize-portfolio', methods=['POST'])
 def optimize_portfolio_endpoint():
@@ -1012,56 +1341,15 @@ def optimize_portfolio_endpoint():
     if not request_id:
         return jsonify({"error": "request_id is required"}), 400
 
-    # Initialize Queue for SSE (Idempotent)
+    portfolio_id = portfolio_id or request_id
+
     try:
-        get_or_create_request_queue(request_id)
+        job, _ = ensure_optimization_job(request_id, portfolio_id=portfolio_id)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 429
 
-    def background_optimization(req_id, params):
-        try:
-            # Define callback adapter for weighted progress
-            def progress_adapter(current, total, message):
-                push_progress(req_id, current, total, message, status='running')
-
-            result = optimize_portfolio(
-                start_date=params['start_date'],
-                end_date=params['end_date'],
-                risk_free_rate=params['risk_free_rate'],
-                ticker_group=params['ticker_group'],
-                tickers=params['tickers'],
-                target_return=params['target_return'],
-                risk_tolerance=params['risk_tolerance'],
-                portfolio_id=params['portfolio_id'],
-                persist_result=params['persist_result'],
-                load_if_available=params['load_if_available'],
-                progress_callback=progress_adapter,
-                forecast_method=params.get('forecast_method', 'LIGHTWEIGHT'),
-                optimization_method=params.get('optimization_method', 'BL'),
-                forecast_horizon=params.get('forecast_horizon', 63),
-                min_history=params.get('min_history', 504),
-                bl_tau=params.get('bl_tau', 0.05)
-            )
-
-            if "error" in result:
-                push_progress(req_id, 0, 0, result["error"], status='error')
-            else:
-                 push_progress(
-                     req_id,
-                     100,
-                     100,
-                     'Optimization complete',
-                     status='completed',
-                     result=result
-                 )
-
-        except Exception as e:
-            app.logger.error(f"Background optimization failed: {e}")
-            push_progress(req_id, 0, 0, str(e), status='error')
-
-    # Start background thread
     params = {
         'ticker_group': ticker_group, 'tickers': tickers, 'start_date': start_date, 
         'end_date': end_date, 'risk_free_rate': risk_free_rate, 'target_return': target_return,
@@ -1071,11 +1359,13 @@ def optimize_portfolio_endpoint():
         'forecast_horizon': forecast_horizon, 'bl_tau': bl_tau,
         'min_history': min_history
     }
-    thread = threading.Thread(target=background_optimization, args=(request_id, params))
-    thread.daemon = True
-    thread.start()
+    started = _start_optimization_thread_if_needed(job, params)
 
-    return jsonify({"message": "Optimization started", "request_id": request_id})
+    with OPTIMIZATION_JOBS_LOCK:
+        snapshot = job.snapshot()
+    if started:
+        snapshot["message"] = "Optimization started"
+    return jsonify(snapshot)
 
 
 @app.route('/api/portfolio-results', methods=['GET'])

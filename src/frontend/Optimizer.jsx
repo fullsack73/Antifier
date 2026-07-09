@@ -5,7 +5,10 @@ import { useTranslation } from "react-i18next"
 import axios from "axios"
 import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
 import { apiUrl } from "./apiClient.js"
+import { clearOptimizerJob, readOptimizerJob, writeOptimizerJob } from "./optimizerJobStorage.js"
 import { OptimizerSkeleton } from "./SkeletonScreens.jsx"
+
+const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "cancelled"])
 
 const Optimizer = () => {
   const { t } = useTranslation()
@@ -35,8 +38,15 @@ const Optimizer = () => {
   const [uploadError, setUploadError] = useState(null)
   const [securityDisplayMode, setSecurityDisplayMode] = useState("ticker")
   const [assetNameOverrides, setAssetNameOverrides] = useState({})
+  const [progress, setProgress] = useState(null)
+  const [activeJob, setActiveJob] = useState(null)
+  const [cancelRequested, setCancelRequested] = useState(false)
   const portfolioFileInputRef = useRef(null)
   const csvFileInputRef = useRef(null)
+  const eventSourceRef = useRef(null)
+  const reconnectTimeoutRef = useRef(null)
+  const submittedRequestIdRef = useRef(null)
+  const cancellingRequestIdRef = useRef(null)
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0]
@@ -226,9 +236,294 @@ const Optimizer = () => {
     event.target.value = ""
   }
 
-  const [progress, setProgress] = useState(null)
-
   const generateRequestId = () => `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+  const closeProgressStream = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    if (reconnectTimeoutRef.current) {
+      window.clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+  }, [])
+
+  const persistJobRecord = useCallback((record) => {
+    const savedRecord = writeOptimizerJob(record)
+    setActiveJob(savedRecord || record)
+    return savedRecord || record
+  }, [])
+
+  const forgetJobRecord = useCallback(() => {
+    clearOptimizerJob()
+    setActiveJob(null)
+  }, [])
+
+  const jobRecordFromStatus = useCallback((status, fallback = {}) => ({
+    requestId: status.request_id || fallback.requestId,
+    portfolioId: status.portfolio_id || fallback.portfolioId || status.request_id || fallback.requestId,
+    status: status.status || fallback.status || "running",
+    startedAt: fallback.startedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }), [])
+
+  const applyCompletedJob = useCallback((status, fallback = {}) => {
+    closeProgressStream()
+    if ((status.request_id || fallback.requestId) === cancellingRequestIdRef.current) {
+      cancellingRequestIdRef.current = null
+    }
+    setProgress({
+      percentage: 100,
+      message: status.message || t("optimizer.complete", "Optimization complete!"),
+    })
+    if (status.result) {
+      setOptimizedPortfolio(status.result)
+    }
+    setAllocation(null)
+    setError(null)
+    setErrorDetails(null)
+    setLoading(false)
+    setCancelRequested(false)
+    persistJobRecord(jobRecordFromStatus({ ...status, status: "completed" }, fallback))
+  }, [closeProgressStream, jobRecordFromStatus, persistJobRecord, t])
+
+  const applyTerminalJob = useCallback((status, fallback = {}) => {
+    closeProgressStream()
+    const statusText = status.status === "cancelled"
+      ? t("optimizer.cancelled", "Optimization cancelled")
+      : t("optimizer.failed", "Optimization failed")
+    setError(status.error || status.message || statusText)
+    setErrorDetails(null)
+    setLoading(false)
+    setCancelRequested(false)
+    setOptimizedPortfolio(null)
+    setAllocation(null)
+    setProgress({
+      percentage: status.progress ?? fallback.progress ?? 0,
+      message: status.message || statusText,
+    })
+    forgetJobRecord()
+  }, [closeProgressStream, forgetJobRecord, t])
+
+  const fetchJobStatus = useCallback(async (requestId) => {
+    const response = await fetch(apiUrl(`/api/optimization-jobs/${encodeURIComponent(requestId)}`), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    })
+    if (response.status === 404) return null
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}))
+      throw new Error(body.error || t("optimizer.statusError", "Failed to check optimization status"))
+    }
+    return response.json()
+  }, [t])
+
+  const loadPersistedPortfolio = useCallback(async (portfolioId, fallback = {}) => {
+    if (!portfolioId) return false
+
+    const response = await fetch(apiUrl(`/api/portfolio-results/${encodeURIComponent(portfolioId)}`), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+      },
+    })
+    if (!response.ok) return false
+
+    const result = await response.json()
+    applyCompletedJob({
+      request_id: fallback.requestId,
+      portfolio_id: portfolioId,
+      status: "completed",
+      progress: 100,
+      message: t("optimizer.complete", "Optimization complete!"),
+      result,
+    }, fallback)
+    return true
+  }, [applyCompletedJob, t])
+
+  const handleJobStatus = useCallback(async (status, fallback = {}) => {
+    const statusRequestId = status?.request_id || fallback.requestId
+    if (status?.status === "running" && cancellingRequestIdRef.current === statusRequestId) {
+      return
+    }
+
+    if (!status) {
+      const loaded = await loadPersistedPortfolio(fallback.portfolioId, fallback)
+      if (!loaded) {
+        forgetJobRecord()
+      }
+      return
+    }
+
+    if (status.status === "completed") {
+      applyCompletedJob(status, fallback)
+      return
+    }
+    if (status.status === "failed" || status.status === "cancelled") {
+      applyTerminalJob(status, fallback)
+      return
+    }
+
+    const record = persistJobRecord(jobRecordFromStatus(status, fallback))
+    setLoading(true)
+    setCancelRequested(false)
+    setProgress({
+      percentage: status.progress ?? 0,
+      message: status.message || t("optimizer.backgroundRunning", "Optimization is running in the background."),
+    })
+    setActiveJob(record)
+  }, [
+    applyCompletedJob,
+    applyTerminalJob,
+    forgetJobRecord,
+    jobRecordFromStatus,
+    loadPersistedPortfolio,
+    persistJobRecord,
+    t,
+  ])
+
+  const attachProgressStream = useCallback((requestId, fallback = {}) => {
+    closeProgressStream()
+    if (!requestId) return
+
+    const eventSource = new EventSource(apiUrl(`/api/progress-stream/${encodeURIComponent(requestId)}`))
+    eventSourceRef.current = eventSource
+
+    eventSource.onmessage = () => {
+      // Ping/keep-alive, ignore.
+    }
+
+    eventSource.addEventListener("progress", (e) => {
+      const data = JSON.parse(e.data)
+      persistJobRecord(jobRecordFromStatus(data, fallback))
+      setLoading(true)
+      setProgress({
+        percentage: data.progress ?? 0,
+        message: data.message || t("optimizer.backgroundRunning", "Optimization is running in the background."),
+      })
+    })
+
+    eventSource.addEventListener("complete", (e) => {
+      const data = JSON.parse(e.data)
+      applyCompletedJob(data, fallback)
+    })
+
+    eventSource.addEventListener("cancelled", (e) => {
+      const data = JSON.parse(e.data)
+      applyTerminalJob(data, fallback)
+    })
+
+    eventSource.addEventListener("error", (e) => {
+      if (e.data) {
+        const data = JSON.parse(e.data)
+        applyTerminalJob(data, fallback)
+        return
+      }
+
+      eventSource.close()
+      eventSourceRef.current = null
+      setProgress(prev => ({
+        percentage: prev?.percentage ?? 0,
+        message: t("optimizer.reconnecting", "Progress connection lost. Reconnecting..."),
+      }))
+      reconnectTimeoutRef.current = window.setTimeout(async () => {
+        try {
+          const status = await fetchJobStatus(requestId)
+          await handleJobStatus(status, fallback)
+          if (status?.status === "running") {
+            attachProgressStream(requestId, fallback)
+          }
+        } catch (statusError) {
+          if (import.meta.env.DEV) {
+            console.error(statusError)
+          }
+        }
+      }, 2000)
+    })
+  }, [
+    applyCompletedJob,
+    applyTerminalJob,
+    closeProgressStream,
+    fetchJobStatus,
+    handleJobStatus,
+    jobRecordFromStatus,
+    persistJobRecord,
+    t,
+  ])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const restoreJob = async () => {
+      const storedJob = readOptimizerJob()
+      if (!storedJob?.requestId) return
+      if (submittedRequestIdRef.current === storedJob.requestId) return
+
+      try {
+        const status = await fetchJobStatus(storedJob.requestId)
+        if (cancelled) return
+        if (submittedRequestIdRef.current === storedJob.requestId) return
+        await handleJobStatus(status, storedJob)
+        if (!cancelled && status?.status === "running") {
+          attachProgressStream(storedJob.requestId, storedJob)
+        }
+      } catch (restoreError) {
+        if (import.meta.env.DEV) {
+          console.error(restoreError)
+        }
+        if (!cancelled) {
+          const loaded = await loadPersistedPortfolio(storedJob.portfolioId, storedJob)
+          if (!loaded) {
+            forgetJobRecord()
+          }
+        }
+      }
+    }
+
+    restoreJob()
+
+    return () => {
+      cancelled = true
+      closeProgressStream()
+    }
+  }, [
+    attachProgressStream,
+    closeProgressStream,
+    fetchJobStatus,
+    forgetJobRecord,
+    handleJobStatus,
+    loadPersistedPortfolio,
+  ])
+
+  const handleCancelOptimization = async () => {
+    const job = activeJob || readOptimizerJob()
+    if (!job?.requestId) return
+
+    cancellingRequestIdRef.current = job.requestId
+    setCancelRequested(true)
+    setProgress(prev => ({
+      percentage: prev?.percentage ?? 0,
+      message: t("optimizer.cancelRequested", "Cancellation requested..."),
+    }))
+
+    try {
+      const response = await axios.post(apiUrl(`/api/optimization-jobs/${encodeURIComponent(job.requestId)}/cancel`))
+      if (TERMINAL_JOB_STATUSES.has(response.data?.status)) {
+        if (response.data.status === "completed") {
+          applyCompletedJob(response.data, job)
+        } else {
+          applyTerminalJob(response.data, job)
+        }
+      }
+    } catch (cancelError) {
+      cancellingRequestIdRef.current = null
+      setCancelRequested(false)
+      setError(cancelError.response?.data?.error || t("optimizer.cancelError", "Failed to cancel optimization"))
+    }
+  }
 
   const portfolioDisplayData = useMemo(() => (
     optimizedPortfolio
@@ -269,14 +564,27 @@ const Optimizer = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    closeProgressStream()
     setLoading(true)
     setError(null)
     setErrorDetails(null)
     setOptimizedPortfolio(null)
     setAllocation(null)
+    setCancelRequested(false)
     setProgress({ percentage: 0, message: t("common.starting", "Starting...") })
 
     const requestId = generateRequestId()
+    submittedRequestIdRef.current = requestId
+    cancellingRequestIdRef.current = null
+    const portfolioId = requestId
+    const startedAt = new Date().toISOString()
+    const jobRecord = persistJobRecord({
+      requestId,
+      portfolioId,
+      status: "running",
+      startedAt,
+      updatedAt: startedAt,
+    })
 
     try {
       const payload = {
@@ -286,6 +594,9 @@ const Optimizer = () => {
         target_return: targetReturn ? Number.parseFloat(targetReturn) / 100 : null,
         risk_tolerance: riskTolerance ? Number.parseFloat(riskTolerance) / 100 : null,
         request_id: requestId,
+        portfolio_id: portfolioId,
+        persist_result: true,
+        load_if_available: true,
         forecast_method: forecastMethod,
         optimization_method: optimizationMethod,
         forecast_horizon: Number.parseInt(forecastHorizon),
@@ -299,44 +610,12 @@ const Optimizer = () => {
         payload.ticker_group = tickerGroup
       }
 
-      // Start SSE connection
-      const eventSource = new EventSource(apiUrl(`/api/progress-stream/${encodeURIComponent(requestId)}`))
-
-      eventSource.onmessage = () => {
-        // Ping/Keep-alive, ignore
+      const response = await axios.post(apiUrl("/api/optimize-portfolio"), payload)
+      const status = response.data
+      await handleJobStatus(status, jobRecord)
+      if (status?.status === "running") {
+        attachProgressStream(requestId, jobRecord)
       }
-
-      eventSource.addEventListener('progress', (e) => {
-        const data = JSON.parse(e.data)
-        setProgress({ percentage: data.progress, message: data.message })
-      })
-
-      eventSource.addEventListener('complete', (e) => {
-        const data = JSON.parse(e.data)
-        setProgress({ percentage: 100, message: t("optimizer.complete", "Optimization complete!") })
-        eventSource.close()
-
-        // The result is passed in the complete event for simplicity in this refactor
-        if (data.result) {
-          setOptimizedPortfolio(data.result)
-        }
-        setLoading(false)
-      })
-
-      eventSource.addEventListener('error', (e) => {
-        if (e.data) {
-          const data = JSON.parse(e.data)
-          setError(data.message)
-        } else {
-          // Connection error or stream closed unexpectedly
-          // setError("Stream connection lost") 
-        }
-        eventSource.close()
-        setLoading(false)
-      })
-
-      // Initiate optimization
-      await axios.post(apiUrl("/api/optimize-portfolio"), payload)
 
     } catch (err) {
       if (import.meta.env.DEV) {
@@ -351,6 +630,7 @@ const Optimizer = () => {
       }
       setOptimizedPortfolio(null)
       setLoading(false)
+      forgetJobRecord()
     }
   }
 
@@ -640,6 +920,19 @@ const Optimizer = () => {
               <p className="optimizer-progress-copy">
                 {progress.percentage}% - {progress.message}
               </p>
+              <p className="optimizer-progress-note">
+                {t("optimizer.backgroundJobNote", "You can leave this screen; the optimizer will reconnect while this app remains open.")}
+              </p>
+              <button
+                type="button"
+                className="optimizer-secondary-button optimizer-cancel-button"
+                onClick={handleCancelOptimization}
+                disabled={cancelRequested}
+              >
+                {cancelRequested
+                  ? t("optimizer.cancelling", "Cancelling...")
+                  : t("optimizer.cancel", "Cancel")}
+              </button>
             </div>
           )}
         </div>
