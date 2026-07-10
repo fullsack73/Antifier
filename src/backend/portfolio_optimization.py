@@ -46,6 +46,8 @@ CONFIDENCE_REFERENCE_UNCERTAINTY = 0.20
 MIN_FORECAST_CONFIDENCE = 0.05
 MAX_FORECAST_CONFIDENCE = 0.95
 MAX_FORECAST_UNCERTAINTY = 5.0
+DEFAULT_REBALANCE_BAND = 0.02
+DEFAULT_MAX_TURNOVER = 0.35
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
@@ -292,6 +294,108 @@ def _calculate_historical_cagr(data):
 def _series_to_float_dict(series):
     """Return a JSON-friendly float dictionary from a pandas Series-like object."""
     return {str(k): float(v) for k, v in pd.Series(series).items() if np.isfinite(v)}
+
+
+def _sanitize_value_series(values, index=None):
+    series = pd.Series(values, dtype=float)
+    if index is not None:
+        series = series.reindex(index)
+    return (
+        series
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+
+
+def _safe_float(value, default=0.0):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return default
+    return value if np.isfinite(value) else default
+
+
+def _weights_from_values(values, denominator):
+    denominator = _safe_float(denominator, 0.0)
+    if denominator <= 0:
+        return {}
+    return {
+        str(ticker): float(value / denominator)
+        for ticker, value in pd.Series(values, dtype=float).items()
+        if np.isfinite(value) and value > 1e-10
+    }
+
+
+def apply_trade_controls(current_values, target_values, portfolio_value=None,
+                         rebalance_band=0.0, max_turnover=None):
+    """
+    Apply rebalance band and gross-turnover cap to target dollar values.
+
+    The helper works in value space, so it can be reused by the backtester and
+    Portfolio Manager before costs, share rounding, or order generation.
+    """
+    current_raw = pd.Series(current_values, dtype=float)
+    target_raw = pd.Series(target_values, dtype=float)
+    index = current_raw.index.union(target_raw.index)
+    current = _sanitize_value_series(current_raw, index=index)
+    target = _sanitize_value_series(target_raw, index=index)
+
+    inferred_value = max(float(current.sum()), float(target.sum()), 0.0)
+    portfolio_value = _safe_float(portfolio_value, inferred_value)
+    if portfolio_value <= 0:
+        portfolio_value = inferred_value
+
+    deltas = target - current
+    gross_trade_value = float(deltas.abs().sum())
+
+    band = max(0.0, _safe_float(rebalance_band, 0.0))
+    threshold = band * portfolio_value if portfolio_value > 0 else 0.0
+    controlled_deltas = deltas.copy()
+    skipped_mask = (controlled_deltas.abs() > 1e-10) & (controlled_deltas.abs() < threshold)
+    controlled_deltas.loc[skipped_mask] = 0.0
+
+    cap_hit = False
+    turnover_cap = None
+    if max_turnover is not None:
+        turnover_cap = max(0.0, _safe_float(max_turnover, 0.0))
+        max_trade_value = turnover_cap * portfolio_value
+        post_band_trade = float(controlled_deltas.abs().sum())
+        if portfolio_value > 0 and post_band_trade > max_trade_value + 1e-10:
+            scale = max_trade_value / post_band_trade if post_band_trade > 0 else 0.0
+            controlled_deltas *= scale
+            cap_hit = True
+
+    # If skipped sells leave too much buying demand, shrink buys to available cash.
+    available_cash = max(0.0, portfolio_value - float(current.sum()))
+    net_buy_value = float(controlled_deltas.sum())
+    cash_balance_adjusted = False
+    if net_buy_value > available_cash + 1e-10:
+        buy_mask = controlled_deltas > 0
+        buy_value = float(controlled_deltas.loc[buy_mask].sum())
+        if buy_value > 0:
+            scale = max(0.0, (buy_value - (net_buy_value - available_cash)) / buy_value)
+            controlled_deltas.loc[buy_mask] *= scale
+            cash_balance_adjusted = True
+
+    controlled_target = (current + controlled_deltas).clip(lower=0.0)
+    controlled_trade_value = float(controlled_deltas.abs().sum())
+    turnover = gross_trade_value / portfolio_value if portfolio_value > 0 else 0.0
+    controlled_turnover = controlled_trade_value / portfolio_value if portfolio_value > 0 else 0.0
+
+    diagnostics = {
+        "enabled": bool(band > 0 or max_turnover is not None),
+        "rebalance_band": float(band),
+        "max_turnover": None if turnover_cap is None else float(turnover_cap),
+        "gross_trade_value": gross_trade_value,
+        "controlled_trade_value": controlled_trade_value,
+        "turnover": float(turnover),
+        "controlled_turnover": float(controlled_turnover),
+        "skipped_trade_count": int(skipped_mask.sum()),
+        "turnover_cap_hit": bool(cap_hit),
+        "cash_balance_adjusted": bool(cash_balance_adjusted),
+    }
+    return controlled_target, diagnostics
 
 
 def _dedupe_tickers(tickers):
@@ -1511,6 +1615,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        l2_gamma=0.05, max_asset_weight=0.2,
                        forecast_method="LIGHTWEIGHT", optimization_method="BL",
                        forecast_horizon=63, min_history=504, bl_tau=0.05,
+                       current_weights=None, rebalance_band=None, max_turnover=None,
                        cancel_event=None):
     """Optimize portfolio and optionally persist or reuse saved results."""
     _raise_if_cancelled(cancel_event)
@@ -1700,6 +1805,33 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         
         # Filter out assets with near-zero weight
         final_weights = {ticker: weight for ticker, weight in weights.items() if weight > 1e-4}
+        control_payload = {}
+        controls_requested = rebalance_band is not None or max_turnover is not None
+        if controls_requested and current_weights:
+            pre_control_weights = dict(final_weights)
+            target_values = pd.Series(final_weights, dtype=float)
+            current_weight_series = _sanitize_value_series(
+                current_weights,
+                index=pd.Index(sorted(set(current_weights.keys()) | set(target_values.index)))
+            )
+            controlled_values, rebalance_controls = apply_trade_controls(
+                current_weight_series,
+                target_values,
+                portfolio_value=1.0,
+                rebalance_band=0.0 if rebalance_band is None else rebalance_band,
+                max_turnover=max_turnover,
+            )
+            controlled_weights = {
+                ticker: float(weight)
+                for ticker, weight in controlled_values.items()
+                if np.isfinite(weight) and weight > 1e-4
+            }
+            final_weights = controlled_weights
+            control_payload = {
+                "rebalance_controls": rebalance_controls,
+                "pre_control_weights": pre_control_weights,
+                "controlled_weights": controlled_weights,
+            }
 
         # Get performance metrics
         performance = ef.portfolio_performance(risk_free_rate=risk_free_rate)
@@ -1726,6 +1858,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "no_view_tickers": no_view_tickers,
             "failed_forecast_count": len(no_view_tickers),
         }
+        result_payload.update(control_payload)
 
         if portfolio_id and persist_result:
             _raise_if_cancelled(cancel_event)
@@ -1799,7 +1932,9 @@ def iteratively_solve_max_sharpe(mu, S, risk_free_rate, max_asset_weight=0.2):
     
     return best_weights
 
-def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection, allow_fractional=True, fractional_overrides=None):
+def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection,
+                               allow_fractional=True, fractional_overrides=None,
+                               rebalance_band=0.0, max_turnover=None):
     """
     Generate exact Buy List and Sell List comparing current holdings to target optimized weights,
     respecting fractional trading constraints and redistributing unused cash.
@@ -1821,55 +1956,82 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         
     total_target_value = total_current_value + float(cash_injection)
     
+    all_tickers = set(current_holdings.keys()).union(target_weights.keys())
+    pre_control_target_values = {
+        ticker: total_target_value * float(target_weights.get(ticker, 0.0))
+        for ticker in all_tickers
+    }
+    controls_enabled = (
+        max(0.0, _safe_float(rebalance_band, 0.0)) > 0
+        or max_turnover is not None
+    )
+    if controls_enabled:
+        controlled_target_values, rebalance_controls = apply_trade_controls(
+            current_values,
+            pre_control_target_values,
+            portfolio_value=total_target_value,
+            rebalance_band=rebalance_band,
+            max_turnover=max_turnover,
+        )
+    else:
+        controlled_target_values = _sanitize_value_series(pre_control_target_values)
+        rebalance_controls = None
+
+    controlled_sum = float(controlled_target_values.sum())
+    if controlled_sum > total_target_value + 1e-10 and controlled_sum > 0:
+        controlled_target_values *= total_target_value / controlled_sum
+        controlled_sum = float(controlled_target_values.sum())
+    control_cash_reserve = max(0.0, total_target_value - controlled_sum)
+
     # Calculate ideal target quantities first
     ideal_quantities = {}
-    all_tickers = set(current_holdings.keys()).union(target_weights.keys())
+    all_tickers = set(all_tickers).union(controlled_target_values.index)
     for ticker in all_tickers:
         price = latest_prices.get(ticker, 0.0)
-        target_weight = target_weights.get(ticker, 0.0)
+        target_value = float(controlled_target_values.get(ticker, 0.0))
         if price > 0:
-            ideal_quantities[ticker] = (total_target_value * target_weight) / price
+            ideal_quantities[ticker] = target_value / price
             
     # Apply fractional constraints
     target_quantities = {}
-    remaining_cash = 0.0
+    rounding_cash = 0.0
     fractional_tickers = []
     
     for ticker, ideal_qty in ideal_quantities.items():
         price = latest_prices.get(ticker, 0.0)
         if is_fractional(ticker):
             target_quantities[ticker] = ideal_qty
-            if target_weights.get(ticker, 0.0) > 0:
+            if controlled_target_values.get(ticker, 0.0) > 0:
                 fractional_tickers.append(ticker)
         else:
             floor_qty = math.floor(ideal_qty)
             target_quantities[ticker] = float(floor_qty)
-            remaining_cash += (ideal_qty - floor_qty) * price
+            rounding_cash += (ideal_qty - floor_qty) * price
             
-    # Redistribute remaining cash
-    if remaining_cash > 0.01:
+    # Redistribute only rounding cash. Cash reserved by trade controls stays in cash.
+    if rounding_cash > 0.01:
         if fractional_tickers:
-            frac_weight_sum = sum(target_weights.get(t, 0.0) for t in fractional_tickers)
-            if frac_weight_sum > 0:
+            frac_value_sum = sum(controlled_target_values.get(t, 0.0) for t in fractional_tickers)
+            if frac_value_sum > 0:
                 for ticker in fractional_tickers:
-                    extra_cash = (target_weights[ticker] / frac_weight_sum) * remaining_cash
+                    extra_cash = (controlled_target_values[ticker] / frac_value_sum) * rounding_cash
                     target_quantities[ticker] += extra_cash / latest_prices[ticker]
-                remaining_cash = 0.0
+                rounding_cash = 0.0
             
-        if remaining_cash > 0.01:
+        if rounding_cash > 0.01:
             sorted_tickers = sorted(
                 [t for t in target_quantities.keys() if not is_fractional(t)],
-                key=lambda t: target_weights.get(t, 0.0), 
+                key=lambda t: controlled_target_values.get(t, 0.0),
                 reverse=True
             )
             changed = True
-            while changed and remaining_cash > 0.01:
+            while changed and rounding_cash > 0.01:
                 changed = False
                 for ticker in sorted_tickers:
                     price = latest_prices.get(ticker, 0.0)
-                    if price > 0 and price <= remaining_cash:
+                    if price > 0 and price <= rounding_cash:
                         target_quantities[ticker] += 1.0
-                        remaining_cash -= price
+                        rounding_cash -= price
                         changed = True
                         break
 
@@ -1890,19 +2052,31 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         elif delta_qty < -1e-6:
             sell_list[ticker] = {"quantity": float(abs(delta_qty)), "price": float(price), "value": float(abs(delta_qty) * price)}
 
-    return {
+    result = {
         "buy_list": buy_list,
         "sell_list": sell_list,
         "target_quantities": target_quantities,
         "target_weights": target_weights,
         "total_target_value": total_target_value,
-        "remaining_cash": float(remaining_cash)
+        "remaining_cash": float(control_cash_reserve + rounding_cash)
     }
+    if controls_enabled:
+        rebalance_controls = dict(rebalance_controls)
+        rebalance_controls["control_cash_reserve"] = float(control_cash_reserve)
+        result.update({
+            "rebalance_controls": rebalance_controls,
+            "pre_control_weights": _weights_from_values(pre_control_target_values, total_target_value),
+            "controlled_weights": _weights_from_values(controlled_target_values, total_target_value),
+        })
+    return result
 
 def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_date, risk_free_rate, 
                            forecast_method="LIGHTWEIGHT", optimization_method="BL",
                            ticker_group=None,
-                           tickers=None, allow_fractional=True, fractional_overrides=None, **kwargs):
+                           tickers=None, allow_fractional=True, fractional_overrides=None,
+                           rebalance_band=DEFAULT_REBALANCE_BAND,
+                           max_turnover=DEFAULT_MAX_TURNOVER,
+                           **kwargs):
 
     universe_tickers = list(current_holdings.keys())
     if tickers:
@@ -1935,7 +2109,10 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
     
     rebalance_data = calculate_rebalance_orders(
         current_holdings, target_weights, latest_prices, cash_injection,
-        allow_fractional=allow_fractional, fractional_overrides=fractional_overrides
+        allow_fractional=allow_fractional,
+        fractional_overrides=fractional_overrides,
+        rebalance_band=rebalance_band,
+        max_turnover=max_turnover,
     )
     opt_result.update(rebalance_data)
     opt_result["current_holdings"] = current_holdings

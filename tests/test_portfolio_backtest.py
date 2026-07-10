@@ -22,6 +22,7 @@ from forecast_models import (
     TransformerForecastModel,
     no_view_prediction,
 )
+from portfolio_signals import momentum_12_1, risk_parity
 
 
 def _synthetic_prices(rows=90):
@@ -127,6 +128,70 @@ def test_turnover_and_transaction_cost_math():
     assert cost == pytest.approx(0.20)
 
 
+def test_inverse_vol_risk_parity_weights_sum_cap_and_prefer_lower_vol():
+    dates = pd.date_range("2024-01-02", periods=80, freq="B")
+    x = np.arange(len(dates))
+    prices = pd.DataFrame(
+        {
+            "LOW": 100.0 * np.exp(0.0004 * x + 0.002 * np.sin(x / 4.0)),
+            "MID": 100.0 * np.exp(0.0004 * x + 0.010 * np.sin(x / 3.0)),
+            "HIGH": 100.0 * np.exp(0.0004 * x + 0.030 * np.sin(x / 2.0)),
+        },
+        index=dates,
+    )
+
+    weights = risk_parity(prices, max_asset_weight=0.60)
+
+    assert weights.sum() == pytest.approx(1.0)
+    assert weights.max() <= 0.600001
+    assert weights["LOW"] > weights["HIGH"]
+
+
+def test_momentum_12_1_excludes_most_recent_month():
+    dates = pd.date_range("2024-01-02", periods=260, freq="B")
+    aaa = np.linspace(100.0, 220.0, 260)
+    bbb = np.full(260, 100.0)
+    aaa[-21:] = np.linspace(220.0, 40.0, 21)
+    prices = pd.DataFrame({"AAA": aaa, "BBB": bbb}, index=dates)
+
+    scores = momentum_12_1(prices)
+    short_scores = momentum_12_1(prices.iloc[-120:])
+
+    assert scores["AAA"] > scores["BBB"]
+    assert short_scores.isna().all()
+
+
+def test_turnover_band_skips_small_trades():
+    controlled, diagnostics = portfolio_optimization.apply_trade_controls(
+        {"AAA": 500.0, "BBB": 500.0},
+        {"AAA": 510.0, "BBB": 490.0},
+        portfolio_value=1000.0,
+        rebalance_band=0.02,
+        max_turnover=None,
+    )
+
+    assert diagnostics["skipped_trade_count"] == 2
+    assert diagnostics["controlled_turnover"] == 0.0
+    assert controlled["AAA"] == pytest.approx(500.0)
+    assert controlled["BBB"] == pytest.approx(500.0)
+
+
+def test_max_turnover_scales_trades_to_cap():
+    controlled, diagnostics = portfolio_optimization.apply_trade_controls(
+        {"AAA": 500.0, "BBB": 500.0},
+        {"AAA": 1000.0, "BBB": 0.0},
+        portfolio_value=1000.0,
+        rebalance_band=0.0,
+        max_turnover=0.20,
+    )
+
+    assert diagnostics["turnover"] == pytest.approx(1.0)
+    assert diagnostics["controlled_turnover"] == pytest.approx(0.20)
+    assert diagnostics["turnover_cap_hit"] is True
+    assert controlled["AAA"] == pytest.approx(600.0)
+    assert controlled["BBB"] == pytest.approx(400.0)
+
+
 def test_backtest_records_use_prior_prices_only(monkeypatch):
     seen_windows = []
 
@@ -183,12 +248,31 @@ def test_synthetic_backtest_runs_all_model_families(monkeypatch):
     assert set(result["models"]) == set(portfolio_backtest.DEFAULT_BACKTEST_MODELS)
     assert result["summary_by_model"]["equal_weight"]["rebalance_count"] > 0
     assert result["summary_by_model"]["transformer_bl"]["failed_forecast_count"] > 0
+    assert "controlled_turnover" in result["summary_by_model"]["equal_weight"]
+    assert "skipped_trade_count" in result["summary_by_model"]["equal_weight"]
+    assert "turnover_cap_hit_count" in result["summary_by_model"]["equal_weight"]
+
+
+def test_synthetic_backtest_runs_risk_parity_and_momentum_bl():
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _synthetic_prices(280),
+        models=("risk_parity", "momentum_bl"),
+        train_window=252,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+        transaction_cost_bps=10,
+    )
+
+    assert result["models"] == ["risk_parity", "momentum_bl"]
+    assert result["summary_by_model"]["risk_parity"]["rebalance_count"] > 0
+    assert result["summary_by_model"]["momentum_bl"]["rebalance_count"] > 0
+    assert "controlled_turnover" in result["rebalance_records"][0]
 
 
 def test_backtest_cli_writes_json_and_invalid_args_fail(tmp_path):
     csv_path = tmp_path / "prices.csv"
     output_path = tmp_path / "backtest.json"
-    _synthetic_prices(50).to_csv(csv_path)
+    _synthetic_prices(280).to_csv(csv_path)
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(BACKEND)
@@ -199,9 +283,10 @@ def test_backtest_cli_writes_json_and_invalid_args_fail(tmp_path):
             "--csv",
             str(csv_path),
             "--models",
-            "equal_weight",
+            "risk_parity",
+            "momentum_bl",
             "--train-window",
-            "15",
+            "252",
             "--rebalance-frequency",
             "10",
             "--forecast-horizon",
@@ -218,7 +303,7 @@ def test_backtest_cli_writes_json_and_invalid_args_fail(tmp_path):
 
     assert ok.returncode == 0, ok.stderr
     payload = json.loads(output_path.read_text())
-    assert payload["models"] == ["equal_weight"]
+    assert payload["models"] == ["risk_parity", "momentum_bl"]
     assert "summary_by_model" in payload
 
     bad = subprocess.run(

@@ -60,6 +60,7 @@ def _print_summary(result):
         "Sharpe",
         "maxDD",
         "turnover",
+        "ctrlTurn",
         "costs",
         "final",
         "fails",
@@ -75,6 +76,7 @@ def _print_summary(result):
             _fmt(metrics.get("sharpe")),
             _fmt(metrics.get("max_drawdown")),
             _fmt(metrics.get("turnover")),
+            _fmt(metrics.get("controlled_turnover")),
             _fmt(metrics.get("transaction_costs")),
             _fmt(metrics.get("final_value")),
             metrics.get("failed_forecast_count", 0),
@@ -113,6 +115,8 @@ def main(argv=None):
     parser.add_argument("--forecast-horizon", type=int, default=63)
     parser.add_argument("--transaction-cost-bps", type=float, default=10.0)
     parser.add_argument("--max-asset-weight", type=float, default=0.2)
+    parser.add_argument("--rebalance-band", type=float, default=0.02)
+    parser.add_argument("--max-turnover", type=float, default=0.35)
     parser.add_argument("--risk-free-rate", type=float, default=0.02, help="Annual decimal rate, e.g. 0.02")
     parser.add_argument("--initial-value", type=float, default=10000.0)
     parser.add_argument(
@@ -138,6 +142,8 @@ def main(argv=None):
             forecast_horizon=args.forecast_horizon,
             transaction_cost_bps=args.transaction_cost_bps,
             max_asset_weight=args.max_asset_weight,
+            rebalance_band=args.rebalance_band,
+            max_turnover=args.max_turnover,
             risk_free_rate=args.risk_free_rate,
             initial_value=args.initial_value,
         )

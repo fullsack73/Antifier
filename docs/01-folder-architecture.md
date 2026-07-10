@@ -56,6 +56,7 @@ src/backend/
 ├─ app.py                            # Flask 앱, REST endpoint, request/response orchestration
 ├─ portfolio_optimization.py         # 데이터 수집, 예측 수익률, MPT/Black-Litterman 최적화
 ├─ portfolio_backtest.py             # walk-forward 포트폴리오 모델 backtest와 promotion gate 계산
+├─ portfolio_signals.py              # risk parity, momentum rank 등 포트폴리오 signal helper
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산

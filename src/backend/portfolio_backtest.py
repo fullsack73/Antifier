@@ -11,9 +11,12 @@ from pypfopt.exceptions import OptimizationError
 from lightweight_forecast import lightweight_ensemble_forecast
 from portfolio_optimization import (
     DEFAULT_FORECAST_UNCERTAINTY,
+    DEFAULT_MAX_TURNOVER,
+    DEFAULT_REBALANCE_BAND,
     MAX_FORECAST_UNCERTAINTY,
     MIN_FORECAST_CONFIDENCE,
     _annual_log_return_to_simple_return,
+    apply_trade_controls,
     _calculate_historical_cagr,
     _confidence_from_uncertainty,
     _dedupe_tickers,
@@ -25,6 +28,7 @@ from portfolio_optimization import (
     forecast_single_ticker_with_transformer,
     get_stock_data,
 )
+from portfolio_signals import MOMENTUM_VIEW_UNCERTAINTY, momentum_bl_views, risk_parity
 from ticker_lists import get_ticker_group
 
 
@@ -34,7 +38,9 @@ TRADING_DAYS_PER_YEAR = 252
 DEFAULT_BACKTEST_MODELS = (
     "equal_weight",
     "min_variance",
+    "risk_parity",
     "historical_bl",
+    "momentum_bl",
     "historical_mpt",
     "lightweight_bl",
     "arima_transformer_bl",
@@ -146,6 +152,22 @@ def _forecast_views(train_prices, method, forecast_horizon):
     uncertainties = {}
     failed = 0
 
+    if method == "momentum":
+        prior = _calculate_historical_cagr(train_prices)
+        momentum_views = momentum_bl_views(train_prices, prior_returns=prior)
+        failed = int(momentum_views.isna().sum())
+        uncertainties = {
+            ticker: (
+                MAX_FORECAST_UNCERTAINTY
+                if pd.isna(momentum_views.get(ticker))
+                else MOMENTUM_VIEW_UNCERTAINTY
+            )
+            for ticker in tickers
+        }
+        views = momentum_views.reindex(tickers)
+        uncertainties = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
+        return views, uncertainties, failed
+
     for ticker in tickers:
         prices = train_prices[ticker].dropna()
         if method == "historical":
@@ -249,6 +271,10 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
         )
         return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
 
+    if model_name == "risk_parity":
+        weights = risk_parity(train_prices, max_asset_weight=max_asset_weight).to_dict()
+        return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
     if model_name == "historical_mpt":
         mu = _calculate_historical_cagr(train_prices)
         weights = _efficient_frontier_weights(mu, covariance, max_asset_weight, "max_sharpe", risk_free_rate)
@@ -256,6 +282,7 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
 
     bl_methods = {
         "historical_bl": "historical",
+        "momentum_bl": "momentum",
         "lightweight_bl": "lightweight",
         "arima_transformer_bl": "arima_transformer",
         "transformer_bl": "transformer",
@@ -314,17 +341,25 @@ def _portfolio_metrics(value_timeline, risk_free_rate):
 
 def _promotion_decision(summary_by_model):
     candidate = summary_by_model.get("arima_transformer_bl")
-    equal_weight = summary_by_model.get("equal_weight")
-    historical_bl = summary_by_model.get("historical_bl")
+    required_baselines = ("equal_weight", "historical_bl", "risk_parity", "momentum_bl")
+    baselines = {
+        name: summary_by_model.get(name)
+        for name in required_baselines
+    }
     reasons = []
-    if not candidate or not equal_weight or not historical_bl:
+    missing = [name for name, metrics in baselines.items() if not metrics]
+    if not candidate or missing:
+        missing_reasons = []
+        if not candidate:
+            missing_reasons.append("Candidate model arima_transformer_bl is missing.")
+        if missing:
+            missing_reasons.append(f"Required comparison models are missing: {', '.join(missing)}.")
         return {
             "candidate_model": "arima_transformer_bl",
             "status": "not_promoted",
-            "reasons": ["Required comparison models are missing."],
+            "reasons": missing_reasons,
         }
 
-    baselines = {"equal_weight": equal_weight, "historical_bl": historical_bl}
     for name, baseline in baselines.items():
         if candidate.get("sharpe") is None or baseline.get("sharpe") is None:
             reasons.append(f"Sharpe unavailable against {name}.")
@@ -335,8 +370,8 @@ def _promotion_decision(summary_by_model):
         if candidate.get("max_drawdown", -1.0) < baseline.get("max_drawdown", -1.0):
             reasons.append(f"Max drawdown is worse than {name}.")
 
-    historical_turnover = max(historical_bl.get("avg_turnover", 0.0), 1e-9)
-    if candidate.get("avg_turnover", 0.0) > max(0.50, historical_turnover * 2.0):
+    historical_turnover = max(baselines["historical_bl"].get("avg_controlled_turnover", 0.0), 1e-9)
+    if candidate.get("avg_controlled_turnover", 0.0) > max(0.50, historical_turnover * 2.0):
         reasons.append("Turnover is too high versus historical BL.")
     if candidate.get("failed_forecast_count", 0) > 0:
         reasons.append("ARIMA + Transformer produced no-view forecasts.")
@@ -366,6 +401,8 @@ def run_portfolio_model_backtest(
     forecast_horizon=63,
     transaction_cost_bps=10.0,
     max_asset_weight=0.2,
+    rebalance_band=DEFAULT_REBALANCE_BAND,
+    max_turnover=DEFAULT_MAX_TURNOVER,
     risk_free_rate=0.02,
     initial_value=10000.0,
 ):
@@ -390,7 +427,10 @@ def run_portfolio_model_backtest(
             "cash": float(initial_value),
             "values": OrderedDict(),
             "turnovers": [],
+            "controlled_turnovers": [],
             "transaction_costs": [],
+            "skipped_trade_count": 0,
+            "turnover_cap_hit_count": 0,
             "failed_forecast_count": 0,
             "forecast_confidences": [],
         }
@@ -426,18 +466,31 @@ def run_portfolio_model_backtest(
                 warnings.append(f"Skipped {model} at {current_date.date()}: non-positive portfolio value")
                 continue
 
-            turnover, cost = calculate_turnover_and_cost(
-                current_values.to_dict(),
-                weights,
-                portfolio_value,
-                transaction_cost_bps,
+            target_values_pre_control = pd.Series(weights, index=train_prices.columns).fillna(0.0) * portfolio_value
+            controlled_target_values, controls = apply_trade_controls(
+                current_values,
+                target_values_pre_control,
+                portfolio_value=portfolio_value,
+                rebalance_band=rebalance_band,
+                max_turnover=max_turnover,
             )
+            cost = controls["controlled_trade_value"] * (_to_float(transaction_cost_bps, 0.0) / 10000.0)
             investable_value = max(0.0, portfolio_value - cost)
-            target_values = pd.Series(weights, index=train_prices.columns).fillna(0.0) * investable_value
-            state["shares"] = (target_values / current_prices).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-            state["cash"] = 0.0
+            controlled_target_values = controlled_target_values.reindex(train_prices.columns).fillna(0.0)
+            controlled_sum = float(controlled_target_values.sum())
+            if controlled_sum > investable_value and controlled_sum > 0:
+                controlled_target_values *= investable_value / controlled_sum
+                controlled_sum = float(controlled_target_values.sum())
+
+            state["shares"] = (controlled_target_values / current_prices).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            state["cash"] = max(0.0, investable_value - controlled_sum)
+            turnover = controls["turnover"]
+            controlled_turnover = controls["controlled_turnover"]
             state["turnovers"].append(turnover)
+            state["controlled_turnovers"].append(controlled_turnover)
             state["transaction_costs"].append(cost)
+            state["skipped_trade_count"] += int(controls["skipped_trade_count"])
+            state["turnover_cap_hit_count"] += int(bool(controls["turnover_cap_hit"]))
             state["failed_forecast_count"] += int(diagnostics.get("failed_forecast_count", 0))
             if diagnostics.get("avg_forecast_confidence") is not None:
                 state["forecast_confidences"].append(float(diagnostics["avg_forecast_confidence"]))
@@ -453,7 +506,17 @@ def run_portfolio_model_backtest(
                 "train_end_date": train_prices.index[-1].strftime("%Y-%m-%d"),
                 "period_end_date": data.index[next_index].strftime("%Y-%m-%d"),
                 "weights": {ticker: float(weight) for ticker, weight in weights.items()},
+                "pre_control_weights": {ticker: float(weight) for ticker, weight in weights.items()},
+                "controlled_weights": {
+                    ticker: float(value / portfolio_value)
+                    for ticker, value in controlled_target_values.items()
+                    if portfolio_value > 0 and value > 1e-10
+                },
+                "rebalance_controls": controls,
                 "turnover": float(turnover),
+                "controlled_turnover": float(controlled_turnover),
+                "skipped_trade_count": int(controls["skipped_trade_count"]),
+                "turnover_cap_hit": bool(controls["turnover_cap_hit"]),
                 "transaction_cost": float(cost),
                 "portfolio_value_before_cost": float(portfolio_value),
                 "portfolio_value_after_cost": float(investable_value),
@@ -465,6 +528,7 @@ def run_portfolio_model_backtest(
     for model, state in states.items():
         metrics = _portfolio_metrics(state["values"], risk_free_rate)
         total_turnover = float(sum(state["turnovers"]))
+        total_controlled_turnover = float(sum(state["controlled_turnovers"]))
         rebalance_count = len(state["turnovers"])
         avg_confidence = (
             None
@@ -474,6 +538,10 @@ def run_portfolio_model_backtest(
         metrics.update({
             "turnover": total_turnover,
             "avg_turnover": float(total_turnover / rebalance_count) if rebalance_count else 0.0,
+            "controlled_turnover": total_controlled_turnover,
+            "avg_controlled_turnover": float(total_controlled_turnover / rebalance_count) if rebalance_count else 0.0,
+            "skipped_trade_count": int(state["skipped_trade_count"]),
+            "turnover_cap_hit_count": int(state["turnover_cap_hit_count"]),
             "transaction_costs": float(sum(state["transaction_costs"])),
             "rebalance_count": int(rebalance_count),
             "failed_forecast_count": int(state["failed_forecast_count"]),
@@ -490,6 +558,8 @@ def run_portfolio_model_backtest(
             "forecast_horizon": int(forecast_horizon),
             "transaction_cost_bps": float(transaction_cost_bps),
             "max_asset_weight": float(max_asset_weight),
+            "rebalance_band": float(_to_float(rebalance_band, 0.0)),
+            "max_turnover": None if max_turnover is None else float(max_turnover),
             "risk_free_rate": float(risk_free_rate),
             "initial_value": float(initial_value),
         },

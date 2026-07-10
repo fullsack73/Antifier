@@ -25,6 +25,8 @@ from forecast_models import LSTMPriceModel, LightGBMPriceModel, ARIMAPriceModel
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from financial_statement import get_financial_dashboard, get_financial_statements
 from portfolio_optimization import (
+    DEFAULT_MAX_TURNOVER,
+    DEFAULT_REBALANCE_BAND,
     optimize_portfolio,
     OptimizationCancelled,
     load_portfolio_result,
@@ -1252,6 +1254,9 @@ def background_optimization(req_id, params):
             forecast_horizon=params.get('forecast_horizon', 63),
             min_history=params.get('min_history', 504),
             bl_tau=params.get('bl_tau', 0.05),
+            current_weights=params.get('current_weights'),
+            rebalance_band=params.get('rebalance_band'),
+            max_turnover=params.get('max_turnover'),
             cancel_event=job.cancel_event,
         )
 
@@ -1334,12 +1339,36 @@ def optimize_portfolio_endpoint():
             required=False,
             default=0.05
         )
+        rebalance_band = parse_float_param(
+            data.get('rebalance_band'),
+            'rebalance_band',
+            required=False,
+            default=None
+        )
+        max_turnover = parse_float_param(
+            data.get('max_turnover'),
+            'max_turnover',
+            required=False,
+            default=None
+        )
+        current_weights = data.get('current_weights')
         if forecast_horizon < 1 or forecast_horizon > 365:
             raise ValueError('forecast_horizon must be between 1 and 365')
         if min_history < 30:
             raise ValueError('min_history must be at least 30')
         if bl_tau <= 0:
             raise ValueError('bl_tau must be positive')
+        if rebalance_band is not None and rebalance_band < 0:
+            raise ValueError('rebalance_band must be non-negative')
+        if max_turnover is not None and max_turnover < 0:
+            raise ValueError('max_turnover must be non-negative')
+        if current_weights is not None:
+            if not isinstance(current_weights, dict):
+                raise ValueError('current_weights must be an object')
+            current_weights = {
+                normalize_ticker_param(ticker): parse_float_param(weight, f"current_weights.{ticker}", required=False, default=0.0)
+                for ticker, weight in current_weights.items()
+            }
         if tickers is not None:
             if not isinstance(tickers, list):
                 raise ValueError('tickers must be a list')
@@ -1366,7 +1395,8 @@ def optimize_portfolio_endpoint():
         'persist_result': persist_result, 'load_if_available': load_if_available,
         'forecast_method': forecast_method, 'optimization_method': optimization_method,
         'forecast_horizon': forecast_horizon, 'bl_tau': bl_tau,
-        'min_history': min_history
+        'min_history': min_history, 'rebalance_band': rebalance_band,
+        'max_turnover': max_turnover, 'current_weights': current_weights
     }
     started = _start_optimization_thread_if_needed(job, params)
 
@@ -1575,6 +1605,18 @@ def manage_portfolio_endpoint():
                 required=False,
                 default=0.05
             )
+            rebalance_band = parse_float_param(
+                data.get('rebalance_band', DEFAULT_REBALANCE_BAND),
+                'rebalance_band',
+                required=False,
+                default=DEFAULT_REBALANCE_BAND
+            )
+            max_turnover = parse_float_param(
+                data.get('max_turnover', DEFAULT_MAX_TURNOVER),
+                'max_turnover',
+                required=False,
+                default=DEFAULT_MAX_TURNOVER
+            )
             if target_return is not None:
                 target_return = parse_float_param(target_return, 'target_return', required=False)
             if risk_tolerance is not None:
@@ -1587,6 +1629,10 @@ def manage_portfolio_endpoint():
                 raise ValueError('min_history must be at least 30')
             if bl_tau <= 0:
                 raise ValueError('bl_tau must be positive')
+            if rebalance_band < 0:
+                raise ValueError('rebalance_band must be non-negative')
+            if max_turnover is not None and max_turnover < 0:
+                raise ValueError('max_turnover must be non-negative')
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
 
@@ -1606,6 +1652,8 @@ def manage_portfolio_endpoint():
             bl_tau=bl_tau,
             allow_fractional=allow_fractional,
             fractional_overrides=fractional_overrides,
+            rebalance_band=rebalance_band,
+            max_turnover=max_turnover,
             tickers=tickers
         )
         

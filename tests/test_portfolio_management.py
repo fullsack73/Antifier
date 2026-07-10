@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
+from copy import deepcopy
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -70,6 +71,47 @@ def test_calculate_rebalance_orders_new_asset():
     assert "MSFT" in result["buy_list"]
     assert result["buy_list"]["MSFT"]["quantity"] == 5.0
     assert pytest.approx(result["sell_list"]["AAPL"]["quantity"]) == 3.333333333333333
+
+
+def test_portfolio_manager_applies_default_trade_controls_and_can_disable():
+    opt_payload = {
+        "weights": {"AAA": 0.51, "BBB": 0.49},
+        "prices": {"AAA": 100.0, "BBB": 100.0},
+        "return": 0.08,
+        "risk": 0.12,
+        "sharpe_ratio": 0.5,
+    }
+
+    with patch("portfolio_optimization.optimize_portfolio", side_effect=lambda **kwargs: deepcopy(opt_payload)), \
+         patch("portfolio_optimization.get_asset_names", side_effect=lambda tickers: {ticker: ticker for ticker in tickers}):
+        controlled = manage_portfolio_logic(
+            current_holdings={"AAA": 5.0, "BBB": 5.0},
+            cash_injection=0.0,
+            start_date="2023-01-01",
+            end_date="2023-12-31",
+            risk_free_rate=0.02,
+            optimization_method="MPT",
+        )
+        uncontrolled = manage_portfolio_logic(
+            current_holdings={"AAA": 5.0, "BBB": 5.0},
+            cash_injection=0.0,
+            start_date="2023-01-01",
+            end_date="2023-12-31",
+            risk_free_rate=0.02,
+            optimization_method="MPT",
+            rebalance_band=0.0,
+            max_turnover=None,
+        )
+
+    assert controlled["buy_list"] == {}
+    assert controlled["sell_list"] == {}
+    assert controlled["rebalance_controls"]["skipped_trade_count"] == 2
+    assert controlled["controlled_weights"]["AAA"] == pytest.approx(0.5)
+    assert controlled["controlled_weights"]["BBB"] == pytest.approx(0.5)
+
+    assert "AAA" in uncontrolled["buy_list"]
+    assert "BBB" in uncontrolled["sell_list"]
+    assert "rebalance_controls" not in uncontrolled
 
 def test_calculate_rebalance_orders_integer_redistribution():
     current_holdings = {"AAPL": 0.0, "MSFT": 0.0} 
