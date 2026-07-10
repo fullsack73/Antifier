@@ -1257,6 +1257,8 @@ def background_optimization(req_id, params):
             current_weights=params.get('current_weights'),
             rebalance_band=params.get('rebalance_band'),
             max_turnover=params.get('max_turnover'),
+            turnover_penalty=params.get('turnover_penalty', 0.0),
+            min_holding_weight=params.get('min_holding_weight', 0.0),
             cancel_event=job.cancel_event,
         )
 
@@ -1351,6 +1353,18 @@ def optimize_portfolio_endpoint():
             required=False,
             default=None
         )
+        turnover_penalty = parse_float_param(
+            data.get('turnover_penalty', 0.0),
+            'turnover_penalty',
+            required=False,
+            default=0.0
+        )
+        min_holding_weight = parse_float_param(
+            data.get('min_holding_weight', 0.0),
+            'min_holding_weight',
+            required=False,
+            default=0.0
+        )
         current_weights = data.get('current_weights')
         if forecast_horizon < 1 or forecast_horizon > 365:
             raise ValueError('forecast_horizon must be between 1 and 365')
@@ -1362,6 +1376,10 @@ def optimize_portfolio_endpoint():
             raise ValueError('rebalance_band must be non-negative')
         if max_turnover is not None and max_turnover < 0:
             raise ValueError('max_turnover must be non-negative')
+        if turnover_penalty < 0:
+            raise ValueError('turnover_penalty must be non-negative')
+        if min_holding_weight < 0:
+            raise ValueError('min_holding_weight must be non-negative')
         if current_weights is not None:
             if not isinstance(current_weights, dict):
                 raise ValueError('current_weights must be an object')
@@ -1396,7 +1414,8 @@ def optimize_portfolio_endpoint():
         'forecast_method': forecast_method, 'optimization_method': optimization_method,
         'forecast_horizon': forecast_horizon, 'bl_tau': bl_tau,
         'min_history': min_history, 'rebalance_band': rebalance_band,
-        'max_turnover': max_turnover, 'current_weights': current_weights
+        'max_turnover': max_turnover, 'current_weights': current_weights,
+        'turnover_penalty': turnover_penalty, 'min_holding_weight': min_holding_weight
     }
     started = _start_optimization_thread_if_needed(job, params)
 
@@ -1617,6 +1636,18 @@ def manage_portfolio_endpoint():
                 required=False,
                 default=DEFAULT_MAX_TURNOVER
             )
+            turnover_penalty = parse_float_param(
+                data.get('turnover_penalty', 0.0),
+                'turnover_penalty',
+                required=False,
+                default=0.0
+            )
+            min_holding_weight = parse_float_param(
+                data.get('min_holding_weight', 0.0),
+                'min_holding_weight',
+                required=False,
+                default=0.0
+            )
             if target_return is not None:
                 target_return = parse_float_param(target_return, 'target_return', required=False)
             if risk_tolerance is not None:
@@ -1633,6 +1664,10 @@ def manage_portfolio_endpoint():
                 raise ValueError('rebalance_band must be non-negative')
             if max_turnover is not None and max_turnover < 0:
                 raise ValueError('max_turnover must be non-negative')
+            if turnover_penalty < 0:
+                raise ValueError('turnover_penalty must be non-negative')
+            if min_holding_weight < 0:
+                raise ValueError('min_holding_weight must be non-negative')
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
 
@@ -1654,6 +1689,8 @@ def manage_portfolio_endpoint():
             fractional_overrides=fractional_overrides,
             rebalance_band=rebalance_band,
             max_turnover=max_turnover,
+            turnover_penalty=turnover_penalty,
+            min_holding_weight=min_holding_weight,
             tickers=tickers
         )
         

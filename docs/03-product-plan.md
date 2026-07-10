@@ -47,7 +47,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - MPT/Black-Litterman 포트폴리오 최적화
 - forecast method 선택과 expected return 기반 optimization
-- rolling rebalance portfolio backtest CLI와 risk parity/momentum baseline을 포함한 보수적 model promotion gate
+- rolling rebalance portfolio backtest CLI와 risk parity, 6-month momentum, low-volatility, market-cap, standalone 12-1 momentum, signal-stack baseline을 포함한 보수적 model promotion gate
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소
 - 저장된 portfolio result 조회
 - 포트폴리오 benchmark와 리밸런싱 계산
@@ -69,7 +69,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 사용자는 ticker group 또는 개별 ticker를 입력할 수 있어야 합니다.
 - forecast method는 historical CAGR, lightweight ensemble, ARIMA + Transformer, Transformer 등 기존 선택지를 유지합니다.
 - ARIMA + Transformer와 Transformer가 유효한 forecast를 만들지 못하면 임의의 양의 기대수익률을 넣지 않고 no-view로 처리해 prior-only view가 되도록 합니다.
-- forecast 모델 기본값 변경은 거래비용과 turnover control을 포함한 walk-forward backtest에서 equal weight, minimum variance, historical BL/MPT, inverse-vol risk parity, momentum BL baseline을 이긴 경우에만 검토합니다.
+- forecast 모델 기본값 변경은 거래비용과 turnover control을 포함한 walk-forward backtest에서 equal weight, minimum variance, historical BL/MPT, inverse-vol risk parity, 6-month momentum, low-volatility tilt, market-cap weight(가능한 경우), standalone 12-1 momentum, momentum BL, signal-stack BL baseline을 이긴 경우에만 검토합니다.
+- ARIMA + Transformer와 Transformer는 portfolio promotion gauntlet에서 직접 기대수익률 입력이 아니라 weak rank feature 모델로만 경쟁합니다.
 - Portfolio Manager는 v1에서 UI 변경 없이 기본 `rebalance_band=0.02`, `max_turnover=0.35`를 적용해 미세 거래와 과도한 회전율을 줄입니다.
 - 데이터 길이가 부족하거나 결측치가 많은 ticker는 명확한 처리 정책을 가져야 합니다.
 - 결과는 저장/조회 가능해야 하고, 진행률은 SSE로 확인 가능해야 합니다.
@@ -99,6 +100,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 현재 로드맵과 TODO 기준 우선순위:
 
 - 포트폴리오 최적화에서 최소 거래일 수 미만 ticker 처리 정책 확정
+- yfinance 기반 live standard portfolio gauntlet 실행 및 `logs/` 결과 보관
 - Stock Screener custom CSV universe 지원
 - 회귀/forecast 모델 선택 UX와 LSTM 사용 의도 재검토
 - 사용자 인증과 저장된 portfolio/watchlist/screening criteria

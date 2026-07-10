@@ -1,6 +1,7 @@
 """Walk-forward portfolio backtests for optimizer forecast methods."""
 
 import logging
+import hashlib
 from collections import OrderedDict
 
 import numpy as np
@@ -16,6 +17,7 @@ from portfolio_optimization import (
     MAX_FORECAST_UNCERTAINTY,
     MIN_FORECAST_CONFIDENCE,
     _annual_log_return_to_simple_return,
+    apply_min_holding_threshold,
     apply_trade_controls,
     _calculate_historical_cagr,
     _confidence_from_uncertainty,
@@ -28,7 +30,19 @@ from portfolio_optimization import (
     forecast_single_ticker_with_transformer,
     get_stock_data,
 )
-from portfolio_signals import MOMENTUM_VIEW_UNCERTAINTY, momentum_bl_views, risk_parity
+from portfolio_signals import (
+    FORECAST_RANK_VIEW_UNCERTAINTY,
+    MOMENTUM_VIEW_UNCERTAINTY,
+    SIGNAL_STACK_VIEW_UNCERTAINTY,
+    SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
+    low_volatility_tilt,
+    market_cap_weight,
+    momentum_bl_views,
+    momentum_tilt_weights,
+    rank_to_unit_scores,
+    risk_parity,
+    signal_stack_bl_views,
+)
 from ticker_lists import get_ticker_group
 
 
@@ -39,13 +53,37 @@ DEFAULT_BACKTEST_MODELS = (
     "equal_weight",
     "min_variance",
     "risk_parity",
+    "momentum_6m",
+    "low_volatility",
+    "market_cap_weight",
+    "momentum_12_1",
     "historical_bl",
     "momentum_bl",
+    "signal_stack_bl",
     "historical_mpt",
     "lightweight_bl",
+    "arima_transformer_rank_bl",
+    "transformer_rank_bl",
     "arima_transformer_bl",
     "transformer_bl",
 )
+
+PROMOTION_BASELINE_MODELS = (
+    "equal_weight",
+    "historical_bl",
+    "risk_parity",
+    "momentum_bl",
+    "momentum_6m",
+    "low_volatility",
+    "momentum_12_1",
+)
+
+PROMOTION_CANDIDATE_MODELS = (
+    "arima_transformer_rank_bl",
+    "arima_transformer_bl",
+)
+
+_FORECAST_RANK_CACHE = {}
 
 
 def _to_float(value, default=0.0):
@@ -146,6 +184,101 @@ def _efficient_frontier_weights(mu, covariance, max_asset_weight, objective, ris
         return _equal_weights(tickers)
 
 
+def _views_from_rank_scores(train_prices, scores, uncertainty, view_strength=0.03, max_view_shift=0.06):
+    tickers = list(train_prices.columns)
+    prior = _calculate_historical_cagr(train_prices).reindex(tickers).fillna(0.0)
+    scores = pd.Series(scores, dtype=float).reindex(tickers).replace([np.inf, -np.inf], np.nan)
+    delta = (scores * abs(float(view_strength))).clip(
+        lower=-abs(float(max_view_shift)),
+        upper=abs(float(max_view_shift)),
+    )
+    views = (prior + delta.fillna(0.0)).clip(lower=-0.99, upper=10.0)
+    views.loc[scores.isna()] = np.nan
+    uncertainties = pd.Series(
+        {
+            ticker: MAX_FORECAST_UNCERTAINTY if pd.isna(scores.get(ticker)) else uncertainty
+            for ticker in tickers
+        },
+        dtype=float,
+    )
+    return views, _normalize_uncertainty_series(uncertainties, tickers), int(scores.isna().sum())
+
+
+def _forecast_rank_cache_key(ticker, prices, method, horizon):
+    series = pd.Series(prices, dtype=float).dropna()
+    if series.empty:
+        digest = "empty"
+        first_date = last_date = "NA"
+    else:
+        first_date = str(series.index[0])
+        last_date = str(series.index[-1])
+        hashed = pd.util.hash_pandas_object(series, index=True).values
+        digest = hashlib.blake2b(hashed.tobytes(), digest_size=16).hexdigest()
+    return (
+        str(method),
+        str(ticker),
+        int(horizon),
+        int(len(series)),
+        first_date,
+        last_date,
+        digest,
+    )
+
+
+def _cached_forecast_rank_prediction(ticker, prices, method, horizon, predictor):
+    key = _forecast_rank_cache_key(ticker, prices, method, horizon)
+    if key not in _FORECAST_RANK_CACHE:
+        _FORECAST_RANK_CACHE[key] = predictor(ticker, prices, horizon=horizon)
+    prediction = _FORECAST_RANK_CACHE[key]
+    return dict(prediction) if isinstance(prediction, dict) else prediction
+
+
+def _forecast_rank_views(train_prices, method, forecast_horizon):
+    tickers = list(train_prices.columns)
+    forecasts = {}
+    uncertainties = {}
+    failed = 0
+    predictor = (
+        forecast_single_ticker_with_arima_transformer
+        if method == "arima_transformer_rank"
+        else forecast_single_ticker_with_transformer
+    )
+
+    for ticker in tickers:
+        prices = train_prices[ticker].dropna()
+        prediction = _cached_forecast_rank_prediction(
+            ticker,
+            prices,
+            method,
+            forecast_horizon,
+            predictor,
+        )
+        annual_log_return = prediction.get("expected_return") if isinstance(prediction, dict) else None
+        if annual_log_return is None:
+            forecasts[ticker] = np.nan
+            uncertainties[ticker] = MAX_FORECAST_UNCERTAINTY
+            failed += 1
+            continue
+        forecasts[ticker] = _annual_log_return_to_simple_return(annual_log_return)
+        uncertainties[ticker] = max(
+            FORECAST_RANK_VIEW_UNCERTAINTY,
+            _to_float(prediction.get("uncertainty"), FORECAST_RANK_VIEW_UNCERTAINTY),
+        )
+
+    scores = rank_to_unit_scores(pd.Series(forecasts).reindex(tickers), higher_is_better=True)
+    views, rank_uncertainties, rank_failed = _views_from_rank_scores(
+        train_prices,
+        scores,
+        uncertainty=FORECAST_RANK_VIEW_UNCERTAINTY,
+        view_strength=0.025,
+        max_view_shift=0.05,
+    )
+    uncertainty_series = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
+    uncertainty_series = pd.concat([uncertainty_series, rank_uncertainties], axis=1).max(axis=1)
+    uncertainty_series.loc[views.isna()] = MAX_FORECAST_UNCERTAINTY
+    return views, uncertainty_series, max(failed, rank_failed)
+
+
 def _forecast_views(train_prices, method, forecast_horizon):
     tickers = list(train_prices.columns)
     views = {}
@@ -167,6 +300,24 @@ def _forecast_views(train_prices, method, forecast_horizon):
         views = momentum_views.reindex(tickers)
         uncertainties = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
         return views, uncertainties, failed
+
+    if method == "signal_stack":
+        prior = _calculate_historical_cagr(train_prices)
+        views = signal_stack_bl_views(train_prices, prior_returns=prior)
+        failed = int(views.isna().sum())
+        uncertainties = {
+            ticker: (
+                MAX_FORECAST_UNCERTAINTY
+                if pd.isna(views.get(ticker))
+                else SIGNAL_STACK_VIEW_UNCERTAINTY
+            )
+            for ticker in tickers
+        }
+        uncertainties = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
+        return views.reindex(tickers), uncertainties, failed
+
+    if method in ("arima_transformer_rank", "transformer_rank"):
+        return _forecast_rank_views(train_prices, method, forecast_horizon)
 
     for ticker in tickers:
         prices = train_prices[ticker].dropna()
@@ -255,7 +406,8 @@ def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_as
     }
 
 
-def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate):
+def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate,
+                   market_caps=None):
     tickers = list(train_prices.columns)
     if model_name == "equal_weight":
         return _equal_weights(tickers), {"failed_forecast_count": 0, "avg_forecast_confidence": None}
@@ -275,6 +427,46 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
         weights = risk_parity(train_prices, max_asset_weight=max_asset_weight).to_dict()
         return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
 
+    if model_name == "momentum_6m":
+        weights = momentum_tilt_weights(
+            train_prices,
+            lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
+            skip=0,
+            max_asset_weight=max_asset_weight,
+        ).to_dict()
+        return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
+    if model_name == "low_volatility":
+        weights = low_volatility_tilt(train_prices, max_asset_weight=max_asset_weight).to_dict()
+        return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
+    if model_name == "market_cap_weight":
+        weights = market_cap_weight(
+            market_caps,
+            tickers=tickers,
+            max_asset_weight=max_asset_weight,
+        )
+        if weights.empty or float(weights.fillna(0.0).sum()) <= 0:
+            return _equal_weights(tickers), {
+                "failed_forecast_count": 0,
+                "avg_forecast_confidence": None,
+                "market_caps_available": False,
+            }
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "market_caps_available": True,
+        }
+
+    if model_name == "momentum_12_1":
+        weights = momentum_tilt_weights(
+            train_prices,
+            lookback=252,
+            skip=21,
+            max_asset_weight=max_asset_weight,
+        ).to_dict()
+        return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
     if model_name == "historical_mpt":
         mu = _calculate_historical_cagr(train_prices)
         weights = _efficient_frontier_weights(mu, covariance, max_asset_weight, "max_sharpe", risk_free_rate)
@@ -283,7 +475,10 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
     bl_methods = {
         "historical_bl": "historical",
         "momentum_bl": "momentum",
+        "signal_stack_bl": "signal_stack",
         "lightweight_bl": "lightweight",
+        "arima_transformer_rank_bl": "arima_transformer_rank",
+        "transformer_rank_bl": "transformer_rank",
         "arima_transformer_bl": "arima_transformer",
         "transformer_bl": "transformer",
     }
@@ -339,9 +534,20 @@ def _portfolio_metrics(value_timeline, risk_free_rate):
     }
 
 
+def _candidate_model_name(summary_by_model):
+    for name in PROMOTION_CANDIDATE_MODELS:
+        if summary_by_model.get(name):
+            return name
+    return PROMOTION_CANDIDATE_MODELS[0]
+
+
 def _promotion_decision(summary_by_model):
-    candidate = summary_by_model.get("arima_transformer_bl")
-    required_baselines = ("equal_weight", "historical_bl", "risk_parity", "momentum_bl")
+    candidate_name = _candidate_model_name(summary_by_model)
+    candidate = summary_by_model.get(candidate_name)
+    required_baselines = list(PROMOTION_BASELINE_MODELS)
+    market_cap_metrics = summary_by_model.get("market_cap_weight")
+    if market_cap_metrics and market_cap_metrics.get("market_cap_available_count", 0) > 0:
+        required_baselines.append("market_cap_weight")
     baselines = {
         name: summary_by_model.get(name)
         for name in required_baselines
@@ -351,11 +557,11 @@ def _promotion_decision(summary_by_model):
     if not candidate or missing:
         missing_reasons = []
         if not candidate:
-            missing_reasons.append("Candidate model arima_transformer_bl is missing.")
+            missing_reasons.append(f"Candidate model {candidate_name} is missing.")
         if missing:
             missing_reasons.append(f"Required comparison models are missing: {', '.join(missing)}.")
         return {
-            "candidate_model": "arima_transformer_bl",
+            "candidate_model": candidate_name,
             "status": "not_promoted",
             "reasons": missing_reasons,
         }
@@ -374,20 +580,105 @@ def _promotion_decision(summary_by_model):
     if candidate.get("avg_controlled_turnover", 0.0) > max(0.50, historical_turnover * 2.0):
         reasons.append("Turnover is too high versus historical BL.")
     if candidate.get("failed_forecast_count", 0) > 0:
-        reasons.append("ARIMA + Transformer produced no-view forecasts.")
+        reasons.append(f"{candidate_name} produced no-view forecasts.")
 
     if reasons:
         return {
-            "candidate_model": "arima_transformer_bl",
+            "candidate_model": candidate_name,
             "status": "not_promoted",
             "reasons": reasons,
         }
     return {
-        "candidate_model": "arima_transformer_bl",
-        "status": "candidate_requires_multi_universe_confirmation",
+        "candidate_model": candidate_name,
+        "status": "candidate_requires_gauntlet_confirmation",
         "reasons": [
-            "Single backtest passed local baseline checks, but default promotion requires SP500, DOW, and custom basket confirmation."
+            "Single backtest passed local baseline checks, but default promotion requires multi-basket and multi-regime gauntlet confirmation."
         ],
+    }
+
+
+def _candidate_survives_case(summary_by_model, candidate_name=None):
+    candidate_name = candidate_name or _candidate_model_name(summary_by_model)
+    candidate = summary_by_model.get(candidate_name)
+    if not candidate:
+        return False, [f"Candidate model {candidate_name} is missing."]
+
+    baseline_names = list(PROMOTION_BASELINE_MODELS)
+    market_cap_metrics = summary_by_model.get("market_cap_weight")
+    if market_cap_metrics and market_cap_metrics.get("market_cap_available_count", 0) > 0:
+        baseline_names.append("market_cap_weight")
+
+    reasons = []
+    for name in baseline_names:
+        baseline = summary_by_model.get(name)
+        if not baseline:
+            reasons.append(f"Missing baseline {name}.")
+            continue
+        if candidate.get("sharpe") is None or baseline.get("sharpe") is None:
+            reasons.append(f"Sharpe unavailable against {name}.")
+        elif candidate["sharpe"] <= baseline["sharpe"]:
+            reasons.append(f"Sharpe does not beat {name}.")
+        if candidate.get("max_drawdown", -1.0) < baseline.get("max_drawdown", -1.0):
+            reasons.append(f"Max drawdown is worse than {name}.")
+        baseline_turnover = baseline.get("avg_controlled_turnover", 0.0)
+        if candidate.get("avg_controlled_turnover", 0.0) > max(0.50, baseline_turnover * 2.0):
+            reasons.append(f"Turnover is too high versus {name}.")
+    if candidate.get("failed_forecast_count", 0) > 0:
+        reasons.append(f"{candidate_name} produced no-view forecasts.")
+    return not reasons, reasons
+
+
+def aggregate_gauntlet_promotion(runs, candidate_model=None):
+    """Aggregate promotion evidence across baskets, regimes, and sensitivity runs."""
+    case_reports = []
+    survival_count = 0
+    usable_count = 0
+    candidate_name = candidate_model
+
+    for index, run in enumerate(runs or []):
+        result = run.get("result", run) if isinstance(run, dict) else {}
+        summary = result.get("summary_by_model", {}) if isinstance(result, dict) else {}
+        if not summary:
+            continue
+        candidate_name = candidate_name or _candidate_model_name(summary)
+        survived, reasons = _candidate_survives_case(summary, candidate_name=candidate_name)
+        usable_count += 1
+        survival_count += int(survived)
+        metadata = run.get("case", {}) if isinstance(run, dict) else {}
+        settings = result.get("settings", {})
+        case_reports.append({
+            "index": index,
+            "basket": metadata.get("basket"),
+            "regime": metadata.get("regime"),
+            "rebalance_band": settings.get("rebalance_band"),
+            "max_turnover": settings.get("max_turnover"),
+            "survived": bool(survived),
+            "reasons": reasons,
+        })
+
+    survival_rate = float(survival_count / usable_count) if usable_count else 0.0
+    failed_cases = [case for case in case_reports if not case["survived"]]
+    reasons = []
+    if usable_count == 0:
+        reasons.append("No usable gauntlet runs were supplied.")
+    if failed_cases:
+        reasons.append(f"Candidate failed {len(failed_cases)} of {usable_count} usable gauntlet runs.")
+    if usable_count < 4:
+        reasons.append("At least four basket/regime cases are required to reduce single-period lucky-win risk.")
+
+    status = "not_promoted"
+    if usable_count >= 4 and not failed_cases:
+        status = "candidate_requires_manual_review"
+        reasons.append("Candidate survived the configured gauntlet; keep manual review before changing defaults.")
+
+    return {
+        "candidate_model": candidate_name or PROMOTION_CANDIDATE_MODELS[0],
+        "status": status,
+        "survival_count": int(survival_count),
+        "usable_count": int(usable_count),
+        "survival_rate": survival_rate,
+        "reasons": reasons,
+        "cases": case_reports,
     }
 
 
@@ -403,6 +694,8 @@ def run_portfolio_model_backtest(
     max_asset_weight=0.2,
     rebalance_band=DEFAULT_REBALANCE_BAND,
     max_turnover=DEFAULT_MAX_TURNOVER,
+    min_holding_weight=0.0,
+    market_caps=None,
     risk_free_rate=0.02,
     initial_value=10000.0,
 ):
@@ -433,6 +726,7 @@ def run_portfolio_model_backtest(
             "turnover_cap_hit_count": 0,
             "failed_forecast_count": 0,
             "forecast_confidences": [],
+            "market_cap_available_count": 0,
         }
         for model in models
     }
@@ -456,7 +750,9 @@ def run_portfolio_model_backtest(
                 forecast_horizon,
                 max_asset_weight,
                 risk_free_rate,
+                market_caps=market_caps,
             )
+            weights = apply_min_holding_threshold(weights, min_holding_weight)
             weights = _normalize_weights(weights, train_prices.columns)
             state = states[model]
             shares = state["shares"].reindex(train_prices.columns).fillna(0.0)
@@ -492,6 +788,7 @@ def run_portfolio_model_backtest(
             state["skipped_trade_count"] += int(controls["skipped_trade_count"])
             state["turnover_cap_hit_count"] += int(bool(controls["turnover_cap_hit"]))
             state["failed_forecast_count"] += int(diagnostics.get("failed_forecast_count", 0))
+            state["market_cap_available_count"] += int(bool(diagnostics.get("market_caps_available")))
             if diagnostics.get("avg_forecast_confidence") is not None:
                 state["forecast_confidences"].append(float(diagnostics["avg_forecast_confidence"]))
 
@@ -522,6 +819,7 @@ def run_portfolio_model_backtest(
                 "portfolio_value_after_cost": float(investable_value),
                 "failed_forecast_count": int(diagnostics.get("failed_forecast_count", 0)),
                 "avg_forecast_confidence": diagnostics.get("avg_forecast_confidence"),
+                "market_caps_available": diagnostics.get("market_caps_available"),
             })
 
     summary_by_model = {}
@@ -546,6 +844,7 @@ def run_portfolio_model_backtest(
             "rebalance_count": int(rebalance_count),
             "failed_forecast_count": int(state["failed_forecast_count"]),
             "avg_forecast_confidence": avg_confidence,
+            "market_cap_available_count": int(state["market_cap_available_count"]),
         })
         summary_by_model[model] = metrics
 
@@ -560,6 +859,7 @@ def run_portfolio_model_backtest(
             "max_asset_weight": float(max_asset_weight),
             "rebalance_band": float(_to_float(rebalance_band, 0.0)),
             "max_turnover": None if max_turnover is None else float(max_turnover),
+            "min_holding_weight": float(max(0.0, _to_float(min_holding_weight, 0.0))),
             "risk_free_rate": float(risk_free_rate),
             "initial_value": float(initial_value),
         },

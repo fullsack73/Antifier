@@ -71,7 +71,7 @@
 - 거래일 기준 연율화는 기존 `TRADING_DAYS_PER_YEAR = 252` 관례를 따릅니다.
 - 포트폴리오 최적화는 입력 데이터 길이, 결측치, 상장 기간 부족, 무효 weight를 방어해야 합니다.
 - Black-Litterman, MPT, forecast 기반 expected return은 모델 가정과 fallback 경로를 테스트 또는 문서로 남깁니다.
-- forecast 모델을 optimizer 기본값으로 승격하기 전에는 walk-forward 포트폴리오 backtest에서 equal weight, minimum variance, historical MPT/BL, inverse-vol risk parity, momentum BL baseline과 거래비용/turnover-control 반영 성과를 비교합니다.
+- forecast 모델을 optimizer 기본값으로 승격하기 전에는 walk-forward 포트폴리오 backtest에서 equal weight, minimum variance, historical MPT/BL, inverse-vol risk parity, 6-month momentum, low-volatility tilt, market-cap weight(가능한 경우), standalone 12-1 momentum, momentum BL, signal-stack BL baseline과 거래비용/turnover-control 반영 성과를 비교합니다.
 
 ## E. API Surface
 
@@ -80,7 +80,7 @@
 - `GET /api/get-data`: ticker price, regression, future prediction, currency metadata
 - `GET /api/analyze-hedge`: 두 ticker의 pairs/correlation/regression 분석. 단정적인 hedge 성립 여부를 반환하지 않고, 상관계수, p-value, 회귀 alpha/beta/R-squared, 관측치 수, 비단정적 correlation signal을 반환합니다.
 - `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
-- `POST /api/optimize-portfolio`: 포트폴리오 최적화 job 시작. 같은 `request_id` 재요청은 기존 job 상태를 반환합니다. 선택 입력 `rebalance_band`, `max_turnover`, `current_weights`가 함께 있으면 raw optimizer 응답에 `rebalance_controls`, `pre_control_weights`, `controlled_weights`를 포함할 수 있습니다.
+- `POST /api/optimize-portfolio`: 포트폴리오 최적화 job 시작. 같은 `request_id` 재요청은 기존 job 상태를 반환합니다. 선택 입력 `rebalance_band`, `max_turnover`, `current_weights`가 함께 있으면 raw optimizer 응답에 `rebalance_controls`, `pre_control_weights`, `controlled_weights`를 포함할 수 있습니다. 선택 입력 `turnover_penalty`는 `current_weights`가 있을 때 optimizer objective에 L1 turnover penalty를 더하고, `min_holding_weight`는 최적화 후 작은 long-only position을 제거한 뒤 재정규화합니다.
 - `GET /api/optimization-jobs/<request_id>`: 최적화 job 상태, 진행률, 완료 결과 또는 오류 조회
 - `POST /api/optimization-jobs/<request_id>/cancel`: 실행 중인 최적화 job 취소 요청
 - `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE. 연결 시 현재 상태를 먼저 전송하고 이후 이벤트를 구독합니다.
@@ -89,11 +89,11 @@
 - `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening
 - `POST /api/asset-names`: ticker display name 조회
 - `POST /api/benchmark-portfolio`: 포트폴리오 benchmark 계산
-- `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산. 입력에서 생략하면 `rebalance_band=0.02`, `max_turnover=0.35`를 적용해 작은 거래를 건너뛰고 gross turnover를 제한합니다.
+- `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산. 입력에서 생략하면 `rebalance_band=0.02`, `max_turnover=0.35`를 적용해 작은 거래를 건너뛰고 gross turnover를 제한합니다. 선택 입력 `turnover_penalty`, `min_holding_weight`는 내부 최적화 호출에 전달됩니다.
 
 Backend-only research tool:
 
-- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_bl`이 포함되며 요약에는 `controlled_turnover`, `skipped_trade_count`, `turnover_cap_hit_count`가 포함됩니다. v1은 public API나 UI를 추가하지 않습니다.
+- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_6m`, `low_volatility`, `market_cap_weight`, `momentum_12_1`, `momentum_bl`, `signal_stack_bl`, `arima_transformer_rank_bl`, `transformer_rank_bl`이 포함됩니다. 요약에는 `controlled_turnover`, `skipped_trade_count`, `turnover_cap_hit_count`, `market_cap_available_count`가 포함됩니다. `--gauntlet-preset standard`는 SP500 sample, DOW, tech, defensive, mixed ETF-like basket을 bull/crash/inflation-rate-shock/sideways regime과 rebalance band 2/3/5%, max turnover 20/35/50% sensitivity로 실행하고 JSON 및 Markdown summary를 `logs/` 아래에 저장합니다. v1은 public API나 UI를 추가하지 않습니다.
 
 API 변경 규칙:
 

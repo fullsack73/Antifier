@@ -22,7 +22,15 @@ from forecast_models import (
     TransformerForecastModel,
     no_view_prediction,
 )
-from portfolio_signals import momentum_12_1, risk_parity
+from portfolio_signals import (
+    drawdown_score,
+    market_cap_weight,
+    momentum_6m,
+    momentum_12_1,
+    risk_parity,
+    signal_stack_bl_views,
+    volatility_score,
+)
 
 
 def _synthetic_prices(rows=90):
@@ -116,6 +124,62 @@ def test_optimizer_maps_no_view_to_prior_only_expected_return(monkeypatch):
     assert result["return_confidence"]["AAA"] == pytest.approx(portfolio_optimization.MIN_FORECAST_CONFIDENCE)
 
 
+def test_optimizer_adds_turnover_penalty_objective_when_current_weights_exist(monkeypatch):
+    captured = {"objectives": []}
+    pipeline_result = {
+        "mu": pd.Series({"AAA": 0.10, "BBB": 0.08}),
+        "prior_mu": pd.Series({"AAA": 0.09, "BBB": 0.07}),
+        "S": pd.DataFrame(
+            [[0.04, 0.005], [0.005, 0.03]],
+            index=["AAA", "BBB"],
+            columns=["AAA", "BBB"],
+        ),
+        "uncertainties": pd.Series({"AAA": 0.20, "BBB": 0.20}),
+        "no_view_tickers": [],
+        "tickers": ["AAA", "BBB"],
+        "latest_prices": {"AAA": 100.0, "BBB": 80.0},
+    }
+
+    class FakeEfficientFrontier:
+        def __init__(self, mu, S, weight_bounds=None):
+            pass
+
+        def add_objective(self, func, **kwargs):
+            captured["objectives"].append((func, kwargs))
+
+        def max_sharpe(self, risk_free_rate=0.0):
+            pass
+
+        def clean_weights(self):
+            return {"AAA": 0.5, "BBB": 0.5}
+
+        def portfolio_performance(self, risk_free_rate=0.0):
+            return (0.08, 0.16, 0.4)
+
+    monkeypatch.setattr(portfolio_optimization, "data_and_forecast_pipeline", lambda *args, **kwargs: pipeline_result)
+    monkeypatch.setattr(portfolio_optimization, "EfficientFrontier", FakeEfficientFrontier)
+    monkeypatch.setattr(portfolio_optimization, "get_asset_names", lambda tickers: {ticker: ticker for ticker in tickers})
+
+    result = portfolio_optimization.optimize_portfolio(
+        start_date="2024-01-01",
+        end_date="2024-12-31",
+        risk_free_rate=0.02,
+        tickers=["AAA", "BBB"],
+        optimization_method="MPT",
+        forecast_method="LIGHTWEIGHT",
+        current_weights={"AAA": 0.80, "BBB": 0.20},
+        turnover_penalty=0.15,
+    )
+
+    penalty_objectives = [
+        kwargs for _, kwargs in captured["objectives"]
+        if kwargs.get("gamma") == pytest.approx(0.15)
+    ]
+    assert penalty_objectives
+    assert penalty_objectives[0]["current_weights"].tolist() == pytest.approx([0.8, 0.2])
+    assert result["optimizer_controls"]["turnover_penalty"] == pytest.approx(0.15)
+
+
 def test_turnover_and_transaction_cost_math():
     turnover, cost = portfolio_backtest.calculate_turnover_and_cost(
         {"AAA": 500.0, "BBB": 500.0},
@@ -161,6 +225,47 @@ def test_momentum_12_1_excludes_most_recent_month():
     assert short_scores.isna().all()
 
 
+def test_six_month_momentum_low_vol_and_drawdown_scores_rank_cross_sectionally():
+    dates = pd.date_range("2024-01-02", periods=150, freq="B")
+    x = np.arange(len(dates))
+    prices = pd.DataFrame(
+        {
+            "MOM": 100.0 * np.exp(0.0020 * x),
+            "CALM": 100.0 * np.exp(0.0005 * x + 0.002 * np.sin(x / 8.0)),
+            "VOL": 100.0 * np.exp(0.0005 * x + 0.050 * np.sin(x / 2.0)),
+        },
+        index=dates,
+    )
+    prices.loc[dates[-20:], "VOL"] *= np.linspace(1.0, 0.65, 20)
+
+    momentum_scores = momentum_6m(prices)
+    vol_scores = volatility_score(prices)
+    dd_scores = drawdown_score(prices)
+
+    assert momentum_scores["MOM"] > momentum_scores["CALM"]
+    assert vol_scores["CALM"] > vol_scores["VOL"]
+    assert dd_scores["CALM"] > dd_scores["VOL"]
+
+
+def test_market_cap_weight_uses_caps_when_available_and_empty_when_not():
+    weights = market_cap_weight({"AAA": 100.0, "BBB": 300.0}, tickers=["AAA", "BBB"], max_asset_weight=0.80)
+    missing = market_cap_weight({}, tickers=["AAA", "BBB"], max_asset_weight=0.80)
+
+    assert weights.sum() == pytest.approx(1.0)
+    assert weights["BBB"] > weights["AAA"]
+    assert missing.sum() == pytest.approx(0.0)
+
+
+def test_signal_stack_views_are_weak_prior_adjustments():
+    prices = _synthetic_prices(280)
+    prior = pd.Series({"AAA": 0.05, "BBB": 0.05, "CCC": 0.05})
+
+    views = signal_stack_bl_views(prices, prior_returns=prior)
+
+    assert set(views.index) == {"AAA", "BBB", "CCC"}
+    assert float(views.sub(prior).abs().max()) <= 0.070001
+
+
 def test_turnover_band_skips_small_trades():
     controlled, diagnostics = portfolio_optimization.apply_trade_controls(
         {"AAA": 500.0, "BBB": 500.0},
@@ -192,10 +297,43 @@ def test_max_turnover_scales_trades_to_cap():
     assert controlled["BBB"] == pytest.approx(400.0)
 
 
+def test_min_holding_threshold_drops_small_weights_when_feasible():
+    filtered = portfolio_optimization.apply_min_holding_threshold(
+        {"AAA": 0.90, "BBB": 0.06, "CCC": 0.04},
+        min_holding_weight=0.05,
+    )
+
+    assert filtered["CCC"] == pytest.approx(0.0)
+    assert filtered["AAA"] + filtered["BBB"] == pytest.approx(1.0)
+
+
+def test_backtest_max_turnover_sensitivity_caps_controlled_turnover():
+    prices = _synthetic_prices(280)
+    tight = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("momentum_6m",),
+        train_window=126,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+        max_turnover=0.20,
+    )
+    loose = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("momentum_6m",),
+        train_window=126,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+        max_turnover=0.50,
+    )
+
+    assert tight["summary_by_model"]["momentum_6m"]["avg_controlled_turnover"] <= 0.20 + 1e-9
+    assert loose["summary_by_model"]["momentum_6m"]["avg_controlled_turnover"] <= 0.50 + 1e-9
+
+
 def test_backtest_records_use_prior_prices_only(monkeypatch):
     seen_windows = []
 
-    def fake_model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate):
+    def fake_model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate, **kwargs):
         seen_windows.append((train_prices.index[0], train_prices.index[-1]))
         return {"AAA": 1 / 3, "BBB": 1 / 3, "CCC": 1 / 3}, {
             "failed_forecast_count": 0,
@@ -269,6 +407,53 @@ def test_synthetic_backtest_runs_risk_parity_and_momentum_bl():
     assert "controlled_turnover" in result["rebalance_records"][0]
 
 
+def test_synthetic_backtest_runs_new_baselines_and_gauntlet_aggregate():
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _synthetic_prices(280),
+        models=(
+            "equal_weight",
+            "historical_bl",
+            "risk_parity",
+            "momentum_bl",
+            "momentum_6m",
+            "low_volatility",
+            "market_cap_weight",
+            "momentum_12_1",
+            "signal_stack_bl",
+        ),
+        train_window=126,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+        transaction_cost_bps=10,
+        market_caps={"AAA": 3_000_000, "BBB": 2_000_000, "CCC": 1_000_000},
+    )
+    aggregate = portfolio_backtest.aggregate_gauntlet_promotion([
+        {"case": {"basket": "synthetic", "regime": "bull"}, "result": result}
+    ])
+
+    assert result["summary_by_model"]["momentum_6m"]["rebalance_count"] > 0
+    assert result["summary_by_model"]["low_volatility"]["rebalance_count"] > 0
+    assert result["summary_by_model"]["market_cap_weight"]["market_cap_available_count"] > 0
+    assert aggregate["usable_count"] == 1
+
+
+def test_forecast_rank_views_reuse_same_train_window_predictions(monkeypatch):
+    calls = {"count": 0}
+    prices = _synthetic_prices(140)
+
+    def fake_transformer(ticker, ticker_prices, horizon=63):
+        calls["count"] += 1
+        return {"expected_return": 0.02 if ticker == "AAA" else 0.01, "uncertainty": 0.20}
+
+    portfolio_backtest._FORECAST_RANK_CACHE.clear()
+    monkeypatch.setattr(portfolio_backtest, "forecast_single_ticker_with_transformer", fake_transformer)
+
+    portfolio_backtest._forecast_rank_views(prices, "transformer_rank", forecast_horizon=5)
+    portfolio_backtest._forecast_rank_views(prices, "transformer_rank", forecast_horizon=5)
+
+    assert calls["count"] == len(prices.columns)
+
+
 def test_backtest_cli_writes_json_and_invalid_args_fail(tmp_path):
     csv_path = tmp_path / "prices.csv"
     output_path = tmp_path / "backtest.json"
@@ -315,3 +500,51 @@ def test_backtest_cli_writes_json_and_invalid_args_fail(tmp_path):
         check=False,
     )
     assert bad.returncode != 0
+
+
+def test_backtest_cli_gauntlet_smoke_writes_json_and_report(tmp_path):
+    csv_path = tmp_path / "prices.csv"
+    output_path = tmp_path / "gauntlet.json"
+    _synthetic_prices(280).to_csv(csv_path)
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(BACKEND)
+    ok = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "backtest_portfolio_models.py"),
+            "--gauntlet-preset",
+            "smoke",
+            "--csv",
+            str(csv_path),
+            "--models",
+            "equal_weight",
+            "risk_parity",
+            "momentum_6m",
+            "low_volatility",
+            "momentum_12_1",
+            "historical_bl",
+            "momentum_bl",
+            "signal_stack_bl",
+            "--train-window",
+            "126",
+            "--rebalance-frequency",
+            "10",
+            "--forecast-horizon",
+            "5",
+            "--output",
+            str(output_path),
+        ],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert ok.returncode == 0, ok.stderr
+    payload = json.loads(output_path.read_text())
+    assert payload["preset"] == "smoke"
+    assert payload["completed_count"] == 1
+    assert payload["promotion_gauntlet"]["usable_count"] == 1
+    assert output_path.with_suffix(".md").exists()

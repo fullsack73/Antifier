@@ -16,6 +16,10 @@ warnings.filterwarnings("ignore", message=".*Protobuf gencode version.*")
 import yfinance as yf
 import pandas as pd
 import numpy as np
+try:
+    import cvxpy as cp
+except Exception:  # pragma: no cover - PyPortfolioOpt normally provides cvxpy.
+    cp = None
 from pypfopt import EfficientFrontier, risk_models, objective_functions, BlackLittermanModel, black_litterman
 from pypfopt.exceptions import OptimizationError
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
@@ -325,6 +329,39 @@ def _weights_from_values(values, denominator):
         for ticker, value in pd.Series(values, dtype=float).items()
         if np.isfinite(value) and value > 1e-10
     }
+
+
+def apply_min_holding_threshold(weights, min_holding_weight=0.0):
+    """Drop tiny long-only positions and renormalize when the threshold is feasible."""
+    threshold = max(0.0, _safe_float(min_holding_weight, 0.0))
+    series = (
+        pd.Series(weights, dtype=float)
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+    if series.empty:
+        return {}
+
+    total = float(series.sum())
+    if total <= 0:
+        return {str(ticker): 0.0 for ticker in series.index}
+    normalized = series / total
+    if threshold <= 0:
+        return {str(ticker): float(weight) for ticker, weight in normalized.items()}
+
+    filtered = normalized.where(normalized >= threshold, 0.0)
+    filtered_total = float(filtered.sum())
+    if filtered_total <= 0:
+        return {str(ticker): float(weight) for ticker, weight in normalized.items()}
+    filtered = filtered / filtered_total
+    return {str(ticker): float(weight) for ticker, weight in filtered.items()}
+
+
+def _turnover_penalty_objective(weights, current_weights, gamma=0.0):
+    if cp is None or gamma <= 0:
+        return 0
+    return float(gamma) * cp.norm(weights - np.asarray(current_weights, dtype=float), 1)
 
 
 def apply_trade_controls(current_values, target_values, portfolio_value=None,
@@ -1616,6 +1653,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        forecast_method="LIGHTWEIGHT", optimization_method="BL",
                        forecast_horizon=63, min_history=504, bl_tau=0.05,
                        current_weights=None, rebalance_band=None, max_turnover=None,
+                       turnover_penalty=0.0, min_holding_weight=0.0,
                        cancel_event=None):
     """Optimize portfolio and optionally persist or reuse saved results."""
     _raise_if_cancelled(cancel_event)
@@ -1790,6 +1828,23 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         # Add L2 regularization
         if l2_gamma > 0:
             ef.add_objective(objective_functions.L2_reg, gamma=l2_gamma)
+        turnover_penalty = max(0.0, _safe_float(turnover_penalty, 0.0))
+        if turnover_penalty > 0 and current_weights:
+            current_weight_vector = _sanitize_value_series(
+                current_weights,
+                index=mu.index,
+            )
+            current_total = float(current_weight_vector.sum())
+            if current_total > 0:
+                current_weight_vector = current_weight_vector / current_total
+            if cp is None:
+                logger.warning("Skipping turnover penalty because cvxpy is unavailable.")
+            else:
+                ef.add_objective(
+                    _turnover_penalty_objective,
+                    current_weights=current_weight_vector.reindex(mu.index).fillna(0.0).values,
+                    gamma=turnover_penalty,
+                )
 
         # Set optimization objective
         _raise_if_cancelled(cancel_event)
@@ -1802,9 +1857,10 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
 
         # Get optimized weights
         weights = ef.clean_weights()
+        thresholded_weights = apply_min_holding_threshold(weights, min_holding_weight)
         
         # Filter out assets with near-zero weight
-        final_weights = {ticker: weight for ticker, weight in weights.items() if weight > 1e-4}
+        final_weights = {ticker: weight for ticker, weight in thresholded_weights.items() if weight > 1e-4}
         control_payload = {}
         controls_requested = rebalance_band is not None or max_turnover is not None
         if controls_requested and current_weights:
@@ -1857,6 +1913,10 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "return_confidence": _series_to_float_dict(confidence),
             "no_view_tickers": no_view_tickers,
             "failed_forecast_count": len(no_view_tickers),
+            "optimizer_controls": {
+                "turnover_penalty": float(turnover_penalty),
+                "min_holding_weight": float(max(0.0, _safe_float(min_holding_weight, 0.0))),
+            },
         }
         result_payload.update(control_payload)
 
@@ -1871,7 +1931,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 "target_return": target_return,
                 "risk_tolerance": risk_tolerance,
                 "l2_gamma": l2_gamma,
-                "max_asset_weight": max_asset_weight
+                "max_asset_weight": max_asset_weight,
+                "turnover_penalty": turnover_penalty,
+                "min_holding_weight": min_holding_weight,
             }
             save_portfolio_result(portfolio_id, result_payload, metadata)
             result_payload["portfolio_id"] = portfolio_id
