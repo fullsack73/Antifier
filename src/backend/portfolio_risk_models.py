@@ -162,6 +162,83 @@ def robust_minimum_variance_weights(
     return weights, diagnostics
 
 
+def maximum_diversification_weights(
+    price_data,
+    max_asset_weight=0.20,
+):
+    """Maximize weighted standalone volatility per unit portfolio volatility."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    tickers = list(prices.columns)
+    if not tickers:
+        raise ValueError("Maximum diversification requires price data")
+
+    covariance = risk_models.CovarianceShrinkage(prices).ledoit_wolf()
+    matrix = covariance.reindex(
+        index=tickers,
+        columns=tickers,
+    ).to_numpy(dtype=float)
+    standalone_volatility = np.sqrt(
+        np.clip(np.diag(matrix), 0.0, None)
+    )
+    cap = max(
+        float(max_asset_weight),
+        1.0 / max(1, len(tickers)) + 1e-9,
+    )
+    initial = cap_and_normalize_weights(
+        pd.Series(
+            1.0 / np.where(
+                standalone_volatility > 0.0,
+                standalone_volatility,
+                np.nan,
+            ),
+            index=tickers,
+        ).fillna(0.0),
+        max_asset_weight=max_asset_weight,
+    ).to_numpy(dtype=float)
+
+    def diversification_ratio(weights):
+        portfolio_variance = float(weights @ matrix @ weights)
+        if portfolio_variance <= 1e-16:
+            return 0.0
+        return float(
+            weights @ standalone_volatility
+            / np.sqrt(portfolio_variance)
+        )
+
+    result = minimize(
+        lambda weights: -diversification_ratio(weights),
+        initial,
+        method="SLSQP",
+        bounds=[(0.0, min(1.0, cap))] * len(tickers),
+        constraints=({
+            "type": "eq",
+            "fun": lambda weights: weights.sum() - 1.0,
+        },),
+        options={"maxiter": 500, "ftol": 1e-12},
+    )
+    raw = initial if not result.success else result.x
+    weights = cap_and_normalize_weights(
+        pd.Series(raw, index=tickers, dtype=float),
+        max_asset_weight=max_asset_weight,
+    )
+    equal = np.full(len(tickers), 1.0 / len(tickers))
+    return weights, {
+        "method": "ledoit_wolf_maximum_diversification",
+        "optimizer_success": bool(result.success),
+        "optimizer_message": str(result.message),
+        "diversification_ratio": diversification_ratio(
+            weights.to_numpy(dtype=float)
+        ),
+        "inverse_volatility_start_ratio": diversification_ratio(
+            initial
+        ),
+        "equal_weight_diversification_ratio": diversification_ratio(
+            equal
+        ),
+        "covariance": covariance_diagnostics(covariance),
+    }
+
+
 def random_matrix_denoised_covariance(price_data):
     """Denoise sample correlation eigenvalues with Marchenko-Pastur."""
     prices = _clean_prices(price_data)

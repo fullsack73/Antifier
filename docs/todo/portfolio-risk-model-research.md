@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: trend-filtered risk parity가 4-case validation 0/4로 탈락, 기본 allocator 유지
+- 현재 상태: trend-filtered risk parity와 maximum diversification이 gate에서 탈락, 기본 allocator 유지
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -132,3 +132,13 @@
 - candidate를 폐기하고 validation 결과로 trend lookback, threshold, exposure floor를 재튜닝하지 않습니다.
 - 2022+ locked holdout은 열지 않았습니다.
 - 보고서: `docs/reports/260724-0159-01-trend-risk-parity-validation.md`
+
+## 2026-07-24 maximum-diversification research
+
+- Ledoit-Wolf covariance에서 가중 개별 변동성/포트폴리오 변동성 비율을 최대화하는 long-only allocator를 추가했습니다.
+- official French 25 size×book-to-market value-weighted daily portfolios의 1971~1999 평가 구간을 새 namespace와 SHA-locked split으로 고정했습니다.
+- risk parity 대비 volatility `11.66%→11.50%`, Sharpe `0.7188→0.7387`, drawdown `-46.91%→-42.67%`로 deterministic gate는 통과했습니다.
+- P(lower volatility)는 `99.95%`였지만 P(higher Sharpe)는 `75.55%`, Holm-adjusted p-value는 `0.2445`로 95% statistical gate를 통과하지 못했습니다.
+- 후보를 폐기하고 같은 1971~1999 split에서 covariance, cap, train window, rebalance 설정을 재튜닝하지 않습니다.
+- validation은 열지 않았고 기본 allocator는 변경하지 않습니다.
+- 보고서: `docs/reports/260724-0217-01-maximum-diversification-research.md`

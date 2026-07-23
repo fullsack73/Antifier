@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: trend-filtered risk parity가 untouched 4-case validation 0/4로 탈락
+- 현재 상태: trend-filtered risk parity validation과 maximum diversification research가 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -89,6 +89,8 @@
 - frozen 후보는 2018~2021 validation 전체에서 Sharpe `0.6752→0.4969`, P(higher Sharpe) `2.05%`로 탈락했고 4개 산업 case도 `0/4`였습니다.
 - validation 결과로 trend family를 재튜닝하지 않으며 2022+ locked holdout은 계속 봉인합니다.
 - official French 25 size×value portfolio의 FF3 residual momentum은 raw 12-1 momentum보다 paired IC/spread가 명확히 낮아 signal-only 단계에서 폐기했습니다.
+- official French 25 size×value portfolio의 maximum-diversification allocator는 risk parity보다 volatility, Sharpe, drawdown을 평균적으로 개선했습니다.
+- 그러나 P(higher Sharpe) `75.55%`, Holm-adjusted p-value `0.2445`로 95% statistical gate에서 탈락했습니다. 같은 split 재튜닝과 validation을 금지합니다.
 
 ## 금지
 

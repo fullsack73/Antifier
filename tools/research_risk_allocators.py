@@ -49,6 +49,7 @@ RISK_RESEARCH_MODELS = (
     "dual_horizon_momentum",
     "trend_filtered_minimum_variance",
     "trend_filtered_risk_parity",
+    "maximum_diversification",
 )
 RISK_CANDIDATES = (
     "robust_min_variance",
@@ -68,6 +69,7 @@ RISK_CANDIDATES = (
     "dual_horizon_momentum",
     "trend_filtered_minimum_variance",
     "trend_filtered_risk_parity",
+    "maximum_diversification",
 )
 RESERVED_SPLITS = {
     "validation",
@@ -141,6 +143,13 @@ def _research_settings(args):
             "trend_lookback": 252,
             "inactive_allocation": "historical_risk_free_cash",
             "base_allocator": "inverse_volatility",
+        }
+    if "maximum_diversification" in args.candidates:
+        settings["maximum_diversification_policy"] = {
+            "covariance": "ledoit_wolf",
+            "objective": (
+                "weighted_standalone_volatility_over_portfolio_volatility"
+            ),
         }
     return settings
 

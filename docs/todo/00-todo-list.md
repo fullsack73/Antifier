@@ -4,5 +4,5 @@
 
 - `portfolio-alpha-v2-research.md`: nonlinear, fundamental, dual-horizon, and residual-momentum candidates failed gates; validation remains sealed.
 - `portfolio-forecast-model-redesign.md`: pooled and FF3-residual candidates failed paired signal gates; keep Transformer tuning blocked.
-- `portfolio-risk-model-research.md`: frozen trend-risk-parity failed 4-case validation 0/4; defaults remain unchanged.
-- `portfolio-optimizer-quant-standard.md`: research candidate failed validation; a new feature/model family still needs validation and holdout.
+- `portfolio-risk-model-research.md`: trend-risk-parity validation and maximum-diversification research failed; defaults remain unchanged.
+- `portfolio-optimizer-quant-standard.md`: alpha/risk candidates still fail promotion gates; a new feature/model family needs validation and holdout.

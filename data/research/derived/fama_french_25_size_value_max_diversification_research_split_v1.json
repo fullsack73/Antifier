@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-size-value-max-diversification-research-1971-1999-v1",
+  "role": "research",
+  "evaluation_start": "1971-01-04",
+  "evaluation_end": "1999-12-31",
+  "experiment_namespace": "risk-v10-maximum-diversification-size-value",
+  "objectives": [
+    "maximum_diversification"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fama_french_daily_one_month_tbill",
+    "maximum_diversification_policy": {
+      "covariance": "ledoit_wolf",
+      "objective": "weighted_standalone_volatility_over_portfolio_volatility"
+    }
+  },
+  "universe_manifest_sha256": "4857be922e444f9735d2b8fdba188b603c13d2b9608f50bc6c581a64a32c72e5",
+  "price_file_sha256": "a56ebf6cc46f07e1ff96c3f00692dd24b57272c6014d86b0322b21362db7591f",
+  "factor_file_sha256": "fffb3740c5dfd9511ac10cadbc181ce5e9be55ed5c5351a9cd1ed571973823b5",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "5e9b8af990464919a99a188e06944654c36b514b075802fce647c37c9f3811ea"
+}

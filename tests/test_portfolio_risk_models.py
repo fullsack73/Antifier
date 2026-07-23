@@ -23,6 +23,7 @@ from portfolio_risk_models import (  # noqa: E402
     forecast_ensemble_covariance,
     forecast_ensemble_minimum_variance_weights,
     hierarchical_risk_parity_weights,
+    maximum_diversification_weights,
     minimum_cvar_weights,
     nested_blended_minimum_variance_weights,
     random_matrix_denoised_covariance,
@@ -263,6 +264,22 @@ def test_equal_risk_contribution_balances_covariance_risk():
     assert diagnostics["risk_contribution_dispersion"] < 0.02
 
 
+def test_maximum_diversification_improves_ratio_and_respects_cap():
+    weights, diagnostics = maximum_diversification_weights(
+        _correlated_prices(),
+        max_asset_weight=0.25,
+    )
+
+    assert weights.sum() == pytest.approx(1.0)
+    assert (weights >= 0.0).all()
+    assert weights.max() <= 0.250001
+    assert diagnostics["optimizer_success"] is True
+    assert (
+        diagnostics["diversification_ratio"]
+        >= diagnostics["equal_weight_diversification_ratio"] - 1e-10
+    )
+
+
 def test_backtest_runs_robust_risk_allocator_family():
     result = portfolio_backtest.run_portfolio_model_backtest(
         _correlated_prices(),
@@ -279,6 +296,7 @@ def test_backtest_runs_robust_risk_allocator_family():
             "scenario_robust_min_variance",
             "volatility_targeted_min_variance",
             "random_matrix_minimum_variance",
+            "maximum_diversification",
         ),
         train_window=252,
         rebalance_frequency=63,
@@ -299,6 +317,7 @@ def test_backtest_runs_robust_risk_allocator_family():
         "scenario_robust_min_variance",
         "volatility_targeted_min_variance",
         "random_matrix_minimum_variance",
+        "maximum_diversification",
     }
     assert all(
         record["risk_model"]
