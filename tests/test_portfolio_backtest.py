@@ -637,8 +637,19 @@ def test_backtest_max_turnover_sensitivity_caps_controlled_turnover():
         max_turnover=0.50,
     )
 
-    assert tight["summary_by_model"]["momentum_6m"]["avg_controlled_turnover"] <= 0.20 + 1e-9
-    assert loose["summary_by_model"]["momentum_6m"]["avg_controlled_turnover"] <= 0.50 + 1e-9
+    tight_records = tight["rebalance_records"]
+    loose_records = loose["rebalance_records"]
+    assert tight_records[0]["initial_allocation"] is True
+    assert tight_records[0]["controlled_turnover"] > 0.20
+    assert loose_records[0]["initial_allocation"] is True
+    assert all(
+        record["controlled_turnover"] <= 0.20 + 1e-9
+        for record in tight_records[1:]
+    )
+    assert all(
+        record["controlled_turnover"] <= 0.50 + 1e-9
+        for record in loose_records[1:]
+    )
 
 
 def test_backtest_records_use_prior_prices_only(monkeypatch):

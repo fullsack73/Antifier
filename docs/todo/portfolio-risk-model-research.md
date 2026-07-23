@@ -74,6 +74,17 @@
 - 고정 2% Sharpe 평가를 FRED DGS3MO daily-equivalent curve로 교체했습니다. 2009-2016 실현 risk-free는 연율 `0.1058%`, date coverage는 `100%`입니다.
 - historical-RF corrected Sharpe는 baseline `1.0605`, nested `1.0376`, paired higher-Sharpe probability `19.20%`로 결론은 동일합니다.
 
+## 2026-07-24 stress/cash research
+
+- baseline/recent/correlation-volatility-shock covariance의 최악 분산을 직접 최소화하는 scenario-robust allocator를 추가했습니다.
+- 2008~2016 locked research에서 scenario 후보는 Ledoit baseline보다 volatility `5.0096%→5.0833%`, Sharpe `1.0605→1.0126`, drawdown `-9.3766%→-9.8683%`로 모두 열위여서 폐기했습니다.
+- 부분 위험노출 보존과 point-in-time FRED cash accrual을 backtest에 추가했습니다.
+- 최초 현금 배치를 turnover cap이 막던 truth bug를 수정했습니다. 초기 매수 비용은 부과하지만 rebalance band/turnover cap은 적용하지 않습니다.
+- fresh 2017~2025 global multi-asset 10종 2,262행을 다운로드하고 corrected split digest `090da876…2509`로 잠갔습니다.
+- training-only volatility target은 volatility `7.7361%→6.7285%`, max drawdown `-17.5973%→-14.7976%`, CVaR `1.1366%→0.9909%`로 개선했습니다.
+- 그러나 Sharpe는 `0.5083→0.4449`, P(higher Sharpe)는 `19.80%`라 탈락했습니다. target ratio/floor/lookback을 같은 split에서 재튜닝하지 않습니다.
+
 ## 참고
 
 - 결과 보고서: `docs/reports/260723-2040-01-risk-allocator-research.md`
+- cash/volatility-target 보고서: `docs/reports/260724-0039-01-risk-cash-volatility-target.md`

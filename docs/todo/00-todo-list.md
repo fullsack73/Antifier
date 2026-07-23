@@ -4,5 +4,5 @@
 
 - `portfolio-alpha-v2-research.md`: Nasdaq holdout, rank-target, and quarterly TTM predictor all failed signal gates; use a fresh universe and feature family.
 - `portfolio-forecast-model-redesign.md`: quarterly TTM improved filing freshness but worsened IC/spread; keep Transformer tuning blocked.
-- `portfolio-risk-model-research.md`: historical FRED risk-free correction confirms nested blend lowers volatility but reduces Sharpe; keep Ledoit-Wolf.
-- `portfolio-optimizer-quant-standard.md`: Nasdaq holdout, DOW rank-target, and quarterly TTM research rejected current signals; a fresh universe and untouched holdout remain.
+- `portfolio-risk-model-research.md`: scenario worst-case and cash volatility-target candidates lowered no joint risk/return gate; keep Ledoit-Wolf.
+- `portfolio-optimizer-quant-standard.md`: risk cash truth fixes landed, but alpha/risk candidates still lack validation and untouched-holdout evidence.

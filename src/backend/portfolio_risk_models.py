@@ -340,6 +340,40 @@ def covariance_forecast_loss(predicted_covariance, realized_returns):
     }
 
 
+def _stressed_covariance(
+    covariance,
+    correlation_shock=0.25,
+    volatility_shock=1.25,
+):
+    """Return a PSD covariance under a bounded correlation/volatility shock."""
+    matrix = pd.DataFrame(covariance, dtype=float)
+    correlation = _covariance_correlation(matrix).to_numpy(dtype=float)
+    shock = float(np.clip(correlation_shock, 0.0, 1.0))
+    stressed_correlation = (
+        correlation * (1.0 - shock)
+        + np.ones_like(correlation) * shock
+    )
+    volatility = (
+        np.sqrt(
+            np.clip(
+                np.diag(matrix.to_numpy(dtype=float)),
+                1e-16,
+                None,
+            )
+        )
+        * max(1.0, float(volatility_shock))
+    )
+    stressed = pd.DataFrame(
+        stressed_correlation * np.outer(volatility, volatility),
+        index=matrix.index,
+        columns=matrix.columns,
+    )
+    return risk_models.fix_nonpositive_semidefinite(
+        stressed,
+        fix_method="spectral",
+    )
+
+
 def covariance_stress_diagnostics(
     covariance,
     weights,
@@ -352,20 +386,13 @@ def covariance_stress_diagnostics(
         matrix.columns
     ).fillna(0.0)
     values = matrix.to_numpy(dtype=float)
-    correlation = _covariance_correlation(matrix).to_numpy(dtype=float)
+    stressed_matrix = _stressed_covariance(
+        matrix,
+        correlation_shock=correlation_shock,
+        volatility_shock=volatility_shock,
+    )
     shock = float(np.clip(correlation_shock, 0.0, 1.0))
-    stressed_correlation = (
-        correlation * (1.0 - shock)
-        + np.ones_like(correlation) * shock
-    )
-    volatility = (
-        np.sqrt(np.clip(np.diag(values), 1e-16, None))
-        * max(1.0, float(volatility_shock))
-    )
-    stressed = (
-        stressed_correlation
-        * np.outer(volatility, volatility)
-    )
+    stressed = stressed_matrix.to_numpy(dtype=float)
     weight_values = aligned_weights.to_numpy(dtype=float)
     baseline_volatility = float(
         np.sqrt(max(weight_values @ values @ weight_values, 0.0))
@@ -387,6 +414,245 @@ def covariance_stress_diagnostics(
             1.0 / max(np.square(weight_values).sum(), 1e-12)
         ),
         "maximum_weight": float(aligned_weights.max()),
+    }
+
+
+def scenario_robust_minimum_variance_weights(
+    price_data,
+    max_asset_weight=0.20,
+    recent_span=60,
+    correlation_shock=0.25,
+    volatility_shock=1.25,
+):
+    """Minimize worst predicted variance across baseline, recent, and stress."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    tickers = list(prices.columns)
+    if not tickers:
+        raise ValueError("Scenario-robust allocation requires price data")
+
+    baseline = risk_models.CovarianceShrinkage(prices).ledoit_wolf()
+    recent = risk_models.exp_cov(
+        prices,
+        span=max(20, int(recent_span)),
+        frequency=TRADING_DAYS_PER_YEAR,
+    )
+    scenarios = {
+        "ledoit_wolf": baseline,
+        "recent_exponential": recent,
+        "correlation_volatility_stress": _stressed_covariance(
+            baseline,
+            correlation_shock=correlation_shock,
+            volatility_shock=volatility_shock,
+        ),
+    }
+    scenarios = {
+        name: risk_models.fix_nonpositive_semidefinite(
+            covariance.reindex(index=tickers, columns=tickers),
+            fix_method="spectral",
+        )
+        for name, covariance in scenarios.items()
+    }
+    scenario_values = {
+        name: covariance.to_numpy(dtype=float)
+        for name, covariance in scenarios.items()
+    }
+    baseline_weights, baseline_success = _minimum_variance_from_covariance(
+        baseline,
+        tickers,
+        max_asset_weight,
+    )
+    initial_weights = baseline_weights.to_numpy(dtype=float)
+    initial_worst_variance = max(
+        float(initial_weights @ matrix @ initial_weights)
+        for matrix in scenario_values.values()
+    )
+    asset_count = len(tickers)
+    cap = max(
+        float(max_asset_weight),
+        1.0 / max(1, asset_count) + 1e-9,
+    )
+
+    constraints = [{
+        "type": "eq",
+        "fun": lambda values: float(values[:-1].sum() - 1.0),
+    }]
+    for matrix in scenario_values.values():
+        constraints.append({
+            "type": "ineq",
+            "fun": (
+                lambda values, scenario=matrix: float(
+                    values[-1]
+                    - values[:-1] @ scenario @ values[:-1]
+                )
+            ),
+        })
+    result = minimize(
+        lambda values: float(values[-1]),
+        np.append(initial_weights, initial_worst_variance),
+        method="SLSQP",
+        bounds=(
+            [(0.0, min(1.0, cap))] * asset_count
+            + [(0.0, None)]
+        ),
+        constraints=tuple(constraints),
+        options={"maxiter": 1000, "ftol": 1e-12},
+    )
+    raw_weights = (
+        result.x[:-1]
+        if result.success and np.isfinite(result.x).all()
+        else initial_weights
+    )
+    weights = cap_and_normalize_weights(
+        pd.Series(raw_weights, index=tickers, dtype=float),
+        max_asset_weight=max_asset_weight,
+    )
+    scenario_variances = {
+        name: float(weights.values @ matrix @ weights.values)
+        for name, matrix in scenario_values.items()
+    }
+    baseline_scenario_variances = {
+        name: float(
+            baseline_weights.values
+            @ matrix
+            @ baseline_weights.values
+        )
+        for name, matrix in scenario_values.items()
+    }
+    worst_name = max(
+        scenario_variances,
+        key=scenario_variances.get,
+    )
+    worst_variance = scenario_variances[worst_name]
+    baseline_worst_variance = max(
+        baseline_scenario_variances.values()
+    )
+    return weights, {
+        "method": "scenario_worst_case_minimum_variance",
+        "optimizer_success": bool(result.success),
+        "optimizer_message": str(result.message),
+        "baseline_optimizer_success": bool(baseline_success),
+        "scenario_count": int(len(scenarios)),
+        "recent_span": int(recent_span),
+        "correlation_shock": float(
+            np.clip(correlation_shock, 0.0, 1.0)
+        ),
+        "volatility_shock": float(
+            max(1.0, float(volatility_shock))
+        ),
+        "active_worst_case_scenario": worst_name,
+        "scenario_annual_volatilities": {
+            name: float(np.sqrt(max(variance, 0.0)))
+            for name, variance in scenario_variances.items()
+        },
+        "worst_case_annual_volatility": float(
+            np.sqrt(max(worst_variance, 0.0))
+        ),
+        "baseline_worst_case_annual_volatility": float(
+            np.sqrt(max(baseline_worst_variance, 0.0))
+        ),
+        "worst_case_variance_reduction": float(
+            baseline_worst_variance - worst_variance
+        ),
+        "baseline_l1_distance": float(
+            (weights - baseline_weights).abs().sum()
+        ),
+        "covariance": covariance_diagnostics(baseline),
+    }
+
+
+def volatility_targeted_minimum_variance_weights(
+    price_data,
+    max_asset_weight=0.20,
+    state_lookback=252,
+    state_step=63,
+    minimum_risky_exposure=0.25,
+):
+    """Scale minimum-variance exposure against its historical risk state."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    tickers = list(prices.columns)
+    if not tickers:
+        raise ValueError("Volatility targeting requires price data")
+
+    covariance = risk_models.CovarianceShrinkage(prices).ledoit_wolf()
+    base_weights, success = _minimum_variance_from_covariance(
+        covariance,
+        tickers,
+        max_asset_weight,
+    )
+    lookback = max(126, int(state_lookback))
+    step = max(21, int(state_step))
+    current_state_prices = prices.tail(lookback)
+    current_state_covariance = risk_models.CovarianceShrinkage(
+        current_state_prices
+    ).ledoit_wolf()
+    current_variance = float(
+        base_weights.values
+        @ current_state_covariance.to_numpy(dtype=float)
+        @ base_weights.values
+    )
+    current_volatility = float(np.sqrt(max(current_variance, 0.0)))
+
+    historical_volatilities = []
+    for cutoff in range(lookback, len(prices), step):
+        historical_prices = prices.iloc[
+            max(0, cutoff - lookback):cutoff
+        ]
+        if len(historical_prices) < lookback:
+            continue
+        historical_covariance = risk_models.CovarianceShrinkage(
+            historical_prices
+        ).ledoit_wolf()
+        historical_weights, _ = _minimum_variance_from_covariance(
+            historical_covariance,
+            tickers,
+            max_asset_weight,
+        )
+        historical_variance = float(
+            historical_weights.values
+            @ historical_covariance.to_numpy(dtype=float)
+            @ historical_weights.values
+        )
+        if np.isfinite(historical_variance) and historical_variance > 0:
+            historical_volatilities.append(
+                float(np.sqrt(historical_variance))
+            )
+
+    reference_volatility = (
+        current_volatility
+        if not historical_volatilities
+        else float(np.median(historical_volatilities))
+    )
+    minimum_exposure = float(
+        np.clip(minimum_risky_exposure, 0.0, 1.0)
+    )
+    risky_exposure = (
+        1.0
+        if current_volatility <= 1e-12
+        else float(
+            np.clip(
+                reference_volatility / current_volatility,
+                minimum_exposure,
+                1.0,
+            )
+        )
+    )
+    weights = base_weights * risky_exposure
+    return weights, {
+        "method": "historical_state_volatility_targeted_minimum_variance",
+        "optimizer_success": bool(success),
+        "allow_cash_reserve": True,
+        "target_risky_exposure": risky_exposure,
+        "target_cash_weight": float(1.0 - risky_exposure),
+        "current_predicted_annual_volatility": current_volatility,
+        "reference_predicted_annual_volatility": reference_volatility,
+        "scaled_predicted_annual_volatility": float(
+            current_volatility * risky_exposure
+        ),
+        "historical_state_count": int(len(historical_volatilities)),
+        "state_lookback": int(lookback),
+        "state_step": int(step),
+        "minimum_risky_exposure": minimum_exposure,
+        "covariance": covariance_diagnostics(covariance),
     }
 
 

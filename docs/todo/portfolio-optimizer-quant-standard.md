@@ -70,6 +70,10 @@
 - 후속 rank-target nested ridge도 raw nested보다 IC `-0.0090`, spread `-0.0075` 열위여서 폐기했습니다.
 - quarterly TTM PIT로 filing freshness는 약 5배 개선됐지만 Nasdaq 2020~2021 research에서 annual predictor보다 IC `-0.0081`, spread `-0.0112` 낮아 폐기했습니다.
 - 7개 OOS period로 통계 power도 부족합니다. 같은 기간의 TTM/penalty 재튜닝 대신 새 universe와 feature family가 필요합니다.
+- scenario worst-case covariance 후보는 2008~2016 global multi-asset research에서 Ledoit-Wolf보다 volatility와 Sharpe가 모두 나빠 폐기했습니다.
+- backtest가 최초 배치까지 turnover cap으로 막던 결함을 수정하고, 부분 위험노출과 point-in-time 현금 이자 적립을 구현했습니다.
+- fresh 2017~2025 global multi-asset research에서 volatility-target minimum variance는 volatility, drawdown, CVaR을 개선했지만 Sharpe `0.5083→0.4449`, P(higher Sharpe) `19.80%`로 탈락했습니다.
+- risk engine truth는 개선됐지만 default candidate 승격, validation, untouched holdout 조건은 여전히 미충족입니다.
 
 ## 금지
 

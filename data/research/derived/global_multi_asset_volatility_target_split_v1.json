@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "split_id": "global-multi-asset-volatility-target-research-2017-2025-v1",
+  "role": "research",
+  "evaluation_start": "2019-01-04",
+  "evaluation_end": "2025-12-31",
+  "experiment_namespace": "risk-v5-volatility-target-cash-fred-rf",
+  "objectives": [
+    "volatility_targeted_min_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent"
+  },
+  "universe_manifest_sha256": "16b005516fe040c575a18894b44ef7a05fc361d74aaa4a49303eae1d2879c9e0",
+  "price_file_sha256": "17d070cc5f1e4c0211f8ddd405fed65ef4c38a1126af471a081e0394f93c0636",
+  "factor_file_sha256": "015a593a033b3dab0662ef40017956acb85589ce2abd1d8014e4f16e550decd3",
+  "locked": true,
+  "manifest_sha256": "23d4b07350de57150b6fa67c53f3d4c2842697107bd113fec7a70def7a58c5c4"
+}

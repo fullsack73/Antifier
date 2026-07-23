@@ -31,7 +31,9 @@ from portfolio_risk_models import (  # noqa: E402
     risk_allocator_case_gate,
     robust_covariance,
     robust_minimum_variance_weights,
+    scenario_robust_minimum_variance_weights,
     stability_regularized_minimum_variance_weights,
+    volatility_targeted_minimum_variance_weights,
 )
 
 
@@ -44,6 +46,27 @@ def _correlated_prices(rows=620, asset_count=6):
         beta = 0.5 + index * 0.2
         idiosyncratic = rng.normal(0.0, 0.004 + index * 0.001, rows)
         returns[f"A{index}"] = market * beta + idiosyncratic
+    return pd.DataFrame({
+        ticker: 100.0 * np.exp(np.cumsum(values))
+        for ticker, values in returns.items()
+    }, index=dates)
+
+
+def _regime_shift_prices(rows=620, asset_count=6):
+    rng = np.random.default_rng(7)
+    dates = pd.date_range("2010-01-04", periods=rows, freq="B")
+    calm_rows = rows - 126
+    market = np.concatenate([
+        rng.normal(0.0003, 0.004, calm_rows),
+        rng.normal(-0.0002, 0.025, rows - calm_rows),
+    ])
+    returns = {}
+    for index in range(asset_count):
+        idiosyncratic = np.concatenate([
+            rng.normal(0.0, 0.002, calm_rows),
+            rng.normal(0.0, 0.008, rows - calm_rows),
+        ])
+        returns[f"A{index}"] = market * (0.6 + index * 0.1) + idiosyncratic
     return pd.DataFrame({
         ticker: 100.0 * np.exp(np.cumsum(values))
         for ticker, values in returns.items()
@@ -73,6 +96,7 @@ def test_robust_covariance_is_psd_and_reports_conditioning():
         stability_regularized_minimum_variance_weights,
         nested_blended_minimum_variance_weights,
         resampled_minimum_variance_weights,
+        scenario_robust_minimum_variance_weights,
     ),
 )
 def test_robust_risk_allocators_are_long_only_capped(allocator):
@@ -85,6 +109,58 @@ def test_robust_risk_allocators_are_long_only_capped(allocator):
     assert weights.min() >= 0.0
     assert weights.max() <= 0.250001
     assert diagnostics
+
+
+def test_scenario_robust_allocator_reduces_training_worst_case_risk():
+    weights, diagnostics = scenario_robust_minimum_variance_weights(
+        _correlated_prices(),
+        max_asset_weight=0.25,
+    )
+
+    assert diagnostics["optimizer_success"] is True
+    assert diagnostics["scenario_count"] == 3
+    assert diagnostics["worst_case_variance_reduction"] >= -1e-10
+    assert (
+        diagnostics["worst_case_annual_volatility"]
+        <= diagnostics["baseline_worst_case_annual_volatility"] + 1e-8
+    )
+    assert weights.sum() == pytest.approx(1.0)
+
+
+def test_volatility_targeted_allocator_holds_cash_in_elevated_risk():
+    weights, diagnostics = volatility_targeted_minimum_variance_weights(
+        _regime_shift_prices(),
+        max_asset_weight=0.25,
+    )
+
+    assert 0.25 <= weights.sum() < 1.0
+    assert diagnostics["allow_cash_reserve"] is True
+    assert diagnostics["target_cash_weight"] > 0.0
+    assert (
+        diagnostics["current_predicted_annual_volatility"]
+        > diagnostics["reference_predicted_annual_volatility"]
+    )
+    assert weights.max() <= 0.250001
+
+
+def test_backtest_cash_path_accrues_point_in_time_risk_free_returns():
+    dates = pd.date_range("2020-01-01", periods=4, freq="B")
+    risk_free = pd.Series(
+        [0.01, 0.02, 0.03],
+        index=dates[:3],
+    )
+
+    path = portfolio_backtest._cash_value_path(
+        100.0,
+        dates,
+        risk_free_rate=0.0,
+        risk_free_daily_returns=risk_free,
+    )
+
+    assert path.iloc[0] == pytest.approx(100.0)
+    assert path.iloc[1] == pytest.approx(102.0)
+    assert path.iloc[2] == pytest.approx(105.06)
+    assert path.iloc[3] == pytest.approx(108.2118)
 
 
 def test_equal_risk_contribution_balances_covariance_risk():
@@ -110,6 +186,8 @@ def test_backtest_runs_robust_risk_allocator_family():
             "stability_regularized_min_variance",
             "nested_blended_min_variance",
             "resampled_min_variance",
+            "scenario_robust_min_variance",
+            "volatility_targeted_min_variance",
         ),
         train_window=252,
         rebalance_frequency=63,
@@ -127,6 +205,8 @@ def test_backtest_runs_robust_risk_allocator_family():
         "stability_regularized_min_variance",
         "nested_blended_min_variance",
         "resampled_min_variance",
+        "scenario_robust_min_variance",
+        "volatility_targeted_min_variance",
     }
     assert all(
         record["risk_model"]

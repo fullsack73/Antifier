@@ -42,6 +42,8 @@ RISK_RESEARCH_MODELS = (
     "stability_regularized_min_variance",
     "nested_blended_min_variance",
     "resampled_min_variance",
+    "scenario_robust_min_variance",
+    "volatility_targeted_min_variance",
     "risk_managed_momentum",
 )
 RISK_CANDIDATES = (
@@ -55,6 +57,8 @@ RISK_CANDIDATES = (
     "stability_regularized_min_variance",
     "nested_blended_min_variance",
     "resampled_min_variance",
+    "scenario_robust_min_variance",
+    "volatility_targeted_min_variance",
     "risk_managed_momentum",
 )
 RESERVED_SPLITS = {
@@ -223,6 +227,8 @@ def _risk_gate(summary, candidate_name):
                 "stability_regularized_min_variance",
                 "nested_blended_min_variance",
                 "resampled_min_variance",
+                "scenario_robust_min_variance",
+                "volatility_targeted_min_variance",
             }
             else "risk_parity"
         )
@@ -287,8 +293,8 @@ def _write_report(payload, output_path):
         "",
         "## Performance",
         "",
-        "| Model | CAGR | Volatility | Sharpe | Sortino | Max DD | Daily CVaR | Avg turnover | Risk MAE | P(vol lower) | P(Sharpe higher) | Gate |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
+        "| Model | CAGR | Volatility | Sharpe | Sortino | Max DD | Daily CVaR | Risk exposure | Avg turnover | Risk MAE | P(vol lower) | P(Sharpe higher) | Gate |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     summary = payload["result"]["summary_by_model"]
     for model in payload["models"]:
@@ -298,7 +304,7 @@ def _write_report(payload, output_path):
         probability = bootstrap.get("probability", {})
         lines.append(
             "| {model} | {cagr} | {volatility} | {sharpe} | {sortino} | "
-            "{drawdown} | {cvar} | {turnover} | {risk_mae} | "
+            "{drawdown} | {cvar} | {exposure} | {turnover} | {risk_mae} | "
             "{lower_volatility} | {higher_sharpe} | {gate} |".format(
                 model=model,
                 cagr=_fmt(metrics["cagr"]),
@@ -307,6 +313,7 @@ def _write_report(payload, output_path):
                 sortino=_fmt(metrics["sortino"]),
                 drawdown=_fmt(metrics["max_drawdown"]),
                 cvar=_fmt(metrics["daily_cvar_95"]),
+                exposure=_fmt(metrics.get("avg_risky_exposure", 1.0)),
                 turnover=_fmt(metrics["avg_controlled_turnover"]),
                 risk_mae=_fmt(metrics["risk_forecast_mae"]),
                 lower_volatility=_fmt(
