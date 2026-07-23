@@ -48,6 +48,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - MPT/Black-Litterman 포트폴리오 최적화
 - forecast method 선택과 expected return 기반 optimization
 - rolling rebalance portfolio backtest CLI와 risk parity, 6-month momentum, low-volatility, market-cap, standalone 12-1 momentum, signal-stack baseline을 포함한 보수적 model promotion gate
+- candidate 4-case 선별 후 standard 180-case 승격 검증으로 이어지는 staged gauntlet, basket/regime별 target 재사용, SQLite forecast cache, case checkpoint/resume, forward rank IC 진단
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소
 - 저장된 portfolio result 조회
 - 포트폴리오 benchmark와 리밸런싱 계산
@@ -100,7 +101,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 현재 로드맵과 TODO 기준 우선순위:
 
 - 포트폴리오 최적화에서 최소 거래일 수 미만 ticker 처리 정책 확정
-- yfinance 기반 live standard portfolio gauntlet 실행 및 `logs/` 결과 보관
+- yfinance 기반 live candidate gauntlet 실행 후 통과 후보에 한해 standard portfolio gauntlet을 재개하고 `logs/` 결과 보관
 - Stock Screener custom CSV universe 지원
 - 회귀/forecast 모델 선택 UX와 LSTM 사용 의도 재검토
 - 사용자 인증과 저장된 portfolio/watchlist/screening criteria

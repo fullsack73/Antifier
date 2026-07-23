@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next"
 
 function StockChart({ data, ticker, priceCurrency = "USD" }) {
   const { t } = useTranslation()
-  const chartText = "#f4f1e8"
-  const chartMuted = "#aeb49f"
-  const chartGrid = "rgba(174, 186, 154, 0.12)"
+  const chartText = "#f2f1e9"
+  const chartMuted = "#a9ad9f"
+  const chartGrid = "rgba(174, 186, 154, 0.1)"
 
   return (
     <Plot
@@ -16,35 +16,50 @@ function StockChart({ data, ticker, priceCurrency = "USD" }) {
           type: "scatter",
           mode: "lines",
           line: {
-            color: "#a8c77a",
-            width: 2.5,
+            color: "#b3cf84",
+            width: 2.25,
           },
-          fill: "tozeroy",
-          fillcolor: "rgba(168, 199, 122, 0.12)",
+          hovertemplate: `%{x}<br>%{y:.2f} ${priceCurrency}<extra></extra>`,
         },
       ]}
       layout={{
         autosize: true,
+        hovermode: "x unified",
+        font: { color: chartMuted, family: "Outfit, Pretendard, sans-serif" },
+        hoverlabel: {
+          bgcolor: "#171d18",
+          bordercolor: "rgba(168, 199, 122, 0.48)",
+          font: { color: chartText, size: 13, family: "Outfit, Pretendard, sans-serif" },
+        },
         title: {
           text: t("stock.chartTitle", "{{ticker}} Stock Data", { ticker }),
-          font: { color: chartText, size: 18, family: "Outfit, Pretendard, sans-serif" },
+          x: 0.02,
+          xanchor: "left",
+          font: { color: chartText, size: 16, family: "Outfit, Pretendard, sans-serif" },
         },
-        paper_bgcolor: "rgba(17, 22, 17, 0.64)",
-        plot_bgcolor: "rgba(8, 11, 8, 0.24)",
+        paper_bgcolor: "rgba(0, 0, 0, 0)",
+        plot_bgcolor: "rgba(168, 199, 122, 0.015)",
         xaxis: {
           title: { text: t("chart.date", "Date"), font: { color: chartMuted } },
-          tickangle: 45,
+          tickangle: 0,
           tickformat: "%Y-%m-%d",
+          nticks: 6,
           color: chartMuted,
           gridcolor: chartGrid,
+          zeroline: false,
+          automargin: true,
+          spikecolor: "rgba(168, 199, 122, 0.48)",
+          spikethickness: 1,
+          spikedash: "dot",
         },
         yaxis: {
           title: { text: t("chart.priceWithCurrency", "Price ({{currency}})", { currency: priceCurrency }), font: { color: chartMuted } },
           color: chartMuted,
           gridcolor: chartGrid,
+          zeroline: false,
+          automargin: true,
         },
-        // height: 600, // let container control height
-        margin: { t: 50, b: 100, l: 50, r: 50 },
+        margin: { t: 48, b: 58, l: 62, r: 24 },
       }}
       style={{ width: "100%", height: "100%" }}
       useResizeHandler={true}

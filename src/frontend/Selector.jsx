@@ -14,7 +14,7 @@ const Selector = ({ activeView, onViewChange, isOpen, onToggle }) => {
                 aria-expanded={isOpen}
                 aria-controls="app-sidebar"
             >
-                <span className="hamburger">☰</span>
+                <span className="hamburger" aria-hidden="true">☰</span>
             </button>
             <div className={`sidebar ${isOpen ? 'open' : ''}`} id="app-sidebar">
                 <div className="sidebar-header">

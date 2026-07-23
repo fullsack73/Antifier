@@ -93,7 +93,13 @@
 
 Backend-only research tool:
 
-- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_6m`, `low_volatility`, `market_cap_weight`, `momentum_12_1`, `momentum_bl`, `signal_stack_bl`, `arima_transformer_rank_bl`, `transformer_rank_bl`이 포함됩니다. 요약에는 `controlled_turnover`, `skipped_trade_count`, `turnover_cap_hit_count`, `market_cap_available_count`가 포함됩니다. `--gauntlet-preset standard`는 SP500 sample, DOW, tech, defensive, mixed ETF-like basket을 bull/crash/inflation-rate-shock/sideways regime과 rebalance band 2/3/5%, max turnover 20/35/50% sensitivity로 실행하고 JSON 및 Markdown summary를 `logs/` 아래에 저장합니다. v1은 public API나 UI를 추가하지 않습니다.
+- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_6m`, `low_volatility`, `market_cap_weight`, `momentum_12_1`, `momentum_bl`, `signal_stack_bl`, `arima_transformer_rank_bl`, `transformer_rank_bl`이 포함됩니다. 요약에는 `controlled_turnover`, `skipped_trade_count`, `turnover_cap_hit_count`, `market_cap_available_count`가 포함됩니다.
+  - `--gauntlet-preset candidate`는 bull/crash/inflation-rate-shock/sideways를 대표하는 4개 basket/regime을 기본 63거래일 리밸런싱으로 빠르게 선별하며, 기본 ML 후보는 `arima_transformer_rank_bl`입니다.
+  - `--gauntlet-preset standard`는 SP500 sample, DOW, tech, defensive, mixed ETF-like basket을 4개 regime과 rebalance band 2/3/5%, max turnover 20/35/50% sensitivity로 실행합니다.
+  - 각 basket/regime의 forecast와 pre-control target weight는 한 번만 만들고 9개 거래 제약 조합에서 재사용합니다. ML prediction은 가격 window digest, 모델 방식, horizon, cache schema/experiment namespace를 key로 SQLite에 즉시 저장합니다.
+  - ML rank candidate는 rebalance별 forward cross-sectional Spearman rank IC를 기록하고 summary에 평균/중앙값/양의 IC 비율/관측 수를 포함합니다.
+  - 각 완료 case는 JSONL checkpoint에 append하며 `--resume`으로 완료 case와 persistent forecast를 재사용합니다. 모델 설정이 달라지는 실험은 `--forecast-cache-namespace`를 분리해야 합니다.
+  - 최종 JSON과 Markdown summary는 `logs/` 아래에 저장하며 public API나 UI는 추가하지 않습니다.
 
 API 변경 규칙:
 

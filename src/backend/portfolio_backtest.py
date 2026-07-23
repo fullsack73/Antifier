@@ -1,8 +1,11 @@
 """Walk-forward portfolio backtests for optimizer forecast methods."""
 
-import logging
 import hashlib
+import json
+import logging
+import sqlite3
 from collections import OrderedDict
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -80,10 +83,134 @@ PROMOTION_BASELINE_MODELS = (
 
 PROMOTION_CANDIDATE_MODELS = (
     "arima_transformer_rank_bl",
+    "transformer_rank_bl",
     "arima_transformer_bl",
+    "transformer_bl",
 )
 
 _FORECAST_RANK_CACHE = {}
+_FORECAST_RANK_CACHE_STATS = {
+    "memory_hits": 0,
+    "persistent_hits": 0,
+    "misses": 0,
+    "writes": 0,
+}
+_FORECAST_RANK_PERSISTENT_CACHE = None
+_FORECAST_RANK_CACHE_NAMESPACE = "default"
+FORECAST_RANK_CACHE_SCHEMA_VERSION = "2026-07-23-v1"
+
+
+def _json_default(value):
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, (pd.Timestamp, pd.Timedelta)):
+        return str(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    raise TypeError(f"Unsupported cache value type: {type(value).__name__}")
+
+
+class _PersistentForecastRankCache:
+    """SQLite store that makes expensive walk-forward forecasts resumable."""
+
+    def __init__(self, path):
+        self.path = Path(path).expanduser().resolve()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.connection = sqlite3.connect(str(self.path))
+        self.connection.execute("PRAGMA journal_mode=WAL")
+        self.connection.execute("PRAGMA synchronous=NORMAL")
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS forecast_predictions (
+                cache_key TEXT PRIMARY KEY,
+                key_payload TEXT NOT NULL,
+                prediction_payload TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        self.connection.commit()
+
+    @staticmethod
+    def _serialized_key(key):
+        key_payload = json.dumps(
+            list(key),
+            ensure_ascii=True,
+            separators=(",", ":"),
+            default=_json_default,
+        )
+        return hashlib.sha256(key_payload.encode("utf-8")).hexdigest(), key_payload
+
+    def get(self, key):
+        cache_key, _ = self._serialized_key(key)
+        row = self.connection.execute(
+            "SELECT prediction_payload FROM forecast_predictions WHERE cache_key = ?",
+            (cache_key,),
+        ).fetchone()
+        return None if row is None else json.loads(row[0])
+
+    def set(self, key, prediction):
+        cache_key, key_payload = self._serialized_key(key)
+        prediction_payload = json.dumps(
+            prediction,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            default=_json_default,
+        )
+        self.connection.execute(
+            """
+            INSERT INTO forecast_predictions (cache_key, key_payload, prediction_payload)
+            VALUES (?, ?, ?)
+            ON CONFLICT(cache_key) DO UPDATE SET
+                key_payload = excluded.key_payload,
+                prediction_payload = excluded.prediction_payload
+            """,
+            (cache_key, key_payload, prediction_payload),
+        )
+        self.connection.commit()
+
+    def count(self):
+        row = self.connection.execute("SELECT COUNT(*) FROM forecast_predictions").fetchone()
+        return int(row[0]) if row else 0
+
+    def close(self):
+        self.connection.close()
+
+
+def configure_forecast_rank_cache(path=None, clear_memory=True, namespace="default"):
+    """Enable or disable the persistent forecast cache used by research backtests."""
+    global _FORECAST_RANK_CACHE_NAMESPACE, _FORECAST_RANK_PERSISTENT_CACHE
+    if _FORECAST_RANK_PERSISTENT_CACHE is not None:
+        _FORECAST_RANK_PERSISTENT_CACHE.close()
+        _FORECAST_RANK_PERSISTENT_CACHE = None
+    if clear_memory:
+        _FORECAST_RANK_CACHE.clear()
+    for key in _FORECAST_RANK_CACHE_STATS:
+        _FORECAST_RANK_CACHE_STATS[key] = 0
+    _FORECAST_RANK_CACHE_NAMESPACE = str(namespace or "default")
+    if path:
+        _FORECAST_RANK_PERSISTENT_CACHE = _PersistentForecastRankCache(path)
+    return forecast_rank_cache_stats()
+
+
+def forecast_rank_cache_stats():
+    persistent_entries = (
+        _FORECAST_RANK_PERSISTENT_CACHE.count()
+        if _FORECAST_RANK_PERSISTENT_CACHE is not None
+        else 0
+    )
+    return {
+        **_FORECAST_RANK_CACHE_STATS,
+        "memory_entries": len(_FORECAST_RANK_CACHE),
+        "persistent_entries": persistent_entries,
+        "persistent_path": (
+            str(_FORECAST_RANK_PERSISTENT_CACHE.path)
+            if _FORECAST_RANK_PERSISTENT_CACHE is not None
+            else None
+        ),
+        "namespace": _FORECAST_RANK_CACHE_NAMESPACE,
+        "schema_version": FORECAST_RANK_CACHE_SCHEMA_VERSION,
+    }
 
 
 def _to_float(value, default=0.0):
@@ -215,6 +342,8 @@ def _forecast_rank_cache_key(ticker, prices, method, horizon):
         hashed = pd.util.hash_pandas_object(series, index=True).values
         digest = hashlib.blake2b(hashed.tobytes(), digest_size=16).hexdigest()
     return (
+        FORECAST_RANK_CACHE_SCHEMA_VERSION,
+        _FORECAST_RANK_CACHE_NAMESPACE,
         str(method),
         str(ticker),
         int(horizon),
@@ -227,8 +356,22 @@ def _forecast_rank_cache_key(ticker, prices, method, horizon):
 
 def _cached_forecast_rank_prediction(ticker, prices, method, horizon, predictor):
     key = _forecast_rank_cache_key(ticker, prices, method, horizon)
-    if key not in _FORECAST_RANK_CACHE:
-        _FORECAST_RANK_CACHE[key] = predictor(ticker, prices, horizon=horizon)
+    if key in _FORECAST_RANK_CACHE:
+        _FORECAST_RANK_CACHE_STATS["memory_hits"] += 1
+    else:
+        persistent_prediction = None
+        if _FORECAST_RANK_PERSISTENT_CACHE is not None:
+            persistent_prediction = _FORECAST_RANK_PERSISTENT_CACHE.get(key)
+        if persistent_prediction is not None:
+            _FORECAST_RANK_CACHE_STATS["persistent_hits"] += 1
+            _FORECAST_RANK_CACHE[key] = persistent_prediction
+        else:
+            _FORECAST_RANK_CACHE_STATS["misses"] += 1
+            prediction = predictor(ticker, prices, horizon=horizon)
+            _FORECAST_RANK_CACHE[key] = prediction
+            if _FORECAST_RANK_PERSISTENT_CACHE is not None:
+                _FORECAST_RANK_PERSISTENT_CACHE.set(key, prediction)
+                _FORECAST_RANK_CACHE_STATS["writes"] += 1
     prediction = _FORECAST_RANK_CACHE[key]
     return dict(prediction) if isinstance(prediction, dict) else prediction
 
@@ -276,7 +419,12 @@ def _forecast_rank_views(train_prices, method, forecast_horizon):
     uncertainty_series = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
     uncertainty_series = pd.concat([uncertainty_series, rank_uncertainties], axis=1).max(axis=1)
     uncertainty_series.loc[views.isna()] = MAX_FORECAST_UNCERTAINTY
-    return views, uncertainty_series, max(failed, rank_failed)
+    return views, uncertainty_series, max(failed, rank_failed), {
+        "forecast_rank_scores": {
+            ticker: float(score)
+            for ticker, score in scores.dropna().items()
+        },
+    }
 
 
 def _forecast_views(train_prices, method, forecast_horizon):
@@ -299,7 +447,7 @@ def _forecast_views(train_prices, method, forecast_horizon):
         }
         views = momentum_views.reindex(tickers)
         uncertainties = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
-        return views, uncertainties, failed
+        return views, uncertainties, failed, {}
 
     if method == "signal_stack":
         prior = _calculate_historical_cagr(train_prices)
@@ -314,7 +462,7 @@ def _forecast_views(train_prices, method, forecast_horizon):
             for ticker in tickers
         }
         uncertainties = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
-        return views.reindex(tickers), uncertainties, failed
+        return views.reindex(tickers), uncertainties, failed, {}
 
     if method in ("arima_transformer_rank", "transformer_rank"):
         return _forecast_rank_views(train_prices, method, forecast_horizon)
@@ -350,13 +498,17 @@ def _forecast_views(train_prices, method, forecast_horizon):
 
     views = pd.Series(views).reindex(tickers)
     uncertainties = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
-    return views, uncertainties, failed
+    return views, uncertainties, failed, {}
 
 
 def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_asset_weight, risk_free_rate):
     tickers = list(train_prices.columns)
     covariance = _safe_covariance(train_prices)
-    views, uncertainties, failed = _forecast_views(train_prices, view_method, forecast_horizon)
+    views, uncertainties, failed, forecast_diagnostics = _forecast_views(
+        train_prices,
+        view_method,
+        forecast_horizon,
+    )
     prior = _calculate_historical_cagr(train_prices)
 
     try:
@@ -403,6 +555,7 @@ def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_as
     return weights, {
         "failed_forecast_count": int(failed),
         "avg_forecast_confidence": avg_confidence,
+        **forecast_diagnostics,
     }
 
 
@@ -682,6 +835,159 @@ def aggregate_gauntlet_promotion(runs, candidate_model=None):
     }
 
 
+def _validate_backtest_models(models):
+    selected = tuple(models or DEFAULT_BACKTEST_MODELS)
+    unsupported = sorted(set(selected) - set(DEFAULT_BACKTEST_MODELS))
+    if unsupported:
+        raise ValueError(f"Unsupported backtest models: {unsupported}")
+    return selected
+
+
+def _prepare_backtest_data(price_data, start_date=None, end_date=None, train_window=504):
+    data = _clean_price_frame(price_data)
+    if start_date:
+        data = data[data.index >= pd.Timestamp(start_date)]
+    if end_date:
+        data = data[data.index <= pd.Timestamp(end_date)]
+    if len(data) < int(train_window) + 2:
+        raise ValueError("Not enough rows for train_window plus one out-of-sample period")
+    return data
+
+
+def _rebalance_target_signature(
+    data,
+    models,
+    train_window,
+    rebalance_frequency,
+    forecast_horizon,
+    max_asset_weight,
+    min_holding_weight,
+    market_caps,
+    risk_free_rate,
+):
+    market_caps = {} if market_caps is None else dict(market_caps)
+    price_hashes = pd.util.hash_pandas_object(data, index=True).values
+    return {
+        "start_date": data.index[0].strftime("%Y-%m-%d"),
+        "end_date": data.index[-1].strftime("%Y-%m-%d"),
+        "row_count": int(len(data)),
+        "tickers": list(data.columns),
+        "price_digest": hashlib.blake2b(price_hashes.tobytes(), digest_size=16).hexdigest(),
+        "models": list(models),
+        "train_window": int(train_window),
+        "rebalance_frequency": int(rebalance_frequency),
+        "forecast_horizon": int(forecast_horizon),
+        "max_asset_weight": float(max_asset_weight),
+        "min_holding_weight": float(max(0.0, _to_float(min_holding_weight, 0.0))),
+        "market_caps": {
+            ticker: _to_float(market_caps.get(ticker), 0.0)
+            for ticker in data.columns
+        },
+        "risk_free_rate": float(risk_free_rate),
+    }
+
+
+def _build_rebalance_targets_for_data(
+    data,
+    models,
+    train_window,
+    rebalance_frequency,
+    forecast_horizon,
+    max_asset_weight,
+    min_holding_weight,
+    market_caps,
+    risk_free_rate,
+):
+    records = []
+    warnings = []
+    for rebalance_index in range(train_window, len(data) - 1, rebalance_frequency):
+        current_date = data.index[rebalance_index]
+        next_index = min(rebalance_index + rebalance_frequency, len(data) - 1)
+        train_prices = data.iloc[rebalance_index - train_window:rebalance_index].dropna(axis=1)
+        current_prices = data.iloc[rebalance_index].reindex(train_prices.columns)
+        if train_prices.empty or current_prices.dropna().empty:
+            warnings.append(f"Skipped {current_date.date()}: no valid training/current prices")
+            continue
+
+        model_targets = {}
+        for model in models:
+            weights, diagnostics = _model_weights(
+                model,
+                train_prices,
+                forecast_horizon,
+                max_asset_weight,
+                risk_free_rate,
+                market_caps=market_caps,
+            )
+            weights = apply_min_holding_threshold(weights, min_holding_weight)
+            weights = _normalize_weights(weights, train_prices.columns)
+            model_targets[model] = {
+                "weights": {ticker: float(weight) for ticker, weight in weights.items()},
+                "diagnostics": dict(diagnostics),
+            }
+
+        records.append({
+            "rebalance_date": current_date.strftime("%Y-%m-%d"),
+            "train_start_date": train_prices.index[0].strftime("%Y-%m-%d"),
+            "train_end_date": train_prices.index[-1].strftime("%Y-%m-%d"),
+            "period_end_date": data.index[next_index].strftime("%Y-%m-%d"),
+            "models": model_targets,
+        })
+
+    return {
+        "signature": _rebalance_target_signature(
+            data,
+            models,
+            train_window,
+            rebalance_frequency,
+            forecast_horizon,
+            max_asset_weight,
+            min_holding_weight,
+            market_caps,
+            risk_free_rate,
+        ),
+        "records": records,
+        "warnings": warnings,
+        "forecast_cache": forecast_rank_cache_stats(),
+    }
+
+
+def build_rebalance_targets(
+    price_data,
+    models=None,
+    start_date=None,
+    end_date=None,
+    train_window=504,
+    rebalance_frequency=21,
+    forecast_horizon=63,
+    max_asset_weight=0.2,
+    min_holding_weight=0.0,
+    market_caps=None,
+    risk_free_rate=0.02,
+):
+    """Precompute model targets once so execution sensitivities can replay them cheaply."""
+    train_window = int(train_window)
+    rebalance_frequency = max(1, int(rebalance_frequency))
+    models = _validate_backtest_models(models)
+    data = _prepare_backtest_data(
+        price_data,
+        start_date=start_date,
+        end_date=end_date,
+        train_window=train_window,
+    )
+    return _build_rebalance_targets_for_data(
+        data,
+        models,
+        train_window,
+        rebalance_frequency,
+        int(forecast_horizon),
+        max_asset_weight,
+        min_holding_weight,
+        market_caps,
+        risk_free_rate,
+    )
+
+
 def run_portfolio_model_backtest(
     price_data,
     models=None,
@@ -698,22 +1004,47 @@ def run_portfolio_model_backtest(
     market_caps=None,
     risk_free_rate=0.02,
     initial_value=10000.0,
+    rebalance_targets=None,
 ):
-    data = _clean_price_frame(price_data)
-    if start_date:
-        data = data[data.index >= pd.Timestamp(start_date)]
-    if end_date:
-        data = data[data.index <= pd.Timestamp(end_date)]
-    if len(data) < int(train_window) + 2:
-        raise ValueError("Not enough rows for train_window plus one out-of-sample period")
-
-    models = tuple(models or DEFAULT_BACKTEST_MODELS)
-    unsupported = sorted(set(models) - set(DEFAULT_BACKTEST_MODELS))
-    if unsupported:
-        raise ValueError(f"Unsupported backtest models: {unsupported}")
-
     train_window = int(train_window)
     rebalance_frequency = max(1, int(rebalance_frequency))
+    models = _validate_backtest_models(models)
+    data = _prepare_backtest_data(
+        price_data,
+        start_date=start_date,
+        end_date=end_date,
+        train_window=train_window,
+    )
+    expected_target_signature = _rebalance_target_signature(
+        data,
+        models,
+        train_window,
+        rebalance_frequency,
+        forecast_horizon,
+        max_asset_weight,
+        min_holding_weight,
+        market_caps,
+        risk_free_rate,
+    )
+    reused_rebalance_targets = rebalance_targets is not None
+    if rebalance_targets is None:
+        rebalance_targets = _build_rebalance_targets_for_data(
+            data,
+            models,
+            train_window,
+            rebalance_frequency,
+            int(forecast_horizon),
+            max_asset_weight,
+            min_holding_weight,
+            market_caps,
+            risk_free_rate,
+        )
+    elif rebalance_targets.get("signature") != expected_target_signature:
+        raise ValueError("rebalance_targets do not match the requested backtest data or model settings")
+    target_records = {
+        record["rebalance_date"]: record
+        for record in rebalance_targets.get("records", [])
+    }
     states = {
         model: {
             "shares": pd.Series(0.0, index=data.columns),
@@ -726,34 +1057,33 @@ def run_portfolio_model_backtest(
             "turnover_cap_hit_count": 0,
             "failed_forecast_count": 0,
             "forecast_confidences": [],
+            "forecast_rank_ics": [],
             "market_cap_available_count": 0,
         }
         for model in models
     }
     rebalance_records = []
-    warnings = []
+    warnings = list(rebalance_targets.get("warnings", []))
 
     for rebalance_index in range(train_window, len(data) - 1, rebalance_frequency):
         current_date = data.index[rebalance_index]
+        current_date_key = current_date.strftime("%Y-%m-%d")
         next_index = min(rebalance_index + rebalance_frequency, len(data) - 1)
         train_prices = data.iloc[rebalance_index - train_window:rebalance_index].dropna(axis=1)
         current_prices = data.iloc[rebalance_index].reindex(train_prices.columns)
         period_prices = data.iloc[rebalance_index:next_index + 1].reindex(columns=train_prices.columns).ffill()
         if train_prices.empty or current_prices.dropna().empty:
-            warnings.append(f"Skipped {current_date.date()}: no valid training/current prices")
             continue
+        target_record = target_records.get(current_date_key)
+        if target_record is None:
+            raise ValueError(f"rebalance_targets are missing {current_date_key}")
 
         for model in models:
-            weights, diagnostics = _model_weights(
-                model,
-                train_prices,
-                forecast_horizon,
-                max_asset_weight,
-                risk_free_rate,
-                market_caps=market_caps,
-            )
-            weights = apply_min_holding_threshold(weights, min_holding_weight)
-            weights = _normalize_weights(weights, train_prices.columns)
+            model_target = target_record.get("models", {}).get(model)
+            if model_target is None:
+                raise ValueError(f"rebalance_targets are missing {model} at {current_date_key}")
+            weights = _normalize_weights(model_target.get("weights", {}), train_prices.columns)
+            diagnostics = dict(model_target.get("diagnostics", {}))
             state = states[model]
             shares = state["shares"].reindex(train_prices.columns).fillna(0.0)
             current_values = (shares * current_prices).replace([np.inf, -np.inf], np.nan).fillna(0.0)
@@ -791,6 +1121,30 @@ def run_portfolio_model_backtest(
             state["market_cap_available_count"] += int(bool(diagnostics.get("market_caps_available")))
             if diagnostics.get("avg_forecast_confidence") is not None:
                 state["forecast_confidences"].append(float(diagnostics["avg_forecast_confidence"]))
+            forecast_rank_scores = pd.Series(
+                diagnostics.get("forecast_rank_scores", {}),
+                dtype=float,
+            ).reindex(train_prices.columns)
+            realized_period_returns = (
+                period_prices.iloc[-1].reindex(train_prices.columns) / current_prices - 1.0
+            )
+            valid_rank_mask = (
+                forecast_rank_scores.notna()
+                & realized_period_returns.replace([np.inf, -np.inf], np.nan).notna()
+            )
+            forecast_rank_ic = None
+            if (
+                int(valid_rank_mask.sum()) >= 2
+                and forecast_rank_scores[valid_rank_mask].nunique() >= 2
+                and realized_period_returns[valid_rank_mask].nunique() >= 2
+            ):
+                rank_ic_value = forecast_rank_scores[valid_rank_mask].corr(
+                    realized_period_returns[valid_rank_mask],
+                    method="spearman",
+                )
+                if pd.notna(rank_ic_value) and np.isfinite(rank_ic_value):
+                    forecast_rank_ic = float(rank_ic_value)
+                    state["forecast_rank_ics"].append(forecast_rank_ic)
 
             daily_values = period_prices.mul(state["shares"], axis=1).sum(axis=1) + state["cash"]
             for date, value in daily_values.items():
@@ -819,6 +1173,7 @@ def run_portfolio_model_backtest(
                 "portfolio_value_after_cost": float(investable_value),
                 "failed_forecast_count": int(diagnostics.get("failed_forecast_count", 0)),
                 "avg_forecast_confidence": diagnostics.get("avg_forecast_confidence"),
+                "forecast_rank_ic": forecast_rank_ic,
                 "market_caps_available": diagnostics.get("market_caps_available"),
             })
 
@@ -844,6 +1199,22 @@ def run_portfolio_model_backtest(
             "rebalance_count": int(rebalance_count),
             "failed_forecast_count": int(state["failed_forecast_count"]),
             "avg_forecast_confidence": avg_confidence,
+            "avg_forecast_rank_ic": (
+                None
+                if not state["forecast_rank_ics"]
+                else float(np.mean(state["forecast_rank_ics"]))
+            ),
+            "median_forecast_rank_ic": (
+                None
+                if not state["forecast_rank_ics"]
+                else float(np.median(state["forecast_rank_ics"]))
+            ),
+            "positive_forecast_rank_ic_rate": (
+                None
+                if not state["forecast_rank_ics"]
+                else float(np.mean(np.asarray(state["forecast_rank_ics"]) > 0.0))
+            ),
+            "forecast_rank_ic_count": int(len(state["forecast_rank_ics"])),
             "market_cap_available_count": int(state["market_cap_available_count"]),
         })
         summary_by_model[model] = metrics
@@ -862,6 +1233,8 @@ def run_portfolio_model_backtest(
             "min_holding_weight": float(max(0.0, _to_float(min_holding_weight, 0.0))),
             "risk_free_rate": float(risk_free_rate),
             "initial_value": float(initial_value),
+            "reused_rebalance_targets": bool(reused_rebalance_targets),
+            "price_digest": expected_target_signature["price_digest"],
         },
         "models": list(models),
         "summary_by_model": summary_by_model,

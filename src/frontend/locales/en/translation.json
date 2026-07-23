@@ -10,7 +10,14 @@
   "date": {
     "start": "Start Date",
     "end": "End Date",
-    "autoUpdateTitle": "Chart will auto-update when both dates are selected"
+    "autoUpdateTitle": "Chart will auto-update when both dates are selected",
+    "quickRange": "Quick range",
+    "oneMonth": "1M",
+    "threeMonths": "3M",
+    "sixMonths": "6M",
+    "ytd": "YTD",
+    "oneYear": "1Y",
+    "fiveYears": "5Y"
   },
   "chart": {
     "date": "Date",
@@ -69,14 +76,34 @@
   },
   "stock": {
     "title": "Stock Analysis",
+    "kicker": "Market workspace",
+    "workspaceTitle": "Stock analysis",
+    "workspaceDescription": "Compare price history, trend fit, and model forecasts in one view.",
     "ticker": "Ticker Symbol",
     "dateRange": "Date Range",
     "start": "Start Date",
     "end": "End Date",
     "chartTitle": "{{ticker}} Stock Data",
     "selectionSummary": "Current analysis settings",
-    "emptyTitle": "Market data is pending",
-    "emptyDescription": "The selected symbol and date window will appear here when data returns."
+    "symbol": "Symbol",
+    "model": "Model",
+    "forecast": "Forecast",
+    "dayCount": "{{count}} days",
+    "configure": "Configure analysis",
+    "configureDescription": "Choose a security, historical window, and forecast horizon.",
+    "updating": "Updating market data",
+    "autoUpdate": "Charts update automatically",
+    "assetAndModel": "Asset and model",
+    "historicalWindow": "Historical window",
+    "forecastSetup": "Forecast horizon",
+    "forecastDescription": "Forecasts are estimates from the selected model, not investment advice.",
+    "results": "Analysis results",
+    "dataWindow": "Data window",
+    "displayCurrency": "Display currency",
+    "errorTitle": "Market data is unavailable",
+    "errorDescription": "Check the symbol and date range, then change a field to try again.",
+    "emptyTitle": "No market data for this window",
+    "emptyDescription": "Try another symbol or broaden the historical window."
   },
   "ticker": {
     "label": "Enter Stock Symbol",
@@ -90,7 +117,10 @@
     "lightgbm": "LightGBM (Gradient Boosting)",
     "arima": "ARIMA (Time Series)",
     "arimaTransformer": "ARIMA + Transformer",
-    "transformer": "Transformer"
+    "transformer": "Transformer",
+    "trainingWarningLabel": "Training data warning",
+    "rangeNote": "Range note",
+    "insufficientDataWarning": "This range contains fewer than 100 estimated market days. Transformer forecasting may use the lightweight fallback."
   },
   "future": {
     "days_to_predict": "Days to Predict",
@@ -440,6 +470,7 @@
   },
   "skeleton": {
     "loadingContent": "Loading content",
+    "loadingChart": "Loading chart",
     "loadingStockCharts": "Loading stock charts",
     "loadingMetrics": "Loading metrics",
     "loadingResults": "Loading results",

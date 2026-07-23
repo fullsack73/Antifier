@@ -10,7 +10,14 @@
   "date": {
     "start": "시작 날짜",
     "end": "종료 날짜",
-    "autoUpdateTitle": "두 날짜가 모두 선택되면 차트가 자동으로 업데이트됩니다"
+    "autoUpdateTitle": "두 날짜가 모두 선택되면 차트가 자동으로 업데이트됩니다",
+    "quickRange": "빠른 기간 선택",
+    "oneMonth": "1개월",
+    "threeMonths": "3개월",
+    "sixMonths": "6개월",
+    "ytd": "YTD",
+    "oneYear": "1년",
+    "fiveYears": "5년"
   },
   "chart": {
     "date": "날짜",
@@ -69,14 +76,34 @@
   },
   "stock": {
     "title": "주식 분석",
+    "kicker": "시장 분석 워크스페이스",
+    "workspaceTitle": "주식 분석",
+    "workspaceDescription": "가격 이력과 추세선, 모델 예측을 한 화면에서 비교합니다.",
     "ticker": "티커 심볼",
     "dateRange": "날짜 범위",
     "start": "시작 날짜",
     "end": "종료 날짜",
     "chartTitle": "{{ticker}} 주가 데이터",
     "selectionSummary": "현재 분석 설정",
-    "emptyTitle": "시장 데이터를 기다리는 중",
-    "emptyDescription": "선택한 종목과 기간의 데이터가 준비되면 이 영역에 표시됩니다."
+    "symbol": "종목",
+    "model": "모델",
+    "forecast": "예측",
+    "dayCount": "{{count}}일",
+    "configure": "분석 설정",
+    "configureDescription": "종목과 과거 데이터 기간, 예측 기간을 선택하세요.",
+    "updating": "시장 데이터 업데이트 중",
+    "autoUpdate": "변경 사항이 차트에 자동 반영됩니다",
+    "assetAndModel": "종목과 모델",
+    "historicalWindow": "과거 데이터 기간",
+    "forecastSetup": "예측 기간",
+    "forecastDescription": "예측값은 선택한 모델의 추정치이며 투자 조언이 아닙니다.",
+    "results": "분석 결과",
+    "dataWindow": "데이터 기간",
+    "displayCurrency": "표시 통화",
+    "errorTitle": "시장 데이터를 불러올 수 없습니다",
+    "errorDescription": "종목과 날짜 범위를 확인한 뒤 값을 변경해 다시 시도하세요.",
+    "emptyTitle": "선택 기간에 시장 데이터가 없습니다",
+    "emptyDescription": "다른 종목을 선택하거나 과거 데이터 기간을 넓혀 보세요."
   },
   "ticker": {
     "label": "주식 심볼 입력",
@@ -90,7 +117,10 @@
     "lightgbm": "LightGBM (그래디언트 부스팅)",
     "arima": "ARIMA (시계열)",
     "arimaTransformer": "ARIMA + 트랜스포머",
-    "transformer": "트랜스포머"
+    "transformer": "트랜스포머",
+    "trainingWarningLabel": "훈련 데이터 경고",
+    "rangeNote": "기간 안내",
+    "insufficientDataWarning": "선택 기간의 예상 거래일이 100일 미만입니다. 트랜스포머 예측 대신 경량 예측이 사용될 수 있습니다."
   },
   "future": {
     "days_to_predict": "예측일",
@@ -440,6 +470,7 @@
   },
   "skeleton": {
     "loadingContent": "콘텐츠 로딩 중",
+    "loadingChart": "차트 로딩 중",
     "loadingStockCharts": "주가 차트 로딩 중",
     "loadingMetrics": "지표 로딩 중",
     "loadingResults": "결과 로딩 중",

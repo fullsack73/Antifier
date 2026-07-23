@@ -454,6 +454,111 @@ def test_forecast_rank_views_reuse_same_train_window_predictions(monkeypatch):
     assert calls["count"] == len(prices.columns)
 
 
+def test_forecast_rank_views_reuse_persistent_predictions_after_memory_clear(monkeypatch, tmp_path):
+    calls = {"count": 0}
+    prices = _synthetic_prices(140)
+
+    def fake_transformer(ticker, ticker_prices, horizon=63):
+        calls["count"] += 1
+        return {"expected_return": 0.02, "uncertainty": 0.20, "source": "test"}
+
+    monkeypatch.setattr(portfolio_backtest, "forecast_single_ticker_with_transformer", fake_transformer)
+    cache_path = tmp_path / "forecast-cache.sqlite3"
+    portfolio_backtest.configure_forecast_rank_cache(cache_path)
+    try:
+        portfolio_backtest._forecast_rank_views(prices, "transformer_rank", forecast_horizon=5)
+        portfolio_backtest._FORECAST_RANK_CACHE.clear()
+        portfolio_backtest._forecast_rank_views(prices, "transformer_rank", forecast_horizon=5)
+
+        stats = portfolio_backtest.forecast_rank_cache_stats()
+        assert calls["count"] == len(prices.columns)
+        assert stats["persistent_hits"] == len(prices.columns)
+        assert stats["persistent_entries"] == len(prices.columns)
+    finally:
+        portfolio_backtest.configure_forecast_rank_cache(None)
+
+
+def test_precomputed_rebalance_targets_are_reused_across_execution_sensitivities(monkeypatch):
+    calls = {"count": 0}
+    prices = _synthetic_prices(80)
+
+    def fake_model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate, **kwargs):
+        calls["count"] += 1
+        return {"AAA": 0.60, "BBB": 0.30, "CCC": 0.10}, {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+        }
+
+    monkeypatch.setattr(portfolio_backtest, "_model_weights", fake_model_weights)
+    targets = portfolio_backtest.build_rebalance_targets(
+        prices,
+        models=("equal_weight",),
+        train_window=20,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+    )
+    target_generation_calls = calls["count"]
+
+    tight = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("equal_weight",),
+        train_window=20,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+        rebalance_band=0.02,
+        max_turnover=0.20,
+        rebalance_targets=targets,
+    )
+    loose = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("equal_weight",),
+        train_window=20,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+        rebalance_band=0.05,
+        max_turnover=0.50,
+        rebalance_targets=targets,
+    )
+
+    assert calls["count"] == target_generation_calls
+    assert tight["settings"]["reused_rebalance_targets"] is True
+    assert loose["settings"]["reused_rebalance_targets"] is True
+
+
+def test_rank_candidate_records_cross_sectional_information_coefficient(monkeypatch):
+    expected_returns = {"AAA": 0.05, "BBB": 0.03, "CCC": 0.01}
+
+    def fake_arima_transformer(ticker, ticker_prices, horizon=63):
+        return {
+            "expected_return": expected_returns[ticker],
+            "uncertainty": 0.20,
+            "source": "test",
+        }
+
+    portfolio_backtest.configure_forecast_rank_cache(None)
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "forecast_single_ticker_with_arima_transformer",
+        fake_arima_transformer,
+    )
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _synthetic_prices(80),
+        models=("arima_transformer_rank_bl",),
+        train_window=20,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+    )
+    metrics = result["summary_by_model"]["arima_transformer_rank_bl"]
+
+    assert metrics["forecast_rank_ic_count"] > 0
+    assert metrics["avg_forecast_rank_ic"] > 0
+    assert metrics["positive_forecast_rank_ic_rate"] > 0.5
+    assert all(
+        record["forecast_rank_ic"] is not None
+        for record in result["rebalance_records"]
+    )
+
+
 def test_backtest_cli_writes_json_and_invalid_args_fail(tmp_path):
     csv_path = tmp_path / "prices.csv"
     output_path = tmp_path / "backtest.json"
@@ -547,4 +652,69 @@ def test_backtest_cli_gauntlet_smoke_writes_json_and_report(tmp_path):
     assert payload["preset"] == "smoke"
     assert payload["completed_count"] == 1
     assert payload["promotion_gauntlet"]["usable_count"] == 1
+    assert payload["settings"]["execution_sensitivity_reuses_targets"] is True
+    assert payload["runs"][0]["result"]["settings"]["reused_rebalance_targets"] is True
+    assert Path(payload["checkpoint_path"]).exists()
+    assert (tmp_path / "portfolio_gauntlet_forecasts.sqlite3").exists()
     assert output_path.with_suffix(".md").exists()
+
+
+def test_backtest_cli_candidate_preset_checkpoints_and_resumes(tmp_path):
+    csv_path = tmp_path / "prices.csv"
+    output_path = tmp_path / "candidate.json"
+    _synthetic_prices(80).to_csv(csv_path)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(BACKEND)
+    command = [
+        sys.executable,
+        str(ROOT / "tools" / "backtest_portfolio_models.py"),
+        "--gauntlet-preset",
+        "candidate",
+        "--csv",
+        str(csv_path),
+        "--models",
+        "equal_weight",
+        "--train-window",
+        "20",
+        "--rebalance-frequency",
+        "10",
+        "--forecast-horizon",
+        "5",
+        "--output",
+        str(output_path),
+    ]
+
+    first = subprocess.run(
+        command,
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert first.returncode == 0, first.stderr
+    payload = json.loads(output_path.read_text())
+    assert payload["preset"] == "candidate"
+    assert payload["completed_count"] == 4
+    assert {
+        (run["case"]["basket_key"], run["case"]["regime"])
+        for run in payload["runs"]
+    } == {
+        ("sp500_sample", "bull"),
+        ("tech", "crash"),
+        ("defensive", "inflation_rate_shock"),
+        ("mixed_etf", "sideways"),
+    }
+
+    checkpoint_path = Path(payload["checkpoint_path"])
+    first_checkpoint_lines = checkpoint_path.read_text().splitlines()
+    resumed = subprocess.run(
+        [*command, "--resume"],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert resumed.returncode == 0, resumed.stderr
+    assert len(checkpoint_path.read_text().splitlines()) == len(first_checkpoint_lines)

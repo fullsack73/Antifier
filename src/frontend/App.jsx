@@ -27,7 +27,7 @@ const OPTIMIZER_JOB_HEARTBEAT_MS = 30000
 
 function AppContent() {
   const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [ticker, setTicker] = useState("AAPL")
   const [modelType, setModelType] = useState("LSTM")
@@ -98,14 +98,16 @@ function AppContent() {
 
       if (abortControllerRef.current !== controller) return
 
-      setData(responseData.prices)
+      const hasPriceData = responseData.prices && Object.keys(responseData.prices).length > 0
+
+      setData(hasPriceData ? responseData.prices : null)
       setRegressionData(responseData.regression)
       setFuturePredictions(responseData.future_predictions)
       setCompanyName(responseData.companyName)
       setFormula(responseData.formula)
       setPriceCurrency(responseData.price_currency || "USD")
       setSourceCurrency(responseData.source_currency || responseData.price_currency || "USD")
-      setShowChart(true)
+      setShowChart(hasPriceData)
     } catch (error) {
       if (abortControllerRef.current !== controller) return
 
@@ -244,56 +246,138 @@ function AppContent() {
       />
       <main className="main-content" id="main-content">
         {activeView === "stock" ? (
-          <section className="stock-dashboard" aria-labelledby="stock-dashboard-title">
+          <section className="stock-dashboard" aria-labelledby="stock-dashboard-title" aria-busy={loading}>
             <div className="stock-dashboard-header">
-              <div>
-                <span className="page-kicker">{t("stock.title")}</span>
-                <h1 id="stock-dashboard-title">{t("regression.title")}</h1>
+              <div className="stock-title-block">
+                <span className="page-kicker">{t("stock.kicker", "Market workspace")}</span>
+                <h1 id="stock-dashboard-title">{t("stock.workspaceTitle", "Stock analysis")}</h1>
+                <p className="stock-page-intro">
+                  {t(
+                    "stock.workspaceDescription",
+                    "Compare price history, trend fit, and model forecasts in one view.",
+                  )}
+                </p>
               </div>
-              <div className="stock-context-strip" aria-label={t("stock.selectionSummary", "Current analysis settings")}>
-                <span>{ticker}</span>
-                <span>{modelType}</span>
-                <span>{futureDays}D</span>
-              </div>
+              <dl className="stock-context-strip" aria-label={t("stock.selectionSummary", "Current analysis settings")}>
+                <div>
+                  <dt>{t("stock.symbol", "Symbol")}</dt>
+                  <dd>{ticker}</dd>
+                </div>
+                <div>
+                  <dt>{t("stock.model", "Model")}</dt>
+                  <dd>{modelType}</dd>
+                </div>
+                <div>
+                  <dt>{t("stock.forecast", "Forecast")}</dt>
+                  <dd>{t("stock.dayCount", "{{count}} days", { count: futureDays })}</dd>
+                </div>
+              </dl>
             </div>
-            <div className="controls-container">
-              <div className="control-column">
-                <TickerInput onTickerChange={handleTickerChange} initialTicker="AAPL" />
-                <ModelSelector onModelChange={setModelType} initialModel={modelType} />
+
+            <section className="stock-workbench" aria-labelledby="stock-workbench-title">
+              <header className="stock-workbench-header">
+                <div>
+                  <h2 id="stock-workbench-title">{t("stock.configure", "Configure analysis")}</h2>
+                  <p>
+                    {t(
+                      "stock.configureDescription",
+                      "Choose a security, historical window, and forecast horizon.",
+                    )}
+                  </p>
+                </div>
+                <p className="stock-refresh-state" role="status" aria-live="polite">
+                  {loading
+                    ? t("stock.updating", "Updating market data")
+                    : t("stock.autoUpdate", "Charts update automatically")}
+                </p>
+              </header>
+
+              <div className="controls-container">
+                <section className="stock-control-group stock-control-group-asset" aria-labelledby="stock-asset-title">
+                  <header className="stock-control-group-header">
+                    <h3 id="stock-asset-title">{t("stock.assetAndModel", "Asset and model")}</h3>
+                  </header>
+                  <div className="control-column">
+                    <TickerInput onTickerChange={handleTickerChange} initialTicker="AAPL" />
+                    <ModelSelector
+                      onModelChange={setModelType}
+                      initialModel={modelType}
+                      startDate={appStartDate}
+                      endDate={appEndDate}
+                    />
+                  </div>
+                </section>
+
+                <section className="stock-control-group stock-control-group-window" aria-labelledby="stock-window-title">
+                  <header className="stock-control-group-header">
+                    <h3 id="stock-window-title">{t("stock.historicalWindow", "Historical window")}</h3>
+                  </header>
+                  <DateInput onDateRangeChange={handleDateRangeChange} notifyInitial={false} inputIdPrefix="stock-date" />
+                </section>
+
+                <section className="stock-control-group stock-control-group-forecast" aria-labelledby="stock-forecast-title">
+                  <header className="stock-control-group-header">
+                    <h3 id="stock-forecast-title">{t("stock.forecastSetup", "Forecast horizon")}</h3>
+                  </header>
+                  <FutureDateInput onFutureDaysChange={handleFutureDaysChange} initialDays={futureDays} />
+                  <p className="stock-control-help">
+                    {t(
+                      "stock.forecastDescription",
+                      "Forecasts are estimates from the selected model, not investment advice.",
+                    )}
+                  </p>
+                </section>
               </div>
-              <DateInput onDateRangeChange={handleDateRangeChange} notifyInitial={false} inputIdPrefix="stock-date" />
-              <FutureDateInput onFutureDaysChange={handleFutureDaysChange} initialDays={futureDays} />
-            </div>
+            </section>
 
             {loading && <StockChartsSkeleton />}
 
             {!loading && error && (
-              <p className="error">
-                {t("common.error")}: {error}
-              </p>
+              <section className="error stock-error-state" role="alert">
+                <p className="stock-error-title">{t("stock.errorTitle", "Market data is unavailable")}</p>
+                <p>{t("stock.errorDescription", "Check the symbol and date range, then change a field to try again.")}</p>
+                <code>{error}</code>
+              </section>
             )}
 
             {!loading && showChart && data && (
               <section className="stock-results" aria-label={t("regression.data")}>
-                <h2>
-                  {companyName} ({ticker})
-                  {sourceCurrency !== priceCurrency ? ` ${sourceCurrency} -> ${priceCurrency}` : ""}
-                </h2>
-                <div className="charts-container">
-                  <div className="chart-wrapper">
+                <header className="stock-results-header">
+                  <div>
+                    <p>{t("stock.results", "Analysis results")}</p>
+                    <h2>
+                      {companyName} <span>({ticker})</span>
+                    </h2>
+                  </div>
+                  <dl className="stock-result-meta">
+                    <div>
+                      <dt>{t("stock.dataWindow", "Data window")}</dt>
+                      <dd>{appStartDate} → {appEndDate}</dd>
+                    </div>
+                    <div>
+                      <dt>{t("stock.displayCurrency", "Display currency")}</dt>
+                      <dd>
+                        {sourceCurrency !== priceCurrency
+                          ? `${sourceCurrency} → ${priceCurrency}`
+                          : priceCurrency}
+                      </dd>
+                    </div>
+                  </dl>
+                </header>
+
+                <div className="stock-chart-grid">
+                  <div className="chart-wrapper chart-wrapper-price">
                     <StockChart data={data} ticker={ticker} priceCurrency={priceCurrency} />
                   </div>
-                  <div className="chart-wrapper">
+                  <div className="chart-wrapper chart-wrapper-regression">
                     <RegressionChart data={data} regression={regressionData} ticker={ticker} formula={formula} priceCurrency={priceCurrency} />
                   </div>
-                </div>
-                {futurePredictions && Object.keys(futurePredictions).length > 0 && (
-                  <div className="charts-container">
-                    <div className="chart-wrapper">
+                  {futurePredictions && Object.keys(futurePredictions).length > 0 && (
+                    <div className="chart-wrapper chart-wrapper-forecast">
                       <FutureChart data={futurePredictions} historicalData={data} ticker={ticker} priceCurrency={priceCurrency} />
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </section>
             )}
 

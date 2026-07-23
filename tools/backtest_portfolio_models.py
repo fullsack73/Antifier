@@ -16,9 +16,13 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from portfolio_backtest import (  # noqa: E402
+    PROMOTION_CANDIDATE_MODELS,
     DEFAULT_BACKTEST_MODELS,
     aggregate_gauntlet_promotion,
+    build_rebalance_targets,
+    configure_forecast_rank_cache,
     fetch_backtest_price_data,
+    forecast_rank_cache_stats,
     run_portfolio_model_backtest,
 )
 from portfolio_optimization import get_market_caps  # noqa: E402
@@ -39,6 +43,10 @@ GAUNTLET_MODELS = (
     "lightweight_bl",
     "arima_transformer_rank_bl",
     "transformer_rank_bl",
+)
+CANDIDATE_GAUNTLET_MODELS = tuple(
+    model for model in GAUNTLET_MODELS
+    if model != "transformer_rank_bl"
 )
 
 GAUNTLET_BASKETS = {
@@ -73,6 +81,12 @@ GAUNTLET_REGIMES = {
 
 GAUNTLET_REBALANCE_BANDS = (0.02, 0.03, 0.05)
 GAUNTLET_MAX_TURNOVERS = (0.20, 0.35, 0.50)
+CANDIDATE_GAUNTLET_SCENARIOS = (
+    ("sp500_sample", "bull"),
+    ("tech", "crash"),
+    ("defensive", "inflation_rate_shock"),
+    ("mixed_etf", "sideways"),
+)
 
 
 def _load_prices(args):
@@ -173,86 +187,125 @@ def _market_caps_for_prices(prices, models, fetch_market_caps):
 
 def _gauntlet_cases(preset, max_cases=None):
     if preset == "smoke":
-        basket_names = ("tech",)
-        regime_names = ("bull",)
+        scenario_names = (("tech", "bull"),)
+        bands = (0.02,)
+        turnovers = (0.35,)
+    elif preset == "candidate":
+        scenario_names = CANDIDATE_GAUNTLET_SCENARIOS
         bands = (0.02,)
         turnovers = (0.35,)
     else:
-        basket_names = tuple(GAUNTLET_BASKETS.keys())
-        regime_names = tuple(GAUNTLET_REGIMES.keys())
+        scenario_names = tuple(
+            (basket_name, regime_name)
+            for basket_name in GAUNTLET_BASKETS
+            for regime_name in GAUNTLET_REGIMES
+        )
         bands = GAUNTLET_REBALANCE_BANDS
         turnovers = GAUNTLET_MAX_TURNOVERS
 
     cases = []
-    for basket_name in basket_names:
+    for basket_name, regime_name in scenario_names:
         basket = GAUNTLET_BASKETS[basket_name]
-        for regime_name in regime_names:
-            start, end = GAUNTLET_REGIMES[regime_name]
-            for rebalance_band in bands:
-                for max_turnover in turnovers:
-                    case = {
-                        "basket": basket["label"],
-                        "basket_key": basket_name,
-                        "regime": regime_name,
-                        "start": start,
-                        "end": end,
-                        "rebalance_band": rebalance_band,
-                        "max_turnover": max_turnover,
-                    }
-                    if basket.get("ticker_group"):
-                        case["ticker_group"] = basket["ticker_group"]
-                    else:
-                        case["tickers"] = list(basket["tickers"])
-                    cases.append(case)
-                    if max_cases is not None and len(cases) >= max_cases:
-                        return cases
+        start, end = GAUNTLET_REGIMES[regime_name]
+        for rebalance_band in bands:
+            for max_turnover in turnovers:
+                case = {
+                    "basket": basket["label"],
+                    "basket_key": basket_name,
+                    "regime": regime_name,
+                    "start": start,
+                    "end": end,
+                    "rebalance_band": rebalance_band,
+                    "max_turnover": max_turnover,
+                }
+                if basket.get("ticker_group"):
+                    case["ticker_group"] = basket["ticker_group"]
+                else:
+                    case["tickers"] = list(basket["tickers"])
+                cases.append(case)
+                if max_cases is not None and len(cases) >= max_cases:
+                    return cases
     return cases
 
 
-def _run_gauntlet(args):
-    models = tuple(args.models or GAUNTLET_MODELS)
-    cases = _gauntlet_cases(args.gauntlet_preset, max_cases=args.max_cases)
-    runs = []
-    csv_prices = pd.read_csv(args.csv, index_col=0, parse_dates=True) if args.csv else None
+def _case_key(case):
+    return json.dumps(
+        [
+            case.get("basket_key"),
+            case.get("regime"),
+            case.get("rebalance_band"),
+            case.get("max_turnover"),
+        ],
+        separators=(",", ":"),
+    )
 
-    for idx, case in enumerate(cases, start=1):
-        print(
-            f"[{idx}/{len(cases)}] {case['basket']} / {case['regime']} "
-            f"band={case['rebalance_band']:.2%} max_turnover={case['max_turnover']:.0%}"
-        )
+
+def _checkpoint_signature(args, models):
+    return {
+        "preset": args.gauntlet_preset,
+        "models": list(models),
+        "train_window": int(args.train_window),
+        "rebalance_frequency": int(args.rebalance_frequency),
+        "forecast_horizon": int(args.forecast_horizon),
+        "transaction_cost_bps": float(args.transaction_cost_bps),
+        "max_asset_weight": float(args.max_asset_weight),
+        "min_holding_weight": float(args.min_holding_weight),
+        "risk_free_rate": float(args.risk_free_rate),
+        "initial_value": float(args.initial_value),
+        "fetch_market_caps": bool(args.fetch_market_caps),
+        "forecast_cache_namespace": str(args.forecast_cache_namespace),
+        "csv": str(Path(args.csv).expanduser().resolve()) if args.csv else None,
+    }
+
+
+def _load_checkpoint(checkpoint_path, args, models):
+    if not checkpoint_path.exists():
+        return {}
+    expected_signature = _checkpoint_signature(args, models)
+    runs_by_case = {}
+    for line_number, line in enumerate(checkpoint_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
         try:
-            if csv_prices is not None:
-                prices = csv_prices.copy()
-            else:
-                prices = fetch_backtest_price_data(
-                    tickers=case.get("tickers"),
-                    ticker_group=case.get("ticker_group"),
-                    start_date=case["start"],
-                    end_date=case["end"],
-                )
-            market_caps = _market_caps_for_prices(prices, models, args.fetch_market_caps)
-            result = run_portfolio_model_backtest(
-                prices,
-                models=models,
-                start_date=None if csv_prices is not None else case["start"],
-                end_date=None if csv_prices is not None else case["end"],
-                train_window=args.train_window,
-                rebalance_frequency=args.rebalance_frequency,
-                forecast_horizon=args.forecast_horizon,
-                transaction_cost_bps=args.transaction_cost_bps,
-                max_asset_weight=args.max_asset_weight,
-                rebalance_band=case["rebalance_band"],
-                max_turnover=case["max_turnover"],
-                min_holding_weight=args.min_holding_weight,
-                market_caps=market_caps,
-                risk_free_rate=args.risk_free_rate,
-                initial_value=args.initial_value,
-            )
-            runs.append({"case": case, "result": result})
-        except Exception as exc:
-            runs.append({"case": case, "error": str(exc)})
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            print(f"Ignoring incomplete checkpoint line {line_number}", file=sys.stderr)
+            continue
+        if entry.get("signature") != expected_signature:
+            raise ValueError("Checkpoint settings do not match this gauntlet run")
+        run = entry.get("run")
+        if (
+            isinstance(run, dict)
+            and isinstance(run.get("case"), dict)
+            and "result" in run
+        ):
+            runs_by_case[_case_key(run["case"])] = run
+    return runs_by_case
 
+
+def _append_checkpoint(checkpoint_path, args, models, run):
+    checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "version": 1,
+        "signature": _checkpoint_signature(args, models),
+        "run": run,
+    }
+    with checkpoint_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+        handle.flush()
+
+
+def _build_gauntlet_payload(args, models, cases, runs):
     completed_runs = [run for run in runs if "result" in run]
+    candidate_reports = {
+        candidate: aggregate_gauntlet_promotion(completed_runs, candidate_model=candidate)
+        for candidate in PROMOTION_CANDIDATE_MODELS
+        if candidate in models
+    }
+    primary_decision = next(
+        iter(candidate_reports.values()),
+        aggregate_gauntlet_promotion(completed_runs),
+    )
     payload = {
         "preset": args.gauntlet_preset,
         "models": list(models),
@@ -268,11 +321,121 @@ def _run_gauntlet(args):
             "risk_free_rate": args.risk_free_rate,
             "initial_value": args.initial_value,
             "fetch_market_caps": bool(args.fetch_market_caps),
+            "target_generation": "once_per_basket_regime",
+            "execution_sensitivity_reuses_targets": True,
+            "forecast_cache_namespace": args.forecast_cache_namespace,
         },
-        "promotion_gauntlet": aggregate_gauntlet_promotion(completed_runs),
+        "forecast_cache": forecast_rank_cache_stats(),
+        "promotion_gauntlet": primary_decision,
+        "promotion_by_candidate": candidate_reports,
         "runs": runs,
     }
     return payload
+
+
+def _run_gauntlet(args, checkpoint_path):
+    default_models = (
+        CANDIDATE_GAUNTLET_MODELS
+        if args.gauntlet_preset == "candidate"
+        else GAUNTLET_MODELS
+    )
+    models = tuple(args.models or default_models)
+    cases = _gauntlet_cases(args.gauntlet_preset, max_cases=args.max_cases)
+    csv_prices = pd.read_csv(args.csv, index_col=0, parse_dates=True) if args.csv else None
+    runs_by_case = (
+        _load_checkpoint(checkpoint_path, args, models)
+        if args.resume
+        else {}
+    )
+
+    scenario_groups = {}
+    for idx, case in enumerate(cases, start=1):
+        scenario_key = (case["basket_key"], case["regime"])
+        scenario_groups.setdefault(scenario_key, []).append((idx, case))
+
+    for scenario_cases in scenario_groups.values():
+        pending_cases = [
+            (idx, case)
+            for idx, case in scenario_cases
+            if _case_key(case) not in runs_by_case
+        ]
+        if not pending_cases:
+            continue
+        _, scenario = pending_cases[0]
+        print(
+            f"Preparing targets once: {scenario['basket']} / {scenario['regime']}",
+            flush=True,
+        )
+        try:
+            if csv_prices is not None:
+                prices = csv_prices.copy()
+            else:
+                prices = fetch_backtest_price_data(
+                    tickers=scenario.get("tickers"),
+                    ticker_group=scenario.get("ticker_group"),
+                    start_date=scenario["start"],
+                    end_date=scenario["end"],
+                )
+            market_caps = _market_caps_for_prices(prices, models, args.fetch_market_caps)
+            target_start = None if csv_prices is not None else scenario["start"]
+            target_end = None if csv_prices is not None else scenario["end"]
+            rebalance_targets = build_rebalance_targets(
+                prices,
+                models=models,
+                start_date=target_start,
+                end_date=target_end,
+                train_window=args.train_window,
+                rebalance_frequency=args.rebalance_frequency,
+                forecast_horizon=args.forecast_horizon,
+                max_asset_weight=args.max_asset_weight,
+                min_holding_weight=args.min_holding_weight,
+                market_caps=market_caps,
+                risk_free_rate=args.risk_free_rate,
+            )
+        except Exception as exc:
+            for _, case in pending_cases:
+                run = {"case": case, "error": str(exc)}
+                runs_by_case[_case_key(case)] = run
+                _append_checkpoint(checkpoint_path, args, models, run)
+            continue
+
+        for idx, case in pending_cases:
+            print(
+                f"[{idx}/{len(cases)}] {case['basket']} / {case['regime']} "
+                f"band={case['rebalance_band']:.2%} max_turnover={case['max_turnover']:.0%}",
+                flush=True,
+            )
+            try:
+                result = run_portfolio_model_backtest(
+                    prices,
+                    models=models,
+                    start_date=target_start,
+                    end_date=target_end,
+                    train_window=args.train_window,
+                    rebalance_frequency=args.rebalance_frequency,
+                    forecast_horizon=args.forecast_horizon,
+                    transaction_cost_bps=args.transaction_cost_bps,
+                    max_asset_weight=args.max_asset_weight,
+                    rebalance_band=case["rebalance_band"],
+                    max_turnover=case["max_turnover"],
+                    min_holding_weight=args.min_holding_weight,
+                    market_caps=market_caps,
+                    risk_free_rate=args.risk_free_rate,
+                    initial_value=args.initial_value,
+                    rebalance_targets=rebalance_targets,
+                )
+                run = {"case": case, "result": result}
+            except Exception as exc:
+                run = {"case": case, "error": str(exc)}
+            runs_by_case[_case_key(case)] = run
+            _append_checkpoint(checkpoint_path, args, models, run)
+
+    ordered_runs = [
+        runs_by_case[_case_key(case)]
+        for case in cases
+        if _case_key(case) in runs_by_case
+    ]
+    return _build_gauntlet_payload(args, models, cases, ordered_runs)
 
 
 def _print_gauntlet_summary(payload):
@@ -300,6 +463,8 @@ def _write_gauntlet_report(payload, output_path):
         f"- Candidate: `{decision['candidate_model']}`",
         f"- Status: `{decision['status']}`",
         f"- Survival: {decision['survival_count']} / {decision['usable_count']} ({decision['survival_rate']:.1%})",
+        f"- Target generation: `{payload['settings'].get('target_generation')}`",
+        f"- Persistent forecast cache entries: {payload.get('forecast_cache', {}).get('persistent_entries', 0)}",
         "",
         "## Reasons",
         "",
@@ -336,7 +501,7 @@ def main(argv=None):
     parser.add_argument("--start", help="Start date YYYY-MM-DD")
     parser.add_argument("--end", help="End date YYYY-MM-DD")
     parser.add_argument("--train-window", type=int, default=504)
-    parser.add_argument("--rebalance-frequency", type=int, default=21)
+    parser.add_argument("--rebalance-frequency", type=int, default=None)
     parser.add_argument("--forecast-horizon", type=int, default=63)
     parser.add_argument("--transaction-cost-bps", type=float, default=10.0)
     parser.add_argument("--max-asset-weight", type=float, default=0.2)
@@ -354,27 +519,70 @@ def main(argv=None):
     parser.add_argument("--output", default=None, help="JSON output path")
     parser.add_argument(
         "--gauntlet-preset",
-        choices=("standard", "smoke"),
-        help="Run a repeatable multi-basket/regime gauntlet instead of one backtest",
+        choices=("standard", "candidate", "smoke"),
+        help=(
+            "Run a repeatable gauntlet; candidate uses four representative scenarios "
+            "and quarterly rebalancing by default"
+        ),
     )
     parser.add_argument("--max-cases", type=int, default=None, help="Limit gauntlet cases for smoke/debug runs")
+    parser.add_argument(
+        "--forecast-cache",
+        help="SQLite path for persistent ML forecast reuse; defaults beside the gauntlet output",
+    )
+    parser.add_argument(
+        "--forecast-cache-namespace",
+        default="default",
+        help="Experiment namespace that prevents forecast reuse across incompatible model configurations",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        help="JSONL case checkpoint path; defaults beside the gauntlet output",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume completed cases from the JSONL checkpoint and reuse persistent forecasts",
+    )
     parser.add_argument(
         "--fetch-market-caps",
         action="store_true",
         help="Fetch market caps for the market_cap_weight baseline when that model is selected",
     )
     args = parser.parse_args(argv)
+    if args.rebalance_frequency is None:
+        args.rebalance_frequency = 63 if args.gauntlet_preset == "candidate" else 21
 
     try:
         if args.gauntlet_preset:
-            payload = _run_gauntlet(args)
             output_path = Path(args.output) if args.output else _default_gauntlet_output_path()
             output_path.parent.mkdir(parents=True, exist_ok=True)
+            forecast_cache_path = (
+                Path(args.forecast_cache)
+                if args.forecast_cache
+                else output_path.parent / "portfolio_gauntlet_forecasts.sqlite3"
+            )
+            checkpoint_path = (
+                Path(args.checkpoint)
+                if args.checkpoint
+                else output_path.with_name(f"{output_path.name}.checkpoint.jsonl")
+            )
+            configure_forecast_rank_cache(
+                forecast_cache_path,
+                namespace=args.forecast_cache_namespace,
+            )
+            if not args.resume:
+                checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                checkpoint_path.write_text("", encoding="utf-8")
+            payload = _run_gauntlet(args, checkpoint_path)
+            payload["checkpoint_path"] = str(checkpoint_path.resolve())
             output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
             report_path = _write_gauntlet_report(payload, output_path)
             _print_gauntlet_summary(payload)
             print(f"\nWrote {output_path}")
             print(f"Wrote {report_path}")
+            print(f"Checkpoint {checkpoint_path}")
+            print(f"Forecast cache {forecast_cache_path}")
             return 0
 
         if args.csv and args.ticker_group:
