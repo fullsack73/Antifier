@@ -97,3 +97,11 @@
 - Marchenko-Pastur threshold로 매 rebalance에서 49개 중 46~47개 correlation eigenvalue를 noise로 분류해 평균화하고 Ledoit-Wolf variance diagonal과 재조합했습니다.
 - RMT 후보는 Ledoit-Wolf minimum variance보다 volatility `15.22%→15.33%`, Sharpe `0.4227→0.3882`, drawdown `-43.55%→-43.70%`로 모두 열위였습니다.
 - paired P(lower volatility/higher Sharpe)는 `3.15%`/`21.0%`여서 폐기합니다. 같은 2000~2010 구간에서 threshold 또는 blend를 재튜닝하지 않습니다.
+
+## 2026-07-24 trend-filter research
+
+- 공식 French 49-industry 1983~1999 fresh research에서 252일 positive absolute-trend filter를 Ledoit-Wolf minimum variance에 고정 적용했습니다.
+- historical DGS3MO cash를 포함해 volatility `10.70%→8.79%`, Sharpe `0.4301→0.4957`, drawdown `-31.77%→-28.48%`로 deterministic 개선했습니다.
+- P(lower volatility)는 `100%`였지만 P(higher Sharpe)는 `73.45%`로 95% gate와 Holm correction을 통과하지 못했습니다.
+- 같은 기간에서 lookback, threshold, cash floor를 재튜닝하지 않고 validation을 열지 않습니다.
+- 보고서: `docs/reports/260724-0138-01-trend-filtered-minvar-research.md`

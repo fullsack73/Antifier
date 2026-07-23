@@ -4,5 +4,5 @@
 
 - `portfolio-alpha-v2-research.md`: Nasdaq, nonlinear, fundamental, and dual-horizon momentum candidates failed gates; validation remains sealed.
 - `portfolio-forecast-model-redesign.md`: nonlinear and fundamental-momentum pooled models failed paired IC/spread gates; keep Transformer tuning blocked.
-- `portfolio-risk-model-research.md`: scenario, volatility-target, and RMT candidates failed joint risk/return gates; keep Ledoit-Wolf.
+- `portfolio-risk-model-research.md`: scenario, volatility-target, RMT, and trend-filter candidates failed joint statistical gates; keep Ledoit-Wolf.
 - `portfolio-optimizer-quant-standard.md`: risk cash/data-eligibility truth fixes landed, but alpha/risk candidates still lack validation and untouched-holdout evidence.

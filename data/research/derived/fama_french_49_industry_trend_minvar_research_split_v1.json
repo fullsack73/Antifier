@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-49-industry-trend-minvar-research-1983-1999-v1",
+  "role": "research",
+  "evaluation_start": "1983-08-29",
+  "evaluation_end": "1999-12-31",
+  "experiment_namespace": "risk-v8-trend-filtered-minvar-industry-portfolios",
+  "objectives": [
+    "trend_filtered_minimum_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "trend_filtered_minimum_variance_policy": {
+      "trend_measure": "trailing_total_return_gt_zero",
+      "trend_lookback": 252,
+      "inactive_allocation": "historical_risk_free_cash",
+      "covariance": "ledoit_wolf"
+    }
+  },
+  "universe_manifest_sha256": "cad36f71a324c4cf9a24bde8f184f792bc2c499b6be218b9de1ec943848b4ad9",
+  "price_file_sha256": "561ce8bb4517081a09796ff813a3ebd52afbb9c4aa32499769521223c3143a8f",
+  "factor_file_sha256": "03a069ca107a8ec7f75986fac81060ec7c314fc7d9b04e5ee8ceaef2363785b0",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "40fc266c2f70df7b56adfea7ef7883ad6584caacf6d41d67291e5d6e86683a7e"
+}

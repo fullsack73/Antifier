@@ -47,6 +47,7 @@ RISK_RESEARCH_MODELS = (
     "random_matrix_minimum_variance",
     "risk_managed_momentum",
     "dual_horizon_momentum",
+    "trend_filtered_minimum_variance",
 )
 RISK_CANDIDATES = (
     "robust_min_variance",
@@ -64,6 +65,7 @@ RISK_CANDIDATES = (
     "random_matrix_minimum_variance",
     "risk_managed_momentum",
     "dual_horizon_momentum",
+    "trend_filtered_minimum_variance",
 )
 RESERVED_SPLITS = {
     "validation",
@@ -110,6 +112,13 @@ def _research_settings(args):
                 "momentum_12_1": 252,
                 "momentum_12_1_skip": 21,
             },
+        }
+    if "trend_filtered_minimum_variance" in args.candidates:
+        settings["trend_filtered_minimum_variance_policy"] = {
+            "trend_measure": "trailing_total_return_gt_zero",
+            "trend_lookback": 252,
+            "inactive_allocation": "historical_risk_free_cash",
+            "covariance": "ledoit_wolf",
         }
     return settings
 
@@ -254,6 +263,7 @@ def _risk_gate(summary, candidate_name):
                 "scenario_robust_min_variance",
                 "volatility_targeted_min_variance",
                 "random_matrix_minimum_variance",
+                "trend_filtered_minimum_variance",
             }
             else "risk_parity"
         )
