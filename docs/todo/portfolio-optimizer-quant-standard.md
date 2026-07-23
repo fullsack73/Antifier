@@ -91,6 +91,7 @@
 - official French 25 size×value portfolio의 FF3 residual momentum은 raw 12-1 momentum보다 paired IC/spread가 명확히 낮아 signal-only 단계에서 폐기했습니다.
 - official French 25 size×value portfolio의 maximum-diversification allocator는 risk parity보다 volatility, Sharpe, drawdown을 평균적으로 개선했습니다.
 - 그러나 P(higher Sharpe) `75.55%`, Holm-adjusted p-value `0.2445`로 95% statistical gate에서 탈락했습니다. 같은 split 재튜닝과 validation을 금지합니다.
+- official French 25 size×operating-profitability의 50/50 profitability-momentum은 자체 signal gate를 통과했지만 raw momentum 대비 paired IC/spread 개선 확률이 `22.40%`/`45.05%`라 탈락했습니다.
 
 ## 금지
 

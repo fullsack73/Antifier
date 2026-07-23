@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-size-profitability-momentum-research-1965-1999-v1",
+  "role": "research",
+  "evaluation_start": "1965-07-02",
+  "evaluation_end": "1999-10-01",
+  "experiment_namespace": "alpha-v9-profitability-momentum",
+  "objectives": [
+    "profitability_momentum"
+  ],
+  "settings": {
+    "train_window": 505,
+    "horizon": 63,
+    "rebalance_step": 63,
+    "momentum_lookback": 252,
+    "momentum_skip": 21,
+    "momentum_weight": 0.5,
+    "profitability_weight": 0.5,
+    "profitability_signal": "official_annual_operating_profitability_quintile",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95
+  },
+  "universe_manifest_sha256": "f2ea7c67f95720adc0b73f8794b7ff3256c403db30d496bab03bddc5ec66552b",
+  "price_file_sha256": "8eeccf00f8d257f75eaef2697b7813eb24be6740dd90871be8ba0b4f35d33874",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "bfe4d47041b60d27b2ceb490833ee44644ba8ab9608b9d4b34a60dac19ddf098"
+}

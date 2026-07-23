@@ -42,6 +42,7 @@ from portfolio_signals import (
     market_cap_weight,
     momentum_6m,
     momentum_12_1,
+    profitability_momentum_scores,
     risk_parity,
     short_term_reversal_score,
     signal_tilt_weights,
@@ -431,6 +432,36 @@ def test_dual_horizon_momentum_uses_only_supplied_history():
     second = dual_horizon_momentum_weights(mutated.iloc[:280])
 
     pd.testing.assert_series_equal(first, second)
+
+
+def test_profitability_momentum_blends_pit_rank_without_lookahead():
+    dates = pd.date_range("2020-01-02", periods=300, freq="B")
+    x = np.arange(len(dates))
+    prices = pd.DataFrame(
+        {
+            "LOW": 100.0 * np.exp(0.0006 * x),
+            "MID": 100.0 * np.exp(0.0006 * x),
+            "HIGH": 100.0 * np.exp(0.0006 * x),
+        },
+        index=dates,
+    )
+    profitability = {"LOW": 1.0, "MID": 3.0, "HIGH": 5.0}
+
+    scores = profitability_momentum_scores(
+        prices.iloc[:280],
+        profitability,
+    )
+    mutated = prices.copy()
+    mutated.iloc[280:] *= pd.Series(
+        {"LOW": 4.0, "MID": 0.5, "HIGH": 0.25}
+    )
+    repeated = profitability_momentum_scores(
+        mutated.iloc[:280],
+        profitability,
+    )
+
+    assert scores["HIGH"] > scores["MID"] > scores["LOW"]
+    pd.testing.assert_series_equal(scores, repeated)
 
 
 def test_factor_residual_momentum_removes_common_factor_and_has_no_lookahead():

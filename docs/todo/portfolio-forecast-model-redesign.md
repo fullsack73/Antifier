@@ -97,6 +97,8 @@
 - paired P(higher IC/spread)는 `12.35%`/`1.20%`여서 폐기했고, Transformer 확장 근거는 생기지 않았습니다.
 - fresh French size×value portfolio research에서 FF3 residual momentum도 raw 12-1 momentum보다 IC `-0.0494`, spread `-0.00784` 열위였습니다.
 - factor exposure 제거 자체가 Transformer hyperparameter 확대 근거를 만들지 못했으므로 residual window/factor set을 같은 결과에 맞춰 재튜닝하지 않습니다.
+- fresh French size×operating-profitability research에서 50/50 profitability-momentum은 자체 signal gate를 통과했지만 raw momentum보다 IC `-0.0226`, spread `-0.00036` 열위였습니다.
+- 새 fundamental feature도 paired uplift를 만들지 못했으므로 이 결과는 Transformer HPO 근거가 아닙니다.
 
 ## 선행조건
 
@@ -118,3 +120,4 @@
 - Country ETF nonlinear research: `docs/reports/260724-0049-01-country-etf-nonlinear-research.md`
 - Fundamental momentum research: `docs/reports/260724-0111-01-fundamental-momentum-research.md`
 - Factor-residual momentum research: `docs/reports/260724-0210-01-factor-residual-momentum-research.md`
+- Profitability-momentum research: `docs/reports/260724-0226-01-profitability-momentum-research.md`

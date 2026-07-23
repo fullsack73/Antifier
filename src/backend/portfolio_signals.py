@@ -146,6 +146,43 @@ def momentum_12_1(price_data, lookback=MOMENTUM_LOOKBACK_DAYS, skip=MOMENTUM_SKI
     return momentum_rank(price_data, lookback=lookback, skip=skip)
 
 
+def profitability_momentum_scores(
+    price_data,
+    profitability_values,
+    momentum_weight=0.50,
+):
+    """Blend trailing momentum with a point-in-time profitability rank."""
+    data = _clean_price_frame(price_data)
+    try:
+        momentum_weight = float(momentum_weight)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("momentum_weight must be between 0 and 1") from exc
+    if (
+        not np.isfinite(momentum_weight)
+        or momentum_weight < 0.0
+        or momentum_weight > 1.0
+    ):
+        raise ValueError("momentum_weight must be between 0 and 1")
+
+    momentum = momentum_12_1(data)
+    profitability = pd.Series(
+        profitability_values,
+        dtype=float,
+    ).reindex(data.columns)
+    profitability_rank = rank_to_unit_scores(
+        profitability,
+        higher_is_better=True,
+    )
+    combined = (
+        momentum_weight * momentum
+        + (1.0 - momentum_weight) * profitability_rank
+    )
+    return rank_to_unit_scores(
+        combined.where(momentum.notna() & profitability_rank.notna()),
+        higher_is_better=True,
+    ).reindex(data.columns)
+
+
 def momentum_6m(price_data, lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS):
     """Six-month cross-sectional momentum rank score in [-1, 1]."""
     return momentum_rank(price_data, lookback=lookback, skip=0)

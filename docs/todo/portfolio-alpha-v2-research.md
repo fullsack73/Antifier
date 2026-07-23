@@ -93,6 +93,9 @@
 - official French 25 size×book-to-market 1935~1970 research에서 MKT/SMB/HML residual momentum을 raw 12-1 momentum과 직접 비교했습니다.
 - residual candidate는 IC `0.0119<0.0613`, spread `-0.00080<0.00704`였고 paired P(higher IC/spread)는 `5.40%`/`5.65%`로 폐기했습니다.
 - 같은 결과에서 factor set, beta window, residual window를 재튜닝하지 않습니다.
+- official French 25 size×operating-profitability 1965~1999 research에서 12-1 momentum과 annual OP quintile을 50/50으로 고정 결합했습니다.
+- 후보 자체는 IC `0.0951`, spread `0.01221`로 개별 95% gate를 통과했지만 raw momentum의 IC `0.1177`, spread `0.01257`보다 낮았습니다.
+- paired P(higher IC/spread)는 `22.40%`/`45.05%`여서 폐기합니다. 같은 split에서 blend weight, momentum window, skip, horizon을 재튜닝하지 않습니다.
 
 ## 참고
 
@@ -107,3 +110,4 @@
 - Fundamental momentum 폐기: `docs/reports/260724-0111-01-fundamental-momentum-research.md`
 - Dual-horizon momentum 폐기: `docs/reports/260724-0129-01-dual-horizon-momentum-research.md`
 - Factor-residual momentum 폐기: `docs/reports/260724-0210-01-factor-residual-momentum-research.md`
+- Profitability-momentum 폐기: `docs/reports/260724-0226-01-profitability-momentum-research.md`
