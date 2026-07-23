@@ -103,6 +103,15 @@ Backend-only research tool:
   - signal candidate는 rebalance별 forward cross-sectional Spearman rank IC와 top-minus-bottom spread를 기록하고, positive rank IC와 positive spread가 없는 후보는 성과와 별개로 승격시키지 않습니다.
   - 각 완료 case는 JSONL checkpoint에 append하며 `--resume`으로 완료 case와 persistent forecast를 재사용합니다. 모델 설정이 달라지는 실험은 `--forecast-cache-namespace`를 분리해야 합니다.
   - 최종 JSON과 Markdown summary는 `logs/` 아래에 저장하며 public API나 UI는 추가하지 않습니다.
+  - research-only `factor_neutral_alpha_tilt`은 기본 모델 목록과 gauntlet 기본 후보에 포함하지 않습니다. 실행하려면 `--models factor_neutral_alpha_tilt`, `--factor-data`, `--factor-provenance`를 명시해야 합니다.
+  - point-in-time factor CSV는 long-form `available_date`, `ticker`, `sector`, `market_cap`, `quality`, `profitability`, `valuation`, `liquidity` 열을 요구합니다. 네 alpha feature는 값이 높을수록 선호되는 방향으로 사전 정규화해야 하며, `available_date` 이후에만 사용합니다.
+  - factor provenance JSON은 `source`, `retrieved_at`, `universe_policy`, `survivorship_policy`를 요구합니다. 실행 결과에는 data/provenance SHA-256과 정책을 기록합니다.
+  - v2 target은 완료된 training-window forward return에서 cross-sectional market beta, sector, log market-cap 노출을 제거합니다. alpha ridge coefficient는 최소 관측 수 gate와 feature별 절대 weight cap을 적용합니다.
+  - forecast rank cache schema `2026-07-23-v2-diagnostics`부터 Transformer 응답은 daily clip hit, annual clip 전후 값, uncertainty source를 기록합니다. 기존 schema cache는 진단 메타데이터가 없으므로 새 research 실행에 재사용하지 않습니다.
+  - `tools/diagnose_forecast_signals.py`는 SQLite forecast cache를 재학습 없이 읽어 coverage, `±0.69` boundary saturation, unique-value/tie 비율, component 분포를 JSON/Markdown으로 기록합니다.
+  - `forecast_signal_research.py`의 empirical uncertainty calibration은 동일 단위의 완료된 OOS prediction/realized return 최소 20개를 요구합니다. in-sample training RMSE를 OOS-calibrated uncertainty로 표시하지 않습니다.
+  - research target builder는 명시한 training cutoff 안에서 forward horizon이 완료된 row만 만들며 `absolute`, cross-sectional median-adjusted `relative`, PIT beta/sector/size `factor_residual` target을 지원합니다.
+  - forecast 후보는 portfolio construction 전에 signal-only gate에서 OOS rank IC, positive IC rate, top-minus-bottom spread, coverage, saturation, tie 기준을 통과해야 합니다.
 
 API 변경 규칙:
 

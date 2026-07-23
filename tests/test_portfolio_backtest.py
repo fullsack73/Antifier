@@ -16,11 +16,22 @@ if str(BACKEND) not in sys.path:
 
 import portfolio_backtest
 import portfolio_optimization
+from portfolio_alpha_v2 import (
+    factor_neutral_cross_sectional_alpha,
+    fit_regularized_alpha,
+    point_in_time_snapshot,
+)
 from forecast_models import (
     ARIMATransformerPredictor,
     NO_VIEW_FORECAST_UNCERTAINTY,
     TransformerForecastModel,
     no_view_prediction,
+)
+from forecast_signal_research import (
+    build_completed_forward_targets,
+    empirical_oos_uncertainty,
+    prediction_distribution_diagnostics,
+    signal_only_gate,
 )
 from portfolio_signals import (
     adaptive_cross_sectional_alpha,
@@ -50,6 +61,33 @@ def _synthetic_prices(rows=90):
     )
 
 
+def _synthetic_factor_research_data(rows=520, ticker_count=8):
+    dates = pd.date_range("2018-01-02", periods=rows, freq="B")
+    x = np.arange(rows)
+    tickers = [f"T{index:02d}" for index in range(ticker_count)]
+    prices = {}
+    for index, ticker in enumerate(tickers):
+        cycle = 0.004 * np.sin(x / (7.0 + index))
+        drift = 0.0002 + index * 0.00008
+        prices[ticker] = 100.0 * np.exp(drift * x + cycle)
+    price_frame = pd.DataFrame(prices, index=dates)
+
+    rows_out = []
+    for position in range(0, rows, 42):
+        for index, ticker in enumerate(tickers):
+            rows_out.append({
+                "available_date": dates[position],
+                "ticker": ticker,
+                "sector": ("tech", "financials", "healthcare")[index % 3],
+                "market_cap": 1_000_000_000.0 * (index + 1) * (1 + position / rows),
+                "quality": 0.2 * index + 0.01 * position,
+                "profitability": 1.0 - 0.08 * index + 0.005 * position,
+                "valuation": 0.1 * (ticker_count - index) + 0.002 * position,
+                "liquidity": np.log1p((index + 1) * (position + 20)),
+            })
+    return price_frame, pd.DataFrame(rows_out)
+
+
 def test_untrained_transformer_predict_returns_no_view():
     model = TransformerForecastModel()
 
@@ -75,6 +113,100 @@ def test_arima_transformer_ignores_no_view_transformer_component(monkeypatch):
     assert prediction["source"] != "no_view"
     assert prediction["expected_return"] == pytest.approx(0.02 * (252 / 63))
     assert prediction["components"] == {"ARIMA": pytest.approx(0.08)}
+
+
+def test_transformer_reports_pre_and_post_clip_diagnostics():
+    class FakeModel:
+        @staticmethod
+        def predict(values, verbose=0):
+            return np.array([[0.02]])
+
+    class IdentityScaler:
+        @staticmethod
+        def inverse_transform(values):
+            return np.asarray(values, dtype=float)
+
+        @staticmethod
+        def transform(values):
+            return np.asarray(values, dtype=float)
+
+    model = TransformerForecastModel(lookback=10, forecast_clip=0.20)
+    model.model = FakeModel()
+    model.scaler = IdentityScaler()
+    model.last_sequence = np.zeros((10, 1))
+    model.training_daily_rmse = 0.01
+
+    prediction = model.predict(horizon=63)
+
+    assert prediction["expected_return"] == pytest.approx(0.69)
+    assert prediction["diagnostics"]["pre_annual_clip_log_return"] > 0.69
+    assert prediction["diagnostics"]["annual_clip_boundary_hit"] is True
+    assert prediction["diagnostics"]["uncertainty_source"] == "in_sample_training_rmse"
+
+
+def test_forecast_distribution_and_oos_uncertainty_diagnostics():
+    distribution = prediction_distribution_diagnostics([
+        {"expected_return": 0.69, "uncertainty": 0.20},
+        {"expected_return": 0.69, "uncertainty": 0.20},
+        {"expected_return": -0.69, "uncertainty": 0.30},
+        {"expected_return": None, "uncertainty": 5.0},
+    ])
+    calibration = empirical_oos_uncertainty(
+        pd.Series(np.linspace(-0.10, 0.10, 20)),
+        pd.Series(np.linspace(-0.08, 0.12, 20)),
+        reported_uncertainties=pd.Series(np.full(20, 0.03)),
+        minimum_observations=20,
+    )
+    gate = signal_only_gate(
+        {
+            "period_count": 8,
+            "mean_rank_ic": 0.05,
+            "positive_rank_ic_rate": 0.625,
+            "mean_top_bottom_spread": 0.01,
+        },
+        distribution,
+    )
+
+    assert distribution["coverage_rate"] == pytest.approx(0.75)
+    assert distribution["boundary_saturation_rate"] == pytest.approx(1.0)
+    assert distribution["tie_rate"] == pytest.approx(1 / 3)
+    assert calibration["reported_uncertainty_coverage"] == pytest.approx(1.0)
+    assert gate["status"] == "rejected"
+    assert "Forecast boundary saturation is too high." in gate["reasons"]
+
+
+def test_completed_forecast_targets_respect_training_cutoff():
+    prices, factors = _synthetic_factor_research_data(rows=360)
+    cutoff = prices.index[299]
+    future_changed = prices.copy()
+    future_changed.loc[future_changed.index > cutoff] *= 100.0
+
+    relative = build_completed_forward_targets(
+        prices,
+        horizon=21,
+        target_kind="relative",
+        training_end=cutoff,
+    )
+    changed = build_completed_forward_targets(
+        future_changed,
+        horizon=21,
+        target_kind="relative",
+        training_end=cutoff,
+    )
+    residual = build_completed_forward_targets(
+        prices,
+        horizon=21,
+        target_kind="factor_residual",
+        training_end=cutoff,
+        point_in_time_features=factors,
+    )
+
+    pd.testing.assert_frame_equal(relative, changed)
+    assert not relative.empty
+    assert not residual.empty
+    assert relative["forward_end_date"].max() <= cutoff
+    assert residual["forward_end_date"].max() <= cutoff
+    assert relative.groupby("as_of_date")["target"].median().abs().max() < 1e-12
 
 
 def test_optimizer_maps_no_view_to_prior_only_expected_return(monkeypatch):
@@ -287,6 +419,121 @@ def test_adaptive_alpha_calibration_uses_completed_training_windows_only():
     assert sum(calibration["weights"].values()) == pytest.approx(1.0)
     assert diagnostics["coverage_rate"] == pytest.approx(1.0)
     assert scores.notna().all()
+
+
+def test_point_in_time_snapshot_never_uses_future_rows():
+    prices, factors = _synthetic_factor_research_data(rows=180)
+    as_of = prices.index[80]
+    future = factors.iloc[:8].copy()
+    future["available_date"] = prices.index[-1] + pd.Timedelta(days=30)
+    future["quality"] = 9999.0
+
+    baseline = point_in_time_snapshot(factors, as_of, tickers=prices.columns)
+    with_future = point_in_time_snapshot(
+        pd.concat([factors, future], ignore_index=True),
+        as_of,
+        tickers=prices.columns,
+    )
+
+    pd.testing.assert_frame_equal(baseline, with_future)
+    assert (baseline["available_date"] <= as_of).all()
+
+
+def test_regularized_alpha_caps_single_feature_concentration():
+    index = pd.RangeIndex(80)
+    features = pd.DataFrame({
+        "quality": np.linspace(-1.0, 1.0, len(index)),
+        "profitability": np.sin(np.arange(len(index))),
+        "valuation": np.cos(np.arange(len(index))),
+        "liquidity": np.sin(np.arange(len(index)) / 3.0),
+    }, index=index)
+    targets = features["quality"] * 10.0 + features["profitability"] * 0.01
+
+    coefficients, diagnostics = fit_regularized_alpha(
+        features,
+        targets,
+        ridge_penalty=1.0,
+        max_feature_weight=0.45,
+        minimum_observations=40,
+    )
+
+    assert coefficients.abs().sum() == pytest.approx(1.0)
+    assert coefficients.abs().max() <= 0.450001
+    assert diagnostics["observation_count"] == 80
+
+
+def test_factor_neutral_alpha_ignores_unavailable_future_fundamentals():
+    prices, factors = _synthetic_factor_research_data()
+    baseline_scores, baseline_diagnostics = factor_neutral_cross_sectional_alpha(
+        prices,
+        factors,
+        horizon=42,
+        minimum_observations=32,
+    )
+    future = factors.iloc[:8].copy()
+    future["available_date"] = prices.index[-1] + pd.Timedelta(days=30)
+    future["quality"] = -9999.0
+    future["valuation"] = 9999.0
+    future_scores, future_diagnostics = factor_neutral_cross_sectional_alpha(
+        prices,
+        pd.concat([factors, future], ignore_index=True),
+        horizon=42,
+        minimum_observations=32,
+    )
+
+    pd.testing.assert_series_equal(baseline_scores, future_scores)
+    assert baseline_diagnostics["component_weights"] == pytest.approx(
+        future_diagnostics["component_weights"]
+    )
+    assert all(
+        pd.Timestamp(row["latest_available_date"])
+        <= pd.Timestamp(row["as_of_date"])
+        for row in baseline_diagnostics["calibration"]["rows"]
+    )
+    assert abs(sum(
+        abs(value)
+        for value in baseline_diagnostics["component_weights"].values()
+    ) - 1.0) < 1e-9
+
+
+def test_factor_neutral_backtest_requires_point_in_time_data():
+    prices, _ = _synthetic_factor_research_data(rows=180)
+
+    with pytest.raises(ValueError, match="requires point_in_time_features"):
+        portfolio_backtest.run_portfolio_model_backtest(
+            prices,
+            models=("factor_neutral_alpha_tilt",),
+            train_window=126,
+            rebalance_frequency=21,
+            forecast_horizon=21,
+        )
+
+
+def test_factor_neutral_backtest_runs_with_point_in_time_data():
+    prices, factors = _synthetic_factor_research_data()
+
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("factor_neutral_alpha_tilt",),
+        train_window=420,
+        rebalance_frequency=42,
+        forecast_horizon=42,
+        point_in_time_features=factors,
+    )
+
+    metrics = result["summary_by_model"]["factor_neutral_alpha_tilt"]
+    records = [
+        record
+        for record in result["rebalance_records"]
+        if record["model"] == "factor_neutral_alpha_tilt"
+    ]
+    assert records
+    assert metrics["signal_rank_ic_count"] > 0
+    assert all(
+        pd.Timestamp(record["alpha_calibration"]["rows"][-1]["forward_end_date"])
+        <= pd.Timestamp(record["train_end_date"])
+        for record in records
+    )
 
 
 def test_signal_tilt_weights_target_explicit_active_share():

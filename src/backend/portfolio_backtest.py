@@ -33,6 +33,11 @@ from portfolio_optimization import (
     forecast_single_ticker_with_transformer,
     get_stock_data,
 )
+from portfolio_alpha_v2 import (
+    FACTOR_NEUTRAL_TARGET_ACTIVE_SHARE,
+    factor_neutral_cross_sectional_alpha,
+)
+from forecast_signal_research import prediction_distribution_diagnostics
 from portfolio_signals import (
     ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
     FORECAST_RANK_VIEW_UNCERTAINTY,
@@ -74,6 +79,9 @@ DEFAULT_BACKTEST_MODELS = (
     "arima_transformer_bl",
     "transformer_bl",
 )
+SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
+    "factor_neutral_alpha_tilt",
+)
 
 PROMOTION_BASELINE_MODELS = (
     "equal_weight",
@@ -86,6 +94,7 @@ PROMOTION_BASELINE_MODELS = (
 )
 
 PROMOTION_CANDIDATE_MODELS = (
+    "factor_neutral_alpha_tilt",
     "adaptive_signal_tilt",
     "arima_transformer_rank_bl",
     "transformer_rank_bl",
@@ -102,7 +111,7 @@ _FORECAST_RANK_CACHE_STATS = {
 }
 _FORECAST_RANK_PERSISTENT_CACHE = None
 _FORECAST_RANK_CACHE_NAMESPACE = "default"
-FORECAST_RANK_CACHE_SCHEMA_VERSION = "2026-07-23-v1"
+FORECAST_RANK_CACHE_SCHEMA_VERSION = "2026-07-23-v2-diagnostics"
 
 
 def _json_default(value):
@@ -435,6 +444,7 @@ def _forecast_rank_views(train_prices, method, forecast_horizon):
     tickers = list(train_prices.columns)
     forecasts = {}
     uncertainties = {}
+    prediction_diagnostics = []
     failed = 0
     predictor = (
         forecast_single_ticker_with_arima_transformer
@@ -450,6 +460,9 @@ def _forecast_rank_views(train_prices, method, forecast_horizon):
             method,
             forecast_horizon,
             predictor,
+        )
+        prediction_diagnostics.append(
+            prediction if isinstance(prediction, dict) else {}
         )
         annual_log_return = prediction.get("expected_return") if isinstance(prediction, dict) else None
         if annual_log_return is None:
@@ -482,6 +495,9 @@ def _forecast_rank_views(train_prices, method, forecast_horizon):
         "signal_scores": _finite_series_dict(scores),
         "raw_forecasts": _finite_series_dict(forecasts),
         "forecast_uncertainties": _finite_series_dict(uncertainty_series),
+        "forecast_distribution_diagnostics": (
+            prediction_distribution_diagnostics(prediction_diagnostics)
+        ),
     }
 
 
@@ -633,7 +649,7 @@ def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_as
 
 
 def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate,
-                   market_caps=None):
+                   market_caps=None, point_in_time_features=None):
     tickers = list(train_prices.columns)
     if model_name == "equal_weight":
         return _equal_weights(tickers), {"failed_forecast_count": 0, "avg_forecast_confidence": None}
@@ -726,6 +742,49 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             "signal_coverage_rate": alpha_diagnostics.get("coverage_rate", 0.0),
             "construction_method": "equal_weight_active_share_tilt",
             "target_active_share": ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
+        }
+
+    if model_name == "factor_neutral_alpha_tilt":
+        if point_in_time_features is None:
+            raise ValueError(
+                "factor_neutral_alpha_tilt requires point_in_time_features"
+            )
+        scores, alpha_diagnostics = factor_neutral_cross_sectional_alpha(
+            train_prices,
+            point_in_time_features,
+            horizon=forecast_horizon,
+        )
+        weights = signal_tilt_weights(
+            scores,
+            max_asset_weight=max_asset_weight,
+            target_active_share=FACTOR_NEUTRAL_TARGET_ACTIVE_SHARE,
+        )
+        coverage_count = int(alpha_diagnostics.get("coverage_count", 0))
+        calibration = alpha_diagnostics.get("calibration", {})
+        coefficients = calibration.get("coefficients", {})
+        coefficient_strength = (
+            None
+            if not coefficients
+            else float(np.mean(np.abs(list(coefficients.values()))))
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": max(0, len(tickers) - coverage_count),
+            "avg_forecast_confidence": coefficient_strength,
+            "signal_scores": _finite_series_dict(scores),
+            "alpha_component_scores": alpha_diagnostics.get("component_scores", {}),
+            "alpha_component_weights": alpha_diagnostics.get("component_weights", {}),
+            "alpha_calibration": calibration,
+            "signal_coverage_count": coverage_count,
+            "signal_coverage_rate": alpha_diagnostics.get("coverage_rate", 0.0),
+            "construction_method": "equal_weight_active_share_tilt",
+            "target_active_share": FACTOR_NEUTRAL_TARGET_ACTIVE_SHARE,
+            "factor_neutral_target": True,
+            "point_in_time_signal_as_of_date": alpha_diagnostics.get(
+                "signal_as_of_date"
+            ),
+            "point_in_time_latest_available_date": alpha_diagnostics.get(
+                "latest_available_date"
+            ),
         }
 
     if model_name == "historical_mpt":
@@ -973,7 +1032,7 @@ def aggregate_gauntlet_promotion(runs, candidate_model=None):
 
 def _validate_backtest_models(models):
     selected = tuple(models or DEFAULT_BACKTEST_MODELS)
-    unsupported = sorted(set(selected) - set(DEFAULT_BACKTEST_MODELS))
+    unsupported = sorted(set(selected) - set(SUPPORTED_BACKTEST_MODELS))
     if unsupported:
         raise ValueError(f"Unsupported backtest models: {unsupported}")
     return selected
@@ -1000,9 +1059,21 @@ def _rebalance_target_signature(
     min_holding_weight,
     market_caps,
     risk_free_rate,
+    point_in_time_features,
 ):
     market_caps = {} if market_caps is None else dict(market_caps)
     price_hashes = pd.util.hash_pandas_object(data, index=True).values
+    factor_digest = None
+    if point_in_time_features is not None:
+        factor_frame = pd.DataFrame(point_in_time_features)
+        factor_hashes = pd.util.hash_pandas_object(
+            factor_frame,
+            index=True,
+        ).values
+        factor_digest = hashlib.blake2b(
+            factor_hashes.tobytes(),
+            digest_size=16,
+        ).hexdigest()
     return {
         "start_date": data.index[0].strftime("%Y-%m-%d"),
         "end_date": data.index[-1].strftime("%Y-%m-%d"),
@@ -1020,6 +1091,7 @@ def _rebalance_target_signature(
             for ticker in data.columns
         },
         "risk_free_rate": float(risk_free_rate),
+        "point_in_time_factor_digest": factor_digest,
     }
 
 
@@ -1033,6 +1105,7 @@ def _build_rebalance_targets_for_data(
     min_holding_weight,
     market_caps,
     risk_free_rate,
+    point_in_time_features,
 ):
     records = []
     warnings = []
@@ -1055,6 +1128,7 @@ def _build_rebalance_targets_for_data(
                 max_asset_weight,
                 risk_free_rate,
                 market_caps=market_caps,
+                point_in_time_features=point_in_time_features,
             )
             weights = apply_min_holding_threshold(weights, min_holding_weight)
             weights = _normalize_weights(weights, train_prices.columns)
@@ -1093,6 +1167,7 @@ def _build_rebalance_targets_for_data(
             min_holding_weight,
             market_caps,
             risk_free_rate,
+            point_in_time_features,
         ),
         "records": records,
         "warnings": warnings,
@@ -1112,6 +1187,7 @@ def build_rebalance_targets(
     min_holding_weight=0.0,
     market_caps=None,
     risk_free_rate=0.02,
+    point_in_time_features=None,
 ):
     """Precompute model targets once so execution sensitivities can replay them cheaply."""
     train_window = int(train_window)
@@ -1133,6 +1209,7 @@ def build_rebalance_targets(
         min_holding_weight,
         market_caps,
         risk_free_rate,
+        point_in_time_features,
     )
 
 
@@ -1153,6 +1230,7 @@ def run_portfolio_model_backtest(
     risk_free_rate=0.02,
     initial_value=10000.0,
     rebalance_targets=None,
+    point_in_time_features=None,
 ):
     train_window = int(train_window)
     rebalance_frequency = max(1, int(rebalance_frequency))
@@ -1173,6 +1251,7 @@ def run_portfolio_model_backtest(
         min_holding_weight,
         market_caps,
         risk_free_rate,
+        point_in_time_features,
     )
     reused_rebalance_targets = rebalance_targets is not None
     if rebalance_targets is None:
@@ -1186,6 +1265,7 @@ def run_portfolio_model_backtest(
             min_holding_weight,
             market_caps,
             risk_free_rate,
+            point_in_time_features,
         )
     elif rebalance_targets.get("signature") != expected_target_signature:
         raise ValueError("rebalance_targets do not match the requested backtest data or model settings")
@@ -1400,6 +1480,9 @@ def run_portfolio_model_backtest(
                 "signal_scores": _finite_series_dict(signal_scores),
                 "raw_forecasts": diagnostics.get("raw_forecasts", {}),
                 "forecast_uncertainties": diagnostics.get("forecast_uncertainties", {}),
+                "forecast_distribution_diagnostics": diagnostics.get(
+                    "forecast_distribution_diagnostics"
+                ),
                 "alpha_component_scores": diagnostics.get("alpha_component_scores", {}),
                 "alpha_component_weights": diagnostics.get("alpha_component_weights", {}),
                 "alpha_calibration": diagnostics.get("alpha_calibration"),

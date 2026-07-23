@@ -49,6 +49,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - forecast method 선택과 expected return 기반 optimization
 - rolling rebalance portfolio backtest CLI와 risk parity, 6-month momentum, low-volatility, market-cap, standalone 12-1 momentum, signal-stack baseline을 포함한 보수적 model promotion gate
 - signal/portfolio construction/execution을 분리하는 alpha diagnostics와 training-window IC calibration 기반 `adaptive_signal_tilt` research candidate
+- point-in-time factor 입력 계약, beta/sector/size residual target, regularized/capped coefficient를 사용하는 research-only `factor_neutral_alpha_tilt` 기반 구조
+- Transformer clip 전후 출력, forecast 분포/tie, OOS uncertainty와 signal-only gate를 분리 진단하는 forecast research 기반 구조
 - candidate 4-case validation 후 standard 180-case와 별도 2024-2025 locked holdout으로 이어지는 staged gauntlet, basket/regime별 target 재사용, SQLite forecast cache, case checkpoint/resume
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소
 - 저장된 portfolio result 조회

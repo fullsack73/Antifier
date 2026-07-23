@@ -1,0 +1,73 @@
+# TODO - Portfolio Forecast Model Redesign
+
+- 등록 일시: 2026-07-23 19:21 (KST)
+- 작성자: Codex
+- 에이전트: Codex
+- 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
+- 현재 상태: output/cache/signal-only 진단 기반 완료, 별도 research split과 joint target/model 비교 대기
+
+> 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
+
+## 배경
+
+- live candidate gauntlet에서 `arima_transformer_rank_bl`과 `transformer_rank_bl` 모두 0/4 survival로 탈락했습니다.
+- ARIMA+Transformer의 basket/regime별 평균 rank IC는 약 `0.0152`, `-0.0060`, `0.1161`, `0.0212`였고 Transformer는 약 `-0.0023`, `-0.0991`, `0.1280`, `-0.1726`이었습니다.
+- defensive 구간 외에는 일관된 cross-sectional 예측력이 없었으며, live run의 주된 실패는 no-view가 아니라 정상 생성된 forecast의 방향성과 상대순위 품질 부족이었습니다.
+- Transformer 예측이 `±0.6900` 경계에 반복적으로 포화되어 종목 간 신호 강도 구분과 rank 안정성이 약해졌습니다.
+- ticker × rebalance 단위 재학습으로 candidate 4-case에도 forecast 216개와 약 20~30분이 필요했습니다. persistent cache는 재실행 비용만 줄이며 모델 품질과 학습 안정성은 해결하지 않습니다.
+
+## 목표
+
+- 종목별 절대 미래수익률을 독립적으로 예측한 뒤 순위화하는 현재 목표를 재검토합니다.
+- portfolio research용 모델은 다음 horizon의 cross-sectional relative return 또는 market/sector/factor residual return을 직접 예측하도록 분리합니다.
+- 시장 전체 방향, sector, beta 등 공통요인과 종목 고유 alpha를 구분합니다.
+- 출력 clipping과 `±0.6900` 포화의 원인을 추적하고 예측 분포와 rank tie를 진단합니다.
+- forecast uncertainty를 실제 walk-forward out-of-sample 오차로 calibration합니다.
+- ticker별 반복 학습을 줄일 cross-sectional joint model, batched inference, warm-start 또는 공통 representation을 비교합니다.
+
+## 요구사항
+
+- research/train, validation, locked holdout을 분리하고 validation 결과를 모델 재튜닝에 재사용하지 않습니다.
+- absolute-return loss, relative/residual-return regression, pairwise/listwise ranking objective를 같은 split에서 비교합니다.
+- 모델별로 rank IC, positive IC rate, top-minus-bottom spread, calibration error, coverage/no-view rate를 기록합니다.
+- 예측 clipping 전후 분포, 경계 포화율, cross-sectional unique-rank 비율을 기록합니다.
+- uncertainty는 임의 상수나 signal-strength 조절값이 아니라 실제 OOS residual 또는 conformal/quantile coverage로 검증합니다.
+- training time, peak memory, forecast당 비용, cache hit/miss와 재현성을 함께 보고합니다.
+- 새 target 또는 architecture마다 cache schema와 `--forecast-cache-namespace`를 분리합니다.
+- portfolio construction과 분리된 signal-only gate를 먼저 통과한 모델만 `portfolio-alpha-v2-research.md`의 후보 feature로 전달합니다.
+
+## 산출물
+
+- forecast target/출력 포화/uncertainty 진단 JSON과 Markdown 보고서
+- relative 또는 factor-residual target 구현과 no-lookahead 테스트
+- OOS calibration 및 rank-quality 회귀 테스트
+- ticker-independent 모델과 cross-sectional/batched 후보의 비용·성능 비교
+- signal-only 승격 또는 폐기 결정 기록
+
+## 2026-07-23 진행
+
+- 기존 validation cache 432개를 재학습 없이 진단했습니다.
+- standalone Transformer 216개 중 37개, `17.13%`가 `±0.69` annual boundary에 포화됐고 unique-value ratio는 `83.80%`, tie rate는 `16.20%`였습니다.
+- hybrid 최종 평균은 boundary에 직접 포화되지 않았지만 내부 Transformer component는 동일한 `17.13%` 포화를 보였습니다.
+- Transformer forecast에 raw/pre-clip/post-clip, daily clip hit, uncertainty source 진단을 추가했습니다.
+- cache schema를 `2026-07-23-v2-diagnostics`로 분리했습니다.
+- forecast distribution, empirical OOS uncertainty, cross-sectional rank quality, signal-only gate helper와 cache 진단 CLI를 추가했습니다.
+- training cutoff 안에서 완료된 horizon만 사용하는 absolute/relative/factor-residual target builder를 추가했습니다.
+- 기존 uncertainty가 in-sample training RMSE 또는 fixed fallback이라는 점을 응답에 명시했습니다.
+- 기존 validation 결과는 failure diagnosis에만 사용했고 replacement model parameter tuning은 하지 않았습니다.
+- 별도 research universe가 없어 absolute/relative/residual/pairwise/listwise 비교와 OOS uncertainty calibration은 실행하지 않았습니다.
+- candidate validation과 locked holdout은 계속 보류합니다.
+
+## 선행조건
+
+- validation과 겹치지 않는 research universe와 기간을 확정합니다.
+- point-in-time factor 또는 benchmark 데이터를 사용할 경우 provenance와 survivorship 정책을 먼저 문서화합니다.
+- 기존 live gauntlet 결과는 문제 확인 근거로만 사용하고 같은 4개 case에 맞춘 튜닝은 금지합니다.
+
+## 참고
+
+- ARIMA+Transformer live 결과: `docs/reports/260723-1703-01-live-candidate-gauntlet.md`
+- Transformer live 결과: `docs/reports/260723-1749-01-live-transformer-candidate-gauntlet.md`
+- 연계 TODO: `docs/todo/portfolio-alpha-v2-research.md`
+- todo-list 한 줄 요약: redesign ARIMA/Transformer forecast targets, calibration, and training efficiency before reusing them as portfolio alpha features.
+- 기반 보고서: `docs/reports/260723-1932-01-forecast-signal-diagnostics.md`

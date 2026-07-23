@@ -2,6 +2,7 @@
 """Run walk-forward portfolio model backtests."""
 
 import argparse
+import hashlib
 import json
 import sys
 from datetime import datetime
@@ -18,6 +19,7 @@ if str(BACKEND) not in sys.path:
 from portfolio_backtest import (  # noqa: E402
     PROMOTION_CANDIDATE_MODELS,
     DEFAULT_BACKTEST_MODELS,
+    SUPPORTED_BACKTEST_MODELS,
     aggregate_gauntlet_promotion,
     build_rebalance_targets,
     configure_forecast_rank_cache,
@@ -120,6 +122,42 @@ def _load_prices(args):
         start_date=args.start,
         end_date=args.end,
     )
+
+
+def _file_digest(path):
+    if not path:
+        return None
+    return hashlib.sha256(Path(path).expanduser().read_bytes()).hexdigest()
+
+
+def _load_factor_research_inputs(args, models):
+    uses_v2 = "factor_neutral_alpha_tilt" in tuple(models or ())
+    if not args.factor_data:
+        if uses_v2:
+            raise ValueError(
+                "factor_neutral_alpha_tilt requires --factor-data and "
+                "--factor-provenance"
+            )
+        return None, None
+    if not args.factor_provenance:
+        raise ValueError("--factor-data requires --factor-provenance")
+
+    factor_data = pd.read_csv(args.factor_data)
+    provenance = json.loads(
+        Path(args.factor_provenance).expanduser().read_text(encoding="utf-8")
+    )
+    required = ("source", "retrieved_at", "universe_policy", "survivorship_policy")
+    missing = [key for key in required if not provenance.get(key)]
+    if missing:
+        raise ValueError(
+            "Factor provenance is missing required fields: " + ", ".join(missing)
+        )
+    provenance = {
+        **provenance,
+        "factor_data_sha256": _file_digest(args.factor_data),
+        "provenance_sha256": _file_digest(args.factor_provenance),
+    }
+    return factor_data, provenance
 
 
 def _fmt(value):
@@ -280,6 +318,13 @@ def _checkpoint_signature(args, models):
         "fetch_market_caps": bool(args.fetch_market_caps),
         "forecast_cache_namespace": str(args.forecast_cache_namespace),
         "csv": str(Path(args.csv).expanduser().resolve()) if args.csv else None,
+        "factor_data": (
+            str(Path(args.factor_data).expanduser().resolve())
+            if args.factor_data
+            else None
+        ),
+        "factor_data_sha256": _file_digest(args.factor_data),
+        "factor_provenance_sha256": _file_digest(args.factor_provenance),
     }
 
 
@@ -353,6 +398,7 @@ def _build_gauntlet_payload(args, models, cases, runs):
             "evaluation_split": _evaluation_split(args.gauntlet_preset),
         },
         "forecast_cache": forecast_rank_cache_stats(),
+        "factor_data_provenance": args.factor_provenance_payload,
         "promotion_gauntlet": primary_decision,
         "promotion_by_candidate": candidate_reports,
         "runs": runs,
@@ -418,6 +464,7 @@ def _run_gauntlet(args, checkpoint_path):
                 min_holding_weight=args.min_holding_weight,
                 market_caps=market_caps,
                 risk_free_rate=args.risk_free_rate,
+                point_in_time_features=args.point_in_time_features,
             )
         except Exception as exc:
             for _, case in pending_cases:
@@ -450,6 +497,7 @@ def _run_gauntlet(args, checkpoint_path):
                     risk_free_rate=args.risk_free_rate,
                     initial_value=args.initial_value,
                     rebalance_targets=rebalance_targets,
+                    point_in_time_features=args.point_in_time_features,
                 )
                 run = {"case": case, "result": result}
             except Exception as exc:
@@ -565,8 +613,22 @@ def main(argv=None):
     parser.add_argument(
         "--models",
         nargs="+",
-        choices=DEFAULT_BACKTEST_MODELS,
+        choices=SUPPORTED_BACKTEST_MODELS,
         default=None,
+    )
+    parser.add_argument(
+        "--factor-data",
+        help=(
+            "Long-form PIT factor CSV with available_date, ticker, sector, "
+            "market_cap, quality, profitability, valuation, and liquidity"
+        ),
+    )
+    parser.add_argument(
+        "--factor-provenance",
+        help=(
+            "JSON provenance with source, retrieved_at, universe_policy, and "
+            "survivorship_policy"
+        ),
     )
     parser.add_argument("--output", default=None, help="JSON output path")
     parser.add_argument(
@@ -606,9 +668,28 @@ def main(argv=None):
         args.rebalance_frequency = 63 if args.gauntlet_preset in ("candidate", "holdout") else 21
     if args.forecast_cache_namespace is None:
         split = _evaluation_split(args.gauntlet_preset) if args.gauntlet_preset else "research"
-        args.forecast_cache_namespace = f"adaptive-signal-v1-{split}"
+        prefix = (
+            "factor-neutral-alpha-v2"
+            if "factor_neutral_alpha_tilt" in tuple(args.models or ())
+            else "adaptive-signal-v1"
+        )
+        args.forecast_cache_namespace = f"{prefix}-{split}"
 
     try:
+        selected_models = tuple(
+            args.models
+            or (
+                CANDIDATE_GAUNTLET_MODELS
+                if args.gauntlet_preset in ("candidate", "holdout")
+                else GAUNTLET_MODELS
+                if args.gauntlet_preset
+                else DEFAULT_BACKTEST_MODELS
+            )
+        )
+        (
+            args.point_in_time_features,
+            args.factor_provenance_payload,
+        ) = _load_factor_research_inputs(args, selected_models)
         if args.gauntlet_preset:
             output_path = Path(args.output) if args.output else _default_gauntlet_output_path()
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -660,7 +741,9 @@ def main(argv=None):
             market_caps=market_caps,
             risk_free_rate=args.risk_free_rate,
             initial_value=args.initial_value,
+            point_in_time_features=args.point_in_time_features,
         )
+        result["factor_data_provenance"] = args.factor_provenance_payload
     except Exception as exc:
         parser.exit(2, f"error: {exc}\n")
 

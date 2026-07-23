@@ -4,6 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
+- 현재 상태: v2 코드 기반 완료, 실제 PIT dataset/research universe 확보와 objective 비교 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -39,7 +40,17 @@
 - 새 cache namespace와 candidate validation 기록
 - 통과 시에만 standard 및 locked-holdout 결과
 
+## 2026-07-23 진행
+
+- `factor_neutral_alpha_tilt` research-only 후보와 PIT long-table 계약을 구현했습니다.
+- `available_date` 기준 snapshot, beta/sector/log-size residual target, ridge regularization, feature weight cap, minimum observation gate를 구현했습니다.
+- CLI에 `--factor-data`, `--factor-provenance`와 `factor-neutral-alpha-v2-*` namespace를 추가했습니다.
+- synthetic no-lookahead/미래 fundamental 격리 회귀 테스트를 추가했습니다.
+- 실제 PIT dataset과 validation 비중복 research universe가 없어 pairwise/listwise 비교와 candidate validation은 실행하지 않았습니다.
+- locked holdout은 계속 잠금 상태입니다.
+
 ## 참고
 
 - v1 완료 보고서: `docs/reports/260723-1824-01-portfolio-alpha-redesign.md`
 - v1 validation 결과: `logs/portfolio_gauntlet_candidate_adaptive_20260723.json`
+- v2 기반 보고서: `docs/reports/260723-1921-01-portfolio-alpha-v2-foundation.md`

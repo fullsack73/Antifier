@@ -553,6 +553,7 @@ class TransformerForecastModel:
         self.scaler = None
         self.last_sequence = None
         self.training_daily_rmse = None
+        self.last_forecast_diagnostics = None
         self.best_hpo_params = None
         self.hpo_results = []
 
@@ -567,6 +568,7 @@ class TransformerForecastModel:
         self.model = None
         self.scaler = None
         self.last_sequence = None
+        self.last_forecast_diagnostics = None
 
     def __del__(self):
         self.cleanup()
@@ -898,23 +900,80 @@ class TransformerForecastModel:
         try:
             sequence = self.last_sequence.astype(float).copy()
             cumulative_log_return = 0.0
+            raw_cumulative_log_return = 0.0
+            daily_clip_hit_count = 0
+            effective_horizon = max(1, int(horizon))
 
-            for _ in range(max(1, int(horizon))):
+            for _ in range(effective_horizon):
                 pred_scaled = float(self.model.predict(sequence.reshape(1, sequence.shape[0], 1), verbose=0)[0][0])
-                pred_log_return = float(self.scaler.inverse_transform([[pred_scaled]])[0][0])
-                pred_log_return = float(np.clip(pred_log_return, -self.forecast_clip, self.forecast_clip))
+                raw_pred_log_return = float(
+                    self.scaler.inverse_transform([[pred_scaled]])[0][0]
+                )
+                raw_cumulative_log_return += raw_pred_log_return
+                pred_log_return = float(
+                    np.clip(
+                        raw_pred_log_return,
+                        -self.forecast_clip,
+                        self.forecast_clip,
+                    )
+                )
+                daily_clip_hit_count += int(
+                    not np.isclose(raw_pred_log_return, pred_log_return)
+                )
                 cumulative_log_return += pred_log_return
 
                 next_scaled = float(self.scaler.transform([[pred_log_return]])[0][0])
                 sequence = np.vstack([sequence[1:], [[next_scaled]]])
 
             if annualize:
-                annual_log_return = cumulative_log_return * (252 / max(1, horizon))
-                return float(np.clip(annual_log_return, -0.69, 0.69))
-            return float(np.clip(cumulative_log_return, -0.95, 2.0))
+                raw_annual_log_return = raw_cumulative_log_return * (
+                    252 / effective_horizon
+                )
+                pre_annual_clip_log_return = cumulative_log_return * (
+                    252 / effective_horizon
+                )
+                forecast_value = float(
+                    np.clip(pre_annual_clip_log_return, -0.69, 0.69)
+                )
+                self.last_forecast_diagnostics = {
+                    "horizon": effective_horizon,
+                    "raw_annual_log_return": float(raw_annual_log_return),
+                    "pre_annual_clip_log_return": float(
+                        pre_annual_clip_log_return
+                    ),
+                    "clipped_annual_log_return": forecast_value,
+                    "annual_clip_boundary_hit": bool(
+                        not np.isclose(pre_annual_clip_log_return, forecast_value)
+                    ),
+                    "daily_clip_hit_count": int(daily_clip_hit_count),
+                    "daily_clip_hit_rate": float(
+                        daily_clip_hit_count / effective_horizon
+                    ),
+                    "daily_forecast_clip": float(self.forecast_clip),
+                }
+                return forecast_value
+            forecast_value = float(
+                np.clip(cumulative_log_return, -0.95, 2.0)
+            )
+            self.last_forecast_diagnostics = {
+                "horizon": effective_horizon,
+                "raw_cumulative_log_return": float(raw_cumulative_log_return),
+                "pre_output_clip_log_return": float(cumulative_log_return),
+                "clipped_cumulative_log_return": forecast_value,
+                "output_clip_boundary_hit": bool(
+                    not np.isclose(cumulative_log_return, forecast_value)
+                ),
+                "daily_clip_hit_count": int(daily_clip_hit_count),
+                "daily_clip_hit_rate": float(
+                    daily_clip_hit_count / effective_horizon
+                ),
+                "daily_forecast_clip": float(self.forecast_clip),
+            }
+            return forecast_value
 
         except Exception as e:
             logger.error(f"Transformer forecast failed: {e}")
+            self.last_forecast_diagnostics = {"error": str(e)}
             return None
 
     def predict(self, horizon=252):
@@ -928,6 +987,15 @@ class TransformerForecastModel:
             "expected_return": float(expected_return),
             "uncertainty": uncertainty,
             "components": {"Transformer": float(expected_return)},
+            "diagnostics": {
+                **(self.last_forecast_diagnostics or {}),
+                "uncertainty_source": (
+                    "in_sample_training_rmse"
+                    if self.training_daily_rmse
+                    else "fixed_fallback"
+                ),
+                "training_daily_rmse": self.training_daily_rmse,
+            },
         }
 
 
@@ -960,6 +1028,7 @@ class ARIMATransformerPredictor:
         predictions = []
         component_results = {}
         uncertainties = []
+        component_diagnostics = {}
 
         try:
             arima_period_return, arima_volatility = self.arima.forecast(self.history, horizon=horizon)
@@ -978,6 +1047,10 @@ class ARIMATransformerPredictor:
                 predictions.append(float(transformer_return))
                 component_results["Transformer"] = float(transformer_return)
                 uncertainties.append(float(transformer_prediction.get("uncertainty", 0.05)))
+                component_diagnostics["Transformer"] = transformer_prediction.get(
+                    "diagnostics",
+                    {},
+                )
         except Exception as e:
             logger.error(f"Transformer component failed: {e}")
 
@@ -994,7 +1067,12 @@ class ARIMATransformerPredictor:
             'expected_return': mean_prediction,
             'uncertainty': uncertainty,
             'components': component_results,
-            'source': 'arima_transformer'
+            'source': 'arima_transformer',
+            'diagnostics': {
+                "component_disagreement": component_disagreement,
+                "uncertainty_source": "component_max_disagreement_or_model",
+                "components": component_diagnostics,
+            },
         }
 
 

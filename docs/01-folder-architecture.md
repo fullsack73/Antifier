@@ -57,6 +57,8 @@ src/backend/
 ├─ portfolio_optimization.py         # 데이터 수집, 예측 수익률, MPT/Black-Litterman 최적화
 ├─ portfolio_backtest.py             # walk-forward backtest, signal/construction/execution 진단, promotion gate
 ├─ portfolio_signals.py              # risk parity, momentum rank, adaptive cross-sectional alpha helper
+├─ portfolio_alpha_v2.py             # point-in-time factor 계약, factor-residual target, regularized alpha
+├─ forecast_signal_research.py        # forecast 분포/OOS uncertainty/signal-only gate 진단
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
@@ -143,6 +145,7 @@ tools/
 ├─ sanitize_requirements.py
 ├─ backtest_portfolio_models.py
 ├─ compare_forecast_models.py
+├─ diagnose_forecast_signals.py       # persistent forecast cache 포화/tie/coverage 진단
 └─ tune_transformer_hpo.py
 ```
 
