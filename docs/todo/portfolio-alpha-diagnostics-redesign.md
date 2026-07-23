@@ -75,6 +75,6 @@
 
 ## 참고
 
-- 관련 TODO: `portfolio-gauntlet-live-run.md`
-- 관련 보고서: `docs/reports/260723-1703-01-live-candidate-gauntlet.md`
+- 선행 live run 보고서: `docs/reports/260723-1703-01-live-candidate-gauntlet.md`
+- Transformer 비교 run 보고서: `docs/reports/260723-1749-01-live-transformer-candidate-gauntlet.md`
 - todo-list 한 줄 요약: separate alpha-signal quality from portfolio construction, then redesign and validate the cross-sectional alpha model.

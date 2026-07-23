@@ -101,7 +101,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 현재 로드맵과 TODO 기준 우선순위:
 
 - 포트폴리오 최적화에서 최소 거래일 수 미만 ticker 처리 정책 확정
-- yfinance 기반 live candidate gauntlet 실행 후 통과 후보에 한해 standard portfolio gauntlet을 재개하고 `logs/` 결과 보관
+- cross-sectional alpha 진단/재설계 후 새 candidate가 4-case live gate를 통과한 경우에만 standard portfolio gauntlet을 재개하고 `logs/` 결과 보관
 - Stock Screener custom CSV universe 지원
 - 회귀/forecast 모델 선택 UX와 LSTM 사용 의도 재검토
 - 사용자 인증과 저장된 portfolio/watchlist/screening criteria

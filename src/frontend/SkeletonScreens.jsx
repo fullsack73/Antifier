@@ -129,17 +129,35 @@ export const GenericTableSkeleton = ({ rows = 6, columns = 6, label, i18nKey = "
 export const OptimizerSkeleton = () => (
   <section className="optimizer-results-container skeleton-screen" role="status" aria-live="polite">
     <SkeletonStatus i18nKey="skeleton.loadingOptimizationResults" />
-    <SkeletonLine className="skeleton-title-line" width="16rem" />
-    <div className="optimizer-results-grid">
-      {range(3).map((card) => (
-        <div className="optimizer-result-card skeleton-metric-card" key={card}>
-          <SkeletonLine width="8rem" />
-          <SkeletonLine className="skeleton-value-line" width="5rem" />
-        </div>
-      ))}
+    <div className="optimizer-results-header">
+      <div>
+        <SkeletonLine width="7rem" />
+        <SkeletonLine className="skeleton-title-line" width="16rem" />
+      </div>
+    </div>
+    <div className="optimizer-result-summary optimizer-skeleton-summary">
+      <div className="optimizer-result-primary">
+        <SkeletonLine width="8rem" />
+        <SkeletonLine className="skeleton-value-line" width="13rem" />
+        <SkeletonLine width="17rem" />
+      </div>
+      <div className="optimizer-result-secondary">
+        {range(2).map((card) => (
+          <div key={card}>
+            <SkeletonLine width="7rem" />
+            <SkeletonLine className="skeleton-value-line" width="5rem" />
+            <SkeletonLine width="9rem" />
+          </div>
+        ))}
+      </div>
     </div>
     <div className="optimizer-weights-card">
-      <SkeletonLine width="10rem" />
+      <div className="optimizer-weights-header">
+        <div>
+          <SkeletonLine width="6rem" />
+          <SkeletonLine className="skeleton-title-line" width="10rem" />
+        </div>
+      </div>
       <ul className="optimizer-weights-list skeleton-list">
         {range(8).map((item) => (
           <li key={item}>

@@ -634,126 +634,243 @@ const Optimizer = () => {
     }
   }
 
+  const universeSummary = tickerGroup === "CUSTOM"
+    ? t("optimizer.customUniverseSummary", "{{count}} custom tickers", { count: customTickers.length })
+    : tickerGroup === "DOW"
+      ? "Dow Jones"
+      : "S&P 500"
+  const forecastSummary = {
+    LIGHTWEIGHT: t("optimizer.lightweight", "Lightweight Prediction"),
+    ARIMA_TRANSFORMER: t("optimizer.ensemble", "ARIMA + Transformer"),
+    TRANSFORMER: t("optimizer.transformer", "Transformer"),
+  }[forecastMethod]
+  const methodSummary = optimizationMethod === "BL"
+    ? t("optimizer.blShort", "Black-Litterman")
+    : t("optimizer.mptShort", "Classic MPT")
+  const constraintSummary = targetReturn
+    ? t("optimizer.targetConstraintSummary", "{{value}}% target return", { value: targetReturn })
+    : riskTolerance
+      ? t("optimizer.riskConstraintSummary", "{{value}}% risk ceiling", { value: riskTolerance })
+      : t("optimizer.noCustomConstraint", "No custom constraint")
+
   return (
     <div className="optimizer-container">
-      <div className="page-title-block">
-        <span className="page-kicker">{t("optimizer.kicker")}</span>
-        <h1 className="page-header">{t("optimizer.title")}</h1>
-      </div>
-      <div className="optimizer-actions-row optimizer-actions-row-compact">
-        <button className="optimizer-secondary-button" type="button" onClick={triggerPortfolioUpload}>
-          {t("optimizer.loadPortfolio", "Load JSON")}
-        </button>
-        <button className="optimizer-secondary-button" type="button" onClick={() => setShowAdvanced(true)}>
-          {t("optimizer.advancedSettings", "Advanced Settings")}
-        </button>
-        <input
-          type="file"
-          accept="application/json"
-          ref={portfolioFileInputRef}
-          className="hidden-file-input"
-          onChange={handlePortfolioUpload}
-        />
-      </div>
-      <form onSubmit={handleSubmit} className="optimizer-form">
-        <div className="optimizer-form-grid">
-          <div className="optimizer-form-group">
-            <label>{t("optimizer.tickerGroup")}</label>
-            {tickerGroup === "CUSTOM" && customTickers.length > 0 ? (
-              <button
-                type="button"
-                className="optimizer-select optimizer-select-button"
-                onClick={() => setShowUploadModal(true)}
-              >
-                {uploadFileName} ({customTickers.length})
-              </button>
-            ) : (
-              <select
-                className="optimizer-select"
-                value={tickerGroup}
-                onChange={(e) => {
-                  setTickerGroup(e.target.value)
-                  if (e.target.value === 'CUSTOM') {
-                    setShowUploadModal(true)
-                  } else {
-                    handleClearUpload()
-                  }
-                }}
-                required
-              >
-                <option value="SP500">S&P 500</option>
-                <option value="DOW">Dow Jones</option>
-                <option value="CUSTOM">{t("optimizer.custom")}</option>
-              </select>
+      <header className="optimizer-page-header">
+        <div className="page-title-block optimizer-title-block">
+          <span className="page-kicker">{t("optimizer.kicker")}</span>
+          <h1 className="page-header">{t("optimizer.title")}</h1>
+          <p className="optimizer-page-intro">
+            {t(
+              "optimizer.intro",
+              "Build a model-led allocation from a defined universe, historical window, and risk objective.",
             )}
+          </p>
+        </div>
+        <div className="optimizer-context-strip" aria-label={t("optimizer.runContext", "Current run context")}>
+          <div>
+            <span>{t("optimizer.universe", "Universe")}</span>
+            <strong>{universeSummary}</strong>
           </div>
-
-          <div className="optimizer-form-group">
-            <label htmlFor="forecastMethod">{t("optimizer.forecastMethod", "Forecast Method")}</label>
-            <select
-              id="forecastMethod"
-              className="optimizer-select"
-              value={forecastMethod}
-              onChange={(e) => setForecastMethod(e.target.value)}
-            >
-              <option value="LIGHTWEIGHT">{t("optimizer.lightweight", "Lightweight Prediction")}</option>
-              <option value="ARIMA_TRANSFORMER">{t("optimizer.ensemble", "ARIMA + Transformer")}</option>
-              <option value="TRANSFORMER">{t("optimizer.transformer", "Transformer")}</option>
-            </select>
+          <div>
+            <span>{t("optimizer.forecast", "Forecast")}</span>
+            <strong>{forecastSummary}</strong>
           </div>
-
-          <div className="optimizer-form-group">
-            <label htmlFor="optimizationMethod">{t("optimizer.optimizationMethod", "Optimization Method")}</label>
-            <select
-              id="optimizationMethod"
-              className="optimizer-select"
-              value={optimizationMethod}
-              onChange={(e) => setOptimizationMethod(e.target.value)}
-            >
-              <option value="BL">{t("optimizer.bl", "Black-Litterman")}</option>
-              <option value="MPT">{t("optimizer.mpt", "Mean-Variance (MPT)")}</option>
-            </select>
+          <div>
+            <span>{t("optimizer.method", "Method")}</span>
+            <strong>{methodSummary}</strong>
           </div>
+        </div>
+      </header>
 
-          <div className="optimizer-form-group">
-            <label htmlFor="startDate">{t("optimizer.startDate")}</label>
+      <section className="optimizer-workbench" aria-labelledby="optimizer-setup-title">
+        <div className="optimizer-workbench-header">
+          <div>
+            <span className="optimizer-section-eyebrow">{t("optimizer.strategySetup", "Strategy setup")}</span>
+            <h2 id="optimizer-setup-title">{t("optimizer.optimizationBrief", "Optimization brief")}</h2>
+            <p>{t("optimizer.setupHelp", "Define the investable universe first, then choose how the model should estimate and allocate.")}</p>
+          </div>
+          <div className="optimizer-actions-row optimizer-actions-row-compact">
+            <button className="optimizer-secondary-button" type="button" onClick={triggerPortfolioUpload}>
+              <span aria-hidden="true">↥</span>
+              {t("optimizer.loadPortfolio", "Load JSON")}
+            </button>
+            <button className="optimizer-secondary-button" type="button" onClick={() => setShowAdvanced(true)}>
+              <span aria-hidden="true">⋯</span>
+              {t("optimizer.advancedSettings", "Advanced Settings")}
+            </button>
             <input
-              id="startDate"
-              className="optimizer-input"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              required
+              type="file"
+              accept="application/json"
+              ref={portfolioFileInputRef}
+              className="hidden-file-input"
+              onChange={handlePortfolioUpload}
             />
           </div>
-          <div className="optimizer-form-group">
-            <label htmlFor="endDate">{t("optimizer.endDate")}</label>
-            <input
-              id="endDate"
-              className="optimizer-input"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              required
-            />
+        </div>
+
+        <form onSubmit={handleSubmit} className="optimizer-form">
+          <div className="optimizer-form-grid">
+            <section className="optimizer-form-section">
+              <div className="optimizer-form-section-heading">
+                <span>01</span>
+                <div>
+                  <h3>{t("optimizer.chooseUniverse", "Choose the universe")}</h3>
+                  <p>{t("optimizer.chooseUniverseHelp", "Select a market index or upload your own ticker list.")}</p>
+                </div>
+              </div>
+              <div className="optimizer-form-section-fields optimizer-form-section-single">
+                <div className="optimizer-form-group">
+                  <label htmlFor="tickerGroup">{t("optimizer.tickerGroup")}</label>
+                  {tickerGroup === "CUSTOM" && customTickers.length > 0 ? (
+                    <button
+                      id="tickerGroup"
+                      type="button"
+                      className="optimizer-select optimizer-select-button"
+                      onClick={() => setShowUploadModal(true)}
+                    >
+                      {uploadFileName} ({customTickers.length})
+                    </button>
+                  ) : (
+                    <select
+                      id="tickerGroup"
+                      className="optimizer-select"
+                      value={tickerGroup}
+                      onChange={(e) => {
+                        setTickerGroup(e.target.value)
+                        if (e.target.value === "CUSTOM") {
+                          setShowUploadModal(true)
+                        } else {
+                          handleClearUpload()
+                        }
+                      }}
+                      required
+                    >
+                      <option value="SP500">S&P 500</option>
+                      <option value="DOW">Dow Jones</option>
+                      <option value="CUSTOM">{t("optimizer.custom")}</option>
+                    </select>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section className="optimizer-form-section">
+              <div className="optimizer-form-section-heading">
+                <span>02</span>
+                <div>
+                  <h3>{t("optimizer.selectModels", "Select the models")}</h3>
+                  <p>{t("optimizer.selectModelsHelp", "Pair a return forecast with an allocation framework.")}</p>
+                </div>
+              </div>
+              <div className="optimizer-form-section-fields">
+                <div className="optimizer-form-group">
+                  <label htmlFor="forecastMethod">{t("optimizer.forecastMethod", "Forecast Method")}</label>
+                  <select
+                    id="forecastMethod"
+                    className="optimizer-select"
+                    value={forecastMethod}
+                    onChange={(e) => setForecastMethod(e.target.value)}
+                  >
+                    <option value="LIGHTWEIGHT">{t("optimizer.lightweight", "Lightweight Prediction")}</option>
+                    <option value="ARIMA_TRANSFORMER">{t("optimizer.ensemble", "ARIMA + Transformer")}</option>
+                    <option value="TRANSFORMER">{t("optimizer.transformer", "Transformer")}</option>
+                  </select>
+                </div>
+
+                <div className="optimizer-form-group">
+                  <label htmlFor="optimizationMethod">{t("optimizer.optimizationMethod", "Optimization Method")}</label>
+                  <select
+                    id="optimizationMethod"
+                    className="optimizer-select"
+                    value={optimizationMethod}
+                    onChange={(e) => setOptimizationMethod(e.target.value)}
+                  >
+                    <option value="BL">{t("optimizer.bl", "Black-Litterman")}</option>
+                    <option value="MPT">{t("optimizer.mpt", "Mean-Variance (MPT)")}</option>
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            <section className="optimizer-form-section">
+              <div className="optimizer-form-section-heading">
+                <span>03</span>
+                <div>
+                  <h3>{t("optimizer.setHistory", "Set the historical window")}</h3>
+                  <p>{t("optimizer.setHistoryHelp", "Choose the period used to estimate return and covariance.")}</p>
+                </div>
+              </div>
+              <div className="optimizer-form-section-fields">
+                <div className="optimizer-form-group">
+                  <label htmlFor="startDate">{t("optimizer.startDate")}</label>
+                  <input
+                    id="startDate"
+                    className="optimizer-input"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="optimizer-form-group">
+                  <label htmlFor="endDate">{t("optimizer.endDate")}</label>
+                  <input
+                    id="endDate"
+                    className="optimizer-input"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section className="optimizer-form-section">
+              <div className="optimizer-form-section-heading">
+                <span>04</span>
+                <div>
+                  <h3>{t("optimizer.defineObjective", "Define the objective")}</h3>
+                  <p>{t("optimizer.defineObjectiveHelp", "Set the baseline rate and review any optional return or risk constraint.")}</p>
+                </div>
+              </div>
+              <div className="optimizer-objective-layout">
+                <div className="optimizer-form-group">
+                  <label htmlFor="riskFreeRate">{t("optimizer.riskFreeRate")}</label>
+                  <div className="input-with-symbol">
+                    <input
+                      id="riskFreeRate"
+                      className="optimizer-input"
+                      type="number"
+                      value={riskFreeRate}
+                      onChange={(e) => setRiskFreeRate(e.target.value)}
+                      placeholder={t("optimizer.riskFreePlaceholder", "e.g., 2")}
+                      required
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="optimizer-constraint-summary"
+                  onClick={() => setShowAdvanced(true)}
+                >
+                  <span>{t("optimizer.optionalConstraint", "Optional constraint")}</span>
+                  <strong>{constraintSummary}</strong>
+                  <small>{t("optimizer.editConstraint", "Review advanced controls")}</small>
+                </button>
+              </div>
+            </section>
           </div>
-          <div className="optimizer-form-group">
-            <label htmlFor="riskFreeRate">{t("optimizer.riskFreeRate")}</label>
-            <div className="input-with-symbol">
-              <input
-                id="riskFreeRate"
-                className="optimizer-input"
-                type="number"
-                value={riskFreeRate}
-                onChange={(e) => setRiskFreeRate(e.target.value)}
-                placeholder={t("optimizer.riskFreePlaceholder", "e.g., 2")}
-                required
-              />
+
+          <div className="optimizer-submit-panel">
+            <div>
+              <span>{t("optimizer.readyLabel", "Ready to run")}</span>
+              <p>{t("optimizer.readyHelp", "The optimizer runs as a recoverable background job. Results remain analysis support, not investment advice.")}</p>
             </div>
+            <button type="submit" className="optimizer-submit-button" disabled={loading}>
+              {loading ? t("common.processing", "Processing...") : t("optimizer.submit")}
+            </button>
           </div>
-          <button type="submit" className="optimizer-submit-button" disabled={loading}>
-            {loading ? t("common.processing", "Processing...") : t("optimizer.submit")}
-          </button>
 
           {showAdvanced && (
             <div className="optimizer-modal-overlay" onClick={() => setShowAdvanced(false)}>
@@ -935,8 +1052,8 @@ const Optimizer = () => {
               </button>
             </div>
           )}
-        </div>
-      </form>
+        </form>
+      </section>
 
       {error && (
         <div className="optimizer-error optimizer-error-strong">
@@ -952,11 +1069,30 @@ const Optimizer = () => {
 
       {loading && <OptimizerSkeleton />}
 
+      {!loading && !optimizedPortfolio && !error && (
+        <section className="optimizer-awaiting-results" aria-labelledby="optimizer-awaiting-title">
+          <span className="optimizer-awaiting-index">{t("optimizer.nextLabel", "Next")}</span>
+          <div>
+            <h2 id="optimizer-awaiting-title">{t("optimizer.awaitingTitle", "Allocation results will appear here")}</h2>
+            <p>{t("optimizer.awaitingHelp", "Complete the brief and run the optimizer to review expected return, risk, Sharpe ratio, and target weights.")}</p>
+          </div>
+          <div className="optimizer-awaiting-fields" aria-hidden="true">
+            <span>{t("optimizer.return", "Expected Return")}</span>
+            <span>{t("optimizer.risk", "Risk")}</span>
+            <span>{t("optimizer.weights", "Weights")}</span>
+          </div>
+        </section>
+      )}
+
       {!loading && optimizedPortfolio && (
         <>
-          <div className="optimizer-results-container">
-            <h3>{t("optimizer.results")}</h3>
-            <div className="optimizer-actions-row">
+          <section className="optimizer-results-container" aria-labelledby="optimizer-results-title">
+            <div className="optimizer-results-header">
+              <div>
+                <span className="optimizer-section-eyebrow">{t("optimizer.resultKicker", "Model output")}</span>
+                <h2 id="optimizer-results-title">{t("optimizer.results")}</h2>
+                <p>{t("optimizer.resultHelp", "Review the modeled tradeoff first, then inspect the target weights.")}</p>
+              </div>
               <button
                 className="optimizer-secondary-button"
                 onClick={handleDownloadPortfolio}
@@ -966,57 +1102,78 @@ const Optimizer = () => {
                 {t("optimizer.downloadPortfolio", "Download JSON")}
               </button>
             </div>
-            <div className="manager-display-toggle no-print">
-              <span className="display-toggle-label">
-                {t("optimizer.securityDisplay", "Show:")}
-              </span>
-              {[
-                { key: "ticker", label: t("optimizer.displayTicker", "Ticker") },
-                { key: "name", label: t("optimizer.displayName", "Name") },
-              ].map(mode => (
-                <button
-                  key={mode.key}
-                  type="button"
-                  onClick={() => setSecurityDisplayMode(mode.key)}
-                  className={`manager-display-toggle-button is-compact ${securityDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}`}
-                >
-                  {mode.label}
-                </button>
-              ))}
+
+            <div className="optimizer-result-summary">
+              <div className="optimizer-result-primary">
+                <span>{t("optimizer.return")}</span>
+                <strong>{(optimizedPortfolio.return * 100).toFixed(2)}%</strong>
+                <p>{t("optimizer.returnContext", "Modeled expected return for the optimized mix.")}</p>
+              </div>
+              <dl className="optimizer-result-secondary">
+                <div>
+                  <dt>{t("optimizer.risk")}</dt>
+                  <dd>{(optimizedPortfolio.risk * 100).toFixed(2)}%</dd>
+                  <small>{t("optimizer.riskContext", "Modeled standard deviation")}</small>
+                </div>
+                <div>
+                  <dt>{t("optimizer.sharpeRatio")}</dt>
+                  <dd>{optimizedPortfolio.sharpe_ratio.toFixed(2)}</dd>
+                  <small>{t("optimizer.sharpeContext", "Return per unit of modeled risk")}</small>
+                </div>
+              </dl>
             </div>
-            <div className="optimizer-results-grid">
-              <div className="optimizer-result-card">
-                <h4>{t("optimizer.return")}</h4>
-                <p>{(optimizedPortfolio.return * 100).toFixed(2)}%</p>
-              </div>
-              <div className="optimizer-result-card">
-                <h4>{t("optimizer.risk")}</h4>
-                <p>{(optimizedPortfolio.risk * 100).toFixed(2)}%</p>
-              </div>
-              <div className="optimizer-result-card">
-                <h4>{t("optimizer.sharpeRatio")}</h4>
-                <p>{optimizedPortfolio.sharpe_ratio.toFixed(2)}</p>
-              </div>
-            </div>
+
             <div className="optimizer-weights-card">
-              <h4>{t("optimizer.weights")}</h4>
+              <div className="optimizer-weights-header">
+                <div>
+                  <span className="optimizer-section-eyebrow">{t("optimizer.composition", "Composition")}</span>
+                  <h3>{t("optimizer.weights")}</h3>
+                </div>
+                <div className="manager-display-toggle no-print">
+                  <span className="display-toggle-label">
+                    {t("optimizer.securityDisplay", "Show:")}
+                  </span>
+                  {[
+                    { key: "ticker", label: t("optimizer.displayTicker", "Ticker") },
+                    { key: "name", label: t("optimizer.displayName", "Name") },
+                  ].map(mode => (
+                    <button
+                      key={mode.key}
+                      type="button"
+                      onClick={() => setSecurityDisplayMode(mode.key)}
+                      aria-pressed={securityDisplayMode === mode.key}
+                      className={`manager-display-toggle-button is-compact ${securityDisplayMode === mode.key ? "optimizer-submit-button" : "optimizer-secondary-button"}`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <ul className="optimizer-weights-list">
                 {Object.entries(optimizedPortfolio.weights).map(([ticker, weight]) => (
-                  <li key={ticker}>
-                    <span>{formatPortfolioTicker(ticker)}</span>
+                  <li key={ticker} style={{ "--portfolio-weight": `${Math.max(weight * 100, 0.5)}%` }}>
+                    <span className="optimizer-weight-name">{formatPortfolioTicker(ticker)}</span>
                     <strong>{(weight * 100).toFixed(2)}%</strong>
+                    <span className="optimizer-weight-mark" aria-hidden="true" />
                   </li>
                 ))}
               </ul>
             </div>
-          </div>
+          </section>
 
-          <div className="investment-allocation-container">
-            <h3>{t("optimizer.investmentAllocation")}</h3>
+          <section className="investment-allocation-container" aria-labelledby="optimizer-allocation-title">
+            <div className="investment-allocation-header">
+              <div>
+                <span className="optimizer-section-eyebrow">{t("optimizer.executionPlan", "Execution plan")}</span>
+                <h2 id="optimizer-allocation-title">{t("optimizer.investmentAllocation")}</h2>
+                <p>{t("optimizer.allocationHelp", "Convert target weights into a budget-aware share plan.")}</p>
+              </div>
+            </div>
             <div className="investment-allocation-form">
               <div className="optimizer-form-group">
-                <label className="label-center">{t("optimizer.investmentBudget")}</label>
+                <label htmlFor="investmentBudget">{t("optimizer.investmentBudget")}</label>
                 <input
+                  id="investmentBudget"
                   className="optimizer-input"
                   type="number"
                   value={investmentAmount}
@@ -1036,66 +1193,69 @@ const Optimizer = () => {
                   <span className="toggle-label">{t("optimizer.allowFractionalAll", "All Fractional Shares")}</span>
                 </label>
               </div>
-              <button onClick={handleAllocation} className="optimizer-submit-button">
+              <button type="button" onClick={handleAllocation} className="optimizer-submit-button">
                 {t("optimizer.calculate")}
-            </button>
+              </button>
             </div>
             
             {allocation && (
               <div className="allocation-results-container">
-                <h4>{t("optimizer.allocationResults")}</h4>
-                <table className="allocation-table">
-                  <thead>
-                    <tr>
-                      <th>
-                        {securityDisplayMode === "name"
-                          ? t("optimizer.securityName", "Name")
-                          : t("optimizer.ticker")}
-                      </th>
-                      <th>{t("optimizer.price", "Price")}</th>
-                      <th>{t("optimizer.shares")}</th>
-                      <th>{t("optimizer.investmentAmount")}</th>
-                      <th>{t("optimizer.fractional", "Fractional")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allocation.items
-                      .filter(({ ticker }) => optimizedPortfolio.weights[ticker] > 0.0001)
-                      .map(({ ticker, price, amount, shares, fractional }) => (
-                        <tr key={ticker}>
-                          <td>{formatPortfolioTicker(ticker)}</td>
-                          <td>${price.toFixed(2)}</td>
-                          <td>{fractional ? shares.toFixed(4) : shares}</td>
-                          <td>${amount.toFixed(2)}</td>
-                          <td>
-                            <label className="toggle-switch toggle-switch-sm">
-                              <input
-                                type="checkbox"
-                                checked={isTickerFractional(ticker)}
-                                onChange={() => handleToggleFractional(ticker)}
-                              />
-                              <span className="toggle-slider" />
-                            </label>
-                          </td>
-                        </tr>
-                      ))}
-                    {allocation.remainingCash > 0.01 && (
-                      <tr className="allocation-muted-row">
-                        <td>{t("optimizer.remainingCash", "Remaining Cash")}</td>
-                        <td>—</td>
-                        <td>—</td>
-                        <td>${allocation.remainingCash.toFixed(2)}</td>
-                        <td />
+                <h3>{t("optimizer.allocationResults")}</h3>
+                <div className="allocation-table-shell">
+                  <table className="allocation-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          {securityDisplayMode === "name"
+                            ? t("optimizer.securityName", "Name")
+                            : t("optimizer.ticker")}
+                        </th>
+                        <th>{t("optimizer.price", "Price")}</th>
+                        <th>{t("optimizer.shares")}</th>
+                        <th>{t("optimizer.investmentAmount")}</th>
+                        <th>{t("optimizer.fractional", "Fractional")}</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {allocation.items
+                        .filter(({ ticker }) => optimizedPortfolio.weights[ticker] > 0.0001)
+                        .map(({ ticker, price, amount, shares, fractional }) => (
+                          <tr key={ticker}>
+                            <td>{formatPortfolioTicker(ticker)}</td>
+                            <td>${price.toFixed(2)}</td>
+                            <td>{fractional ? shares.toFixed(4) : shares}</td>
+                            <td>${amount.toFixed(2)}</td>
+                            <td>
+                              <label className="toggle-switch toggle-switch-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={isTickerFractional(ticker)}
+                                  onChange={() => handleToggleFractional(ticker)}
+                                  aria-label={t("optimizer.fractionalForTicker", "Allow fractional shares for {{ticker}}", { ticker })}
+                                />
+                                <span className="toggle-slider" />
+                              </label>
+                            </td>
+                          </tr>
+                        ))}
+                      {allocation.remainingCash > 0.01 && (
+                        <tr className="allocation-muted-row">
+                          <td>{t("optimizer.remainingCash", "Remaining Cash")}</td>
+                          <td>{t("optimizer.notApplicable", "N/A")}</td>
+                          <td>{t("optimizer.notApplicable", "N/A")}</td>
+                          <td>${allocation.remainingCash.toFixed(2)}</td>
+                          <td />
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
                 <small className="optimizer-field-note">
                   {t("optimizer.hybridNote", "Toggle fractional per ticker. Integer-only tickers are floored; freed capital is redistributed to fractional-eligible tickers.")}
                 </small>
               </div>
             )}
-          </div>
+          </section>
         </>
       )}
     </div>
