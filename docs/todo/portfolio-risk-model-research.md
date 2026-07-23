@@ -105,3 +105,12 @@
 - P(lower volatility)는 `100%`였지만 P(higher Sharpe)는 `73.45%`로 95% gate와 Holm correction을 통과하지 못했습니다.
 - 같은 기간에서 lookback, threshold, cash floor를 재튜닝하지 않고 validation을 열지 않습니다.
 - 보고서: `docs/reports/260724-0138-01-trend-filtered-minvar-research.md`
+
+## 2026-07-24 trend-filtered risk parity research
+
+- DGS3MO 이전 구간을 위해 official French daily one-month Treasury-bill RF를 명시적으로 선택하는 research path를 추가했습니다.
+- French 49-industry 1973~1981 fresh research에서 252일 positive-trend filter를 inverse-volatility risk parity에 고정 적용했습니다.
+- volatility `13.53%→7.43%`, Sharpe `0.1738→0.3544`, drawdown `-43.34%→-14.54%`로 deterministic 개선했습니다.
+- P(lower volatility)는 `100%`였지만 P(higher Sharpe)는 `75.55%`로 95% gate와 Holm correction을 통과하지 못했습니다.
+- 같은 기간에서 lookback, threshold, exposure floor를 재튜닝하지 않고 validation을 열지 않습니다.
+- 보고서: `docs/reports/260724-0145-01-trend-filtered-risk-parity-research.md`

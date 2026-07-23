@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-49-industry-trend-risk-parity-research-1973-1981-v1",
+  "role": "research",
+  "evaluation_start": "1973-03-13",
+  "evaluation_end": "1981-08-31",
+  "experiment_namespace": "risk-v9-trend-filtered-risk-parity-industry-portfolios",
+  "objectives": [
+    "trend_filtered_risk_parity"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fama_french_daily_one_month_tbill",
+    "trend_filtered_risk_parity_policy": {
+      "trend_measure": "trailing_total_return_gt_zero",
+      "trend_lookback": 252,
+      "inactive_allocation": "historical_risk_free_cash",
+      "base_allocator": "inverse_volatility"
+    }
+  },
+  "universe_manifest_sha256": "cad36f71a324c4cf9a24bde8f184f792bc2c499b6be218b9de1ec943848b4ad9",
+  "price_file_sha256": "11a4f58ef543ced48ec8c5a3a0790e9e5f582c33c46e7c97df8ac140cb017fa7",
+  "factor_file_sha256": "6248273358ddf736b6eec334e25b631cf6c688a475033b2a1e02b495f05d80ed",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "314c5d05ca372e6a9ce3aea561655954c455bffdc3513c02d697152d79953f5d"
+}

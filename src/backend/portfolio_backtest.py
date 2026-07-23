@@ -52,6 +52,7 @@ from portfolio_risk_models import (
     scenario_robust_minimum_variance_weights,
     stability_regularized_minimum_variance_weights,
     trend_filtered_minimum_variance_weights,
+    trend_filtered_risk_parity_weights,
     volatility_targeted_minimum_variance_weights,
 )
 from portfolio_signals import (
@@ -116,6 +117,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "risk_managed_momentum",
     "dual_horizon_momentum",
     "trend_filtered_minimum_variance",
+    "trend_filtered_risk_parity",
 )
 
 PROMOTION_BASELINE_MODELS = (
@@ -827,6 +829,25 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
                 max_asset_weight=max_asset_weight,
                 trend_lookback=252,
             )
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+            "allow_cash_reserve": True,
+            "target_risky_exposure": risk_diagnostics[
+                "target_risky_exposure"
+            ],
+            "target_cash_weight": risk_diagnostics[
+                "target_cash_weight"
+            ],
+        }
+
+    if model_name == "trend_filtered_risk_parity":
+        weights, risk_diagnostics = trend_filtered_risk_parity_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+            trend_lookback=252,
         )
         return weights.to_dict(), {
             "failed_forecast_count": 0,

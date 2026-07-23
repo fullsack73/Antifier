@@ -103,6 +103,15 @@ def main(argv=None):
         action="store_true",
         help="Read existing raw files without downloading replacements",
     )
+    parser.add_argument(
+        "--risk-free-source",
+        choices=("dgs3mo", "french"),
+        default="dgs3mo",
+        help=(
+            "Use backward-asof FRED DGS3MO or the daily French "
+            "one-month Treasury-bill return"
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -115,37 +124,55 @@ def main(argv=None):
         fred_path = raw_dir / "fred_dgs3mo.csv"
         french_path = raw_dir / "fama_french_daily_factors.zip"
         if args.reuse_raw:
-            if not fred_path.exists() or not french_path.exists():
+            required = [french_path]
+            if args.risk_free_source == "dgs3mo":
+                required.append(fred_path)
+            if any(not path.exists() for path in required):
                 raise ValueError(
-                    "--reuse-raw requires fred_dgs3mo.csv and "
-                    "fama_french_daily_factors.zip"
+                    "--reuse-raw is missing a required official raw file"
                 )
-            fred_payload = fred_path.read_bytes()
             french_payload = french_path.read_bytes()
+            fred_payload = (
+                fred_path.read_bytes()
+                if args.risk_free_source == "dgs3mo"
+                else None
+            )
         else:
-            fred_payload = _download(FRED_DGS3MO_URL)
             french_payload = _download(FRENCH_DAILY_FACTORS_URL)
-            fred_path.write_bytes(fred_payload)
             french_path.write_bytes(french_payload)
+            fred_payload = (
+                _download(FRED_DGS3MO_URL)
+                if args.risk_free_source == "dgs3mo"
+                else None
+            )
+            if fred_payload is not None:
+                fred_path.write_bytes(fred_payload)
 
         factors = _parse_french(french_payload).loc[start:end]
-        yields = _parse_fred(fred_payload)
-        panel = pd.merge_asof(
-            factors.sort_index(),
-            yields.sort_index(),
-            left_index=True,
-            right_index=True,
-            direction="backward",
-        )
-        panel["rf_daily_dgs3mo"] = (
-            (1.0 + panel["dgs3mo_annual_yield"])
-            ** (1.0 / 252.0)
-            - 1.0
-        )
-        if panel.empty or panel["dgs3mo_annual_yield"].isna().any():
-            raise ValueError(
-                "Official factor panel has missing backward-looking yield"
+        if args.risk_free_source == "dgs3mo":
+            yields = _parse_fred(fred_payload)
+            panel = pd.merge_asof(
+                factors.sort_index(),
+                yields.sort_index(),
+                left_index=True,
+                right_index=True,
+                direction="backward",
             )
+            panel["rf_daily_dgs3mo"] = (
+                (1.0 + panel["dgs3mo_annual_yield"])
+                ** (1.0 / 252.0)
+                - 1.0
+            )
+            if panel.empty or panel["dgs3mo_annual_yield"].isna().any():
+                raise ValueError(
+                    "Official factor panel has missing backward-looking yield"
+                )
+        else:
+            panel = factors
+            if panel.empty or panel["rf_daily"].isna().any():
+                raise ValueError(
+                    "Official factor panel has missing French risk-free return"
+                )
         output_path = Path(args.output).expanduser().resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
         panel.to_csv(output_path)
@@ -154,30 +181,54 @@ def main(argv=None):
             json.dumps(
                 {
                     "source": (
-                        "Kenneth French Data Library daily U.S. factors "
-                        "and FRED DGS3MO"
+                        "Kenneth French Data Library daily U.S. factors"
+                        if args.risk_free_source == "french"
+                        else (
+                            "Kenneth French Data Library daily U.S. "
+                            "factors and FRED DGS3MO"
+                        )
                     ),
                     "retrieved_at": datetime.now(timezone.utc).isoformat(),
                     "official_sources": {
-                        "fama_french_daily_factors": (
-                            FRENCH_DAILY_FACTORS_URL
+                        **{
+                            "fama_french_daily_factors": (
+                                FRENCH_DAILY_FACTORS_URL
+                            ),
+                        },
+                        **(
+                            {"fred_dgs3mo": FRED_DGS3MO_URL}
+                            if args.risk_free_source == "dgs3mo"
+                            else {}
                         ),
-                        "fred_dgs3mo": FRED_DGS3MO_URL,
                     },
                     "availability_policy": (
-                        "daily observations joined to the latest DGS3MO "
-                        "observation on or before each factor date"
+                        "daily French one-month Treasury-bill return "
+                        "observed on each factor date"
+                        if args.risk_free_source == "french"
+                        else (
+                            "daily observations joined to the latest "
+                            "DGS3MO observation on or before each factor date"
+                        )
                     ),
+                    "risk_free_source": args.risk_free_source,
                     "units": {
                         "mkt_rf": "daily decimal return",
                         "smb": "daily decimal return",
                         "hml": "daily decimal return",
                         "rf_daily": "daily decimal return",
-                        "rf_daily_dgs3mo": (
-                            "daily decimal return derived from latest "
-                            "DGS3MO annual yield"
+                        **(
+                            {
+                                "rf_daily_dgs3mo": (
+                                    "daily decimal return derived from "
+                                    "latest DGS3MO annual yield"
+                                ),
+                                "dgs3mo_annual_yield": (
+                                    "annual decimal yield"
+                                ),
+                            }
+                            if args.risk_free_source == "dgs3mo"
+                            else {}
                         ),
-                        "dgs3mo_annual_yield": "annual decimal yield",
                     },
                     "start_date": panel.index.min().strftime("%Y-%m-%d"),
                     "end_date": panel.index.max().strftime("%Y-%m-%d"),
@@ -189,10 +240,16 @@ def main(argv=None):
                             "file": str(french_path),
                             "sha256": _sha256_bytes(french_payload),
                         },
-                        "fred_dgs3mo": {
-                            "file": str(fred_path),
-                            "sha256": _sha256_bytes(fred_payload),
-                        },
+                        **(
+                            {
+                                "fred_dgs3mo": {
+                                    "file": str(fred_path),
+                                    "sha256": _sha256_bytes(fred_payload),
+                                },
+                            }
+                            if args.risk_free_source == "dgs3mo"
+                            else {}
+                        ),
                     },
                     "promotion_safe": True,
                 },

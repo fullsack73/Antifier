@@ -48,6 +48,7 @@ RISK_RESEARCH_MODELS = (
     "risk_managed_momentum",
     "dual_horizon_momentum",
     "trend_filtered_minimum_variance",
+    "trend_filtered_risk_parity",
 )
 RISK_CANDIDATES = (
     "robust_min_variance",
@@ -66,6 +67,7 @@ RISK_CANDIDATES = (
     "risk_managed_momentum",
     "dual_horizon_momentum",
     "trend_filtered_minimum_variance",
+    "trend_filtered_risk_parity",
 )
 RESERVED_SPLITS = {
     "validation",
@@ -95,7 +97,11 @@ def _research_settings(args):
         ),
     }
     if args.risk_free_data:
-        settings["risk_free_policy"] = "fred_dgs3mo_daily_equivalent"
+        settings["risk_free_policy"] = (
+            "fama_french_daily_one_month_tbill"
+            if args.risk_free_column == "rf_daily"
+            else "fred_dgs3mo_daily_equivalent"
+        )
     if "random_matrix_minimum_variance" in args.candidates:
         settings["random_matrix_policy"] = {
             "correlation": "marchenko_pastur_noise_eigenvalue_mean",
@@ -119,6 +125,13 @@ def _research_settings(args):
             "trend_lookback": 252,
             "inactive_allocation": "historical_risk_free_cash",
             "covariance": "ledoit_wolf",
+        }
+    if "trend_filtered_risk_parity" in args.candidates:
+        settings["trend_filtered_risk_parity_policy"] = {
+            "trend_measure": "trailing_total_return_gt_zero",
+            "trend_lookback": 252,
+            "inactive_allocation": "historical_risk_free_cash",
+            "base_allocator": "inverse_volatility",
         }
     return settings
 
@@ -223,10 +236,12 @@ def _load_risk_free_data(args):
             "Risk-free data SHA-256 does not match provenance"
         )
     frame = pd.read_csv(data_path, index_col=0, parse_dates=True)
-    if "rf_daily_dgs3mo" not in frame:
-        raise ValueError("Risk-free data requires rf_daily_dgs3mo")
+    if args.risk_free_column not in frame:
+        raise ValueError(
+            f"Risk-free data requires {args.risk_free_column}"
+        )
     series = pd.to_numeric(
-        frame["rf_daily_dgs3mo"],
+        frame[args.risk_free_column],
         errors="coerce",
     ).dropna()
     if series.empty:
@@ -384,6 +399,11 @@ def main(argv=None):
     parser.add_argument("--price-provenance")
     parser.add_argument("--risk-free-data")
     parser.add_argument("--risk-free-provenance")
+    parser.add_argument(
+        "--risk-free-column",
+        choices=("rf_daily_dgs3mo", "rf_daily"),
+        default="rf_daily_dgs3mo",
+    )
     parser.add_argument("--split-manifest")
     parser.add_argument("--require-locked-split", action="store_true")
     parser.add_argument("--train-window", type=int, default=504)

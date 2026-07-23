@@ -801,6 +801,54 @@ def trend_filtered_minimum_variance_weights(
     }
 
 
+def trend_filtered_risk_parity_weights(
+    price_data,
+    max_asset_weight=0.20,
+    trend_lookback=252,
+):
+    """Keep inverse-volatility sleeves only when trailing absolute trend is positive."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    tickers = list(prices.columns)
+    lookback = max(2, int(trend_lookback))
+    if not tickers or len(prices) < lookback:
+        raise ValueError(
+            "Trend-filtered risk parity requires at least "
+            f"{lookback} complete price rows"
+        )
+
+    volatility = (
+        _returns(prices)
+        .std(ddof=0)
+        .replace([np.inf, -np.inf], np.nan)
+    )
+    inverse_volatility = 1.0 / volatility.where(volatility > 0.0)
+    base_weights = cap_and_normalize_weights(
+        inverse_volatility.reindex(tickers).fillna(0.0),
+        max_asset_weight=max_asset_weight,
+    )
+    start_prices = prices.iloc[-lookback].replace(0.0, np.nan)
+    trailing_returns = (
+        prices.iloc[-1] / start_prices - 1.0
+    ).replace([np.inf, -np.inf], np.nan)
+    active = trailing_returns.gt(0.0).fillna(False)
+    weights = base_weights.where(active, 0.0)
+    risky_exposure = float(np.clip(weights.sum(), 0.0, 1.0))
+
+    return weights, {
+        "method": "positive_12m_trend_filtered_inverse_volatility",
+        "allow_cash_reserve": True,
+        "target_risky_exposure": risky_exposure,
+        "target_cash_weight": float(1.0 - risky_exposure),
+        "trend_lookback": int(lookback),
+        "active_trend_count": int(active.sum()),
+        "inactive_trend_count": int((~active).sum()),
+        "trailing_returns": {
+            str(ticker): float(value)
+            for ticker, value in trailing_returns.dropna().items()
+        },
+    }
+
+
 def forecast_ensemble_covariance(
     price_data,
     inner_train_window=252,

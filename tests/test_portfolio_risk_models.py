@@ -36,6 +36,7 @@ from portfolio_risk_models import (  # noqa: E402
     scenario_robust_minimum_variance_weights,
     stability_regularized_minimum_variance_weights,
     trend_filtered_minimum_variance_weights,
+    trend_filtered_risk_parity_weights,
     volatility_targeted_minimum_variance_weights,
 )
 
@@ -199,6 +200,37 @@ def test_trend_filtered_minimum_variance_moves_negative_trends_to_cash():
     )
     assert diagnostics["active_trend_count"] == 3
     assert diagnostics["allow_cash_reserve"] is True
+
+
+def test_trend_filtered_risk_parity_moves_negative_trends_to_cash():
+    dates = pd.date_range("2020-01-02", periods=300, freq="B")
+    prices = pd.DataFrame(
+        {
+            "UP": np.linspace(100.0, 140.0, len(dates)),
+            "DOWN": np.linspace(100.0, 70.0, len(dates)),
+            "UP2": np.linspace(80.0, 100.0, len(dates)),
+            "DOWN2": np.linspace(120.0, 90.0, len(dates)),
+            "UP3": np.linspace(90.0, 120.0, len(dates)),
+        },
+        index=dates,
+    )
+
+    weights, diagnostics = trend_filtered_risk_parity_weights(
+        prices,
+        max_asset_weight=0.40,
+    )
+
+    assert weights["DOWN"] == pytest.approx(0.0)
+    assert weights["DOWN2"] == pytest.approx(0.0)
+    assert weights["UP"] > 0.0
+    assert 0.0 < weights.sum() < 1.0
+    assert diagnostics["target_risky_exposure"] == pytest.approx(
+        weights.sum()
+    )
+    assert diagnostics["target_cash_weight"] == pytest.approx(
+        1.0 - weights.sum()
+    )
+    assert diagnostics["active_trend_count"] == 3
 
 
 def test_backtest_cash_path_accrues_point_in_time_risk_free_returns():

@@ -82,6 +82,7 @@
 - 공식 French 49-industry 2000~2010 research의 RMT covariance 후보도 Ledoit-Wolf 대비 volatility/Sharpe/drawdown이 모두 악화되어 default risk model을 변경하지 않습니다.
 - 공식 French 49-industry 2011~2017 research의 고정 6m/12-1 dual-horizon momentum도 6m baseline보다 Sharpe, volatility, drawdown이 모두 악화되어 default alpha를 변경하지 않습니다.
 - 공식 French 49-industry 1983~1999의 12개월 trend-filtered minimum variance는 평균 risk/Sharpe를 개선했지만 P(higher Sharpe) `73.45%`로 statistical gate에서 탈락했습니다.
+- 공식 French 49-industry 1973~1981의 trend-filtered risk parity도 평균 Sharpe와 drawdown은 크게 개선했지만 P(higher Sharpe) `75.55%`로 statistical gate에서 탈락했습니다.
 
 ## 금지
 
