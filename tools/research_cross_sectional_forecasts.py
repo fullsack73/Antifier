@@ -16,6 +16,7 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from cross_sectional_forecast import (  # noqa: E402
+    HIST_GRADIENT_BOOSTING_SETTINGS,
     POOLED_OBJECTIVES,
     compare_pooled_objectives,
 )
@@ -74,6 +75,10 @@ def _research_settings(args):
     if args.target_factor_data:
         settings["target_factor_policy"] = (
             "separate_point_in_time_target_factors"
+        )
+    if "relative_hist_gradient_boosting" in args.objectives:
+        settings["relative_hist_gradient_boosting"] = dict(
+            HIST_GRADIENT_BOOSTING_SETTINGS
         )
     return settings
 
@@ -725,7 +730,11 @@ def main(argv=None):
                 )
             )
         )
-        signal_gate_passed = bool(comparison["passed_objectives"])
+        signal_gate_passed = bool(
+            comparison["passed_candidate_objectives"]
+            if comparison["paired_improvement"]
+            else comparison["passed_objectives"]
+        )
         promotion_eligible = bool(
             data_promotion_safe
             and split_manifest.get("promotion_safe", False)

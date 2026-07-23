@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "split_id": "country-etf-nonlinear-research-2010-2016-v1",
+  "role": "research",
+  "evaluation_start": "2010-01-01",
+  "evaluation_end": "2016-09-30",
+  "experiment_namespace": "price-v1-relative-hist-gradient-boosting-country-etf",
+  "objectives": [
+    "relative_ridge",
+    "relative_hist_gradient_boosting"
+  ],
+  "settings": {
+    "horizon": 63,
+    "rebalance_step": 63,
+    "minimum_feature_history": 253,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 12,
+    "minimum_observations": 40,
+    "ridge_penalty": 5.0,
+    "nested_ridge_penalties": [
+      1.0,
+      5.0,
+      20.0,
+      100.0
+    ],
+    "nested_validation_periods": 3,
+    "nominal_uncertainty_coverage": 0.8,
+    "relative_hist_gradient_boosting": {
+      "loss": "absolute_error",
+      "learning_rate": 0.05,
+      "max_iter": 64,
+      "max_leaf_nodes": 7,
+      "min_samples_leaf": 20,
+      "l2_regularization": 5.0,
+      "early_stopping": false,
+      "random_state": 42
+    }
+  },
+  "universe_manifest_sha256": "a0674cf7379227f103e2c618923060145f269b68e62c692461a678c4ba4598a0",
+  "price_file_sha256": "7ba7ace8c9d913eb4f10531b00b8c4c7f72b7c4217a3da9d4e4d61c106d831dc",
+  "factor_file_sha256": null,
+  "locked": true,
+  "manifest_sha256": "259660d6e8182a631faa6f2583b22c5a95337db45e668bcba2e8cb30dcd3f165"
+}

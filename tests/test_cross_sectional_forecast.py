@@ -138,6 +138,83 @@ def test_walk_forward_pooled_ridge_uses_completed_training_targets():
     )
 
 
+def test_relative_hist_gradient_boosting_is_fixed_and_pit_safe():
+    prices = _research_prices(rows=520, ticker_count=12)
+    kwargs = {
+        "price_data": prices,
+        "objective": "relative_hist_gradient_boosting",
+        "horizon": 21,
+        "rebalance_step": 21,
+        "minimum_training_periods": 4,
+        "maximum_training_periods": 8,
+        "minimum_observations": 20,
+    }
+
+    first = walk_forward_pooled_ridge(**kwargs)
+    second = walk_forward_pooled_ridge(**kwargs)
+
+    assert first["records"]
+    assert first["settings"]["model_type"] == (
+        "hist_gradient_boosting_regressor"
+    )
+    assert first["settings"]["hist_gradient_boosting_settings"] == {
+        "loss": "absolute_error",
+        "learning_rate": 0.05,
+        "max_iter": 64,
+        "max_leaf_nodes": 7,
+        "min_samples_leaf": 20,
+        "l2_regularization": 5.0,
+        "early_stopping": False,
+        "random_state": 42,
+    }
+    assert first["mean_coefficients"] == {}
+    assert [
+        record["scores"] for record in first["records"]
+    ] == [
+        record["scores"] for record in second["records"]
+    ]
+    assert all(
+        record["fit"]["sample_weight_policy"]
+        == "equal_total_weight_per_signal_date"
+        for record in first["records"]
+    )
+    assert all(
+        pd.Timestamp(record["train_end_date"])
+        <= pd.Timestamp(record["as_of_date"])
+        < pd.Timestamp(record["forward_end_date"])
+        for record in first["records"]
+    )
+
+
+def test_nonlinear_candidate_requires_paired_improvement_gate():
+    comparison = compare_pooled_objectives(
+        _research_prices(rows=520, ticker_count=12),
+        objectives=(
+            "relative_ridge",
+            "relative_hist_gradient_boosting",
+        ),
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=4,
+        maximum_training_periods=8,
+        minimum_observations=20,
+    )
+
+    key = (
+        "relative_hist_gradient_boosting_vs_relative_ridge"
+    )
+    assert key in comparison["paired_improvement"]
+    assert comparison["passed_candidate_objectives"] in (
+        [],
+        ["relative_hist_gradient_boosting"],
+    )
+    if comparison["paired_improvement"][key]["gate"]["status"] != "passed":
+        assert (
+            "relative_hist_gradient_boosting"
+            not in comparison["passed_candidate_objectives"]
+        )
+
+
 def test_pit_predictors_ignore_future_filing_rows():
     prices = _research_prices(rows=360)
     feature_data = _point_in_time_features(prices)

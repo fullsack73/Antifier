@@ -5,6 +5,7 @@ import tracemalloc
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import HistGradientBoostingRegressor
 
 from forecast_signal_research import (
     cross_sectional_rank_diagnostics,
@@ -50,6 +51,16 @@ QUALITY_POOLED_FEATURE_COLUMNS = (
     "profitability_missing",
 )
 DEFAULT_NESTED_RIDGE_PENALTIES = (1.0, 5.0, 20.0, 100.0)
+HIST_GRADIENT_BOOSTING_SETTINGS = {
+    "loss": "absolute_error",
+    "learning_rate": 0.05,
+    "max_iter": 64,
+    "max_leaf_nodes": 7,
+    "min_samples_leaf": 20,
+    "l2_regularization": 5.0,
+    "early_stopping": False,
+    "random_state": 42,
+}
 FACTOR_FULL_OBJECTIVES = {
     "factor_residual_ridge",
     "factor_residual_nested_ridge",
@@ -76,6 +87,7 @@ POOLED_OBJECTIVES = (
     "factor_residual_quality_ridge",
     "pairwise_ridge",
     "listwise_rank_ridge",
+    "relative_hist_gradient_boosting",
 )
 
 
@@ -301,6 +313,44 @@ def _fit_pooled_ridge(
         "source_row_count": int(len(frame)),
         "fit_row_count": int(fit_row_count),
         "ridge_penalty": float(ridge_penalty),
+    }
+
+
+def _fit_pooled_hist_gradient_boosting(
+    training_rows,
+    minimum_observations,
+    feature_columns,
+):
+    """Fit a fixed compact nonlinear model with equal signal-date weight."""
+    frame = pd.DataFrame(training_rows)
+    valid = (
+        frame["target"].notna()
+        & frame[list(feature_columns)].notna().all(axis=1)
+    )
+    frame = frame.loc[valid].copy()
+    if len(frame) < int(minimum_observations):
+        raise ValueError(
+            "Insufficient pooled training observations: "
+            f"{len(frame)} < {int(minimum_observations)}"
+        )
+    date_sizes = frame.groupby("as_of_date")["target"].transform("size")
+    sample_weight = 1.0 / date_sizes.to_numpy(dtype=float)
+    sample_weight *= len(sample_weight) / float(sample_weight.sum())
+    model = HistGradientBoostingRegressor(
+        **HIST_GRADIENT_BOOSTING_SETTINGS
+    )
+    model.fit(
+        frame.loc[:, feature_columns].to_numpy(dtype=float),
+        frame["target"].to_numpy(dtype=float),
+        sample_weight=sample_weight,
+    )
+    return model, {
+        "source_row_count": int(len(frame)),
+        "fit_row_count": int(len(frame)),
+        "training_period_count": int(frame["as_of_date"].nunique()),
+        "sample_weight_policy": "equal_total_weight_per_signal_date",
+        "model": "hist_gradient_boosting_regressor",
+        "model_settings": dict(HIST_GRADIENT_BOOSTING_SETTINGS),
     }
 
 
@@ -672,40 +722,74 @@ def walk_forward_pooled_ridge(
         try:
             effective_penalty = float(ridge_penalty)
             nested_diagnostics = None
-            if objective in NESTED_RIDGE_OBJECTIVES:
-                effective_penalty, nested_diagnostics = (
-                    _select_nested_ridge_penalty(
+            prediction_model = None
+            coefficients = pd.Series(dtype=float)
+            intercept = 0.0
+            if objective == "relative_hist_gradient_boosting":
+                prediction_model, fit_diagnostics = (
+                    _fit_pooled_hist_gradient_boosting(
                         training_rows,
-                        nested_ridge_penalties,
                         minimum_observations,
                         feature_columns,
-                        validation_periods=nested_validation_periods,
-                        fit_objective=objective,
                     )
                 )
-            intercept, coefficients, fit_diagnostics = _fit_pooled_ridge(
-                training_rows,
-                objective,
-                effective_penalty,
-                minimum_observations,
-                feature_columns,
-            )
-            fit_diagnostics["nested_selection"] = nested_diagnostics
+            else:
+                if objective in NESTED_RIDGE_OBJECTIVES:
+                    effective_penalty, nested_diagnostics = (
+                        _select_nested_ridge_penalty(
+                            training_rows,
+                            nested_ridge_penalties,
+                            minimum_observations,
+                            feature_columns,
+                            validation_periods=nested_validation_periods,
+                            fit_objective=objective,
+                        )
+                    )
+                intercept, coefficients, fit_diagnostics = (
+                    _fit_pooled_ridge(
+                        training_rows,
+                        objective,
+                        effective_penalty,
+                        minimum_observations,
+                        feature_columns,
+                    )
+                )
+                fit_diagnostics["nested_selection"] = nested_diagnostics
         except ValueError as exc:
             if str(exc).startswith("Insufficient pooled"):
                 continue
             raise
         fit_seconds += time.perf_counter() - fit_started_at
         fit_count += 1
-        coefficient_history.append(coefficients)
+        if not coefficients.empty:
+            coefficient_history.append(coefficients)
         evaluated_positions.append(evaluation_position)
 
         as_of_date = prices.index[evaluation_position]
         features = snapshots[evaluation_position]["features"]
-        raw_predictions = features.mul(coefficients, axis=1).sum(
-            axis=1,
-            min_count=len(feature_columns),
-        ) + intercept
+        if prediction_model is None:
+            raw_predictions = features.mul(coefficients, axis=1).sum(
+                axis=1,
+                min_count=len(feature_columns),
+            ) + intercept
+        else:
+            prediction_features = features.loc[:, feature_columns]
+            valid_prediction_features = prediction_features.notna().all(
+                axis=1
+            )
+            raw_predictions = pd.Series(
+                np.nan,
+                index=features.index,
+                dtype=float,
+            )
+            if valid_prediction_features.any():
+                raw_predictions.loc[valid_prediction_features] = (
+                    prediction_model.predict(
+                        prediction_features.loc[
+                            valid_prediction_features
+                        ].to_numpy(dtype=float)
+                    )
+                )
         realized_target = snapshots[evaluation_position]["target"].reindex(
             raw_predictions.index
         )
@@ -904,6 +988,16 @@ def walk_forward_pooled_ridge(
                 if objective in RANK_TARGET_OBJECTIVES
                 else "raw_forward_target"
             ),
+            "model_type": (
+                "hist_gradient_boosting_regressor"
+                if objective == "relative_hist_gradient_boosting"
+                else "closed_form_ridge"
+            ),
+            "hist_gradient_boosting_settings": (
+                dict(HIST_GRADIENT_BOOSTING_SETTINGS)
+                if objective == "relative_hist_gradient_boosting"
+                else None
+            ),
             "point_in_time_fundamentals": (
                 objective in FACTOR_FULL_OBJECTIVES
                 | {"factor_residual_quality_ridge"}
@@ -987,6 +1081,10 @@ def compare_pooled_objectives(
     paired_improvement = {}
     paired_comparisons = (
         (
+            "relative_hist_gradient_boosting",
+            "relative_ridge",
+        ),
+        (
             "factor_residual_nested_ridge",
             "factor_residual_ridge",
         ),
@@ -1041,14 +1139,35 @@ def compare_pooled_objectives(
             "minimum_probability": 0.95,
         }
         paired_improvement[f"{nested_name}_vs_{baseline_name}"] = result
+    paired_candidates = {
+        candidate_name
+        for candidate_name, _ in paired_comparisons
+        if candidate_name in runs
+    }
+    passed_candidate_objectives = [
+        objective
+        for objective in passed
+        if objective in paired_candidates
+        and all(
+            result.get("gate", {}).get("status") == "passed"
+            for name, result in paired_improvement.items()
+            if name.startswith(f"{objective}_vs_")
+        )
+    ]
+    selection_passed = (
+        passed_candidate_objectives
+        if paired_candidates
+        else passed
+    )
     return {
         "objectives": list(selected),
         "passed_objectives": passed,
+        "passed_candidate_objectives": passed_candidate_objectives,
         "multiple_testing": multiple_testing,
         "paired_improvement": paired_improvement,
         "selection_status": (
             "no_signal_candidate"
-            if not passed
+            if not selection_passed
             else "manual_review_required"
         ),
         "runs": runs,

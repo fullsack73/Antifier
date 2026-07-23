@@ -74,6 +74,8 @@
 - backtest가 최초 배치까지 turnover cap으로 막던 결함을 수정하고, 부분 위험노출과 point-in-time 현금 이자 적립을 구현했습니다.
 - fresh 2017~2025 global multi-asset research에서 volatility-target minimum variance는 volatility, drawdown, CVaR을 개선했지만 Sharpe `0.5083→0.4449`, P(higher Sharpe) `19.80%`로 탈락했습니다.
 - risk engine truth는 개선됐지만 default candidate 승격, validation, untouched holdout 조건은 여전히 미충족입니다.
+- fresh country-ETF research에서 compact nonlinear pooled model도 ridge 대비 paired IC/spread improvement gate를 통과하지 못했습니다.
+- baseline 개별 gate가 candidate 승격으로 오인되지 않도록 candidate-specific paired gate를 promotion 판정에 강제했습니다.
 
 ## 금지
 

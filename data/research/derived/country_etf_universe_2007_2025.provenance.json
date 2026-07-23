@@ -1,0 +1,11 @@
+{
+  "source": "explicit predeclared liquid country ETF basket",
+  "retrieved_at": "2026-07-23T15:47:36.322339+00:00",
+  "universe_policy": "static ETF basket fixed before nonlinear outcomes",
+  "survivorship_policy": "explicit_static_etf_basket",
+  "promotion_note": "Research-only static ETF basket; not safe for production promotion.",
+  "manifest_sha256": "a0674cf7379227f103e2c618923060145f269b68e62c692461a678c4ba4598a0",
+  "ticker_count": 15,
+  "start_date": "2007-01-01",
+  "end_date": "2025-12-31"
+}

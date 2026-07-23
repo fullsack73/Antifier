@@ -112,7 +112,7 @@ Backend-only research tool:
   - `forecast_signal_research.py`의 empirical uncertainty calibration은 동일 단위의 완료된 OOS prediction/realized return 최소 20개를 요구합니다. in-sample training RMSE를 OOS-calibrated uncertainty로 표시하지 않습니다.
   - research target builder는 명시한 training cutoff 안에서 forward horizon이 완료된 row만 만들며 `absolute`, cross-sectional median-adjusted `relative`, PIT beta/sector/size `factor_residual` target을 지원합니다.
   - forecast 후보는 portfolio construction 전에 signal-only gate에서 OOS rank IC, positive IC rate, top-minus-bottom spread, coverage, saturation, tie 기준을 통과해야 합니다.
-  - `tools/research_cross_sectional_forecasts.py`는 generic validation/holdout 이름을 거부하고 self-hash로 잠긴 research 또는 locked-holdout split에서 pooled `absolute_ridge`, `relative_ridge`, `pairwise_ridge`, `listwise_rank_ridge`, 선택적 `factor_residual_price_ridge`, 전체 재무 predictor를 결합한 `factor_residual_ridge`, compact `factor_residual_quality_ridge`, inner time-fold에서만 penalty를 선택하는 `factor_residual_nested_ridge`, factor-residual의 signal-date percentile rank를 학습하는 `factor_residual_rank_nested_ridge`를 비교합니다.
+  - `tools/research_cross_sectional_forecasts.py`는 generic validation/holdout 이름을 거부하고 self-hash로 잠긴 research 또는 locked-holdout split에서 pooled `absolute_ridge`, `relative_ridge`, `pairwise_ridge`, `listwise_rank_ridge`, 고정 compact `relative_hist_gradient_boosting`, 선택적 `factor_residual_price_ridge`, 전체 재무 predictor를 결합한 `factor_residual_ridge`, compact `factor_residual_quality_ridge`, inner time-fold에서만 penalty를 선택하는 `factor_residual_nested_ridge`, factor-residual의 signal-date percentile rank를 학습하는 `factor_residual_rank_nested_ridge`를 비교합니다.
   - PIT 재무 predictor는 signal date까지 알려진 최신 filing만 사용합니다. quality, profitability, valuation, liquidity를 cross-sectional winsorized z-score로 만들고 결측은 중립값 0과 별도 missing indicator로 표현합니다.
   - factor CSV 사용 시 SHA-256을 포함한 `--factor-provenance`가 필수이며 불일치 파일을 거부합니다. universe, price, factor 파일 hash의 lineage도 서로 동일한 dataset 계보를 가리켜야 합니다.
   - promotion-safe pooled research와 locked holdout은 `--split-manifest`를 필수로 사용합니다. split role/ID, evaluation interval, namespace, objective family, universe/price/factor SHA-256을 self-hash contract로 잠그고 어느 하나라도 drift하면 실행을 거부합니다.
@@ -130,6 +130,7 @@ Backend-only research tool:
   - 로컬 archive 모드는 선택적 `--submissions-dir`의 `CIK##########.json` 파일에서 SIC를 읽습니다. 이를 제공하지 않으면 sector는 `Unknown`이며 sector-neutral 성능을 주장하거나 후보를 승격할 수 없습니다.
   - SEC 수집은 연락처 email 또는 project URL을 포함한 `SEC_USER_AGENT`를 요구하고, 캐시와 최소 0.10초 요청 간격을 적용합니다. 결과 CSV와 provenance JSON에는 endpoint, 수집 시각, 실패 ticker, universe 정책, SHA-256을 기록합니다.
   - pooled candidate는 ticker별 모델을 반복 학습하지 않고 date × ticker observation을 한 모델로 학습합니다. 각 evaluation date의 training set은 그 날짜까지 forward horizon이 완료된 target만 포함합니다.
+  - paired baseline이 있는 pooled candidate는 개별 bootstrap과 Holm correction뿐 아니라 baseline 대비 paired IC/spread 95% gate를 모두 통과해야 승격 대상이 됩니다.
   - nested ridge는 outer evaluation보다 먼저 완료된 target만 inner fold에 사용합니다. overlapping rebalance에서도 inner validation date까지 forward outcome이 완료되지 않은 row는 penalty 선택에서 제외합니다.
   - nested candidate와 fixed-penalty baseline의 period별 rank IC와 top-bottom spread 차이는 paired circular block bootstrap으로 별도 검증합니다.
   - historical 성과의 Sharpe/Sortino와 paired bootstrap은 가능하면 SHA-verified daily risk-free series를 사용합니다. FRED DGS3MO 연율은 해당 날짜 또는 그 이전 최신 관측만 backward-asof 정렬한 뒤 일수익률로 변환하며 미래 금리를 backward-fill하지 않습니다.

@@ -90,6 +90,9 @@
 - annual/quarterly predictor 비교에서 realized residual target을 같은 quarterly PIT frame으로 고정해 target 변경 혼입을 제거했습니다.
 - Nasdaq 2020~2021 research의 annual predictor는 IC `-0.0424`, spread `-0.0151`, quarterly predictor는 IC `-0.0505`, spread `-0.0263`으로 둘 다 탈락했습니다.
 - 7개 OOS period는 block bootstrap 최소 표본에도 미달합니다. 같은 기간에서 TTM window, 시작일, penalty를 재튜닝하지 않습니다.
+- fresh country-ETF 15종의 2010~2016 research에서 고정 shallow histogram gradient boosting을 relative ridge와 비교했습니다.
+- nonlinear candidate는 IC `-0.0139`, spread `0.0001`로 ridge IC `0.0164`, spread `-0.0030`을 안정적으로 개선하지 못했습니다.
+- paired P(higher IC/spread)는 `25.65%`/`57.35%`였고 속도는 ridge보다 약 2.25배 느려 폐기했습니다. 2017+ validation/holdout은 열지 않습니다.
 
 ## 선행조건
 
@@ -108,3 +111,4 @@
 - Nasdaq locked holdout: `docs/reports/260724-0000-01-nasdaq100-frozen-holdout.md`
 - Rank-target research: `docs/reports/260724-0009-01-rank-target-research.md`
 - Quarterly TTM research: `docs/reports/260724-0024-01-quarterly-ttm-research.md`
+- Country ETF nonlinear research: `docs/reports/260724-0049-01-country-etf-nonlinear-research.md`

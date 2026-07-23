@@ -1,0 +1,4609 @@
+{
+  "research_split": "country-etf-nonlinear-research-2010-2016-v1",
+  "experiment_namespace": "price-v1-relative-hist-gradient-boosting-country-etf",
+  "data_promotion_safe": false,
+  "signal_gate_passed": false,
+  "promotion_eligible": false,
+  "split": {
+    "schema_version": 1,
+    "split_id": "country-etf-nonlinear-research-2010-2016-v1",
+    "role": "research",
+    "evaluation_start": "2010-01-01",
+    "evaluation_end": "2016-09-30",
+    "experiment_namespace": "price-v1-relative-hist-gradient-boosting-country-etf",
+    "objectives": [
+      "relative_ridge",
+      "relative_hist_gradient_boosting"
+    ],
+    "settings": {
+      "horizon": 63,
+      "rebalance_step": 63,
+      "minimum_feature_history": 253,
+      "minimum_training_periods": 8,
+      "maximum_training_periods": 12,
+      "minimum_observations": 40,
+      "ridge_penalty": 5.0,
+      "nested_ridge_penalties": [
+        1.0,
+        5.0,
+        20.0,
+        100.0
+      ],
+      "nested_validation_periods": 3,
+      "nominal_uncertainty_coverage": 0.8,
+      "relative_hist_gradient_boosting": {
+        "loss": "absolute_error",
+        "learning_rate": 0.05,
+        "max_iter": 64,
+        "max_leaf_nodes": 7,
+        "min_samples_leaf": 20,
+        "l2_regularization": 5.0,
+        "early_stopping": false,
+        "random_state": 42
+      }
+    },
+    "universe_manifest_sha256": "a0674cf7379227f103e2c618923060145f269b68e62c692461a678c4ba4598a0",
+    "price_file_sha256": "7ba7ace8c9d913eb4f10531b00b8c4c7f72b7c4217a3da9d4e4d61c106d831dc",
+    "factor_file_sha256": null,
+    "locked": true,
+    "manifest_sha256": "259660d6e8182a631faa6f2583b22c5a95337db45e668bcba2e8cb30dcd3f165",
+    "auxiliary_files": {},
+    "promotion_safe": true,
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/country_etf_nonlinear_research_split_v1.json",
+    "file_sha256": "8469454a5881fcfef7d9cee6b69b312289084317b0b56474a613db9e04cc6027"
+  },
+  "data_lineage": {
+    "universe_manifest_sha256": "a0674cf7379227f103e2c618923060145f269b68e62c692461a678c4ba4598a0",
+    "price_file_sha256": "7ba7ace8c9d913eb4f10531b00b8c4c7f72b7c4217a3da9d4e4d61c106d831dc",
+    "factor_file_sha256": null,
+    "target_factor_file_sha256": null,
+    "market_factor_file_sha256": null,
+    "status": "verified"
+  },
+  "data": {
+    "source": "/Applications/react/my-app/portfolio-project/data/research/derived/country_etf_prices_2007_2025.csv",
+    "start_date": "2007-01-03",
+    "end_date": "2025-12-31",
+    "row_count": 4780,
+    "ticker_count": 15,
+    "tickers": [
+      "EEM",
+      "EWA",
+      "EWC",
+      "EWG",
+      "EWH",
+      "EWJ",
+      "EWS",
+      "EWT",
+      "EWU",
+      "EWW",
+      "EWY",
+      "EWZ",
+      "EZA",
+      "FXI",
+      "ILF"
+    ],
+    "provenance": {
+      "source": "Yahoo Finance adjusted price history",
+      "retrieved_at": "2026-07-23T15:47:36.322339+00:00",
+      "basket_policy": "explicit predeclared research basket",
+      "survivorship_policy": "not_asserted",
+      "promotion_safe": true,
+      "start_date": "2007-01-01",
+      "end_date": "2026-01-01",
+      "row_count": 4780,
+      "ticker_count": 15,
+      "tickers": [
+        "EWJ",
+        "EWG",
+        "EWU",
+        "EWC",
+        "EWA",
+        "EWH",
+        "EWS",
+        "EWT",
+        "EWY",
+        "EWW",
+        "EWZ",
+        "EZA",
+        "FXI",
+        "ILF",
+        "EEM"
+      ],
+      "basket_manifest_sha256": "c22dc83a46df3b88e3387edff03871103dee15f4c9d9d9835291065e014b0d04",
+      "universe_manifest_sha256": "a0674cf7379227f103e2c618923060145f269b68e62c692461a678c4ba4598a0",
+      "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/country_etf_prices_2007_2025.csv",
+      "price_file_sha256": "7ba7ace8c9d913eb4f10531b00b8c4c7f72b7c4217a3da9d4e4d61c106d831dc",
+      "usable_observations": {
+        "EWJ": 4780,
+        "EWG": 4780,
+        "EWU": 4780,
+        "EWC": 4780,
+        "EWA": 4780,
+        "EWH": 4780,
+        "EWS": 4780,
+        "EWT": 4780,
+        "EWY": 4780,
+        "EWW": 4780,
+        "EWZ": 4780,
+        "EZA": 4780,
+        "FXI": 4780,
+        "ILF": 4780,
+        "EEM": 4780
+      },
+      "provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/country_etf_prices_2007_2025.provenance.json"
+    }
+  },
+  "universe": {
+    "source": "explicit predeclared liquid country ETF basket",
+    "retrieved_at": "2026-07-23T15:47:36.322339+00:00",
+    "universe_policy": "static ETF basket fixed before nonlinear outcomes",
+    "survivorship_policy": "explicit_static_etf_basket",
+    "promotion_note": "Research-only static ETF basket; not safe for production promotion.",
+    "manifest_sha256": "a0674cf7379227f103e2c618923060145f269b68e62c692461a678c4ba4598a0",
+    "ticker_count": 15,
+    "start_date": "2007-01-01",
+    "end_date": "2025-12-31",
+    "promotion_safe": false
+  },
+  "factor_data": null,
+  "target_factor_data": null,
+  "market_factor_data": null,
+  "comparison": {
+    "objectives": [
+      "relative_ridge",
+      "relative_hist_gradient_boosting"
+    ],
+    "passed_objectives": [],
+    "passed_candidate_objectives": [],
+    "multiple_testing": {
+      "relative_ridge": {
+        "raw_p_value": 0.642,
+        "adjusted_p_value": 1.0,
+        "significant": false
+      },
+      "relative_hist_gradient_boosting": {
+        "raw_p_value": 0.602,
+        "adjusted_p_value": 1.0,
+        "significant": false
+      }
+    },
+    "paired_improvement": {
+      "relative_hist_gradient_boosting_vs_relative_ridge": {
+        "status": "ok",
+        "observation_count": 27,
+        "block_size": 4,
+        "samples": 2000,
+        "seed": 42,
+        "observed_difference": {
+          "mean_rank_ic": -0.030304487068467403,
+          "mean_top_bottom_spread": 0.003107594834563754
+        },
+        "probability": {
+          "higher_mean_rank_ic": 0.2565,
+          "higher_mean_top_bottom_spread": 0.5735
+        },
+        "difference_interval": {
+          "mean_rank_ic": {
+            "lower_95": -0.1190479560920556,
+            "median": -0.03333333333333334,
+            "upper_95": 0.05794312169312163
+          },
+          "mean_top_bottom_spread": {
+            "lower_95": -0.01778177392364756,
+            "median": 0.0020816626092907643,
+            "upper_95": 0.026934103925251883
+          }
+        },
+        "gate": {
+          "status": "rejected",
+          "minimum_probability": 0.95
+        }
+      }
+    },
+    "selection_status": "no_signal_candidate",
+    "runs": {
+      "relative_ridge": {
+        "objective": "relative_ridge",
+        "target_kind": "relative",
+        "settings": {
+          "horizon": 63,
+          "rebalance_step": 63,
+          "minimum_feature_history": 253,
+          "minimum_training_periods": 8,
+          "maximum_training_periods": 12,
+          "minimum_observations": 40,
+          "ridge_penalty": 5.0,
+          "nested_ridge_penalties": [
+            1.0,
+            5.0,
+            20.0,
+            100.0
+          ],
+          "nested_validation_periods": 3,
+          "nominal_uncertainty_coverage": 0.8,
+          "dated_universe_manifest": true,
+          "evaluation_start": "2010-01-01",
+          "evaluation_end": "2016-09-30",
+          "feature_columns": [
+            "momentum_1m",
+            "momentum_3m",
+            "momentum_6m",
+            "momentum_12_1",
+            "low_volatility_1m",
+            "low_volatility_3m",
+            "drawdown_6m",
+            "market_beta_6m"
+          ],
+          "training_target_transform": "raw_forward_target",
+          "model_type": "closed_form_ridge",
+          "hist_gradient_boosting_settings": null,
+          "point_in_time_fundamentals": false,
+          "separate_target_factors": false
+        },
+        "rank_diagnostics": {
+          "period_count": 27,
+          "mean_rank_ic": 0.016402116402116387,
+          "positive_rank_ic_rate": 0.48148148148148145,
+          "mean_top_bottom_spread": -0.002978780891789507,
+          "mean_coverage_rate": 1.0
+        },
+        "rank_bootstrap": {
+          "status": "ok",
+          "observation_count": 27,
+          "block_size": 4,
+          "samples": 2000,
+          "seed": 42,
+          "observed": {
+            "mean_rank_ic": 0.016402116402116387,
+            "mean_top_bottom_spread": -0.002978780891789507
+          },
+          "probability": {
+            "positive_mean_rank_ic": 0.6795,
+            "positive_mean_top_bottom_spread": 0.358
+          },
+          "interval": {
+            "mean_rank_ic": {
+              "lower_95": -0.06507936507936506,
+              "median": 0.019378306878306877,
+              "upper_95": 0.09696428571428564
+            },
+            "mean_top_bottom_spread": {
+              "lower_95": -0.01771465245761151,
+              "median": -0.002811164188505944,
+              "upper_95": 0.013292042448824095
+            }
+          }
+        },
+        "distribution_diagnostics": {
+          "prediction_count": 405,
+          "valid_count": 405,
+          "no_view_count": 0,
+          "coverage_rate": 1.0,
+          "mean": 0.00038607856210711377,
+          "standard_deviation": 0.017143137553902288,
+          "quantiles": {
+            "0.0": -0.062429197326426426,
+            "0.05": -0.026646118425616275,
+            "0.25": -0.011367247806502454,
+            "0.5": 0.0013734861070068619,
+            "0.75": 0.011202897300779611,
+            "0.95": 0.028253370738979627,
+            "1.0": 0.061467957193531854
+          },
+          "annual_clip": 0.69,
+          "positive_boundary_count": 0,
+          "negative_boundary_count": 0,
+          "boundary_saturation_count": 0,
+          "boundary_saturation_rate": 0.0,
+          "unique_value_count": 405,
+          "unique_value_ratio": 1.0,
+          "tie_rate": 0.0,
+          "uncertainty_count": 360,
+          "mean_reported_uncertainty": 0.05890437080417266,
+          "active_universe_coverage_rate": 1.0,
+          "mean_period_universe_coverage_rate": 1.0,
+          "minimum_period_universe_coverage_rate": 1.0
+        },
+        "uncertainty_diagnostics": {
+          "observation_count": 405,
+          "nominal_coverage": 0.8,
+          "calibrated_absolute_error_radius": 0.06557239246137588,
+          "mae": 0.04147385264317192,
+          "rmse": 0.05504022676204493,
+          "bias": -0.002194983490061164,
+          "reported_uncertainty_count": 360,
+          "reported_uncertainty_coverage": 0.7361111111111112
+        },
+        "signal_only_gate": {
+          "status": "rejected",
+          "reasons": [
+            "Positive OOS rank IC rate is below 50%.",
+            "Mean OOS top-minus-bottom spread is not positive.",
+            "Positive mean rank-IC bootstrap probability is below 95%.",
+            "Positive mean top-minus-bottom bootstrap probability is below 95%."
+          ],
+          "minimum_bootstrap_probability": 0.95
+        },
+        "cost": {
+          "elapsed_seconds": 3.6495207920015673,
+          "fit_seconds": 0.06865187400035211,
+          "fit_count": 27,
+          "prediction_count": 405,
+          "predictions_per_second": 110.97347380171497,
+          "peak_memory_bytes": 7140107
+        },
+        "mean_coefficients": {
+          "momentum_1m": -0.0024074583876263662,
+          "momentum_3m": -0.003978991080872425,
+          "momentum_6m": 0.001000802345374145,
+          "momentum_12_1": -0.0045642179133731165,
+          "low_volatility_1m": -0.008446572594263577,
+          "low_volatility_3m": 0.010272171509185525,
+          "drawdown_6m": -0.0012916587581880497,
+          "market_beta_6m": 0.005113571437816856
+        },
+        "feature_diagnostics": {
+          "momentum_1m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.11785714285714281,
+              "positive_rank_ic_rate": 0.4444444444444444,
+              "mean_top_bottom_spread": -0.01834357243910555,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.11785714285714281,
+                "mean_top_bottom_spread": -0.01834357243910555
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.0595,
+                "positive_mean_top_bottom_spread": 0.096
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.2607242063492063,
+                  "median": -0.12275132275132272,
+                  "upper_95": 0.03149140211640206
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.04827798511422184,
+                  "median": -0.01824343985820888,
+                  "upper_95": 0.009460080057817644
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.9405,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "momentum_3m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.08373015873015872,
+              "positive_rank_ic_rate": 0.37037037037037035,
+              "mean_top_bottom_spread": -0.016607560893970866,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.08373015873015872,
+                "mean_top_bottom_spread": -0.016607560893970866
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.092,
+                "positive_mean_top_bottom_spread": 0.028
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.20808531746031741,
+                  "median": -0.08472222222222221,
+                  "upper_95": 0.03956018518518513
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.031356251129076224,
+                  "median": -0.017267873525611793,
+                  "upper_95": 0.0004385657980963524
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.972,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "momentum_6m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.07261904761904761,
+              "positive_rank_ic_rate": 0.4074074074074074,
+              "mean_top_bottom_spread": -0.010310467250999157,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.07261904761904761,
+                "mean_top_bottom_spread": -0.010310467250999157
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.1395,
+                "positive_mean_top_bottom_spread": 0.179
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.2029166666666666,
+                  "median": -0.0738095238095238,
+                  "upper_95": 0.0572123015873012
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.031111051073587238,
+                  "median": -0.010876315031742537,
+                  "upper_95": 0.013134782556358304
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.8605,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "momentum_12_1": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": 0.0014550264550264632,
+              "positive_rank_ic_rate": 0.4444444444444444,
+              "mean_top_bottom_spread": -0.001321182250219042,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": 0.0014550264550264632,
+                "mean_top_bottom_spread": -0.001321182250219042
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.5265,
+                "positive_mean_top_bottom_spread": 0.4775
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.12407738095238091,
+                  "median": 0.003835978835978847,
+                  "upper_95": 0.13545634920634916
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.021251706883379788,
+                  "median": -0.0005573915762335244,
+                  "upper_95": 0.019639962688378053
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.5225,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "low_volatility_1m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.017724867724867716,
+              "positive_rank_ic_rate": 0.48148148148148145,
+              "mean_top_bottom_spread": -0.0031177068411420102,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.017724867724867716,
+                "mean_top_bottom_spread": -0.0031177068411420102
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.4165,
+                "positive_mean_top_bottom_spread": 0.424
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.1514583333333333,
+                  "median": -0.014880952380952377,
+                  "upper_95": 0.12660052910052902
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.02781605888067078,
+                  "median": -0.0028592176406138804,
+                  "upper_95": 0.023148336664038927
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.5835,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "low_volatility_3m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": 0.00343915343915344,
+              "positive_rank_ic_rate": 0.4444444444444444,
+              "mean_top_bottom_spread": 0.0007966391361358302,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": 0.00343915343915344,
+                "mean_top_bottom_spread": 0.0007966391361358302
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.5605,
+                "positive_mean_top_bottom_spread": 0.5565
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.12778439153439156,
+                  "median": 0.008068783068783053,
+                  "upper_95": 0.12421296296296291
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.02972908277751033,
+                  "median": 0.0019651168407430193,
+                  "upper_95": 0.02714719259360687
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.4435,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "drawdown_6m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.06097883597883597,
+              "positive_rank_ic_rate": 0.48148148148148145,
+              "mean_top_bottom_spread": -0.007769394153365374,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.06097883597883597,
+                "mean_top_bottom_spread": -0.007769394153365374
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.202,
+                "positive_mean_top_bottom_spread": 0.288
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.19444775132275127,
+                  "median": -0.05846560846560846,
+                  "upper_95": 0.07685846560846554
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.03385704883367968,
+                  "median": -0.00737837643462451,
+                  "upper_95": 0.018077971381205662
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.798,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "market_beta_6m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.033730158730158714,
+              "positive_rank_ic_rate": 0.4444444444444444,
+              "mean_top_bottom_spread": -0.006210007834630454,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.033730158730158714,
+                "mean_top_bottom_spread": -0.006210007834630454
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.2775,
+                "positive_mean_top_bottom_spread": 0.3135
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.15542989417989414,
+                  "median": -0.03531746031746032,
+                  "upper_95": 0.07898148148148139
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.03190825796190062,
+                  "median": -0.006554281112869298,
+                  "upper_95": 0.019823881093781928
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.7224999999999999,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          }
+        },
+        "records": [
+          {
+            "as_of_date": "2010-01-04",
+            "forward_end_date": "2010-04-06",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2010-01-04",
+            "scores": {
+              "EEM": 0.011752333059563825,
+              "EWA": 0.008501218507206589,
+              "EWC": 0.019872533391140507,
+              "EWG": 0.061467957193531854,
+              "EWH": -0.0005196958931993328,
+              "EWJ": 0.004603606706311483,
+              "EWS": -0.015684106641376677,
+              "EWT": -0.062429197326426426,
+              "EWU": 0.02849660362394263,
+              "EWW": 0.03423792203217127,
+              "EWY": -0.011367247806502454,
+              "EWZ": -0.019805318160171476,
+              "EZA": 0.01720630657666548,
+              "FXI": 0.023400246603350265,
+              "ILF": -0.011419924470684498
+            },
+            "realized_returns": {
+              "EEM": 0.0,
+              "EWA": 0.020571873135242447,
+              "EWC": 0.038662628917577546,
+              "EWG": -0.057740927346237814,
+              "EWH": 0.013866239309522355,
+              "EWJ": 0.036944553603817765,
+              "EWS": -0.014754989688747111,
+              "EWT": -0.05335175453492835,
+              "EWU": -0.014425205167408972,
+              "EWW": 0.0501975134268835,
+              "EWY": 0.032620981298725704,
+              "EWZ": -0.04497394656077924,
+              "EZA": 0.05421328021524752,
+              "FXI": -0.007890083326746344,
+              "ILF": -0.015605573376460402
+            },
+            "reported_uncertainty": null,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 120,
+              "fit_row_count": 120,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.008997822474015874,
+              "momentum_3m": -0.0010738987130196674,
+              "momentum_6m": 0.01160332162591652,
+              "momentum_12_1": -0.029414278534512943,
+              "low_volatility_1m": -0.004151737363942168,
+              "low_volatility_3m": 0.014106872788002066,
+              "drawdown_6m": 0.002300893970224772,
+              "market_beta_6m": 0.026053858541788967
+            }
+          },
+          {
+            "as_of_date": "2010-04-06",
+            "forward_end_date": "2010-07-06",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2010-04-06",
+            "scores": {
+              "EEM": 0.019802956666886414,
+              "EWA": -0.0053138757249545435,
+              "EWC": 0.0075104062702292945,
+              "EWG": 0.032798584031092815,
+              "EWH": -0.010263751270082212,
+              "EWJ": 0.027280439199127902,
+              "EWS": -0.02669919508912563,
+              "EWT": 0.0005314924680103923,
+              "EWU": 0.0026519236628817396,
+              "EWW": -0.021973756081971704,
+              "EWY": 0.0013734861070068619,
+              "EWZ": -0.004592162869705273,
+              "EZA": 0.025053521262470912,
+              "FXI": 0.03393713002514816,
+              "ILF": 0.000662855684083849
+            },
+            "realized_returns": {
+              "EEM": 0.0011133582548957799,
+              "EWA": -0.09814619820294379,
+              "EWC": -0.010431799087780358,
+              "EWG": 0.0,
+              "EWH": 0.032335557608669685,
+              "EWJ": 0.015121338744348067,
+              "EWS": 0.10092320553020218,
+              "EWT": 0.024342760789735074,
+              "EWU": -0.03830658447124746,
+              "EWW": 0.004248078270756461,
+              "EWY": -0.007244097901647817,
+              "EWZ": -0.03175307816185524,
+              "EZA": -0.005723262927260331,
+              "FXI": 0.03352389413470869,
+              "ILF": -0.014744653367011362
+            },
+            "reported_uncertainty": null,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 135,
+              "fit_row_count": 135,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.005798168823514935,
+              "momentum_3m": -0.000982386459787459,
+              "momentum_6m": 0.010505463305592263,
+              "momentum_12_1": -0.027068270194108013,
+              "low_volatility_1m": -0.008184208070265724,
+              "low_volatility_3m": 0.01651775003193448,
+              "drawdown_6m": 0.0013190006007194242,
+              "market_beta_6m": 0.023544786130744316
+            }
+          },
+          {
+            "as_of_date": "2010-07-06",
+            "forward_end_date": "2010-10-04",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2010-07-06",
+            "scores": {
+              "EEM": 0.008826592556509413,
+              "EWA": -0.0051014255819927514,
+              "EWC": -0.005402924724168368,
+              "EWG": 0.007531614950629562,
+              "EWH": 0.00738874809595247,
+              "EWJ": 0.036704558224838736,
+              "EWS": -0.029464068510899943,
+              "EWT": 0.0038741658841820016,
+              "EWU": 0.020723703129901738,
+              "EWW": -0.013275853453145876,
+              "EWY": -0.008168043930751285,
+              "EWZ": -0.013133551803285744,
+              "EZA": 0.01924277032944964,
+              "FXI": 0.05788803770804668,
+              "ILF": -0.012624422046919905
+            },
+            "realized_returns": {
+              "EEM": 0.0,
+              "EWA": 0.05550989387764327,
+              "EWC": -0.04372675722065145,
+              "EWG": -0.0492623387660156,
+              "EWH": 0.04877374041779947,
+              "EWJ": -0.15040878586620088,
+              "EWS": -0.01353331015294268,
+              "EWT": -0.02483197588828867,
+              "EWU": 0.014886644101943958,
+              "EWW": -0.06040430565966637,
+              "EWY": 0.02276701977219986,
+              "EWZ": 0.04088161048546235,
+              "EZA": 0.052059218232783255,
+              "FXI": -0.08760123299929878,
+              "ILF": 0.014297379714700575
+            },
+            "reported_uncertainty": null,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 150,
+              "fit_row_count": 150,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.0038225414850959257,
+              "momentum_3m": -0.0020066111306341005,
+              "momentum_6m": 0.010186833755754804,
+              "momentum_12_1": -0.025184663344922992,
+              "low_volatility_1m": -0.01420140973072372,
+              "low_volatility_3m": 0.022056293014645192,
+              "drawdown_6m": 0.002350193300623097,
+              "market_beta_6m": 0.02143610527682001
+            }
+          },
+          {
+            "as_of_date": "2010-10-04",
+            "forward_end_date": "2011-01-03",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2010-10-04",
+            "scores": {
+              "EEM": 0.019260301023546703,
+              "EWA": 0.018041139401774636,
+              "EWC": -0.01683855869100833,
+              "EWG": 0.03340964868268059,
+              "EWH": -0.026706987445309516,
+              "EWJ": 0.012192768216596041,
+              "EWS": -0.030141640657499004,
+              "EWT": 0.029071881131971577,
+              "EWU": 0.014760783854466783,
+              "EWW": -0.021410204081601516,
+              "EWY": 0.0008397839147831743,
+              "EWZ": 0.0033434452589630056,
+              "EZA": 0.008981264591157593,
+              "FXI": 0.026132905112968754,
+              "ILF": -0.01916327501049702
+            },
+            "realized_returns": {
+              "EEM": -0.0325324538069498,
+              "EWA": 0.0,
+              "EWC": 0.01845415562142083,
+              "EWG": 0.008200700949410944,
+              "EWH": -0.04157256271413923,
+              "EWJ": 0.037003308102674604,
+              "EWS": -0.043699767337968876,
+              "EWT": 0.07915061353930009,
+              "EWU": -0.0444739331687698,
+              "EWW": 0.05619789814759346,
+              "EWY": 0.03193257320305709,
+              "EWZ": -0.06910059427029513,
+              "EZA": 0.03462570821807964,
+              "FXI": -0.09068695091922363,
+              "ILF": -0.023130840800040353
+            },
+            "reported_uncertainty": 0.044616273725486634,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 165,
+              "fit_row_count": 165,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.0008661920421515939,
+              "momentum_3m": -0.0033916682369444346,
+              "momentum_6m": 0.0042958581689414976,
+              "momentum_12_1": -0.018989600583479385,
+              "low_volatility_1m": -0.014309575321958957,
+              "low_volatility_3m": 0.018736300148973102,
+              "drawdown_6m": 0.0037673321655742856,
+              "market_beta_6m": 0.021875409649050388
+            }
+          },
+          {
+            "as_of_date": "2011-01-03",
+            "forward_end_date": "2011-04-04",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2011-01-03",
+            "scores": {
+              "EEM": 0.014028874819182323,
+              "EWA": 0.022178577346127673,
+              "EWC": -0.0063927623762204755,
+              "EWG": 0.013201883143261553,
+              "EWH": -0.0310158163347108,
+              "EWJ": -0.0057201095079125975,
+              "EWS": -0.01883732418029064,
+              "EWT": -0.011723317937326144,
+              "EWU": 0.024374510072116582,
+              "EWW": -0.02562775162404699,
+              "EWY": -0.004753331217138722,
+              "EWZ": 0.057668082721544625,
+              "EZA": -0.034160188983103294,
+              "FXI": 0.024328154973633293,
+              "ILF": 0.02327332434297384
+            },
+            "realized_returns": {
+              "EEM": 0.01550170011527885,
+              "EWA": 0.02989507669237157,
+              "EWC": 0.0667031424897444,
+              "EWG": 0.07089017574640089,
+              "EWH": -0.016648238619459077,
+              "EWJ": -0.09849940439801852,
+              "EWS": -0.028470339012962698,
+              "EWT": -0.05880475451084133,
+              "EWU": 0.034130370379886754,
+              "EWW": 0.0,
+              "EWY": 0.03697434816772582,
+              "EWZ": -4.757033816793488e-05,
+              "EZA": -0.025707725448485763,
+              "FXI": 0.03861596180282301,
+              "ILF": -0.01191183534271234
+            },
+            "reported_uncertainty": 0.05223723632214683,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": 6.11054942005378e-05,
+              "momentum_3m": -0.003796188570193727,
+              "momentum_6m": 0.002764335352493974,
+              "momentum_12_1": -0.016780328603134755,
+              "low_volatility_1m": -0.015465980841727633,
+              "low_volatility_3m": 0.020843590878815654,
+              "drawdown_6m": 0.005277674869714189,
+              "market_beta_6m": 0.022473146756736374
+            }
+          },
+          {
+            "as_of_date": "2011-04-04",
+            "forward_end_date": "2011-07-05",
+            "train_start_date": "2008-04-04",
+            "train_end_date": "2011-04-04",
+            "scores": {
+              "EEM": 0.029329960514859435,
+              "EWA": 0.04304074927030163,
+              "EWC": -0.029148508594968505,
+              "EWG": -0.0028578897337773017,
+              "EWH": -0.026262056021081587,
+              "EWJ": -0.02426551453451823,
+              "EWS": -0.018197097210182166,
+              "EWT": -0.03235791544925124,
+              "EWU": 0.0007402445024067962,
+              "EWW": -0.004434876195688886,
+              "EWY": 0.014566914628690059,
+              "EWZ": 0.01745106691345996,
+              "EZA": 0.010340686495020915,
+              "FXI": 0.02239843447012791,
+              "ILF": 0.020685575657408455
+            },
+            "realized_returns": {
+              "EEM": -0.0010493371432174214,
+              "EWA": 0.0,
+              "EWC": -0.028846308241059493,
+              "EWG": 0.07009440666304179,
+              "EWH": -0.002915276926123478,
+              "EWJ": 0.0704348265995276,
+              "EWS": 0.036593759398298564,
+              "EWT": 0.03191348011216255,
+              "EWU": 0.02512669037449977,
+              "EWW": 0.017305400004998583,
+              "EWY": 0.04688064675024828,
+              "EWZ": -0.03562894101467928,
+              "EZA": -0.001295513610339416,
+              "FXI": -0.033523363598143785,
+              "ILF": -0.0119225012793589
+            },
+            "reported_uncertainty": 0.05457092057432752,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.0031473884531739394,
+              "momentum_3m": -0.005467386924227525,
+              "momentum_6m": 0.007883655122361142,
+              "momentum_12_1": -0.017225510985223708,
+              "low_volatility_1m": -0.011082293384897694,
+              "low_volatility_3m": 0.017027831039041826,
+              "drawdown_6m": 0.004001497655348295,
+              "market_beta_6m": 0.022407448889921334
+            }
+          },
+          {
+            "as_of_date": "2011-07-05",
+            "forward_end_date": "2011-10-03",
+            "train_start_date": "2008-07-03",
+            "train_end_date": "2011-07-05",
+            "scores": {
+              "EEM": 0.009980281306553951,
+              "EWA": 0.014043964807016656,
+              "EWC": 0.008472810770463525,
+              "EWG": 0.00629365132800363,
+              "EWH": -0.023063092643245763,
+              "EWJ": -0.016732494758854896,
+              "EWS": -0.010693350760895707,
+              "EWT": -0.014058916958256269,
+              "EWU": 0.014315896870508627,
+              "EWW": -0.007065502705729204,
+              "EWY": 0.0014140589763379945,
+              "EWZ": 0.0044639519710157425,
+              "EZA": 0.00746593772765715,
+              "FXI": 0.029102653768606608,
+              "ILF": 0.0031351817377429387
+            },
+            "realized_returns": {
+              "EEM": -0.037895048144797494,
+              "EWA": 0.0,
+              "EWC": 0.01609354719713063,
+              "EWG": -0.1041511811755026,
+              "EWH": -0.005929268258808795,
+              "EWJ": 0.13165524649983562,
+              "EWS": 0.020422899822898244,
+              "EWT": 0.011787240863678439,
+              "EWU": 0.05324519027636976,
+              "EWW": 0.012105444276690691,
+              "EWY": -0.07120170105891666,
+              "EWZ": -0.06292021597027031,
+              "EZA": 0.032125990080572375,
+              "FXI": -0.0593032450480141,
+              "ILF": -0.025211357284873448
+            },
+            "reported_uncertainty": 0.05609622919794639,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.001849618105132633,
+              "momentum_3m": -0.006472777534438268,
+              "momentum_6m": 0.008120624331281707,
+              "momentum_12_1": -0.014441709919601808,
+              "low_volatility_1m": -0.01564016211379815,
+              "low_volatility_3m": 0.0143292135981745,
+              "drawdown_6m": -0.0011094257559779467,
+              "market_beta_6m": 0.013544624905342348
+            }
+          },
+          {
+            "as_of_date": "2011-10-03",
+            "forward_end_date": "2012-01-03",
+            "train_start_date": "2008-10-02",
+            "train_end_date": "2011-10-03",
+            "scores": {
+              "EEM": 0.02296717353686715,
+              "EWA": -0.009427274128292269,
+              "EWC": -0.025648038927748446,
+              "EWG": 0.03935649176562862,
+              "EWH": -0.000704868171859426,
+              "EWJ": -0.02927687666809586,
+              "EWS": -0.005467787978459653,
+              "EWT": -0.01247660667211287,
+              "EWU": -0.022070652963855932,
+              "EWW": -0.012149948350556921,
+              "EWY": 0.025959473653911266,
+              "EWZ": 0.027264754830326397,
+              "EZA": -0.010020398052286307,
+              "FXI": 0.04301336288883337,
+              "ILF": 0.009332841336526955
+            },
+            "realized_returns": {
+              "EEM": -0.0012853614623962173,
+              "EWA": 0.023835962465739602,
+              "EWC": -0.01878530403850509,
+              "EWG": 0.0,
+              "EWH": -0.0011456047833258154,
+              "EWJ": -0.1402915673518117,
+              "EWS": -0.07289331612846173,
+              "EWT": -0.0898008962732757,
+              "EWU": 0.016232783426851194,
+              "EWW": 0.00891410328208253,
+              "EWY": 0.057769391634325595,
+              "EWZ": 0.031910790405767164,
+              "EZA": -0.014113906455321956,
+              "FXI": 0.06204188566912361,
+              "ILF": 0.024927594718124668
+            },
+            "reported_uncertainty": 0.057693764694453975,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.003008835913342655,
+              "momentum_3m": -0.00159786177454209,
+              "momentum_6m": 0.005831146777929705,
+              "momentum_12_1": -0.011317462778921542,
+              "low_volatility_1m": -0.017269767403937045,
+              "low_volatility_3m": 0.015808410818111615,
+              "drawdown_6m": -0.005846386811356314,
+              "market_beta_6m": 0.01114505398354355
+            }
+          },
+          {
+            "as_of_date": "2012-01-03",
+            "forward_end_date": "2012-04-03",
+            "train_start_date": "2009-01-02",
+            "train_end_date": "2012-01-03",
+            "scores": {
+              "EEM": 0.01798901191796727,
+              "EWA": -0.003012982365837148,
+              "EWC": -0.026433811771578854,
+              "EWG": 0.03407446787358289,
+              "EWH": -0.023608301249212052,
+              "EWJ": -0.028116121144867313,
+              "EWS": 0.0009527999424650579,
+              "EWT": 0.011150523940809696,
+              "EWU": -0.03646689458786076,
+              "EWW": -0.01931382700133023,
+              "EWY": 0.02535707205738893,
+              "EWZ": 0.02309831718137153,
+              "EZA": 0.01372356801569238,
+              "FXI": 0.0020859056179193267,
+              "ILF": 0.001320628647633875
+            },
+            "realized_returns": {
+              "EEM": 0.013946677298305676,
+              "EWA": -0.03977271793876436,
+              "EWC": -0.057813333617520835,
+              "EWG": 0.05974943938526667,
+              "EWH": 0.020565368175170518,
+              "EWJ": -0.010329540975741791,
+              "EWS": 0.056785374531499455,
+              "EWT": 0.009825959802881146,
+              "EWU": -0.04633954195999279,
+              "EWW": 0.05522163428880633,
+              "EWY": 0.03208465134324534,
+              "EWZ": -0.008625019504237663,
+              "EZA": -0.0015075927511112308,
+              "FXI": -0.05930707109365829,
+              "ILF": 0.0
+            },
+            "reported_uncertainty": 0.057693764694453975,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.004448897261633852,
+              "momentum_3m": -0.003824652526226527,
+              "momentum_6m": 0.0014582762742843787,
+              "momentum_12_1": -0.007374914131378566,
+              "low_volatility_1m": -0.015478579046867964,
+              "low_volatility_3m": 0.014021395205045318,
+              "drawdown_6m": -0.006110675500330282,
+              "market_beta_6m": 0.013948839478211968
+            }
+          },
+          {
+            "as_of_date": "2012-04-03",
+            "forward_end_date": "2012-07-03",
+            "train_start_date": "2009-04-03",
+            "train_end_date": "2012-04-03",
+            "scores": {
+              "EEM": 0.02060080149638391,
+              "EWA": 0.02357038548800512,
+              "EWC": 0.002823122759159832,
+              "EWG": 0.03319402559584632,
+              "EWH": -0.02172440477941065,
+              "EWJ": -0.050864307904343604,
+              "EWS": -0.018119133975181872,
+              "EWT": -0.018516195359409602,
+              "EWU": -0.010470854741268099,
+              "EWW": -0.02576807844115927,
+              "EWY": 5.591679369677956e-05,
+              "EWZ": 0.017122172288962463,
+              "EZA": 0.013543005430741361,
+              "FXI": 0.0340867185296873,
+              "ILF": 0.005984460230606563
+            },
+            "realized_returns": {
+              "EEM": -0.020477899370302532,
+              "EWA": 0.020141383510926758,
+              "EWC": -0.008426524939661006,
+              "EWG": -0.055694697428075646,
+              "EWH": 0.014264491654113254,
+              "EWJ": 0.0,
+              "EWS": 0.0414833289948674,
+              "EWT": 0.0013898024972978096,
+              "EWU": 0.020314033624533323,
+              "EWW": 0.03684757155032825,
+              "EWY": -0.04693314333432674,
+              "EWZ": -0.11227319398204827,
+              "EZA": 0.013326057355533605,
+              "FXI": -0.011101337480326268,
+              "ILF": -0.053502566004750673
+            },
+            "reported_uncertainty": 0.056972821493944,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.004886180751967175,
+              "momentum_3m": -0.005614807931674012,
+              "momentum_6m": 0.0050756593829768245,
+              "momentum_12_1": -0.005336521841283261,
+              "low_volatility_1m": -0.012728382089424894,
+              "low_volatility_3m": 0.013260029384304567,
+              "drawdown_6m": -0.006308996742605847,
+              "market_beta_6m": 0.010717762463497368
+            }
+          },
+          {
+            "as_of_date": "2012-07-03",
+            "forward_end_date": "2012-10-02",
+            "train_start_date": "2009-07-06",
+            "train_end_date": "2012-07-03",
+            "scores": {
+              "EEM": 0.015727751935561803,
+              "EWA": -0.00509500325715951,
+              "EWC": -0.0031378700783517774,
+              "EWG": 0.025661975820972658,
+              "EWH": -0.020327700008463425,
+              "EWJ": -0.020837588243305418,
+              "EWS": -0.019572184809756515,
+              "EWT": -0.018224195656451187,
+              "EWU": -0.0182258473030445,
+              "EWW": -0.02890610757987451,
+              "EWY": 0.014613251350914628,
+              "EWZ": 0.03525578646820931,
+              "EZA": -0.005649863132331177,
+              "FXI": 0.012518014521113287,
+              "ILF": 0.02249378060343758
+            },
+            "realized_returns": {
+              "EEM": -0.011401233805752309,
+              "EWA": 0.022847165568407934,
+              "EWC": 0.021723398845948205,
+              "EWG": 0.07652495502664558,
+              "EWH": 0.040222412341698766,
+              "EWJ": -0.10086256150804052,
+              "EWS": 0.010235228713656896,
+              "EWT": 0.027850420198941572,
+              "EWU": -0.0014251130458731165,
+              "EWW": 0.0,
+              "EWY": 0.010245356868076483,
+              "EWZ": -0.036847557659333896,
+              "EZA": -0.026682589507861953,
+              "FXI": -0.03770475940442153,
+              "ILF": -0.04720383338393064
+            },
+            "reported_uncertainty": 0.058019465852417365,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": 0.0011582514321914537,
+              "momentum_3m": -0.004883564181685715,
+              "momentum_6m": -0.0018604169407031906,
+              "momentum_12_1": -0.0010931468029050273,
+              "low_volatility_1m": -0.014640775754202646,
+              "low_volatility_3m": 0.012855947959979418,
+              "drawdown_6m": -0.004586296046266241,
+              "market_beta_6m": 0.007357476616715461
+            }
+          },
+          {
+            "as_of_date": "2012-10-02",
+            "forward_end_date": "2013-01-04",
+            "train_start_date": "2009-10-02",
+            "train_end_date": "2012-10-02",
+            "scores": {
+              "EEM": 0.007158993634524142,
+              "EWA": -0.005757346052553057,
+              "EWC": -0.018318454001813717,
+              "EWG": 0.004597564344667982,
+              "EWH": -0.005116760042171323,
+              "EWJ": -0.012088593661611925,
+              "EWS": -0.017220657775962645,
+              "EWT": -0.021211336416098316,
+              "EWU": -0.01627251628977178,
+              "EWW": -0.0037556468691370007,
+              "EWY": 0.00931972851663301,
+              "EWZ": 0.0238457698515598,
+              "EZA": -0.009876762375797467,
+              "FXI": 0.01926402159058626,
+              "ILF": 0.01766534851436018
+            },
+            "realized_returns": {
+              "EEM": 0.0033119329708510836,
+              "EWA": 0.020538700525375875,
+              "EWC": -0.06476548179837716,
+              "EWG": 0.0,
+              "EWH": 0.003939001651726448,
+              "EWJ": 0.015306717025914018,
+              "EWS": -0.033048318670954924,
+              "EWT": -0.05368930057521881,
+              "EWU": -0.027446608129951366,
+              "EWW": 0.018356240058030826,
+              "EWY": 0.001124459659971988,
+              "EWZ": -0.02212389454439534,
+              "EZA": -0.0039063438363200476,
+              "FXI": 0.11460022663028657,
+              "ILF": -0.012963270516374692
+            },
+            "reported_uncertainty": 0.05928517886566072,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": 0.005483877627449157,
+              "momentum_3m": -0.0024612190437527954,
+              "momentum_6m": -0.007011825583759556,
+              "momentum_12_1": 0.004822161351208085,
+              "low_volatility_1m": -0.011814237965826148,
+              "low_volatility_3m": 0.011469814898509907,
+              "drawdown_6m": -0.0069312537251535015,
+              "market_beta_6m": 0.002687440247798787
+            }
+          },
+          {
+            "as_of_date": "2013-01-04",
+            "forward_end_date": "2013-04-08",
+            "train_start_date": "2010-01-04",
+            "train_end_date": "2013-01-04",
+            "scores": {
+              "EEM": -0.014076161608411457,
+              "EWA": -0.02870154710634766,
+              "EWC": 0.005292144264182548,
+              "EWG": -0.015105401113298965,
+              "EWH": -0.015404523755535818,
+              "EWJ": 0.014998387705968452,
+              "EWS": 0.006106177308229381,
+              "EWT": -0.011356083738750068,
+              "EWU": -0.0060914072414568815,
+              "EWW": 0.012105113690589375,
+              "EWY": -0.006062205049373793,
+              "EWZ": 0.019458825010556808,
+              "EZA": 0.009230396618345005,
+              "FXI": -0.008000391189913199,
+              "ILF": 0.003264482893735294
+            },
+            "realized_returns": {
+              "EEM": -0.03048660020643701,
+              "EWA": 0.088611570631706,
+              "EWC": 0.0,
+              "EWG": 0.02974669357563997,
+              "EWH": 0.028379746139195916,
+              "EWJ": 0.16580340157895834,
+              "EWS": 0.04744587959303537,
+              "EWT": -0.0002014025394900809,
+              "EWU": 0.03538471170732371,
+              "EWW": 0.07173609902138234,
+              "EWY": -0.08458735905183268,
+              "EWZ": -0.011303978084765354,
+              "EZA": -0.063264585102071,
+              "FXI": -0.1008355726648299,
+              "ILF": -0.0068591649743461325
+            },
+            "reported_uncertainty": 0.057693764694453975,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": 0.006331980141154302,
+              "momentum_3m": -0.004205923417667495,
+              "momentum_6m": -0.00994027092371098,
+              "momentum_12_1": 0.007328903203842717,
+              "low_volatility_1m": -0.01428998436857139,
+              "low_volatility_3m": 0.012871670679718356,
+              "drawdown_6m": -0.0067999260302126,
+              "market_beta_6m": 0.00028906710658904754
+            }
+          },
+          {
+            "as_of_date": "2013-04-08",
+            "forward_end_date": "2013-07-08",
+            "train_start_date": "2010-04-06",
+            "train_end_date": "2013-04-08",
+            "scores": {
+              "EEM": -0.0013625015769131417,
+              "EWA": -0.013801633221865828,
+              "EWC": 0.013564064873663231,
+              "EWG": -0.017055751124687244,
+              "EWH": 0.011881971419865729,
+              "EWJ": -0.019452180531988172,
+              "EWS": 0.0028010781757845855,
+              "EWT": -0.0010374479047211406,
+              "EWU": -0.005989384244074452,
+              "EWW": 0.005335426075515145,
+              "EWY": 0.013415053764874266,
+              "EWZ": -0.02188276509527928,
+              "EZA": 0.008607482966007565,
+              "FXI": 0.014879785207624766,
+              "ILF": -0.013309154618807124
+            },
+            "realized_returns": {
+              "EEM": -0.019995307489995118,
+              "EWA": -0.05989913738148789,
+              "EWC": 0.03581944591702191,
+              "EWG": 0.09375704829318399,
+              "EWH": 0.029790782089845202,
+              "EWJ": 0.11629954219374805,
+              "EWS": 0.0,
+              "EWT": 0.08801759940429044,
+              "EWU": 0.0842797104907731,
+              "EWW": -0.05257873210071973,
+              "EWY": 0.0055373670744451875,
+              "EWZ": -0.14711174113241876,
+              "EZA": -0.03815232787339107,
+              "FXI": -0.0004528885762100643,
+              "ILF": -0.09562438060078438
+            },
+            "reported_uncertainty": 0.059510113582295646,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": 0.002924932770668376,
+              "momentum_3m": -0.00313082502416421,
+              "momentum_6m": -0.011257452139226687,
+              "momentum_12_1": 0.009767911790122465,
+              "low_volatility_1m": -0.01325296409909555,
+              "low_volatility_3m": 0.012347034121370181,
+              "drawdown_6m": -0.005864751054521453,
+              "market_beta_6m": -0.002690988284083699
+            }
+          },
+          {
+            "as_of_date": "2013-07-08",
+            "forward_end_date": "2013-10-04",
+            "train_start_date": "2010-07-06",
+            "train_end_date": "2013-07-08",
+            "scores": {
+              "EEM": -0.0020047428546596845,
+              "EWA": 0.004832497898773604,
+              "EWC": -0.016979007366851154,
+              "EWG": -0.012121117479521704,
+              "EWH": 0.00690622797967187,
+              "EWJ": -0.0008230895522143701,
+              "EWS": 0.008096079402038638,
+              "EWT": -0.009821897835150743,
+              "EWU": -0.014342553296048804,
+              "EWW": 0.014966282010352817,
+              "EWY": 0.0032409157386335376,
+              "EWZ": -0.00490679381408702,
+              "EZA": 0.002276497800222905,
+              "FXI": 0.0032396970077262317,
+              "ILF": -0.0030959130493259748
+            },
+            "realized_returns": {
+              "EEM": 0.004258673346893893,
+              "EWA": 0.012033454928265241,
+              "EWC": -0.04391258074829052,
+              "EWG": 0.019481380072452037,
+              "EWH": 0.0,
+              "EWJ": -0.10288105411210746,
+              "EWS": -0.06324741165436953,
+              "EWT": -0.026201377980124896,
+              "EWU": -0.04035703851010086,
+              "EWW": -0.1153257140411601,
+              "EWY": 0.08404039841818256,
+              "EWZ": 0.048547773446006914,
+              "EZA": 0.038557636052607425,
+              "FXI": 0.058090211431777616,
+              "ILF": -0.014814739141618682
+            },
+            "reported_uncertainty": 0.06056235377205696,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": 0.0035032888589615744,
+              "momentum_3m": -0.0026061259591984823,
+              "momentum_6m": -0.011632259588144558,
+              "momentum_12_1": 0.012196234254298687,
+              "low_volatility_1m": -0.011734059311077561,
+              "low_volatility_3m": 0.004860756737359397,
+              "drawdown_6m": -0.005505572916663498,
+              "market_beta_6m": -0.006439507577993837
+            }
+          },
+          {
+            "as_of_date": "2013-10-04",
+            "forward_end_date": "2014-01-06",
+            "train_start_date": "2010-10-04",
+            "train_end_date": "2013-10-04",
+            "scores": {
+              "EEM": -0.00539476322504321,
+              "EWA": 0.016163524803468794,
+              "EWC": -0.006971863813376761,
+              "EWG": -0.010379455280616318,
+              "EWH": -0.002054668491728428,
+              "EWJ": 0.006033975414106189,
+              "EWS": 0.003613136669079777,
+              "EWT": -0.01769148405541929,
+              "EWU": -0.0031110164914860917,
+              "EWW": 0.023372144978053743,
+              "EWY": -0.016986226605014833,
+              "EWZ": 0.008220376511308773,
+              "EZA": -0.009298498235729508,
+              "FXI": -0.00819736915712766,
+              "ILF": 0.005383837190663522
+            },
+            "realized_returns": {
+              "EEM": -0.02532334011290016,
+              "EWA": -0.0036976676931915753,
+              "EWC": 0.051976606336429865,
+              "EWG": 0.12242792861006857,
+              "EWH": 0.01710583307353053,
+              "EWJ": 0.04972629884668833,
+              "EWS": 0.0,
+              "EWT": -0.007064496359289851,
+              "EWU": 0.09159792168220637,
+              "EWW": 0.04047489267831905,
+              "EWY": 0.008567584403999295,
+              "EWZ": -0.0813388735841385,
+              "EZA": -0.015671303076058574,
+              "FXI": -0.025873794917209647,
+              "ILF": -0.04818146581061833
+            },
+            "reported_uncertainty": 0.060767650910024354,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.00183816919372202,
+              "momentum_3m": 0.0008459099272696685,
+              "momentum_6m": -0.012260275174259752,
+              "momentum_12_1": 0.009310309677634767,
+              "low_volatility_1m": -0.009188359899559809,
+              "low_volatility_3m": 0.0074619794095705,
+              "drawdown_6m": -0.005240564945466299,
+              "market_beta_6m": -0.0028173310317675246
+            }
+          },
+          {
+            "as_of_date": "2014-01-06",
+            "forward_end_date": "2014-04-07",
+            "train_start_date": "2011-01-03",
+            "train_end_date": "2014-01-06",
+            "scores": {
+              "EEM": 0.00015597358816648265,
+              "EWA": 0.011202897300779611,
+              "EWC": -0.008697217492662527,
+              "EWG": -0.008122814882703637,
+              "EWH": 0.0030000315592910373,
+              "EWJ": 0.022389684926306417,
+              "EWS": 0.018212831390867976,
+              "EWT": 0.013062637022758054,
+              "EWU": -0.009857920293753207,
+              "EWW": -0.0008932771838338407,
+              "EWY": -0.012964195542752193,
+              "EWZ": -0.0011937301514006763,
+              "EZA": -0.02065876710308194,
+              "FXI": 0.002710268693775953,
+              "ILF": -0.004448229177811583
+            },
+            "realized_returns": {
+              "EEM": 0.018745238739340975,
+              "EWA": 0.03905328054958623,
+              "EWC": 0.0031346557573579403,
+              "EWG": -0.01789615999254357,
+              "EWH": -0.01560006883741405,
+              "EWJ": -0.08602485054831077,
+              "EWS": 0.0,
+              "EWT": 0.023371217785176812,
+              "EWU": -0.031356096101193165,
+              "EWW": -0.042169670363318645,
+              "EWY": -0.0010140488720287166,
+              "EWZ": 0.07910794114477415,
+              "EZA": 0.04511342363969084,
+              "FXI": -0.03059306465214162,
+              "ILF": 0.044323253567748244
+            },
+            "reported_uncertainty": 0.060767650910024354,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.00463619269879339,
+              "momentum_3m": -0.0022034687242918362,
+              "momentum_6m": -0.007497939625155398,
+              "momentum_12_1": 0.010334244603194771,
+              "low_volatility_1m": -0.006024142764886285,
+              "low_volatility_3m": 0.006087154858547651,
+              "drawdown_6m": -0.005297182982158981,
+              "market_beta_6m": -0.003973486039001245
+            }
+          },
+          {
+            "as_of_date": "2014-04-07",
+            "forward_end_date": "2014-07-08",
+            "train_start_date": "2011-04-04",
+            "train_end_date": "2014-04-07",
+            "scores": {
+              "EEM": -0.009523525996737555,
+              "EWA": -0.011370111485696086,
+              "EWC": -0.0059961813717739456,
+              "EWG": 0.006710896960706197,
+              "EWH": 0.01519161597372337,
+              "EWJ": 0.029331957337798274,
+              "EWS": 0.003560359621102035,
+              "EWT": 0.0055006767973422134,
+              "EWU": 0.003146156421180964,
+              "EWW": -0.009734335938941617,
+              "EWY": 0.013777392478724377,
+              "EWZ": -0.022869639688359672,
+              "EZA": -0.00921682925881508,
+              "FXI": 0.018894371212367582,
+              "ILF": -0.025540118400913484
+            },
+            "realized_returns": {
+              "EEM": 0.0,
+              "EWA": -0.03114272410322938,
+              "EWC": 0.032707063589825225,
+              "EWG": -0.05122832672277711,
+              "EWH": 0.0008912860023844171,
+              "EWJ": 0.011942807759534046,
+              "EWS": -0.01148817639235511,
+              "EWT": 0.05109657441613891,
+              "EWU": 0.002697297146730282,
+              "EWW": 0.005291742348875417,
+              "EWY": -0.025822503698736066,
+              "EWZ": -0.03975896599974238,
+              "EZA": -0.004917428945406366,
+              "FXI": 0.01352696271987508,
+              "ILF": -0.04705127356259764
+            },
+            "reported_uncertainty": 0.060767650910024354,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.004169235837693036,
+              "momentum_3m": -0.0035030005432615495,
+              "momentum_6m": -0.00885089946156491,
+              "momentum_12_1": 0.00899874713729865,
+              "low_volatility_1m": -0.01580343219643803,
+              "low_volatility_3m": 0.01234359384569837,
+              "drawdown_6m": -0.002279231432975201,
+              "market_beta_6m": -0.006181958308017211
+            }
+          },
+          {
+            "as_of_date": "2014-07-08",
+            "forward_end_date": "2014-10-06",
+            "train_start_date": "2011-07-05",
+            "train_end_date": "2014-07-08",
+            "scores": {
+              "EEM": -0.028104505412420013,
+              "EWA": 0.016526393036592143,
+              "EWC": -0.018106068516308273,
+              "EWG": 0.03919712843957386,
+              "EWH": 0.003740219954097658,
+              "EWJ": 0.0073785991092986895,
+              "EWS": 0.003433820856369666,
+              "EWT": -0.027602730640214918,
+              "EWU": 0.023867362196654824,
+              "EWW": -0.01548906211150405,
+              "EWY": 0.02704495627411266,
+              "EWZ": -0.016983341140388717,
+              "EZA": -0.025075695784091093,
+              "FXI": -0.002491559671465659,
+              "ILF": -0.008508134722877252
+            },
+            "realized_returns": {
+              "EEM": 0.0,
+              "EWA": -0.038958459415741054,
+              "EWC": -0.008041075172606549,
+              "EWG": -0.07915343315646128,
+              "EWH": 0.03384699552472281,
+              "EWJ": -0.0001019451795332138,
+              "EWS": 0.021638047220568835,
+              "EWT": 0.005517344088137643,
+              "EWU": -0.034902772662678716,
+              "EWW": 0.046429966081964924,
+              "EWY": -0.04530463264138562,
+              "EWZ": 0.01201003128989031,
+              "EZA": -0.008173301140881883,
+              "FXI": 0.060612847627758426,
+              "ILF": 0.04179236794800556
+            },
+            "reported_uncertainty": 0.05960816744219801,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.004224978482660286,
+              "momentum_3m": -0.0028882696163421884,
+              "momentum_6m": -0.010248544823844505,
+              "momentum_12_1": 0.008217609181350033,
+              "low_volatility_1m": -0.014364513464528364,
+              "low_volatility_3m": 0.01300824610696927,
+              "drawdown_6m": -0.0018534572252300614,
+              "market_beta_6m": -0.00584179046249971
+            }
+          },
+          {
+            "as_of_date": "2014-10-06",
+            "forward_end_date": "2015-01-06",
+            "train_start_date": "2011-10-03",
+            "train_end_date": "2014-10-06",
+            "scores": {
+              "EEM": -0.0013678540843367441,
+              "EWA": 0.01941197147716891,
+              "EWC": 0.005631085440895727,
+              "EWG": 0.004501321127885741,
+              "EWH": -0.006351870938264054,
+              "EWJ": -0.01654041175132348,
+              "EWS": -0.013895146154707461,
+              "EWT": -0.008242130157294832,
+              "EWU": 0.00737574478542782,
+              "EWW": -0.014148590565817977,
+              "EWY": 0.006625617266637365,
+              "EWZ": 0.011674858739613157,
+              "EZA": 0.003794753576324345,
+              "FXI": -0.013557138999460627,
+              "ILF": 0.0019475419659957397
+            },
+            "realized_returns": {
+              "EEM": -0.012702596156891732,
+              "EWA": 0.0,
+              "EWC": -0.01683677943662565,
+              "EWG": 0.03970340010222895,
+              "EWH": 0.03847958427430309,
+              "EWJ": 0.027861029002220206,
+              "EWS": 0.030251653479096974,
+              "EWT": 0.015892545435529315,
+              "EWU": -0.014871585626371253,
+              "EWW": -0.09830882678998332,
+              "EWY": -0.005617431286311869,
+              "EWZ": -0.16787801112548695,
+              "EZA": 0.04458325482826786,
+              "FXI": 0.1428060003330388,
+              "ILF": -0.12443890860011242
+            },
+            "reported_uncertainty": 0.05981481073466682,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.003928128282372455,
+              "momentum_3m": -0.0045748779136994865,
+              "momentum_6m": -0.0046050330972198,
+              "momentum_12_1": 0.005041629606430865,
+              "low_volatility_1m": -0.010828506000387393,
+              "low_volatility_3m": 0.010106445796438091,
+              "drawdown_6m": -0.0009327307959682508,
+              "market_beta_6m": -0.001584221010823322
+            }
+          },
+          {
+            "as_of_date": "2015-01-06",
+            "forward_end_date": "2015-04-08",
+            "train_start_date": "2012-01-03",
+            "train_end_date": "2015-01-06",
+            "scores": {
+              "EEM": 0.0005441392136676252,
+              "EWA": -0.0018330686172919096,
+              "EWC": 0.0029237004531251958,
+              "EWG": -0.003904844095145691,
+              "EWH": -0.002384250682707668,
+              "EWJ": -0.0018405642299135553,
+              "EWS": 0.0022257355316083575,
+              "EWT": 0.001596679780445577,
+              "EWU": 0.005065983615402238,
+              "EWW": 0.012777683147886815,
+              "EWY": 0.003607561721646387,
+              "EWZ": -0.005939864509676401,
+              "EZA": -0.01096958807760295,
+              "FXI": -0.010005014367518248,
+              "ILF": -0.004037306044849972
+            },
+            "realized_returns": {
+              "EEM": 0.027536270894737536,
+              "EWA": -0.010664643605304613,
+              "EWC": -0.07358689949375918,
+              "EWG": 0.06306381718233789,
+              "EWH": 0.06313819220831896,
+              "EWJ": 0.08851027218254459,
+              "EWS": -0.04355158857687247,
+              "EWT": 0.004795002373784829,
+              "EWU": -0.01121256370633028,
+              "EWW": -0.016442357769191673,
+              "EWY": 0.0,
+              "EWZ": -0.105495268686008,
+              "EZA": 0.021225889684492794,
+              "FXI": 0.1085038085609431,
+              "ILF": -0.06095643958960162
+            },
+            "reported_uncertainty": 0.06056235377205696,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.0003558623301127225,
+              "momentum_3m": -0.005627898653562334,
+              "momentum_6m": -0.0013577860103838727,
+              "momentum_12_1": 0.0012718025972155407,
+              "low_volatility_1m": -0.005087230929075206,
+              "low_volatility_3m": 0.007543249136639689,
+              "drawdown_6m": 0.0012349666441604308,
+              "market_beta_6m": -0.0032279312093430584
+            }
+          },
+          {
+            "as_of_date": "2015-04-08",
+            "forward_end_date": "2015-07-08",
+            "train_start_date": "2012-04-03",
+            "train_end_date": "2015-04-08",
+            "scores": {
+              "EEM": -0.000875551878380311,
+              "EWA": 0.002129045850242416,
+              "EWC": 0.005117617681972994,
+              "EWG": -0.0037158676648592045,
+              "EWH": 0.006483505154132834,
+              "EWJ": 0.001966208208866227,
+              "EWS": 0.015233272450125273,
+              "EWT": 0.005124360826396195,
+              "EWU": 0.0037861726707101315,
+              "EWW": -0.006872025495547733,
+              "EWY": 0.008599747836526905,
+              "EWZ": -0.016773999090696275,
+              "EZA": -0.011265558283545411,
+              "FXI": -0.0019385352055637489,
+              "ILF": -0.016639809831642663
+            },
+            "realized_returns": {
+              "EEM": -0.03581445877719336,
+              "EWA": -0.028862402857687375,
+              "EWC": 0.023009056698978236,
+              "EWG": -0.0012618471690428734,
+              "EWH": -0.007105722486250854,
+              "EWJ": 0.04852135247636169,
+              "EWS": 0.04635775158729283,
+              "EWT": 0.04228450541468887,
+              "EWU": 0.05654491685672758,
+              "EWW": 0.021845895211386024,
+              "EWY": -0.017189584868197993,
+              "EWZ": 0.004977738629475925,
+              "EZA": -0.040407700505671995,
+              "FXI": -0.11367579022284535,
+              "ILF": 0.0
+            },
+            "reported_uncertainty": 0.0620583525530727,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": 0.0013792923919619506,
+              "momentum_3m": -0.005595901894733983,
+              "momentum_6m": 0.0019485448855099314,
+              "momentum_12_1": 9.945452528020357e-05,
+              "low_volatility_1m": -0.0027820481370433997,
+              "low_volatility_3m": 0.006235214031772579,
+              "drawdown_6m": 0.0047598953398867855,
+              "market_beta_6m": -0.002489572686495871
+            }
+          },
+          {
+            "as_of_date": "2015-07-08",
+            "forward_end_date": "2015-10-06",
+            "train_start_date": "2012-07-03",
+            "train_end_date": "2015-07-08",
+            "scores": {
+              "EEM": 0.00562603797482065,
+              "EWA": 0.00205578742823899,
+              "EWC": 0.003941776573257534,
+              "EWG": 0.006859220980575449,
+              "EWH": 0.002877157734776743,
+              "EWJ": 0.006240726826761632,
+              "EWS": 0.00458912130206848,
+              "EWT": -0.0002601085460654933,
+              "EWU": 0.005866933783926689,
+              "EWW": 0.009716370596119388,
+              "EWY": 0.007887195116389792,
+              "EWZ": -0.02032231652745973,
+              "EZA": -0.008006099919336138,
+              "FXI": -0.016454922099569773,
+              "ILF": -0.006936097717440486
+            },
+            "realized_returns": {
+              "EEM": -0.00581312929684219,
+              "EWA": -0.011748919157788973,
+              "EWC": -0.012820745411925794,
+              "EWG": 0.0,
+              "EWH": 0.014683261659828695,
+              "EWJ": 0.017725083203593894,
+              "EWS": -0.0927213238654554,
+              "EWT": -0.031685932302432884,
+              "EWU": 0.03094792723190609,
+              "EWW": 0.003544626830865427,
+              "EWY": 0.02823378208830596,
+              "EWZ": -0.16873690790968954,
+              "EZA": 0.011931219638769752,
+              "FXI": 0.00866525552229569,
+              "ILF": -0.09416528881528363
+            },
+            "reported_uncertainty": 0.06076765091002433,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.0021680062902864573,
+              "momentum_3m": -0.006037971041967131,
+              "momentum_6m": 0.00540204386780797,
+              "momentum_12_1": -0.004375613539983697,
+              "low_volatility_1m": 0.0014574668028770861,
+              "low_volatility_3m": 0.0029755547894614936,
+              "drawdown_6m": 0.00398119519879889,
+              "market_beta_6m": -0.0030864302877522645
+            }
+          },
+          {
+            "as_of_date": "2015-10-06",
+            "forward_end_date": "2016-01-06",
+            "train_start_date": "2012-10-02",
+            "train_end_date": "2015-10-06",
+            "scores": {
+              "EEM": -0.010154717578006787,
+              "EWA": -0.01618490408803676,
+              "EWC": 0.017530419075016554,
+              "EWG": 0.011472572129735714,
+              "EWH": -0.007834742607156546,
+              "EWJ": 0.01132331817689006,
+              "EWS": 0.023552987265347866,
+              "EWT": 0.002082202379823959,
+              "EWU": 0.012452405122201535,
+              "EWW": 0.013413286979991315,
+              "EWY": -0.001524338623856679,
+              "EWZ": -0.011697142435750702,
+              "EZA": -0.020184664867143993,
+              "FXI": -0.04324889193615978,
+              "ILF": 0.0018927961948335984
+            },
+            "realized_returns": {
+              "EEM": -0.008962133889440893,
+              "EWA": 0.059550369890513766,
+              "EWC": -0.04784692034304627,
+              "EWG": 0.06679195688143602,
+              "EWH": 0.06237353589852912,
+              "EWJ": 0.09510120178007908,
+              "EWS": 0.046877030147661536,
+              "EWT": -0.010368934284589293,
+              "EWU": 0.007998104817255158,
+              "EWW": -0.003948586257944364,
+              "EWY": 0.04499692046656878,
+              "EWZ": -0.07028396356044919,
+              "EZA": -0.1335131922244448,
+              "FXI": 0.0,
+              "ILF": -0.055374792316688404
+            },
+            "reported_uncertainty": 0.06076765091002433,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.002737541706868871,
+              "momentum_3m": -0.008122780372581183,
+              "momentum_6m": 0.006664533706776223,
+              "momentum_12_1": -0.0013235694341769048,
+              "low_volatility_1m": -0.0026030939678293344,
+              "low_volatility_3m": 0.007505759146603603,
+              "drawdown_6m": 0.0007584506113872712,
+              "market_beta_6m": -0.005676458163272157
+            }
+          },
+          {
+            "as_of_date": "2016-01-06",
+            "forward_end_date": "2016-04-07",
+            "train_start_date": "2013-01-04",
+            "train_end_date": "2016-01-06",
+            "scores": {
+              "EEM": -0.0014722965161707915,
+              "EWA": -0.012367788254207639,
+              "EWC": 0.010840209609017566,
+              "EWG": 0.010603936659793754,
+              "EWH": 0.007485759820622441,
+              "EWJ": 0.006753541485274585,
+              "EWS": 0.0028652389840109643,
+              "EWT": 0.0036965308353029214,
+              "EWU": 0.012333461630314077,
+              "EWW": 0.010068426649906953,
+              "EWY": 0.0027988875616396817,
+              "EWZ": -0.02409990226722622,
+              "EZA": -0.023138606268559278,
+              "FXI": -0.006602920836308554,
+              "ILF": -0.009027515859441582
+            },
+            "realized_returns": {
+              "EEM": 0.0014493748054771327,
+              "EWA": -0.03543592593433509,
+              "EWC": 0.051348204786119345,
+              "EWG": -0.08168206340025486,
+              "EWH": -0.0561301032482473,
+              "EWJ": -0.13695423008241192,
+              "EWS": 0.007287369600282867,
+              "EWT": 0.022561998951313278,
+              "EWU": -0.08315205240110346,
+              "EWW": -0.001272362758885981,
+              "EWY": 0.0,
+              "EWZ": 0.18850917296713776,
+              "EZA": 0.05965240797909965,
+              "FXI": -0.089186637264001,
+              "ILF": 0.1006888036763871
+            },
+            "reported_uncertainty": 0.06205835255307268,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.004063789688556535,
+              "momentum_3m": -0.005773703670697871,
+              "momentum_6m": 0.006896702964975764,
+              "momentum_12_1": -0.0004082288029145691,
+              "low_volatility_1m": 0.005497243964649701,
+              "low_volatility_3m": 0.0016434082503172746,
+              "drawdown_6m": 0.00043691262489116813,
+              "market_beta_6m": -0.006915550470878584
+            }
+          },
+          {
+            "as_of_date": "2016-04-07",
+            "forward_end_date": "2016-07-07",
+            "train_start_date": "2013-04-08",
+            "train_end_date": "2016-04-07",
+            "scores": {
+              "EEM": -0.001547781593053272,
+              "EWA": 0.01585653418972715,
+              "EWC": -0.009671288408807323,
+              "EWG": 0.009066819030519096,
+              "EWH": 0.0036936107656289643,
+              "EWJ": 0.017481106792911462,
+              "EWS": 0.005312958840321333,
+              "EWT": 0.002546894972303398,
+              "EWU": 0.0029094260488691146,
+              "EWW": -0.007533964085116094,
+              "EWY": -0.008070488960189429,
+              "EWZ": -0.01817327801059576,
+              "EZA": -0.026761997452961938,
+              "FXI": 0.004925294639475292,
+              "ILF": -0.01778734036397102
+            },
+            "realized_returns": {
+              "EEM": -0.0029717017404071733,
+              "EWA": 0.01959272657480704,
+              "EWC": 0.03196595094466881,
+              "EWG": -0.077136279249016,
+              "EWH": -0.014796061069700661,
+              "EWJ": 0.011499893948506923,
+              "EWS": -0.015302082879971923,
+              "EWT": 0.02146672182963294,
+              "EWU": -0.046325536840732595,
+              "EWW": -0.07894639004239101,
+              "EWY": -0.02359592229633778,
+              "EWZ": 0.1313570845518941,
+              "EZA": 0.0013511791535731899,
+              "FXI": 0.0,
+              "ILF": 0.03627639127197391
+            },
+            "reported_uncertainty": 0.06540636011265559,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.00727694423812443,
+              "momentum_3m": -0.008508822635974484,
+              "momentum_6m": 0.008947145602072921,
+              "momentum_12_1": -0.006749919847428453,
+              "low_volatility_1m": 0.012578023917699835,
+              "low_volatility_3m": -0.012143449100168999,
+              "drawdown_6m": 0.003203065031016582,
+              "market_beta_6m": -0.006464127462385706
+            }
+          },
+          {
+            "as_of_date": "2016-07-07",
+            "forward_end_date": "2016-10-05",
+            "train_start_date": "2013-07-08",
+            "train_end_date": "2016-07-07",
+            "scores": {
+              "EEM": -0.008069385920730466,
+              "EWA": -0.028349271862481283,
+              "EWC": 0.005644644657541227,
+              "EWG": -0.0037975292442238486,
+              "EWH": -0.0158659429778077,
+              "EWJ": -0.013846241996990825,
+              "EWS": 0.005896079255545665,
+              "EWT": -0.0020780960028412834,
+              "EWU": -0.004247652424676429,
+              "EWW": 0.009961450043664175,
+              "EWY": -0.030769132094860954,
+              "EWZ": 0.016190132926513535,
+              "EZA": 0.020482526392776805,
+              "FXI": 0.0032062105600154877,
+              "ILF": 0.014117797914300258
+            },
+            "realized_returns": {
+              "EEM": 0.004512927465730732,
+              "EWA": -0.02943338900470316,
+              "EWC": -0.07651247863254018,
+              "EWG": 0.025230524836740154,
+              "EWH": 0.028841227992334684,
+              "EWJ": -0.026939103068480463,
+              "EWS": -0.10923075545266703,
+              "EWT": 0.014316539225026625,
+              "EWU": -0.04206335438746911,
+              "EWW": -0.0843135241814752,
+              "EWY": 0.0,
+              "EWZ": 0.08718135356187351,
+              "EZA": -0.006628542920307456,
+              "FXI": 0.03969746348815684,
+              "ILF": 0.023877444353459065
+            },
+            "reported_uncertainty": 0.06540636011265559,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "ridge_penalty": 5.0,
+              "nested_selection": null
+            },
+            "target_diagnostics": null,
+            "coefficients": {
+              "momentum_1m": -0.013619611123280459,
+              "momentum_3m": -0.00392607661555659,
+              "momentum_6m": 0.015960221568399494,
+              "momentum_12_1": -0.01353915224497535,
+              "low_volatility_1m": 0.013335249495721926,
+              "low_volatility_3m": -0.006531436827825845,
+              "drawdown_6m": -0.003599412518536055,
+              "market_beta_6m": -0.0020252382313905868
+            }
+          }
+        ]
+      },
+      "relative_hist_gradient_boosting": {
+        "objective": "relative_hist_gradient_boosting",
+        "target_kind": "relative",
+        "settings": {
+          "horizon": 63,
+          "rebalance_step": 63,
+          "minimum_feature_history": 253,
+          "minimum_training_periods": 8,
+          "maximum_training_periods": 12,
+          "minimum_observations": 40,
+          "ridge_penalty": 5.0,
+          "nested_ridge_penalties": [
+            1.0,
+            5.0,
+            20.0,
+            100.0
+          ],
+          "nested_validation_periods": 3,
+          "nominal_uncertainty_coverage": 0.8,
+          "dated_universe_manifest": true,
+          "evaluation_start": "2010-01-01",
+          "evaluation_end": "2016-09-30",
+          "feature_columns": [
+            "momentum_1m",
+            "momentum_3m",
+            "momentum_6m",
+            "momentum_12_1",
+            "low_volatility_1m",
+            "low_volatility_3m",
+            "drawdown_6m",
+            "market_beta_6m"
+          ],
+          "training_target_transform": "raw_forward_target",
+          "model_type": "hist_gradient_boosting_regressor",
+          "hist_gradient_boosting_settings": {
+            "loss": "absolute_error",
+            "learning_rate": 0.05,
+            "max_iter": 64,
+            "max_leaf_nodes": 7,
+            "min_samples_leaf": 20,
+            "l2_regularization": 5.0,
+            "early_stopping": false,
+            "random_state": 42
+          },
+          "point_in_time_fundamentals": false,
+          "separate_target_factors": false
+        },
+        "rank_diagnostics": {
+          "period_count": 27,
+          "mean_rank_ic": -0.013902370666351008,
+          "positive_rank_ic_rate": 0.5185185185185185,
+          "mean_top_bottom_spread": 0.00012881394277424832,
+          "mean_coverage_rate": 1.0
+        },
+        "rank_bootstrap": {
+          "status": "ok",
+          "observation_count": 27,
+          "block_size": 4,
+          "samples": 2000,
+          "seed": 42,
+          "observed": {
+            "mean_rank_ic": -0.013902370666351008,
+            "mean_top_bottom_spread": 0.00012881394277424832
+          },
+          "probability": {
+            "positive_mean_rank_ic": 0.398,
+            "positive_mean_top_bottom_spread": 0.509
+          },
+          "interval": {
+            "mean_rank_ic": {
+              "lower_95": -0.10743700375176543,
+              "median": -0.011970899470899472,
+              "upper_95": 0.08690120076222037
+            },
+            "mean_top_bottom_spread": {
+              "lower_95": -0.019821702482511663,
+              "median": 0.00022164595046661128,
+              "upper_95": 0.020608473142854692
+            }
+          }
+        },
+        "distribution_diagnostics": {
+          "prediction_count": 405,
+          "valid_count": 405,
+          "no_view_count": 0,
+          "coverage_rate": 1.0,
+          "mean": -0.00041774277060789734,
+          "standard_deviation": 0.01293048458309751,
+          "quantiles": {
+            "0.0": -0.03337757678781372,
+            "0.05": -0.020262355098742153,
+            "0.25": -0.009160657156671803,
+            "0.5": 0.0001639109166396404,
+            "0.75": 0.0065276325412030305,
+            "0.95": 0.02310888387972828,
+            "1.0": 0.03828611894134584
+          },
+          "annual_clip": 0.69,
+          "positive_boundary_count": 0,
+          "negative_boundary_count": 0,
+          "boundary_saturation_count": 0,
+          "boundary_saturation_rate": 0.0,
+          "unique_value_count": 404,
+          "unique_value_ratio": 0.9975308641975309,
+          "tie_rate": 0.0024691358024691024,
+          "uncertainty_count": 360,
+          "mean_reported_uncertainty": 0.05854705613710867,
+          "active_universe_coverage_rate": 1.0,
+          "mean_period_universe_coverage_rate": 1.0,
+          "minimum_period_universe_coverage_rate": 1.0
+        },
+        "uncertainty_diagnostics": {
+          "observation_count": 405,
+          "nominal_coverage": 0.8,
+          "calibrated_absolute_error_radius": 0.0663568842188431,
+          "mae": 0.04073219757327078,
+          "rmse": 0.0539162225661073,
+          "bias": -0.0013911621573461529,
+          "reported_uncertainty_count": 360,
+          "reported_uncertainty_coverage": 0.7527777777777778
+        },
+        "signal_only_gate": {
+          "status": "rejected",
+          "reasons": [
+            "Mean OOS cross-sectional rank IC is not positive.",
+            "Positive mean rank-IC bootstrap probability is below 95%.",
+            "Positive mean top-minus-bottom bootstrap probability is below 95%."
+          ],
+          "minimum_bootstrap_probability": 0.95
+        },
+        "cost": {
+          "elapsed_seconds": 8.228561083000386,
+          "fit_seconds": 4.480418001003272,
+          "fit_count": 27,
+          "prediction_count": 405,
+          "predictions_per_second": 49.21881188154522,
+          "peak_memory_bytes": 7119972
+        },
+        "mean_coefficients": {},
+        "feature_diagnostics": {
+          "momentum_1m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.11785714285714281,
+              "positive_rank_ic_rate": 0.4444444444444444,
+              "mean_top_bottom_spread": -0.01834357243910555,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.11785714285714281,
+                "mean_top_bottom_spread": -0.01834357243910555
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.0595,
+                "positive_mean_top_bottom_spread": 0.096
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.2607242063492063,
+                  "median": -0.12275132275132272,
+                  "upper_95": 0.03149140211640206
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.04827798511422184,
+                  "median": -0.01824343985820888,
+                  "upper_95": 0.009460080057817644
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.9405,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "momentum_3m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.08373015873015872,
+              "positive_rank_ic_rate": 0.37037037037037035,
+              "mean_top_bottom_spread": -0.016607560893970866,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.08373015873015872,
+                "mean_top_bottom_spread": -0.016607560893970866
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.092,
+                "positive_mean_top_bottom_spread": 0.028
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.20808531746031741,
+                  "median": -0.08472222222222221,
+                  "upper_95": 0.03956018518518513
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.031356251129076224,
+                  "median": -0.017267873525611793,
+                  "upper_95": 0.0004385657980963524
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.972,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "momentum_6m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.07261904761904761,
+              "positive_rank_ic_rate": 0.4074074074074074,
+              "mean_top_bottom_spread": -0.010310467250999157,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.07261904761904761,
+                "mean_top_bottom_spread": -0.010310467250999157
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.1395,
+                "positive_mean_top_bottom_spread": 0.179
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.2029166666666666,
+                  "median": -0.0738095238095238,
+                  "upper_95": 0.0572123015873012
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.031111051073587238,
+                  "median": -0.010876315031742537,
+                  "upper_95": 0.013134782556358304
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.8605,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "momentum_12_1": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": 0.0014550264550264632,
+              "positive_rank_ic_rate": 0.4444444444444444,
+              "mean_top_bottom_spread": -0.001321182250219042,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": 0.0014550264550264632,
+                "mean_top_bottom_spread": -0.001321182250219042
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.5265,
+                "positive_mean_top_bottom_spread": 0.4775
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.12407738095238091,
+                  "median": 0.003835978835978847,
+                  "upper_95": 0.13545634920634916
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.021251706883379788,
+                  "median": -0.0005573915762335244,
+                  "upper_95": 0.019639962688378053
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.5225,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "low_volatility_1m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.017724867724867716,
+              "positive_rank_ic_rate": 0.48148148148148145,
+              "mean_top_bottom_spread": -0.0031177068411420102,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.017724867724867716,
+                "mean_top_bottom_spread": -0.0031177068411420102
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.4165,
+                "positive_mean_top_bottom_spread": 0.424
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.1514583333333333,
+                  "median": -0.014880952380952377,
+                  "upper_95": 0.12660052910052902
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.02781605888067078,
+                  "median": -0.0028592176406138804,
+                  "upper_95": 0.023148336664038927
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.5835,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "low_volatility_3m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": 0.00343915343915344,
+              "positive_rank_ic_rate": 0.4444444444444444,
+              "mean_top_bottom_spread": 0.0007966391361358302,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": 0.00343915343915344,
+                "mean_top_bottom_spread": 0.0007966391361358302
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.5605,
+                "positive_mean_top_bottom_spread": 0.5565
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.12778439153439156,
+                  "median": 0.008068783068783053,
+                  "upper_95": 0.12421296296296291
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.02972908277751033,
+                  "median": 0.0019651168407430193,
+                  "upper_95": 0.02714719259360687
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.4435,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "drawdown_6m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.06097883597883597,
+              "positive_rank_ic_rate": 0.48148148148148145,
+              "mean_top_bottom_spread": -0.007769394153365374,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.06097883597883597,
+                "mean_top_bottom_spread": -0.007769394153365374
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.202,
+                "positive_mean_top_bottom_spread": 0.288
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.19444775132275127,
+                  "median": -0.05846560846560846,
+                  "upper_95": 0.07685846560846554
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.03385704883367968,
+                  "median": -0.00737837643462451,
+                  "upper_95": 0.018077971381205662
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.798,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          },
+          "market_beta_6m": {
+            "rank_diagnostics": {
+              "period_count": 27,
+              "mean_rank_ic": -0.033730158730158714,
+              "positive_rank_ic_rate": 0.4444444444444444,
+              "mean_top_bottom_spread": -0.006210007834630454,
+              "mean_coverage_rate": 1.0
+            },
+            "rank_bootstrap": {
+              "status": "ok",
+              "observation_count": 27,
+              "block_size": 4,
+              "samples": 2000,
+              "seed": 42,
+              "observed": {
+                "mean_rank_ic": -0.033730158730158714,
+                "mean_top_bottom_spread": -0.006210007834630454
+              },
+              "probability": {
+                "positive_mean_rank_ic": 0.2775,
+                "positive_mean_top_bottom_spread": 0.3135
+              },
+              "interval": {
+                "mean_rank_ic": {
+                  "lower_95": -0.15542989417989414,
+                  "median": -0.03531746031746032,
+                  "upper_95": 0.07898148148148139
+                },
+                "mean_top_bottom_spread": {
+                  "lower_95": -0.03190825796190062,
+                  "median": -0.006554281112869298,
+                  "upper_95": 0.019823881093781928
+                }
+              }
+            },
+            "multiple_testing": {
+              "raw_p_value": 0.7224999999999999,
+              "adjusted_p_value": 1.0,
+              "significant": false
+            }
+          }
+        },
+        "records": [
+          {
+            "as_of_date": "2010-01-04",
+            "forward_end_date": "2010-04-06",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2010-01-04",
+            "scores": {
+              "EEM": -0.0024585724917578285,
+              "EWA": -0.017289185932321986,
+              "EWC": 0.0066121861770026035,
+              "EWG": -0.001763755325055372,
+              "EWH": -0.018106950203806062,
+              "EWJ": -0.018487474681613974,
+              "EWS": -0.0113913819061,
+              "EWT": -0.010680988029053895,
+              "EWU": 0.016650411798917665,
+              "EWW": 0.0037354865189368315,
+              "EWY": -0.014994523242409774,
+              "EWZ": 0.0023577317589805386,
+              "EZA": 0.030811719426291153,
+              "FXI": 0.023635526249210215,
+              "ILF": 0.0015005180493383868
+            },
+            "realized_returns": {
+              "EEM": 0.0,
+              "EWA": 0.020571873135242447,
+              "EWC": 0.038662628917577546,
+              "EWG": -0.057740927346237814,
+              "EWH": 0.013866239309522355,
+              "EWJ": 0.036944553603817765,
+              "EWS": -0.014754989688747111,
+              "EWT": -0.05335175453492835,
+              "EWU": -0.014425205167408972,
+              "EWW": 0.0501975134268835,
+              "EWY": 0.032620981298725704,
+              "EWZ": -0.04497394656077924,
+              "EZA": 0.05421328021524752,
+              "FXI": -0.007890083326746344,
+              "ILF": -0.015605573376460402
+            },
+            "reported_uncertainty": null,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 120,
+              "fit_row_count": 120,
+              "training_period_count": 8,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2010-04-06",
+            "forward_end_date": "2010-07-06",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2010-04-06",
+            "scores": {
+              "EEM": 0.004295159112627272,
+              "EWA": 0.015859659139323346,
+              "EWC": 0.01109139772962687,
+              "EWG": -0.00690996575694502,
+              "EWH": 0.01208477380330345,
+              "EWJ": 0.007935326807341821,
+              "EWS": -0.028586379915167555,
+              "EWT": 0.004601913784972751,
+              "EWU": -0.0008038019050606445,
+              "EWW": -0.023962396282750483,
+              "EWY": -0.015591109753659394,
+              "EWZ": -0.01752510275926723,
+              "EZA": 0.030306333699741977,
+              "FXI": 0.03819358603787393,
+              "ILF": 0.012844879687411631
+            },
+            "realized_returns": {
+              "EEM": 0.0011133582548957799,
+              "EWA": -0.09814619820294379,
+              "EWC": -0.010431799087780358,
+              "EWG": 0.0,
+              "EWH": 0.032335557608669685,
+              "EWJ": 0.015121338744348067,
+              "EWS": 0.10092320553020218,
+              "EWT": 0.024342760789735074,
+              "EWU": -0.03830658447124746,
+              "EWW": 0.004248078270756461,
+              "EWY": -0.007244097901647817,
+              "EWZ": -0.03175307816185524,
+              "EZA": -0.005723262927260331,
+              "FXI": 0.03352389413470869,
+              "ILF": -0.014744653367011362
+            },
+            "reported_uncertainty": null,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 135,
+              "fit_row_count": 135,
+              "training_period_count": 9,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2010-07-06",
+            "forward_end_date": "2010-10-04",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2010-07-06",
+            "scores": {
+              "EEM": 0.0013611703208598845,
+              "EWA": -0.020556909425609098,
+              "EWC": -0.012669956818639763,
+              "EWG": 0.0015618915011615653,
+              "EWH": 0.0032950584712684913,
+              "EWJ": 0.012268322137083664,
+              "EWS": -0.019625344123675358,
+              "EWT": 0.0008038969862438315,
+              "EWU": -0.0004543186058230495,
+              "EWW": -0.0021186371292024396,
+              "EWY": -0.01684811044292386,
+              "EWZ": -0.010777167298252465,
+              "EZA": 0.010603132203563164,
+              "FXI": -0.0038855065701767317,
+              "ILF": -0.02257085735222446
+            },
+            "realized_returns": {
+              "EEM": 0.0,
+              "EWA": 0.05550989387764327,
+              "EWC": -0.04372675722065145,
+              "EWG": -0.0492623387660156,
+              "EWH": 0.04877374041779947,
+              "EWJ": -0.15040878586620088,
+              "EWS": -0.01353331015294268,
+              "EWT": -0.02483197588828867,
+              "EWU": 0.014886644101943958,
+              "EWW": -0.06040430565966637,
+              "EWY": 0.02276701977219986,
+              "EWZ": 0.04088161048546235,
+              "EZA": 0.052059218232783255,
+              "FXI": -0.08760123299929878,
+              "ILF": 0.014297379714700575
+            },
+            "reported_uncertainty": null,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 150,
+              "fit_row_count": 150,
+              "training_period_count": 10,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2010-10-04",
+            "forward_end_date": "2011-01-03",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2010-10-04",
+            "scores": {
+              "EEM": -0.004256246397310831,
+              "EWA": 0.03765039000743721,
+              "EWC": -0.01823184371785176,
+              "EWG": 0.031088272513036322,
+              "EWH": -0.00225878540319344,
+              "EWJ": -0.0031299976822056577,
+              "EWS": -0.019932160478179854,
+              "EWT": 0.004629845603968638,
+              "EWU": 0.010025378640867442,
+              "EWW": -0.023879329535650796,
+              "EWY": -0.009032157171574823,
+              "EWZ": 0.01429515070057557,
+              "EZA": -0.017363945403121563,
+              "FXI": 0.014834636000374457,
+              "ILF": -0.009119219904221824
+            },
+            "realized_returns": {
+              "EEM": -0.0325324538069498,
+              "EWA": 0.0,
+              "EWC": 0.01845415562142083,
+              "EWG": 0.008200700949410944,
+              "EWH": -0.04157256271413923,
+              "EWJ": 0.037003308102674604,
+              "EWS": -0.043699767337968876,
+              "EWT": 0.07915061353930009,
+              "EWU": -0.0444739331687698,
+              "EWW": 0.05619789814759346,
+              "EWY": 0.03193257320305709,
+              "EWZ": -0.06910059427029513,
+              "EZA": 0.03462570821807964,
+              "FXI": -0.09068695091922363,
+              "ILF": -0.023130840800040353
+            },
+            "reported_uncertainty": 0.0509911397704847,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 165,
+              "fit_row_count": 165,
+              "training_period_count": 11,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2011-01-03",
+            "forward_end_date": "2011-04-04",
+            "train_start_date": "2008-01-03",
+            "train_end_date": "2011-01-03",
+            "scores": {
+              "EEM": 0.004699662040963687,
+              "EWA": 0.017292731958993657,
+              "EWC": -0.017228702260696598,
+              "EWG": 0.0041000595547274294,
+              "EWH": -0.02223404193284112,
+              "EWJ": 0.012848998587714284,
+              "EWS": -0.014434543436893807,
+              "EWT": 0.009708550703548894,
+              "EWU": 0.0014188059414128047,
+              "EWW": -0.013131410932473138,
+              "EWY": -0.008140493799150033,
+              "EWZ": 0.019145429681156585,
+              "EZA": -0.019524472164525186,
+              "FXI": 0.012452219763159507,
+              "ILF": 0.005587012440087896
+            },
+            "realized_returns": {
+              "EEM": 0.01550170011527885,
+              "EWA": 0.02989507669237157,
+              "EWC": 0.0667031424897444,
+              "EWG": 0.07089017574640089,
+              "EWH": -0.016648238619459077,
+              "EWJ": -0.09849940439801852,
+              "EWS": -0.028470339012962698,
+              "EWT": -0.05880475451084133,
+              "EWU": 0.034130370379886754,
+              "EWW": 0.0,
+              "EWY": 0.03697434816772582,
+              "EWZ": -4.757033816793488e-05,
+              "EZA": -0.025707725448485763,
+              "FXI": 0.03861596180282301,
+              "ILF": -0.01191183534271234
+            },
+            "reported_uncertainty": 0.05468585510479614,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2011-04-04",
+            "forward_end_date": "2011-07-05",
+            "train_start_date": "2008-04-04",
+            "train_end_date": "2011-04-04",
+            "scores": {
+              "EEM": 0.0038028054476818545,
+              "EWA": 0.0065276325412030305,
+              "EWC": -0.031549086022759645,
+              "EWG": 0.0020825388314826532,
+              "EWH": -0.020973991485808693,
+              "EWJ": 0.0017831826122931297,
+              "EWS": -0.0141679013708347,
+              "EWT": -0.012646672653010116,
+              "EWU": -0.0009896740197643486,
+              "EWW": 0.0011298251322922042,
+              "EWY": 0.010142165325499046,
+              "EWZ": 0.011763818251678363,
+              "EZA": 0.01766004746376484,
+              "FXI": 0.0010869706199006471,
+              "ILF": 0.010998235690730352
+            },
+            "realized_returns": {
+              "EEM": -0.0010493371432174214,
+              "EWA": 0.0,
+              "EWC": -0.028846308241059493,
+              "EWG": 0.07009440666304179,
+              "EWH": -0.002915276926123478,
+              "EWJ": 0.0704348265995276,
+              "EWS": 0.036593759398298564,
+              "EWT": 0.03191348011216255,
+              "EWU": 0.02512669037449977,
+              "EWW": 0.017305400004998583,
+              "EWY": 0.04688064675024828,
+              "EWZ": -0.03562894101467928,
+              "EZA": -0.001295513610339416,
+              "FXI": -0.033523363598143785,
+              "ILF": -0.0119225012793589
+            },
+            "reported_uncertainty": 0.055541057032581886,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2011-07-05",
+            "forward_end_date": "2011-10-03",
+            "train_start_date": "2008-07-03",
+            "train_end_date": "2011-07-05",
+            "scores": {
+              "EEM": -0.0011898534188646327,
+              "EWA": 0.004237916314353806,
+              "EWC": 0.01925128335866352,
+              "EWG": 0.005211988523368766,
+              "EWH": -0.0011006901105850197,
+              "EWJ": -0.009861179703665979,
+              "EWS": -0.006269726370529884,
+              "EWT": 0.006926280746274525,
+              "EWU": 0.003983775538035993,
+              "EWW": -0.00698926784305252,
+              "EWY": -0.01833323438913848,
+              "EWZ": -0.009742815570500114,
+              "EZA": 0.00899883091495338,
+              "FXI": -0.0034668295121313805,
+              "ILF": 0.0024382941392656525
+            },
+            "realized_returns": {
+              "EEM": -0.037895048144797494,
+              "EWA": 0.0,
+              "EWC": 0.01609354719713063,
+              "EWG": -0.1041511811755026,
+              "EWH": -0.005929268258808795,
+              "EWJ": 0.13165524649983562,
+              "EWS": 0.020422899822898244,
+              "EWT": 0.011787240863678439,
+              "EWU": 0.05324519027636976,
+              "EWW": 0.012105444276690691,
+              "EWY": -0.07120170105891666,
+              "EWZ": -0.06292021597027031,
+              "EZA": 0.032125990080572375,
+              "FXI": -0.0593032450480141,
+              "ILF": -0.025211357284873448
+            },
+            "reported_uncertainty": 0.05468585510479614,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2011-10-03",
+            "forward_end_date": "2012-01-03",
+            "train_start_date": "2008-10-02",
+            "train_end_date": "2011-10-03",
+            "scores": {
+              "EEM": 0.025356291875603284,
+              "EWA": -0.0028596170772325095,
+              "EWC": -0.026315375560284855,
+              "EWG": 0.0370368783850684,
+              "EWH": 0.002114158131529569,
+              "EWJ": -0.012970645516440612,
+              "EWS": 0.005096479197023534,
+              "EWT": -0.0013566675084594054,
+              "EWU": -0.0008227019905291423,
+              "EWW": -0.024625578522153337,
+              "EWY": 0.03289410099751045,
+              "EWZ": 0.0008296424930483369,
+              "EZA": -0.01139379696671225,
+              "FXI": 0.03155379619109465,
+              "ILF": -0.014047646159686487
+            },
+            "realized_returns": {
+              "EEM": -0.0012853614623962173,
+              "EWA": 0.023835962465739602,
+              "EWC": -0.01878530403850509,
+              "EWG": 0.0,
+              "EWH": -0.0011456047833258154,
+              "EWJ": -0.1402915673518117,
+              "EWS": -0.07289331612846173,
+              "EWT": -0.0898008962732757,
+              "EWU": 0.016232783426851194,
+              "EWW": 0.00891410328208253,
+              "EWY": 0.057769391634325595,
+              "EWZ": 0.031910790405767164,
+              "EZA": -0.014113906455321956,
+              "FXI": 0.06204188566912361,
+              "ILF": 0.024927594718124668
+            },
+            "reported_uncertainty": 0.05468585510479614,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2012-01-03",
+            "forward_end_date": "2012-04-03",
+            "train_start_date": "2009-01-02",
+            "train_end_date": "2012-01-03",
+            "scores": {
+              "EEM": 0.018236955840257252,
+              "EWA": -0.0032424275887080432,
+              "EWC": -0.015097283634771527,
+              "EWG": 0.03828611894134584,
+              "EWH": -0.012163307201031124,
+              "EWJ": -0.012376905540848257,
+              "EWS": -0.01229365784931962,
+              "EWT": -0.009315015132801498,
+              "EWU": -0.012817574110302805,
+              "EWW": 0.0015417119829945784,
+              "EWY": -0.011350743708535414,
+              "EWZ": 0.0011302849252064978,
+              "EZA": 0.02330661475897477,
+              "FXI": -0.0018364193748721125,
+              "ILF": -0.015629432939295796
+            },
+            "realized_returns": {
+              "EEM": 0.013946677298305676,
+              "EWA": -0.03977271793876436,
+              "EWC": -0.057813333617520835,
+              "EWG": 0.05974943938526667,
+              "EWH": 0.020565368175170518,
+              "EWJ": -0.010329540975741791,
+              "EWS": 0.056785374531499455,
+              "EWT": 0.009825959802881146,
+              "EWU": -0.04633954195999279,
+              "EWW": 0.05522163428880633,
+              "EWY": 0.03208465134324534,
+              "EWZ": -0.008625019504237663,
+              "EZA": -0.0015075927511112308,
+              "FXI": -0.05930707109365829,
+              "ILF": 0.0
+            },
+            "reported_uncertainty": 0.05468585510479614,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2012-04-03",
+            "forward_end_date": "2012-07-03",
+            "train_start_date": "2009-04-03",
+            "train_end_date": "2012-04-03",
+            "scores": {
+              "EEM": 0.014165405013648493,
+              "EWA": 0.02792917401894143,
+              "EWC": -0.007295640401548963,
+              "EWG": 0.017316472958636017,
+              "EWH": -0.008666445327234845,
+              "EWJ": -0.03202356234522039,
+              "EWS": -0.008415814182900801,
+              "EWT": -0.0019868254785305496,
+              "EWU": -0.028157953054362417,
+              "EWW": -0.01159960326842884,
+              "EWY": 0.004131297458629232,
+              "EWZ": 0.01122494011856001,
+              "EZA": 0.004519923330437337,
+              "FXI": 0.006700243656538906,
+              "ILF": 0.014092108466760322
+            },
+            "realized_returns": {
+              "EEM": -0.020477899370302532,
+              "EWA": 0.020141383510926758,
+              "EWC": -0.008426524939661006,
+              "EWG": -0.055694697428075646,
+              "EWH": 0.014264491654113254,
+              "EWJ": 0.0,
+              "EWS": 0.0414833289948674,
+              "EWT": 0.0013898024972978096,
+              "EWU": 0.020314033624533323,
+              "EWW": 0.03684757155032825,
+              "EWY": -0.04693314333432674,
+              "EWZ": -0.11227319398204827,
+              "EZA": 0.013326057355533605,
+              "FXI": -0.011101337480326268,
+              "ILF": -0.053502566004750673
+            },
+            "reported_uncertainty": 0.05384380020657686,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2012-07-03",
+            "forward_end_date": "2012-10-02",
+            "train_start_date": "2009-07-06",
+            "train_end_date": "2012-07-03",
+            "scores": {
+              "EEM": 0.003577072210204832,
+              "EWA": -0.002981245529149855,
+              "EWC": 0.0007156482692359875,
+              "EWG": 0.028930470662432026,
+              "EWH": -0.013035767240469046,
+              "EWJ": -0.0018345454858969628,
+              "EWS": -0.010090563894161261,
+              "EWT": 0.0006264545243303823,
+              "EWU": -0.008205921003461838,
+              "EWW": -0.007902641618726634,
+              "EWY": 0.00166540257528971,
+              "EWZ": 0.036025005372622966,
+              "EZA": -0.023488735828731223,
+              "FXI": 0.004211678867073451,
+              "ILF": 0.028212233205163837
+            },
+            "realized_returns": {
+              "EEM": -0.011401233805752309,
+              "EWA": 0.022847165568407934,
+              "EWC": 0.021723398845948205,
+              "EWG": 0.07652495502664558,
+              "EWH": 0.040222412341698766,
+              "EWJ": -0.10086256150804052,
+              "EWS": 0.010235228713656896,
+              "EWT": 0.027850420198941572,
+              "EWU": -0.0014251130458731165,
+              "EWW": 0.0,
+              "EWY": 0.010245356868076483,
+              "EWZ": -0.036847557659333896,
+              "EZA": -0.026682589507861953,
+              "FXI": -0.03770475940442153,
+              "ILF": -0.04720383338393064
+            },
+            "reported_uncertainty": 0.05384380020657686,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2012-10-02",
+            "forward_end_date": "2013-01-04",
+            "train_start_date": "2009-10-02",
+            "train_end_date": "2012-10-02",
+            "scores": {
+              "EEM": 0.004577614251484008,
+              "EWA": -0.002596314706441968,
+              "EWC": -0.009228236834821869,
+              "EWG": 0.011196203794495322,
+              "EWH": -0.005732363974807115,
+              "EWJ": -0.003135197058712176,
+              "EWS": -0.01621752123592386,
+              "EWT": -0.01303667801499488,
+              "EWU": -0.005189868515267832,
+              "EWW": -0.0031474295595538436,
+              "EWY": 0.016872864726207276,
+              "EWZ": 0.010311720735391203,
+              "EZA": 0.007030260679485,
+              "FXI": -0.002715363848618983,
+              "ILF": 0.007897314728811505
+            },
+            "realized_returns": {
+              "EEM": 0.0033119329708510836,
+              "EWA": 0.020538700525375875,
+              "EWC": -0.06476548179837716,
+              "EWG": 0.0,
+              "EWH": 0.003939001651726448,
+              "EWJ": 0.015306717025914018,
+              "EWS": -0.033048318670954924,
+              "EWT": -0.05368930057521881,
+              "EWU": -0.027446608129951366,
+              "EWW": 0.018356240058030826,
+              "EWY": 0.001124459659971988,
+              "EWZ": -0.02212389454439534,
+              "EZA": -0.0039063438363200476,
+              "FXI": 0.11460022663028657,
+              "ILF": -0.012963270516374692
+            },
+            "reported_uncertainty": 0.053843800206576864,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2013-01-04",
+            "forward_end_date": "2013-04-08",
+            "train_start_date": "2010-01-04",
+            "train_end_date": "2013-01-04",
+            "scores": {
+              "EEM": -0.00802235232249066,
+              "EWA": -0.009668789745316408,
+              "EWC": 0.0038721770138614585,
+              "EWG": -0.011816324130343388,
+              "EWH": 0.0022331543345021423,
+              "EWJ": 0.001320627016998863,
+              "EWS": 0.012024106359653309,
+              "EWT": 0.021727953156191873,
+              "EWU": 0.010488636762247639,
+              "EWW": 0.009081842328784557,
+              "EWY": 0.0020778829165519074,
+              "EWZ": -0.004357140758180695,
+              "EZA": 0.0070337714639821065,
+              "FXI": -0.008882591353065277,
+              "ILF": -0.0021764621066859818
+            },
+            "realized_returns": {
+              "EEM": -0.03048660020643701,
+              "EWA": 0.088611570631706,
+              "EWC": 0.0,
+              "EWG": 0.02974669357563997,
+              "EWH": 0.028379746139195916,
+              "EWJ": 0.16580340157895834,
+              "EWS": 0.04744587959303537,
+              "EWT": -0.0002014025394900809,
+              "EWU": 0.03538471170732371,
+              "EWW": 0.07173609902138234,
+              "EWY": -0.08458735905183268,
+              "EWZ": -0.011303978084765354,
+              "EZA": -0.063264585102071,
+              "FXI": -0.1008355726648299,
+              "ILF": -0.0068591649743461325
+            },
+            "reported_uncertainty": 0.053342528126896605,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2013-04-08",
+            "forward_end_date": "2013-07-08",
+            "train_start_date": "2010-04-06",
+            "train_end_date": "2013-04-08",
+            "scores": {
+              "EEM": 0.004311277879606996,
+              "EWA": 0.0058444080241150075,
+              "EWC": -0.0035779746692153553,
+              "EWG": -0.0029218118703130225,
+              "EWH": 0.0021607302744050144,
+              "EWJ": 0.0013192628384474695,
+              "EWS": -0.006620404305197687,
+              "EWT": 0.0001639109166396404,
+              "EWU": -0.015501585552614753,
+              "EWW": 0.013669844124915766,
+              "EWY": 0.0020827081785276804,
+              "EWZ": 0.003624958846607411,
+              "EZA": 0.005005907330757101,
+              "FXI": 0.015780751979179313,
+              "ILF": -0.0014123854062021474
+            },
+            "realized_returns": {
+              "EEM": -0.019995307489995118,
+              "EWA": -0.05989913738148789,
+              "EWC": 0.03581944591702191,
+              "EWG": 0.09375704829318399,
+              "EWH": 0.029790782089845202,
+              "EWJ": 0.11629954219374805,
+              "EWS": 0.0,
+              "EWT": 0.08801759940429044,
+              "EWU": 0.0842797104907731,
+              "EWW": -0.05257873210071973,
+              "EWY": 0.0055373670744451875,
+              "EWZ": -0.14711174113241876,
+              "EZA": -0.03815232787339107,
+              "FXI": -0.0004528885762100643,
+              "ILF": -0.09562438060078438
+            },
+            "reported_uncertainty": 0.055453071621056456,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2013-07-08",
+            "forward_end_date": "2013-10-04",
+            "train_start_date": "2010-07-06",
+            "train_end_date": "2013-07-08",
+            "scores": {
+              "EEM": -0.0011329592693604962,
+              "EWA": 0.005526729661143953,
+              "EWC": -0.007197927177316463,
+              "EWG": -0.01682712064468672,
+              "EWH": -0.009174085386808022,
+              "EWJ": 0.008434109297268465,
+              "EWS": 0.005021218263611594,
+              "EWT": -0.0019164230177690015,
+              "EWU": -0.015113918317691908,
+              "EWW": -0.010991675301581964,
+              "EWY": 0.00951807562192723,
+              "EWZ": 0.010978340744774199,
+              "EZA": -0.006936795230346905,
+              "FXI": -0.00280612158766009,
+              "ILF": 0.005449498342392634
+            },
+            "realized_returns": {
+              "EEM": 0.004258673346893893,
+              "EWA": 0.012033454928265241,
+              "EWC": -0.04391258074829052,
+              "EWG": 0.019481380072452037,
+              "EWH": 0.0,
+              "EWJ": -0.10288105411210746,
+              "EWS": -0.06324741165436953,
+              "EWT": -0.026201377980124896,
+              "EWU": -0.04035703851010086,
+              "EWW": -0.1153257140411601,
+              "EWY": 0.08404039841818256,
+              "EWZ": 0.048547773446006914,
+              "EZA": 0.038557636052607425,
+              "FXI": 0.058090211431777616,
+              "ILF": -0.014814739141618682
+            },
+            "reported_uncertainty": 0.05915938616289077,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2013-10-04",
+            "forward_end_date": "2014-01-06",
+            "train_start_date": "2010-10-04",
+            "train_end_date": "2013-10-04",
+            "scores": {
+              "EEM": -0.007390112503760553,
+              "EWA": 0.014103291452890007,
+              "EWC": 0.0012793558314985608,
+              "EWG": -0.028601084146645722,
+              "EWH": 0.006961116192563866,
+              "EWJ": 0.015993007405264718,
+              "EWS": 0.010491274105092513,
+              "EWT": 0.009076772769849143,
+              "EWU": 0.004017895698927964,
+              "EWW": -0.00855731124746416,
+              "EWY": -0.00041405135099075363,
+              "EWZ": -0.01955190055404349,
+              "EZA": -0.0203059877661912,
+              "FXI": 0.005183818939937904,
+              "ILF": -0.010280227749320366
+            },
+            "realized_returns": {
+              "EEM": -0.02532334011290016,
+              "EWA": -0.0036976676931915753,
+              "EWC": 0.051976606336429865,
+              "EWG": 0.12242792861006857,
+              "EWH": 0.01710583307353053,
+              "EWJ": 0.04972629884668833,
+              "EWS": 0.0,
+              "EWT": -0.007064496359289851,
+              "EWU": 0.09159792168220637,
+              "EWW": 0.04047489267831905,
+              "EWY": 0.008567584403999295,
+              "EWZ": -0.0813388735841385,
+              "EZA": -0.015671303076058574,
+              "FXI": -0.025873794917209647,
+              "ILF": -0.04818146581061833
+            },
+            "reported_uncertainty": 0.06327211443519885,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2014-01-06",
+            "forward_end_date": "2014-04-07",
+            "train_start_date": "2011-01-03",
+            "train_end_date": "2014-01-06",
+            "scores": {
+              "EEM": -0.0054702070297117395,
+              "EWA": 0.009845851170846983,
+              "EWC": -0.011449815040208861,
+              "EWG": -0.0026701945849482993,
+              "EWH": 0.016773220509603306,
+              "EWJ": 0.0004589632005019727,
+              "EWS": 0.007908682724199027,
+              "EWT": 0.023367995417396637,
+              "EWU": 0.0002507606018789686,
+              "EWW": -0.017609198299308397,
+              "EWY": -0.008192216437448382,
+              "EWZ": -0.0015426396606588802,
+              "EZA": -0.012090192623916286,
+              "FXI": -0.008521355558183764,
+              "ILF": 0.0009376495980998617
+            },
+            "realized_returns": {
+              "EEM": 0.018745238739340975,
+              "EWA": 0.03905328054958623,
+              "EWC": 0.0031346557573579403,
+              "EWG": -0.01789615999254357,
+              "EWH": -0.01560006883741405,
+              "EWJ": -0.08602485054831077,
+              "EWS": 0.0,
+              "EWT": 0.023371217785176812,
+              "EWU": -0.031356096101193165,
+              "EWW": -0.042169670363318645,
+              "EWY": -0.0010140488720287166,
+              "EWZ": 0.07910794114477415,
+              "EZA": 0.04511342363969084,
+              "FXI": -0.03059306465214162,
+              "ILF": 0.044323253567748244
+            },
+            "reported_uncertainty": 0.061960429762595574,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2014-04-07",
+            "forward_end_date": "2014-07-08",
+            "train_start_date": "2011-04-04",
+            "train_end_date": "2014-04-07",
+            "scores": {
+              "EEM": -0.014267257706224331,
+              "EWA": -0.007501458567460166,
+              "EWC": 0.008754422448834669,
+              "EWG": 0.02525866835717055,
+              "EWH": 0.022317960362742535,
+              "EWJ": 0.0034657560862017423,
+              "EWS": -0.01179678745932611,
+              "EWT": 0.007929467353201462,
+              "EWU": 0.005858827662912037,
+              "EWW": -0.006973988827983847,
+              "EWY": 0.02434695873921691,
+              "EWZ": -0.0070351579866276,
+              "EZA": 0.005760757448709895,
+              "FXI": -0.012905975479506414,
+              "ILF": -0.03337757678781372
+            },
+            "realized_returns": {
+              "EEM": 0.0,
+              "EWA": -0.03114272410322938,
+              "EWC": 0.032707063589825225,
+              "EWG": -0.05122832672277711,
+              "EWH": 0.0008912860023844171,
+              "EWJ": 0.011942807759534046,
+              "EWS": -0.01148817639235511,
+              "EWT": 0.05109657441613891,
+              "EWU": 0.002697297146730282,
+              "EWW": 0.005291742348875417,
+              "EWY": -0.025822503698736066,
+              "EWZ": -0.03975896599974238,
+              "EZA": -0.004917428945406366,
+              "FXI": 0.01352696271987508,
+              "ILF": -0.04705127356259764
+            },
+            "reported_uncertainty": 0.06107446102156918,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2014-07-08",
+            "forward_end_date": "2014-10-06",
+            "train_start_date": "2011-07-05",
+            "train_end_date": "2014-07-08",
+            "scores": {
+              "EEM": -0.015972080426071893,
+              "EWA": 0.018825672765887053,
+              "EWC": -0.006648769722670902,
+              "EWG": 0.014521552611048826,
+              "EWH": 0.014860522277185805,
+              "EWJ": -0.012641609844964968,
+              "EWS": -0.010597051265512076,
+              "EWT": -0.010152099556847316,
+              "EWU": 0.008895505562087598,
+              "EWW": -0.02055253135956401,
+              "EWY": 0.021723823594062528,
+              "EWZ": -0.009160657156671803,
+              "EZA": 0.004751849913784327,
+              "FXI": -0.015962202773687113,
+              "ILF": 0.003263895736069223
+            },
+            "realized_returns": {
+              "EEM": 0.0,
+              "EWA": -0.038958459415741054,
+              "EWC": -0.008041075172606549,
+              "EWG": -0.07915343315646128,
+              "EWH": 0.03384699552472281,
+              "EWJ": -0.0001019451795332138,
+              "EWS": 0.021638047220568835,
+              "EWT": 0.005517344088137643,
+              "EWU": -0.034902772662678716,
+              "EWW": 0.046429966081964924,
+              "EWY": -0.04530463264138562,
+              "EWZ": 0.01201003128989031,
+              "EZA": -0.008173301140881883,
+              "FXI": 0.060612847627758426,
+              "ILF": 0.04179236794800556
+            },
+            "reported_uncertainty": 0.05763365508112175,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2014-10-06",
+            "forward_end_date": "2015-01-06",
+            "train_start_date": "2011-10-03",
+            "train_end_date": "2014-10-06",
+            "scores": {
+              "EEM": -0.0006704605607166323,
+              "EWA": 0.01978854100204327,
+              "EWC": 0.0015049497444573176,
+              "EWG": 0.012926979570074095,
+              "EWH": -0.002107546212422039,
+              "EWJ": -0.019084046018942202,
+              "EWS": -0.014825409055981847,
+              "EWT": 0.0063225185887269405,
+              "EWU": -0.00523284382781721,
+              "EWW": -0.008193608008782029,
+              "EWY": 0.020118726909493494,
+              "EWZ": 0.012371103620972003,
+              "EZA": 0.013040752467129497,
+              "FXI": -0.0033803349297116905,
+              "ILF": 0.004008527041248194
+            },
+            "realized_returns": {
+              "EEM": -0.012702596156891732,
+              "EWA": 0.0,
+              "EWC": -0.01683677943662565,
+              "EWG": 0.03970340010222895,
+              "EWH": 0.03847958427430309,
+              "EWJ": 0.027861029002220206,
+              "EWS": 0.030251653479096974,
+              "EWT": 0.015892545435529315,
+              "EWU": -0.014871585626371253,
+              "EWW": -0.09830882678998332,
+              "EWY": -0.005617431286311869,
+              "EWZ": -0.16787801112548695,
+              "EZA": 0.04458325482826786,
+              "FXI": 0.1428060003330388,
+              "ILF": -0.12443890860011242
+            },
+            "reported_uncertainty": 0.05880780142825873,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2015-01-06",
+            "forward_end_date": "2015-04-08",
+            "train_start_date": "2012-01-03",
+            "train_end_date": "2015-01-06",
+            "scores": {
+              "EEM": 0.0031487273942521106,
+              "EWA": 0.0005203456400598345,
+              "EWC": 0.016386127020180986,
+              "EWG": -0.0030607945032180045,
+              "EWH": -0.0038951670010362893,
+              "EWJ": 0.0016079356960548906,
+              "EWS": 0.0013173744294013767,
+              "EWT": -0.0037012403335860665,
+              "EWU": -0.0033616640741556242,
+              "EWW": -0.0031322237137655323,
+              "EWY": 0.0035975118979928635,
+              "EWZ": 0.001601082801957443,
+              "EZA": -0.0016845823239057026,
+              "FXI": -0.00802086449808032,
+              "ILF": 0.001601082801957443
+            },
+            "realized_returns": {
+              "EEM": 0.027536270894737536,
+              "EWA": -0.010664643605304613,
+              "EWC": -0.07358689949375918,
+              "EWG": 0.06306381718233789,
+              "EWH": 0.06313819220831896,
+              "EWJ": 0.08851027218254459,
+              "EWS": -0.04355158857687247,
+              "EWT": 0.004795002373784829,
+              "EWU": -0.01121256370633028,
+              "EWW": -0.016442357769191673,
+              "EWY": 0.0,
+              "EWZ": -0.105495268686008,
+              "EZA": 0.021225889684492794,
+              "FXI": 0.1085038085609431,
+              "ILF": -0.06095643958960162
+            },
+            "reported_uncertainty": 0.06107446102156918,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2015-04-08",
+            "forward_end_date": "2015-07-08",
+            "train_start_date": "2012-04-03",
+            "train_end_date": "2015-04-08",
+            "scores": {
+              "EEM": 0.002221712360388236,
+              "EWA": 0.003977412790612134,
+              "EWC": 0.007953939242320684,
+              "EWG": 0.0037583923339229754,
+              "EWH": -0.0016340515969754923,
+              "EWJ": 0.006403227545626856,
+              "EWS": 0.012206959881573312,
+              "EWT": -0.0001422463567507469,
+              "EWU": 0.0017238973725127043,
+              "EWW": 0.0004103964892894063,
+              "EWY": 0.004391050541001312,
+              "EWZ": -0.010979110807072921,
+              "EZA": -0.0018750049321971081,
+              "FXI": -0.0040686682733486945,
+              "ILF": -0.01141500218571535
+            },
+            "realized_returns": {
+              "EEM": -0.03581445877719336,
+              "EWA": -0.028862402857687375,
+              "EWC": 0.023009056698978236,
+              "EWG": -0.0012618471690428734,
+              "EWH": -0.007105722486250854,
+              "EWJ": 0.04852135247636169,
+              "EWS": 0.04635775158729283,
+              "EWT": 0.04228450541468887,
+              "EWU": 0.05654491685672758,
+              "EWW": 0.021845895211386024,
+              "EWY": -0.017189584868197993,
+              "EWZ": 0.004977738629475925,
+              "EZA": -0.040407700505671995,
+              "FXI": -0.11367579022284535,
+              "ILF": 0.0
+            },
+            "reported_uncertainty": 0.06581975866159351,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2015-07-08",
+            "forward_end_date": "2015-10-06",
+            "train_start_date": "2012-07-03",
+            "train_end_date": "2015-07-08",
+            "scores": {
+              "EEM": -0.005361765879396604,
+              "EWA": 0.016481436712859336,
+              "EWC": -0.006849643902264137,
+              "EWG": 0.006066997908760105,
+              "EWH": 0.003244470912379821,
+              "EWJ": -0.003614187074385779,
+              "EWS": -0.009210261982675726,
+              "EWT": -0.007967461217305615,
+              "EWU": -0.017149983833782946,
+              "EWW": -0.013697865998434335,
+              "EWY": 0.0024634050081324918,
+              "EWZ": -0.02098288100523348,
+              "EZA": 0.005859584279269215,
+              "FXI": -0.013746133561076757,
+              "ILF": 0.002243650532814826
+            },
+            "realized_returns": {
+              "EEM": -0.00581312929684219,
+              "EWA": -0.011748919157788973,
+              "EWC": -0.012820745411925794,
+              "EWG": 0.0,
+              "EWH": 0.014683261659828695,
+              "EWJ": 0.017725083203593894,
+              "EWS": -0.0927213238654554,
+              "EWT": -0.031685932302432884,
+              "EWU": 0.03094792723190609,
+              "EWW": 0.003544626830865427,
+              "EWY": 0.02823378208830596,
+              "EWZ": -0.16873690790968954,
+              "EZA": 0.011931219638769752,
+              "FXI": 0.00866525552229569,
+              "ILF": -0.09416528881528363
+            },
+            "reported_uncertainty": 0.06257686925176681,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2015-10-06",
+            "forward_end_date": "2016-01-06",
+            "train_start_date": "2012-10-02",
+            "train_end_date": "2015-10-06",
+            "scores": {
+              "EEM": -0.013133017291621923,
+              "EWA": -0.02008782442894598,
+              "EWC": 0.011659510464561224,
+              "EWG": 0.010744333965509846,
+              "EWH": 0.01425806481779863,
+              "EWJ": 0.0012737125531957635,
+              "EWS": 0.016514773771553186,
+              "EWT": 0.005464533178692229,
+              "EWU": 0.003664398416002149,
+              "EWW": 0.019541303167862,
+              "EWY": -0.011528838286782334,
+              "EWZ": -0.00439189786008939,
+              "EZA": -0.01876756491941297,
+              "FXI": -0.024976821982183362,
+              "ILF": 0.0015261707028399927
+            },
+            "realized_returns": {
+              "EEM": -0.008962133889440893,
+              "EWA": 0.059550369890513766,
+              "EWC": -0.04784692034304627,
+              "EWG": 0.06679195688143602,
+              "EWH": 0.06237353589852912,
+              "EWJ": 0.09510120178007908,
+              "EWS": 0.046877030147661536,
+              "EWT": -0.010368934284589293,
+              "EWU": 0.007998104817255158,
+              "EWW": -0.003948586257944364,
+              "EWY": 0.04499692046656878,
+              "EWZ": -0.07028396356044919,
+              "EZA": -0.1335131922244448,
+              "FXI": 0.0,
+              "ILF": -0.055374792316688404
+            },
+            "reported_uncertainty": 0.06257686925176681,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2016-01-06",
+            "forward_end_date": "2016-04-07",
+            "train_start_date": "2013-01-04",
+            "train_end_date": "2016-01-06",
+            "scores": {
+              "EEM": -0.004468441308863466,
+              "EWA": -0.004697657055286994,
+              "EWC": -0.0055092695604720306,
+              "EWG": -0.00891555369641172,
+              "EWH": -0.014329507164084567,
+              "EWJ": -0.010444448061578597,
+              "EWS": 0.006644642460271915,
+              "EWT": -0.003944271842250298,
+              "EWU": -0.005756024143084116,
+              "EWW": 0.0009742871544715757,
+              "EWY": 0.008604932092909485,
+              "EWZ": -0.0038489227005763017,
+              "EZA": -0.0035197688054561917,
+              "FXI": 0.0015065823072774585,
+              "ILF": 0.002066770311719075
+            },
+            "realized_returns": {
+              "EEM": 0.0014493748054771327,
+              "EWA": -0.03543592593433509,
+              "EWC": 0.051348204786119345,
+              "EWG": -0.08168206340025486,
+              "EWH": -0.0561301032482473,
+              "EWJ": -0.13695423008241192,
+              "EWS": 0.007287369600282867,
+              "EWT": 0.022561998951313278,
+              "EWU": -0.08315205240110346,
+              "EWW": -0.001272362758885981,
+              "EWY": 0.0,
+              "EWZ": 0.18850917296713776,
+              "EZA": 0.05965240797909965,
+              "FXI": -0.089186637264001,
+              "ILF": 0.1006888036763871
+            },
+            "reported_uncertainty": 0.06327211443519877,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2016-04-07",
+            "forward_end_date": "2016-07-07",
+            "train_start_date": "2013-04-08",
+            "train_end_date": "2016-04-07",
+            "scores": {
+              "EEM": -0.004067127491651691,
+              "EWA": -0.004817002134145337,
+              "EWC": 0.0021642257999156824,
+              "EWG": 0.0003453070531453196,
+              "EWH": 0.008749193780602087,
+              "EWJ": 0.010925689275562334,
+              "EWS": -0.007362787002334397,
+              "EWT": 0.005184275963516209,
+              "EWU": 0.00851569830916714,
+              "EWW": -0.005744380865522072,
+              "EWY": -0.0033906996803367098,
+              "EWZ": -0.019333782135521657,
+              "EZA": -0.014253163063316495,
+              "FXI": -0.004914395390372913,
+              "ILF": -0.01825571498067741
+            },
+            "realized_returns": {
+              "EEM": -0.0029717017404071733,
+              "EWA": 0.01959272657480704,
+              "EWC": 0.03196595094466881,
+              "EWG": -0.077136279249016,
+              "EWH": -0.014796061069700661,
+              "EWJ": 0.011499893948506923,
+              "EWS": -0.015302082879971923,
+              "EWT": 0.02146672182963294,
+              "EWU": -0.046325536840732595,
+              "EWW": -0.07894639004239101,
+              "EWY": -0.02359592229633778,
+              "EWZ": 0.1313570845518941,
+              "EZA": 0.0013511791535731899,
+              "FXI": 0.0,
+              "ILF": 0.03627639127197391
+            },
+            "reported_uncertainty": 0.06614940459357181,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          },
+          {
+            "as_of_date": "2016-07-07",
+            "forward_end_date": "2016-10-05",
+            "train_start_date": "2013-07-08",
+            "train_end_date": "2016-07-07",
+            "scores": {
+              "EEM": -0.010217445737394503,
+              "EWA": 0.02801125224368978,
+              "EWC": 0.023397574002807328,
+              "EWG": 0.004044717097945482,
+              "EWH": 0.004005345301501666,
+              "EWJ": 0.002684546519807216,
+              "EWS": -0.00793241172658258,
+              "EWT": -0.0065197577883939015,
+              "EWU": 0.0034125837754048296,
+              "EWW": 0.001898914079502188,
+              "EWY": 0.0012153610382311599,
+              "EWZ": -0.02967802139442014,
+              "EZA": -0.014221501592667987,
+              "FXI": 0.002086672471707757,
+              "ILF": -0.027247230442439554
+            },
+            "realized_returns": {
+              "EEM": 0.004512927465730732,
+              "EWA": -0.02943338900470316,
+              "EWC": -0.07651247863254018,
+              "EWG": 0.025230524836740154,
+              "EWH": 0.028841227992334684,
+              "EWJ": -0.026939103068480463,
+              "EWS": -0.10923075545266703,
+              "EWT": 0.014316539225026625,
+              "EWU": -0.04206335438746911,
+              "EWW": -0.0843135241814752,
+              "EWY": 0.0,
+              "EWZ": 0.08718135356187351,
+              "EZA": -0.006628542920307456,
+              "FXI": 0.03969746348815684,
+              "ILF": 0.023877444353459065
+            },
+            "reported_uncertainty": 0.06614940459357181,
+            "active_universe_size": 15,
+            "available_universe_size": 15,
+            "missing_active_tickers": [],
+            "active_prediction_count": 15,
+            "active_universe_coverage_rate": 1.0,
+            "fit": {
+              "source_row_count": 180,
+              "fit_row_count": 180,
+              "training_period_count": 12,
+              "sample_weight_policy": "equal_total_weight_per_signal_date",
+              "model": "hist_gradient_boosting_regressor",
+              "model_settings": {
+                "loss": "absolute_error",
+                "learning_rate": 0.05,
+                "max_iter": 64,
+                "max_leaf_nodes": 7,
+                "min_samples_leaf": 20,
+                "l2_regularization": 5.0,
+                "early_stopping": false,
+                "random_state": 42
+              }
+            },
+            "target_diagnostics": null,
+            "coefficients": {}
+          }
+        ]
+      }
+    }
+  }
+}

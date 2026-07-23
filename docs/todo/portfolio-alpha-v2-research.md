@@ -82,6 +82,8 @@
 - rank-target minus raw paired P(higher)는 IC `18.75%`, spread `1.75%`였습니다. 같은 DOW 기간에서 tail-weight 변형을 연속 탐색하지 않습니다.
 - quarterly TTM PIT는 filing age를 약 306~309일에서 58~62일로 줄였지만 Nasdaq 2020~2021 research에서 annual predictor보다 IC `-0.0081`, spread `-0.0112` 열위였습니다.
 - realized target을 동일하게 고정한 비교에서도 annual과 quarterly 후보 모두 signal gate를 통과하지 못했습니다. 같은 Nasdaq 기간에서 분기 feature 변형을 연속 탐색하지 않습니다.
+- country ETF 15종 2010~2016 fresh research에서 fixed shallow histogram gradient boosting은 relative ridge보다 IC `-0.0303` 열위였고 paired P(higher IC/spread)는 `25.65%`/`57.35%`였습니다.
+- candidate-specific paired gate를 승격 판정에 강제했습니다. nonlinear 후보가 탈락했으므로 2017+ validation/holdout을 실행하지 않습니다.
 
 ## 참고
 
@@ -92,3 +94,4 @@
 - 독립 holdout 결과: `docs/reports/260724-0000-01-nasdaq100-frozen-holdout.md`
 - Rank-target 폐기: `docs/reports/260724-0009-01-rank-target-research.md`
 - Quarterly TTM 폐기: `docs/reports/260724-0024-01-quarterly-ttm-research.md`
+- Country ETF nonlinear 폐기: `docs/reports/260724-0049-01-country-etf-nonlinear-research.md`

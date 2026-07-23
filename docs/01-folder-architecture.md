@@ -59,7 +59,7 @@ src/backend/
 ├─ portfolio_signals.py              # risk parity, momentum rank, adaptive cross-sectional alpha helper
 ├─ portfolio_alpha_v2.py             # point-in-time factor 계약, factor-residual target, regularized alpha
 ├─ forecast_signal_research.py        # forecast 분포/OOS uncertainty/signal-only gate 진단
-├─ cross_sectional_forecast.py        # pooled ridge/pairwise/listwise walk-forward research
+├─ cross_sectional_forecast.py        # pooled linear/ranking/nonlinear walk-forward research
 ├─ portfolio_risk_models.py           # OOS covariance ensemble/stress, robust/nested covariance, ERC, HRP, CVaR
 ├─ portfolio_statistics.py            # paired block bootstrap와 multiple-testing gate
 ├─ sec_point_in_time.py               # SEC filing-date 기준 PIT 재무 factor 생성
