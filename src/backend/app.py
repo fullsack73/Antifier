@@ -27,6 +27,7 @@ from financial_statement import get_financial_dashboard, get_financial_statement
 from portfolio_optimization import (
     DEFAULT_MAX_TURNOVER,
     DEFAULT_REBALANCE_BAND,
+    DEFAULT_TRANSACTION_COST_BPS,
     optimize_portfolio,
     OptimizationCancelled,
     load_portfolio_result,
@@ -1636,6 +1637,15 @@ def manage_portfolio_endpoint():
                 required=False,
                 default=DEFAULT_MAX_TURNOVER
             )
+            transaction_cost_bps = parse_float_param(
+                data.get(
+                    'transaction_cost_bps',
+                    DEFAULT_TRANSACTION_COST_BPS,
+                ),
+                'transaction_cost_bps',
+                required=False,
+                default=DEFAULT_TRANSACTION_COST_BPS
+            )
             turnover_penalty = parse_float_param(
                 data.get('turnover_penalty', 0.0),
                 'turnover_penalty',
@@ -1664,6 +1674,10 @@ def manage_portfolio_endpoint():
                 raise ValueError('rebalance_band must be non-negative')
             if max_turnover is not None and max_turnover < 0:
                 raise ValueError('max_turnover must be non-negative')
+            if transaction_cost_bps < 0 or transaction_cost_bps >= 10000:
+                raise ValueError(
+                    'transaction_cost_bps must be non-negative and less than 10000'
+                )
             if turnover_penalty < 0:
                 raise ValueError('turnover_penalty must be non-negative')
             if min_holding_weight < 0:
@@ -1689,6 +1703,7 @@ def manage_portfolio_endpoint():
             fractional_overrides=fractional_overrides,
             rebalance_band=rebalance_band,
             max_turnover=max_turnover,
+            transaction_cost_bps=transaction_cost_bps,
             turnover_penalty=turnover_penalty,
             min_holding_weight=min_holding_weight,
             tickers=tickers

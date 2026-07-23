@@ -34,6 +34,7 @@ const PortfolioManager = () => {
   const [forecastHorizon, setForecastHorizon] = useState("63")
   const [minHistory, setMinHistory] = useState("504")
   const [blTau, setBlTau] = useState("0.05")
+  const [transactionCostBps, setTransactionCostBps] = useState("10")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [tickerGroup, setTickerGroup] = useState("CURRENT_HOLDINGS")
   const [customTickers, setCustomTickers] = useState([])
@@ -157,6 +158,7 @@ const PortfolioManager = () => {
     forecastHorizon,
     minHistory,
     blTau,
+    transactionCostBps,
     tickerGroup,
     customTickers,
     spaceUploadFileName,
@@ -211,6 +213,7 @@ const PortfolioManager = () => {
       setForecastHorizon(String(parsed.forecastHorizon || "63"))
       setMinHistory(String(parsed.minHistory || "504"))
       setBlTau(String(parsed.blTau || "0.05"))
+      setTransactionCostBps(String(parsed.transactionCostBps ?? "10"))
       setTickerGroup(parsed.tickerGroup || "CURRENT_HOLDINGS")
       setCustomTickers(Array.isArray(parsed.customTickers) ? parsed.customTickers : [])
       setSpaceUploadFileName(String(parsed.spaceUploadFileName || ""))
@@ -317,6 +320,9 @@ const PortfolioManager = () => {
     forecast_horizon: Number.parseInt(forecastHorizon),
     min_history: Number.parseInt(minHistory),
     bl_tau: Number.parseFloat(blTau),
+    transaction_cost_bps: Number.isFinite(Number.parseFloat(transactionCostBps))
+      ? Number.parseFloat(transactionCostBps)
+      : 10,
     ticker_group: tickerGroup,
     custom_tickers: customTickers,
     allow_fractional: allowFractional,
@@ -401,6 +407,9 @@ const PortfolioManager = () => {
         forecast_horizon: Number.parseInt(forecastHorizon),
         min_history: Number.parseInt(minHistory),
         bl_tau: Number.parseFloat(blTau),
+        transaction_cost_bps: Number.isFinite(Number.parseFloat(transactionCostBps))
+          ? Number.parseFloat(transactionCostBps)
+          : 10,
         allow_fractional: allowFractional,
         fractional_overrides: fractionalOverrides
       }
@@ -486,22 +495,31 @@ const PortfolioManager = () => {
   }
 
   const buildTargetPieData = () => {
-    if (!results || !results.weights || !results.prices) return null
+    if (!results || !results.prices) return null
+    const executionWeights = results.execution_target_weights || results.weights
+    if (!executionWeights) return null
     const holdingsDict = buildHoldingsDict()
     const totalCurrentValue = Object.entries(holdingsDict).reduce(
       (sum, [ticker, qty]) => sum + qty * (results.prices[ticker] || 0),
       0
     )
-    const totalTarget =
-      totalCurrentValue + (Number.parseFloat(cashInjection) || 0)
+    const responseTargetValue = Number(results.total_target_value)
+    const totalTarget = Number.isFinite(responseTargetValue)
+      ? responseTargetValue
+      : totalCurrentValue + (Number.parseFloat(cashInjection) || 0)
 
     const labels = []
     const values = []
-    for (const [ticker, weight] of Object.entries(results.weights)) {
+    for (const [ticker, weight] of Object.entries(executionWeights)) {
       if (weight > 0.0001) {
         labels.push(formatResultTicker(ticker))
         values.push(weight * totalTarget)
       }
+    }
+    const remainingCash = Number(results.remaining_cash)
+    if (Number.isFinite(remainingCash) && remainingCash > 0.01) {
+      labels.push(t("manager.remainingCash", "Remaining Cash"))
+      values.push(remainingCash)
     }
     return { labels, values }
   }
@@ -525,6 +543,7 @@ const PortfolioManager = () => {
   const expectedReturn = results?.expected_return ?? results?.return
   const volatility = results?.volatility ?? results?.risk
   const sharpeRatio = results?.sharpe_ratio
+  const displayedTargetWeights = results?.execution_target_weights || results?.weights
   const formatPercentMetric = (value) => {
     const numericValue = Number(value)
     return Number.isFinite(numericValue) ? `${(numericValue * 100).toFixed(2)}%` : "N/A"
@@ -924,6 +943,29 @@ const PortfolioManager = () => {
                     </small>
                   </div>
                 )}
+
+                <div className="optimizer-form-group">
+                  <label
+                    htmlFor="transactionCostBps"
+                    title={t(
+                      "manager.transactionCostHelp",
+                      "Estimated all-in execution cost applied to gross traded value. Default is 10 basis points."
+                    )}
+                  >
+                    {t("manager.transactionCostBps", "Transaction Cost (bps)")}
+                  </label>
+                  <input
+                    id="transactionCostBps"
+                    className="optimizer-input"
+                    type="number"
+                    min="0"
+                    max="9999.99"
+                    step="0.1"
+                    value={transactionCostBps}
+                    onChange={(e) => setTransactionCostBps(e.target.value)}
+                    placeholder="10"
+                  />
+                </div>
               </div>
             </div>
             <div className="optimizer-modal-footer">
@@ -1254,11 +1296,11 @@ const PortfolioManager = () => {
           )}
 
           {/* Target Weights */}
-          {results.weights && (
+          {displayedTargetWeights && (
             <div className="optimizer-weights-card" style={{ marginTop: "var(--spacing-xl)" }}>
-              <h4>{t("optimizer.weights", "Target Weights")}</h4>
+              <h4>{t("manager.executionWeights", "Executable Target Weights")}</h4>
               <ul className="optimizer-weights-list">
-                {Object.entries(results.weights)
+                {Object.entries(displayedTargetWeights)
                   .filter(([, w]) => w > 0.0001)
                   .sort(([, a], [, b]) => b - a)
                   .map(([ticker, weight]) => (
@@ -1309,6 +1351,32 @@ const PortfolioManager = () => {
                   {formatRatioMetric(sharpeRatio)}
                 </span>
               </div>
+              {results.transaction_cost !== undefined && (
+                <div className="manager-summary-card manager-summary-metric-card">
+                  <span className="manager-summary-label">
+                    {t("manager.transactionCost", "Estimated Transaction Cost")}
+                  </span>
+                  <span className="manager-summary-metric-value">
+                    ${Number(results.transaction_cost).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              )}
+              {results.remaining_cash !== undefined && (
+                <div className="manager-summary-card manager-summary-metric-card">
+                  <span className="manager-summary-label">
+                    {t("manager.remainingCash", "Remaining Cash")}
+                  </span>
+                  <span className="manager-summary-metric-value">
+                    ${Number(results.remaining_cash).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>

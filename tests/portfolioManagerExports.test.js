@@ -27,13 +27,14 @@ describe("portfolio manager export helpers", () => {
       target_quantities: { MSFT: 0, AAPL: 1.25, TSLA: 2 },
       prices: { AAPL: 200, TSLA: 12.5 },
       weights: { AAPL: 0.6, TSLA: 0.4 },
+      execution_target_weights: { AAPL: 0.5, TSLA: 0.05 },
     })
 
     expect(csv).toBe(
       [
         "TICKER,QUANTITY,PRICE,MARKET_VALUE,TARGET_WEIGHT",
-        "AAPL,1.250000,200.00,250.00,0.60000000",
-        "TSLA,2.000000,12.50,25.00,0.40000000",
+        "AAPL,1.250000,200.00,250.00,0.50000000",
+        "TSLA,2.000000,12.50,25.00,0.05000000",
       ].join("\n")
     )
   })
@@ -42,6 +43,7 @@ describe("portfolio manager export helpers", () => {
     const payload = buildPortfolioExportPayload({
       results: {
         weights: { AAPL: 1 },
+        execution_target_weights: { AAPL: 0.99 },
         prices: { AAPL: 200 },
         return: 0.12,
         risk: 0.2,
@@ -55,7 +57,7 @@ describe("portfolio manager export helpers", () => {
     expect(payload).toMatchObject({
       portfolio_id: "portfolio-rebalance-test",
       export_type: "portfolio_manager_rebalance",
-      weights: { AAPL: 1 },
+      weights: { AAPL: 0.99 },
       prices: { AAPL: 200 },
       expected_return: 0.12,
       volatility: 0.2,

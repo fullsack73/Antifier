@@ -76,6 +76,72 @@ def test_calculate_rebalance_orders_ignores_zero_exposure_without_price():
     assert result["buy_list"]["AAPL"]["quantity"] == pytest.approx(10.0)
 
 
+def test_rebalance_funds_transaction_cost_from_fractional_buys():
+    result = calculate_rebalance_orders(
+        {},
+        {"AAPL": 1.0},
+        {"AAPL": 100.0},
+        1000.0,
+        transaction_cost_bps=100.0,
+    )
+
+    target_value = result["target_quantities"]["AAPL"] * 100.0
+    assert result["buy_list"]["AAPL"]["quantity"] == pytest.approx(
+        1000.0 / 101.0
+    )
+    assert result["transaction_cost"] == pytest.approx(
+        result["gross_trade_value"] * 0.01
+    )
+    assert target_value + result["transaction_cost"] + result["remaining_cash"] == (
+        pytest.approx(1000.0)
+    )
+    assert result["remaining_cash"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_rebalance_transaction_cost_reduces_buys_without_hidden_sells():
+    result = calculate_rebalance_orders(
+        {"AAPL": 10.0},
+        {"AAPL": 0.0, "MSFT": 1.0},
+        {"AAPL": 100.0, "MSFT": 100.0},
+        0.0,
+        transaction_cost_bps=100.0,
+    )
+
+    assert result["sell_list"]["AAPL"]["quantity"] == pytest.approx(10.0)
+    assert result["buy_list"]["MSFT"]["quantity"] == pytest.approx(
+        (1000.0 - 2000.0 / 101.0) / 100.0
+    )
+    assert result["transaction_cost_diagnostics"][
+        "transaction_cost_funding_buy_reduction"
+    ] == pytest.approx(2000.0 / 101.0)
+    executed_value = (
+        result["target_quantities"]["MSFT"] * 100.0
+        + result["transaction_cost"]
+        + result["remaining_cash"]
+    )
+    assert executed_value == pytest.approx(1000.0)
+
+
+def test_rebalance_integer_orders_remain_cash_feasible_after_cost():
+    result = calculate_rebalance_orders(
+        {},
+        {"AAPL": 1.0},
+        {"AAPL": 333.0},
+        1000.0,
+        allow_fractional=False,
+        transaction_cost_bps=10.0,
+    )
+
+    assert result["target_quantities"]["AAPL"] == 3.0
+    assert result["transaction_cost"] == pytest.approx(0.999)
+    assert result["remaining_cash"] == pytest.approx(0.001)
+    assert (
+        result["target_quantities"]["AAPL"] * 333.0
+        + result["transaction_cost"]
+        + result["remaining_cash"]
+    ) == pytest.approx(1000.0)
+
+
 def test_manage_portfolio_rejects_partial_orders_when_holding_price_is_missing():
     opt_payload = {
         "weights": {"AAPL": 1.0},
@@ -418,6 +484,7 @@ def test_manage_portfolio_api(client):
         assert "weights" in data
         assert "buy_list" in data
         assert data["total_target_value"] == 3000.0
+        assert mock_logic.call_args.kwargs["transaction_cost_bps"] == 10.0
 
 
 def test_manage_portfolio_api_returns_400_for_incomplete_execution_prices(client):
@@ -437,6 +504,20 @@ def test_manage_portfolio_api_returns_400_for_incomplete_execution_prices(client
 
     assert response.status_code == 400
     assert response.get_json()["execution_price_coverage"] == 0.0
+
+
+def test_manage_portfolio_api_rejects_invalid_transaction_cost(client):
+    response = client.post('/api/manage-portfolio', json={
+        "current_holdings": {"AAPL": 1.0},
+        "cash_injection": 0.0,
+        "start_date": "2023-01-01",
+        "end_date": "2023-12-31",
+        "risk_free_rate": 0.02,
+        "transaction_cost_bps": 10000,
+    })
+
+    assert response.status_code == 400
+    assert "transaction_cost_bps" in response.get_json()["error"]
 
 
 def test_manage_portfolio_api_forwards_ticker_group(client):

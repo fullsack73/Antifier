@@ -53,6 +53,7 @@ MAX_FORECAST_CONFIDENCE = 0.95
 MAX_FORECAST_UNCERTAINTY = 5.0
 DEFAULT_REBALANCE_BAND = 0.02
 DEFAULT_MAX_TURNOVER = 0.35
+DEFAULT_TRANSACTION_COST_BPS = 10.0
 TRADING_DAYS_PER_YEAR = 252
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
@@ -755,6 +756,87 @@ def _weights_from_values(values, denominator):
         for ticker, value in pd.Series(values, dtype=float).items()
         if np.isfinite(value) and value > 1e-10
     }
+
+
+def _fund_transaction_cost(
+    current_values,
+    controlled_target_values,
+    portfolio_value,
+    transaction_cost_bps,
+):
+    """Fund execution cost from cash, then proportionally reduce buy orders."""
+    tickers = sorted(
+        set(pd.Series(current_values).index)
+        | set(pd.Series(controlled_target_values).index)
+    )
+    current = (
+        pd.Series(current_values, dtype=float)
+        .reindex(tickers)
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+    target = (
+        pd.Series(controlled_target_values, dtype=float)
+        .reindex(tickers)
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+    portfolio_value = max(0.0, _safe_float(portfolio_value, 0.0))
+    cost_rate = max(0.0, _safe_float(transaction_cost_bps, 0.0)) / 10000.0
+
+    pre_cost_trade_value = float((target - current).abs().sum())
+    cash_before_cost = float(portfolio_value - target.sum())
+    preliminary_cost = float(pre_cost_trade_value * cost_rate)
+    buy_reduction = 0.0
+
+    if cash_before_cost < preliminary_cost and cost_rate > 0.0:
+        buy_orders = (target - current).clip(lower=0.0)
+        total_buys = float(buy_orders.sum())
+        if total_buys > 0.0:
+            required_reduction = (
+                preliminary_cost - cash_before_cost
+            ) / (1.0 + cost_rate)
+            buy_reduction = float(
+                np.clip(required_reduction, 0.0, total_buys)
+            )
+            target = (
+                target
+                - buy_orders * (buy_reduction / total_buys)
+            ).clip(lower=0.0)
+
+    actual_deltas = target - current
+    controlled_trade_value = float(actual_deltas.abs().sum())
+    transaction_cost = float(controlled_trade_value * cost_rate)
+    investable_value = float(max(0.0, portfolio_value - transaction_cost))
+    cash_after_cost = float(investable_value - target.sum())
+    tolerance = max(1e-9, portfolio_value * 1e-12)
+    if cash_after_cost < -tolerance:
+        raise ValueError("Transaction cost funding produced negative cash")
+    cash_after_cost = max(0.0, cash_after_cost)
+
+    diagnostics = {
+        "pre_cost_controlled_trade_value": pre_cost_trade_value,
+        "controlled_trade_value": controlled_trade_value,
+        "controlled_turnover": (
+            0.0
+            if portfolio_value <= 0.0
+            else float(controlled_trade_value / portfolio_value)
+        ),
+        "post_control_net_trade_value": float(actual_deltas.sum()),
+        "transaction_cost_rate": float(cost_rate),
+        "transaction_cost_funding_buy_reduction": buy_reduction,
+        "cash_before_transaction_cost": cash_before_cost,
+        "cash_after_transaction_cost": cash_after_cost,
+    }
+    return (
+        target,
+        transaction_cost,
+        investable_value,
+        cash_after_cost,
+        diagnostics,
+    )
 
 
 def _performance_for_weights(
@@ -2863,7 +2945,8 @@ class RebalancePriceCoverageError(ValueError):
 
 def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection,
                                allow_fractional=True, fractional_overrides=None,
-                               rebalance_band=0.0, max_turnover=None):
+                               rebalance_band=0.0, max_turnover=None,
+                               transaction_cost_bps=0.0):
     """
     Generate exact Buy List and Sell List comparing current holdings to target optimized weights,
     respecting fractional trading constraints and redistributing unused cash.
@@ -2882,6 +2965,13 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         return parsed
 
     cash_injection = finite_nonnegative(cash_injection, "cash_injection")
+    transaction_cost_bps = finite_nonnegative(
+        transaction_cost_bps,
+        "transaction_cost_bps",
+    )
+    if transaction_cost_bps >= 10000:
+        raise ValueError("transaction_cost_bps must be less than 10000")
+    transaction_cost_rate = transaction_cost_bps / 10000.0
     current_holdings = {
         ticker: finite_nonnegative(quantity, f"current_holdings[{ticker}]")
         for ticker, quantity in current_holdings.items()
@@ -2959,6 +3049,19 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         controlled_target_values *= total_target_value / controlled_sum
         controlled_sum = float(controlled_target_values.sum())
     control_cash_reserve = max(0.0, total_target_value - controlled_sum)
+    pre_cost_controlled_target_values = controlled_target_values.copy()
+    (
+        controlled_target_values,
+        _continuous_transaction_cost,
+        _continuous_investable_value,
+        _continuous_cash_after_cost,
+        transaction_cost_diagnostics,
+    ) = _fund_transaction_cost(
+        current_values,
+        pre_cost_controlled_target_values,
+        total_target_value,
+        transaction_cost_bps,
+    )
 
     # Calculate ideal target quantities first
     ideal_quantities = {}
@@ -2986,7 +3089,7 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
             rounding_cash += (ideal_qty - floor_qty) * price
             
     # Redistribute only rounding cash. Cash reserved by trade controls stays in cash.
-    if rounding_cash > 0.01:
+    if rounding_cash > 0.01 and transaction_cost_rate == 0.0:
         if fractional_tickers:
             frac_value_sum = sum(controlled_target_values.get(t, 0.0) for t in fractional_tickers)
             if frac_value_sum > 0:
@@ -3012,6 +3115,45 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
                         changed = True
                         break
 
+    actual_target_values = {
+        ticker: target_quantities.get(ticker, 0.0)
+        * normalized_prices.get(ticker, 0.0)
+        for ticker in all_tickers
+    }
+    gross_trade_value = float(sum(
+        abs(
+            actual_target_values.get(ticker, 0.0)
+            - current_values.get(ticker, 0.0)
+        )
+        for ticker in all_tickers
+    ))
+    transaction_cost = float(gross_trade_value * transaction_cost_rate)
+    investable_value = float(max(0.0, total_target_value - transaction_cost))
+    remaining_cash = float(
+        investable_value - sum(actual_target_values.values())
+    )
+    cash_tolerance = max(1e-9, total_target_value * 1e-12)
+    if remaining_cash < -cash_tolerance:
+        raise ValueError("Transaction cost funding produced negative cash")
+    remaining_cash = max(0.0, remaining_cash)
+
+    transaction_cost_diagnostics = dict(transaction_cost_diagnostics)
+    transaction_cost_diagnostics.update({
+        "controlled_trade_value": gross_trade_value,
+        "controlled_turnover": (
+            0.0
+            if total_target_value <= 0.0
+            else float(gross_trade_value / total_target_value)
+        ),
+        "post_control_net_trade_value": float(
+            sum(actual_target_values.values())
+            - sum(current_values.values())
+        ),
+        "transaction_cost": transaction_cost,
+        "investable_value": investable_value,
+        "cash_after_transaction_cost": remaining_cash,
+    })
+
     buy_list = {}
     sell_list = {}
     
@@ -3034,8 +3176,17 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         "sell_list": sell_list,
         "target_quantities": target_quantities,
         "target_weights": target_weights,
+        "execution_target_weights": _weights_from_values(
+            actual_target_values,
+            total_target_value,
+        ),
         "total_target_value": total_target_value,
-        "remaining_cash": float(control_cash_reserve + rounding_cash),
+        "investable_value": investable_value,
+        "remaining_cash": remaining_cash,
+        "gross_trade_value": gross_trade_value,
+        "transaction_cost_bps": transaction_cost_bps,
+        "transaction_cost": transaction_cost,
+        "transaction_cost_diagnostics": transaction_cost_diagnostics,
         "required_price_tickers": sorted(str(ticker) for ticker in required_price_tickers),
         "execution_price_coverage": 1.0,
     }
@@ -3045,7 +3196,10 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         result.update({
             "rebalance_controls": rebalance_controls,
             "pre_control_weights": _weights_from_values(pre_control_target_values, total_target_value),
-            "controlled_weights": _weights_from_values(controlled_target_values, total_target_value),
+            "controlled_weights": _weights_from_values(
+                pre_cost_controlled_target_values,
+                total_target_value,
+            ),
         })
     return result
 
@@ -3055,6 +3209,7 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
                            tickers=None, allow_fractional=True, fractional_overrides=None,
                            rebalance_band=DEFAULT_REBALANCE_BAND,
                            max_turnover=DEFAULT_MAX_TURNOVER,
+                           transaction_cost_bps=DEFAULT_TRANSACTION_COST_BPS,
                            **kwargs):
 
     universe_tickers = list(current_holdings.keys())
@@ -3093,6 +3248,7 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
             fractional_overrides=fractional_overrides,
             rebalance_band=rebalance_band,
             max_turnover=max_turnover,
+            transaction_cost_bps=transaction_cost_bps,
         )
     except RebalancePriceCoverageError as exc:
         return {

@@ -24,7 +24,7 @@ export const escapeCsvValue = (value) => {
 export const buildTargetHoldingsCsv = (results) => {
   const quantities = results?.target_quantities || {}
   const prices = results?.prices || {}
-  const weights = results?.weights || {}
+  const weights = results?.execution_target_weights || results?.weights || {}
 
   const rows = Object.entries(quantities)
     .map(([ticker, quantity]) => {
@@ -76,7 +76,7 @@ export const buildPortfolioExportPayload = ({
     portfolio_id: portfolioId,
     export_type: "portfolio_manager_rebalance",
     exported_at: exportedAt,
-    weights: results.weights || {},
+    weights: results.execution_target_weights || results.weights || {},
     prices: results.prices || {},
     current_holdings: results.current_holdings || {},
     target_quantities: results.target_quantities || {},
