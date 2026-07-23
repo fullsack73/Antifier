@@ -174,6 +174,7 @@ Backend-only research tool:
   - max-Sharpe에 L2/turnover penalty가 있으면 변환된 단일 max-Sharpe 문제에 objective를 직접 붙이지 않고 convex efficient-return target grid를 비교합니다.
   - optimizer 응답의 return/risk/Sharpe는 threshold와 turnover control 이후 실제 반환 weight 기준으로 계산합니다.
   - backtest 최초 현금 배치는 rebalance band/turnover cap을 적용하지 않되 transaction cost는 부과합니다.
+  - backtest transaction cost는 실행 후 실제 gross traded notional에 비용률을 곱합니다. 목표 현금이 비용을 충당하지 못하면 기존 보유 전체를 비례 축소하지 않고 매수 주문만 비례 축소하며, 축소 후 체결액·비용·잔여 현금의 회계 항등식을 다시 계산합니다.
   - 부분 위험노출 research model의 잔여 현금은 signal date에 이용 가능한 historical daily risk-free return으로 적립하며, risk forecast는 실제 위험자산 노출을 사용합니다.
 
 API 변경 규칙:

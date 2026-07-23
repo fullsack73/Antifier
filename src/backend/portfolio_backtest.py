@@ -1463,6 +1463,89 @@ def calculate_turnover_and_cost(current_values, target_weights, portfolio_value,
     return float(turnover), float(cost)
 
 
+def _fund_transaction_cost(
+    current_values,
+    controlled_target_values,
+    portfolio_value,
+    transaction_cost_bps,
+):
+    """Fund execution cost from cash, then proportionally reduce buy orders."""
+    tickers = sorted(
+        set(pd.Series(current_values).index)
+        | set(pd.Series(controlled_target_values).index)
+    )
+    current = (
+        pd.Series(current_values, dtype=float)
+        .reindex(tickers)
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+    target = (
+        pd.Series(controlled_target_values, dtype=float)
+        .reindex(tickers)
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+    portfolio_value = max(0.0, _to_float(portfolio_value, 0.0))
+    cost_rate = max(0.0, _to_float(transaction_cost_bps, 0.0)) / 10000.0
+
+    pre_cost_trade_value = float((target - current).abs().sum())
+    cash_before_cost = float(portfolio_value - target.sum())
+    preliminary_cost = float(pre_cost_trade_value * cost_rate)
+    buy_reduction = 0.0
+
+    if cash_before_cost < preliminary_cost and cost_rate > 0.0:
+        buy_orders = (target - current).clip(lower=0.0)
+        total_buys = float(buy_orders.sum())
+        if total_buys > 0.0:
+            required_reduction = (
+                preliminary_cost - cash_before_cost
+            ) / (1.0 + cost_rate)
+            buy_reduction = float(
+                np.clip(required_reduction, 0.0, total_buys)
+            )
+            target = (
+                target
+                - buy_orders * (buy_reduction / total_buys)
+            ).clip(lower=0.0)
+
+    actual_deltas = target - current
+    controlled_trade_value = float(actual_deltas.abs().sum())
+    transaction_cost = float(controlled_trade_value * cost_rate)
+    investable_value = float(max(0.0, portfolio_value - transaction_cost))
+    cash_after_cost = float(investable_value - target.sum())
+    tolerance = max(1e-9, portfolio_value * 1e-12)
+    if cash_after_cost < -tolerance:
+        raise ValueError(
+            "Transaction cost funding produced negative cash"
+        )
+    cash_after_cost = max(0.0, cash_after_cost)
+
+    diagnostics = {
+        "pre_cost_controlled_trade_value": pre_cost_trade_value,
+        "controlled_trade_value": controlled_trade_value,
+        "controlled_turnover": (
+            0.0
+            if portfolio_value <= 0.0
+            else float(controlled_trade_value / portfolio_value)
+        ),
+        "post_control_net_trade_value": float(actual_deltas.sum()),
+        "transaction_cost_rate": float(cost_rate),
+        "transaction_cost_funding_buy_reduction": buy_reduction,
+        "cash_before_transaction_cost": cash_before_cost,
+        "cash_after_transaction_cost": cash_after_cost,
+    }
+    return (
+        target,
+        transaction_cost,
+        investable_value,
+        cash_after_cost,
+        diagnostics,
+    )
+
+
 def _cash_value_path(
     initial_cash,
     dates,
@@ -2294,16 +2377,27 @@ def run_portfolio_model_backtest(
                 ),
             )
             controls["initial_allocation"] = initial_allocation
-            cost = controls["controlled_trade_value"] * (_to_float(transaction_cost_bps, 0.0) / 10000.0)
-            investable_value = max(0.0, portfolio_value - cost)
-            controlled_target_values = controlled_target_values.reindex(train_prices.columns).fillna(0.0)
-            controlled_sum = float(controlled_target_values.sum())
-            if controlled_sum > investable_value and controlled_sum > 0:
-                controlled_target_values *= investable_value / controlled_sum
-                controlled_sum = float(controlled_target_values.sum())
+            (
+                controlled_target_values,
+                cost,
+                investable_value,
+                controlled_cash,
+                cost_diagnostics,
+            ) = _fund_transaction_cost(
+                current_values,
+                controlled_target_values,
+                portfolio_value,
+                transaction_cost_bps,
+            )
+            controls.update(cost_diagnostics)
+            controlled_target_values = (
+                controlled_target_values
+                .reindex(train_prices.columns)
+                .fillna(0.0)
+            )
 
             state["shares"] = (controlled_target_values / current_prices).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-            state["cash"] = max(0.0, investable_value - controlled_sum)
+            state["cash"] = controlled_cash
             turnover = controls["turnover"]
             controlled_turnover = controls["controlled_turnover"]
             state["turnovers"].append(turnover)

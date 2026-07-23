@@ -925,6 +925,56 @@ def test_turnover_and_transaction_cost_math():
     assert cost == pytest.approx(0.20)
 
 
+def test_transaction_cost_funding_reduces_only_buy_orders():
+    target, cost, investable, cash, diagnostics = (
+        portfolio_backtest._fund_transaction_cost(
+            {"AAA": 500.0, "BBB": 500.0},
+            {"AAA": 600.0, "BBB": 400.0},
+            portfolio_value=1000.0,
+            transaction_cost_bps=100.0,
+        )
+    )
+
+    assert target["AAA"] == pytest.approx(598.01980198)
+    assert target["BBB"] == pytest.approx(400.0)
+    assert cost == pytest.approx(1.98019802)
+    assert investable == pytest.approx(target.sum())
+    assert cash == pytest.approx(0.0)
+    assert diagnostics["pre_cost_controlled_trade_value"] == pytest.approx(
+        200.0
+    )
+    assert diagnostics["controlled_trade_value"] == pytest.approx(
+        198.01980198
+    )
+    assert diagnostics["transaction_cost_funding_buy_reduction"] == (
+        pytest.approx(1.98019802)
+    )
+    assert cost == pytest.approx(
+        diagnostics["controlled_trade_value"] * 0.01
+    )
+
+
+def test_transaction_cost_funding_uses_existing_cash_first():
+    target, cost, investable, cash, diagnostics = (
+        portfolio_backtest._fund_transaction_cost(
+            {"AAA": 500.0, "BBB": 500.0},
+            {"AAA": 550.0, "BBB": 400.0},
+            portfolio_value=1000.0,
+            transaction_cost_bps=100.0,
+        )
+    )
+
+    assert target.to_dict() == pytest.approx(
+        {"AAA": 550.0, "BBB": 400.0}
+    )
+    assert cost == pytest.approx(1.5)
+    assert investable == pytest.approx(998.5)
+    assert cash == pytest.approx(48.5)
+    assert diagnostics["transaction_cost_funding_buy_reduction"] == 0.0
+    assert diagnostics["cash_before_transaction_cost"] == pytest.approx(50.0)
+    assert diagnostics["cash_after_transaction_cost"] == pytest.approx(48.5)
+
+
 def test_inverse_vol_risk_parity_weights_sum_cap_and_prefer_lower_vol():
     dates = pd.date_range("2024-01-02", periods=80, freq="B")
     x = np.arange(len(dates))
@@ -1496,6 +1546,20 @@ def test_synthetic_backtest_runs_all_model_families(monkeypatch):
     assert "controlled_turnover" in result["summary_by_model"]["equal_weight"]
     assert "skipped_trade_count" in result["summary_by_model"]["equal_weight"]
     assert "turnover_cap_hit_count" in result["summary_by_model"]["equal_weight"]
+    for record in result["rebalance_records"]:
+        controls = record["rebalance_controls"]
+        assert record["transaction_cost"] == pytest.approx(
+            controls["controlled_trade_value"] * 0.001
+        )
+        assert record["portfolio_value_after_cost"] == pytest.approx(
+            record["portfolio_value_before_cost"]
+            - record["transaction_cost"]
+        )
+        assert (
+            record["controlled_risky_exposure"]
+            * record["portfolio_value_before_cost"]
+            + controls["cash_after_transaction_cost"]
+        ) == pytest.approx(record["portfolio_value_after_cost"])
 
 
 def test_adaptive_signal_backtest_records_signal_construction_and_execution_layers():

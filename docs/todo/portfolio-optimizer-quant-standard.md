@@ -171,6 +171,8 @@
 - 35% exact constraint는 첫 배치 제외 47회 중 1회(`2.13%`)만 binding했습니다. 같은 split에서 limit를 10%/20%로 낮춰 재튜닝하지 않고 validation/holdout을 봉인합니다.
 - Unchanged plain minvar의 independent early 49-industry replication은 deterministic gate와 risk-parity gate를 통과했지만 lightweight 대비 P(higher Sharpe) `86.70%`로 95% gate에서 탈락했습니다.
 - 이 복제에서 absolute 2% band가 diversified target의 매수/매도를 비대칭 제거해 평균 현금을 최대 `14.55%` 누적시키는 execution bug를 발견했습니다. Target net trade 보존으로 수정 후 fully-invested 모델 현금은 `0.021%` 이하였습니다.
+- Transaction cost 계산 뒤 모든 보유를 비례 축소하던 숨은 매도를 제거했습니다. 목표 현금을 먼저 사용하고 부족분만 매수 주문에서 줄인 뒤 실제 gross trade로 비용을 재계산하며, 회계 항등식과 음수 현금 방지 테스트를 추가했습니다.
+- 이미 본 early 49-industry panel의 mechanical diagnostic에서 비용 항등식 최대 오차는 `0`, 최소 잔여 현금은 `0`이었습니다. 이는 execution truth 개선이며 candidate 승격 근거로 재사용하지 않습니다.
 
 ## 금지
 
