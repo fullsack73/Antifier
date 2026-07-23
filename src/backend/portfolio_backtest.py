@@ -44,6 +44,7 @@ from portfolio_alpha_v2 import (
 )
 from forecast_signal_research import prediction_distribution_diagnostics
 from portfolio_risk_models import (
+    constant_correlation_minimum_variance_weights,
     cross_validated_minimum_variance_weights,
     equal_risk_contribution_weights,
     forecast_ensemble_minimum_variance_weights,
@@ -124,6 +125,7 @@ DEFAULT_BACKTEST_MODELS = (
 SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "factor_neutral_alpha_tilt",
     "robust_min_variance",
+    "constant_correlation_minimum_variance",
     "equal_risk_contribution",
     "hierarchical_risk_parity",
     "nested_clustered_minimum_variance",
@@ -907,6 +909,19 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
         weights, risk_diagnostics = robust_minimum_variance_weights(
             train_prices,
             max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "constant_correlation_minimum_variance":
+        weights, risk_diagnostics = (
+            constant_correlation_minimum_variance_weights(
+                train_prices,
+                max_asset_weight=max_asset_weight,
+            )
         )
         return weights.to_dict(), {
             "failed_forecast_count": 0,

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-38-source-33-complete-constant-correlation-research-1971-1980-v1",
+  "role": "research",
+  "evaluation_start": "1971-12-29",
+  "evaluation_end": "1980-12-31",
+  "experiment_namespace": "allocator-v3-constant-correlation-minvar-industry-portfolios",
+  "objectives": [
+    "constant_correlation_minimum_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "constant_correlation_minimum_variance",
+    "statistical_baselines": [
+      "min_variance",
+      "risk_parity",
+      "lightweight_bl"
+    ],
+    "guard_baselines": [
+      "equal_weight",
+      "historical_bl"
+    ],
+    "models": [
+      "equal_weight",
+      "historical_bl",
+      "min_variance",
+      "risk_parity",
+      "lightweight_bl",
+      "constant_correlation_minimum_variance"
+    ],
+    "candidate_policy": {
+      "objective": "long_only_minimum_variance",
+      "covariance": "ledoit_wolf_constant_correlation",
+      "shrinkage_target": "constant_correlation",
+      "expected_returns": "unused",
+      "forecast_model": "unused"
+    }
+  },
+  "universe_manifest_sha256": "429758ce7b486d29f650e5e0a247ea7b0db82ec3f7270f5cf7f3d655c9d79c97",
+  "price_file_sha256": "a0f8966f1e0c368feaaca585176560abc24d28f38fbdc7030a377da4d34619c4",
+  "factor_file_sha256": "fd06d2f0fdb1a024fa9d885690fafee9747c3627d9aba718b859b91c8a073986",
+  "auxiliary_files": {
+    "price_provenance": "b9281a525b29e69d4640590c6d616d1504bb41ba0a328399b8f33416b947bde3",
+    "risk_free_provenance": "9de0e223ff426df07a40655aa0f83f0ddf579e080116d17b34d1c088e13acdd5"
+  },
+  "locked": true,
+  "manifest_sha256": "e7cf7a584d4535095fc1de3c2f81cb079ad8ff7c1786c9eba9011fa39d4a8fbf"
+}

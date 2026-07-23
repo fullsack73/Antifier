@@ -64,6 +64,13 @@ CANDIDATE_POLICIES = {
         "expected_returns": "unused",
         "forecast_model": "unused",
     },
+    "constant_correlation_minimum_variance": {
+        "objective": "long_only_minimum_variance",
+        "covariance": "ledoit_wolf_constant_correlation",
+        "shrinkage_target": "constant_correlation",
+        "expected_returns": "unused",
+        "forecast_model": "unused",
+    },
 }
 
 
@@ -199,11 +206,16 @@ def _write_report(
 ):
     summary = payload["result"]["summary_by_model"]
     candidate = payload["settings"]["candidate"]
-    title = (
-        "Plain Minimum-Variance Promotion Research"
-        if candidate == "min_variance"
-        else "Nested Clustered Minimum-Variance Promotion Research"
-    )
+    titles = {
+        "min_variance": "Plain Minimum-Variance Promotion Research",
+        "nested_clustered_minimum_variance": (
+            "Nested Clustered Minimum-Variance Promotion Research"
+        ),
+        "constant_correlation_minimum_variance": (
+            "Constant-Correlation Minimum-Variance Promotion Research"
+        ),
+    }
+    title = titles[candidate]
     lines = [
         f"# {title}",
         "",
@@ -309,8 +321,24 @@ def _candidate_risk_diagnostics(result, candidate):
         for item in diagnostics
         if item.get("pre_cap_maximum_weight") is not None
     ]
+    shrinkage_intensities = [
+        float(item["shrinkage_intensity"])
+        for item in diagnostics
+        if item.get("shrinkage_intensity") is not None
+    ]
+    methods = {
+        method: int(
+            sum(item.get("method") == method for item in diagnostics)
+        )
+        for method in sorted({
+            item.get("method")
+            for item in diagnostics
+            if item.get("method")
+        })
+    }
     return {
         "rebalance_count": int(len(diagnostics)),
+        "method_distribution": methods,
         "cluster_count_distribution": distribution,
         "mean_cluster_count": (
             None
@@ -338,6 +366,24 @@ def _candidate_risk_diagnostics(result, candidate):
             None
             if not cap_distances
             else float(sum(cap_distances) / len(cap_distances))
+        ),
+        "mean_shrinkage_intensity": (
+            None
+            if not shrinkage_intensities
+            else float(
+                sum(shrinkage_intensities)
+                / len(shrinkage_intensities)
+            )
+        ),
+        "minimum_shrinkage_intensity": (
+            None
+            if not shrinkage_intensities
+            else float(min(shrinkage_intensities))
+        ),
+        "maximum_shrinkage_intensity": (
+            None
+            if not shrinkage_intensities
+            else float(max(shrinkage_intensities))
         ),
         "first_clusters": diagnostics[0].get("clusters"),
         "last_clusters": diagnostics[-1].get("clusters"),

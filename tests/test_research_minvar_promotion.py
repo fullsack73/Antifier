@@ -1,6 +1,8 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
@@ -99,6 +101,8 @@ def test_candidate_risk_diagnostics_summarizes_clusters():
                     "fallback": False,
                     "pre_cap_maximum_weight": 0.24,
                     "cap_projection_l1_distance": 0.08,
+                    "shrinkage_intensity": 0.20,
+                    "method": "nested_clustered_minimum_variance",
                     "clusters": {"1": ["A", "B"]},
                 },
             },
@@ -112,6 +116,8 @@ def test_candidate_risk_diagnostics_summarizes_clusters():
                     "fallback": False,
                     "pre_cap_maximum_weight": 0.22,
                     "cap_projection_l1_distance": 0.04,
+                    "shrinkage_intensity": 0.40,
+                    "method": "nested_clustered_minimum_variance",
                     "clusters": {"1": ["A"], "2": ["B"]},
                 },
             },
@@ -133,3 +139,21 @@ def test_candidate_risk_diagnostics_summarizes_clusters():
     assert diagnostics["mean_selected_silhouette"] == 0.59
     assert diagnostics["optimizer_success_rate"] == 1.0
     assert diagnostics["fallback_rate"] == 0.0
+    assert diagnostics["mean_shrinkage_intensity"] == pytest.approx(
+        0.30
+    )
+    assert diagnostics["method_distribution"] == {
+        "nested_clustered_minimum_variance": 2
+    }
+
+
+def test_constant_correlation_policy_is_return_forecast_free():
+    policy = research_minvar_promotion.CANDIDATE_POLICIES[
+        "constant_correlation_minimum_variance"
+    ]
+
+    assert policy["covariance"] == (
+        "ledoit_wolf_constant_correlation"
+    )
+    assert policy["expected_returns"] == "unused"
+    assert policy["forecast_model"] == "unused"

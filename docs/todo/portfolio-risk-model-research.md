@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: NCO도 plain Ledoit minimum variance의 Sharpe를 개선하지 못해 탈락
+- 현재 상태: constant-correlation shrinkage는 deterministic 개선 후 statistical gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -125,6 +125,17 @@
 - Deterministic 및 six-hypothesis Holm gate에서 탈락했습니다. Linkage, cluster-count range, covariance estimator를 같은 split에서 재튜닝하지 않습니다.
 - Validation/holdout은 열지 않고 default allocator를 유지합니다.
 - 보고서: `docs/reports/260724-0623-01-nco-minvar-research.md`
+
+## 2026-07-24 constant-correlation shrinkage research
+
+- 기존 `constant_variance` Ledoit-Wolf baseline과 다른 `constant_correlation` shrinkage target을 parameter-free risk-only candidate로 추가했습니다.
+- Official French 38-industry source에서 결측 5개를 exact-name 제외한 33개 portfolio `1971~1980` fresh split을 SHA로 잠갔습니다.
+- Candidate volatility/Sharpe `10.24%/0.3729`는 minvar `10.33%/0.3514`, risk parity `12.17%/0.2038`, lightweight `13.33%/0.2535`보다 우수해 deterministic gate를 통과했습니다.
+- P(lower volatility)는 세 baseline 모두 `100%`였지만 P(higher Sharpe)는 `89.85%/85.65%/76.90%`였습니다.
+- Minvar higher-Sharpe Holm-adjusted p-value는 `0.3045`로 statistical gate를 통과하지 못했습니다.
+- 평균 shrinkage intensity는 `9.10%`, 범위는 `5.45%~16.65%`, optimizer 성공률은 `100%`였습니다.
+- Default를 변경하지 않고 shrinkage target 재탐색과 validation/holdout 실행을 금지합니다.
+- 보고서: `docs/reports/260724-0636-01-constant-correlation-minvar-research.md`
 
 ## 2026-07-24 RMT research
 

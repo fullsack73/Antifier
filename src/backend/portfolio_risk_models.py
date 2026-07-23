@@ -189,6 +189,33 @@ def robust_minimum_variance_weights(
     return weights, diagnostics
 
 
+def constant_correlation_minimum_variance_weights(
+    price_data,
+    max_asset_weight=0.20,
+):
+    """Long-only minimum variance with Ledoit-Wolf correlation shrinkage."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    tickers = list(prices.columns)
+    estimator = risk_models.CovarianceShrinkage(prices)
+    covariance = estimator.ledoit_wolf(
+        shrinkage_target="constant_correlation"
+    ).reindex(index=tickers, columns=tickers)
+    weights, success = _minimum_variance_from_covariance(
+        covariance,
+        tickers,
+        max_asset_weight,
+    )
+    return weights, {
+        "method": (
+            "ledoit_wolf_constant_correlation_minimum_variance"
+        ),
+        "shrinkage_target": "constant_correlation",
+        "shrinkage_intensity": float(estimator.delta),
+        "optimizer_success": bool(success),
+        "covariance": covariance_diagnostics(covariance),
+    }
+
+
 def maximum_diversification_weights(
     price_data,
     max_asset_weight=0.20,

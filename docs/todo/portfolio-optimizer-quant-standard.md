@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: plain minimum variance와 NCO 모두 default-promotion gate에서 탈락
+- 현재 상태: constant-correlation minvar도 statistical promotion gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -156,6 +156,10 @@
 - Official French 38-industry source의 30개 complete portfolio `1929~1969` locked research에서 training-only silhouette clustering, cluster 내부/간 Ledoit-Wolf minimum variance를 적용했습니다.
 - NCO volatility는 minvar `11.83%→11.76%`로 미세 개선했지만 Sharpe `0.5933→0.5671`, max drawdown `-78.10%→-78.95%`로 악화됐습니다.
 - Minvar 대비 P(lower volatility/higher Sharpe)는 `86.65%/13.90%`였고 6-hypothesis Holm gate를 통과하지 못했습니다. Cluster 수/linkage를 같은 split에서 재튜닝하지 않고 validation/holdout을 봉인합니다.
+- Ledoit-Wolf shrinkage target을 constant variance에서 constant correlation로 바꾼 parameter-free minimum variance를 새 independent family로 사전 고정했습니다.
+- Official French 38-industry source의 33개 complete portfolio `1971~1980` locked research에서 candidate는 minvar 대비 CAGR `10.34%→10.56%`, volatility `10.33%→10.24%`, Sharpe `0.3514→0.3729`, drawdown `-34.65%→-34.59%`로 deterministic gate를 통과했습니다.
+- 세 statistical baseline 모두에서 P(lower volatility)는 `100%`였지만 P(higher Sharpe)는 minvar/risk parity/lightweight 대비 `89.85%/85.65%/76.90%`로 95%와 Holm gate에 미달했습니다.
+- 평균 지표의 일관된 개선만으로 승격하지 않습니다. Shrinkage target을 같은 split에서 재탐색하지 않고 validation/holdout을 봉인합니다.
 
 ## 금지
 

@@ -14,6 +14,7 @@ if str(BACKEND) not in sys.path:
 import portfolio_backtest  # noqa: E402
 from portfolio_signals import risk_managed_momentum_weights  # noqa: E402
 from portfolio_risk_models import (  # noqa: E402
+    constant_correlation_minimum_variance_weights,
     covariance_diagnostics,
     covariance_forecast_loss,
     covariance_stress_diagnostics,
@@ -90,10 +91,29 @@ def test_robust_covariance_is_psd_and_reports_conditioning():
     assert 1.0 <= diagnostics["effective_rank"] <= len(covariance)
 
 
+def test_constant_correlation_minvar_reports_shrinkage_target():
+    weights, diagnostics = (
+        constant_correlation_minimum_variance_weights(
+            _correlated_prices(),
+            max_asset_weight=0.25,
+        )
+    )
+
+    assert diagnostics["method"] == (
+        "ledoit_wolf_constant_correlation_minimum_variance"
+    )
+    assert diagnostics["shrinkage_target"] == "constant_correlation"
+    assert 0.0 <= diagnostics["shrinkage_intensity"] <= 1.0
+    assert diagnostics["optimizer_success"] is True
+    assert weights.sum() == pytest.approx(1.0)
+    assert weights.max() <= 0.250001
+
+
 @pytest.mark.parametrize(
     "allocator",
     (
         robust_minimum_variance_weights,
+        constant_correlation_minimum_variance_weights,
         equal_risk_contribution_weights,
         hierarchical_risk_parity_weights,
         regime_minimum_variance_weights,
@@ -220,6 +240,28 @@ def test_backtest_runs_nested_clustered_minimum_variance_model():
     assert all(
         record["risk_model"]["method"]
         == "nested_clustered_minimum_variance"
+        for record in result["rebalance_records"]
+    )
+
+
+def test_backtest_runs_constant_correlation_minimum_variance_model():
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _correlated_prices(),
+        models=("constant_correlation_minimum_variance",),
+        train_window=252,
+        rebalance_frequency=63,
+        forecast_horizon=63,
+        max_asset_weight=0.25,
+    )
+
+    summary = result["summary_by_model"][
+        "constant_correlation_minimum_variance"
+    ]
+    assert summary["rebalance_count"] > 0
+    assert summary["annual_volatility"] > 0.0
+    assert all(
+        record["risk_model"]["shrinkage_target"]
+        == "constant_correlation"
         for record in result["rebalance_records"]
     )
 
