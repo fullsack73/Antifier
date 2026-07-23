@@ -1,0 +1,444 @@
+{
+  "validation_split": "fama-french-25-quality-momentum-validation-2000-2011-v1",
+  "experiment_namespace": "alpha-v10-quality-momentum-validation",
+  "frozen_from": "fama-french-25-quality-momentum-research-1965-1999-v1",
+  "frozen_result": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_quality_momentum_research_result_v1.json",
+    "sha256": "df7c5e9dbff92351b3034475e9591ff005cc4a2d93374de86de72709361fe872",
+    "promotion_eligible": true
+  },
+  "split": {
+    "schema_version": 1,
+    "split_id": "fama-french-25-quality-momentum-validation-2000-2011-v1",
+    "role": "validation",
+    "evaluation_start": "2000-01-04",
+    "evaluation_end": "2011-09-30",
+    "experiment_namespace": "alpha-v10-quality-momentum-validation",
+    "objectives": [
+      "quality_momentum"
+    ],
+    "settings": {
+      "train_window": 505,
+      "horizon": 63,
+      "rebalance_step": 63,
+      "momentum_lookback": 252,
+      "momentum_skip": 21,
+      "momentum_weight": 0.5,
+      "profitability_weight": 0.25,
+      "conservative_investment_weight": 0.25,
+      "profitability_signal": "official_annual_operating_profitability_quintile",
+      "investment_signal": "inverse_official_annual_investment_quintile",
+      "baseline": "momentum_12_1",
+      "bootstrap_samples": 2000,
+      "bootstrap_block_size": 4,
+      "bootstrap_minimum_probability": 0.95,
+      "frozen_candidate_policy": {
+        "source_split_id": "fama-french-25-quality-momentum-research-1965-1999-v1",
+        "candidate": "quality_momentum",
+        "candidate_specification": "unchanged"
+      },
+      "validation_cases": [
+        {
+          "id": "low_profitability",
+          "tickers": [
+            "LoOP LoINV",
+            "OP1 INV2",
+            "OP1 INV3",
+            "OP1 INV4",
+            "LoOP HiINV",
+            "OP2 INV1",
+            "OP2 INV2",
+            "OP2 INV3",
+            "OP2 INV4",
+            "OP2 INV5"
+          ]
+        },
+        {
+          "id": "high_profitability",
+          "tickers": [
+            "OP4 INV1",
+            "OP4 INV2",
+            "OP4 INV3",
+            "OP4 INV4",
+            "OP4 INV5",
+            "HiOP LoINV",
+            "OP5 INV2",
+            "OP5 INV3",
+            "OP5 INV4",
+            "HiOP HiINV"
+          ]
+        },
+        {
+          "id": "low_investment",
+          "tickers": [
+            "LoOP LoINV",
+            "OP1 INV2",
+            "OP2 INV1",
+            "OP2 INV2",
+            "OP3 INV1",
+            "OP3 INV2",
+            "OP4 INV1",
+            "OP4 INV2",
+            "HiOP LoINV",
+            "OP5 INV2"
+          ]
+        },
+        {
+          "id": "high_investment",
+          "tickers": [
+            "OP1 INV4",
+            "LoOP HiINV",
+            "OP2 INV4",
+            "OP2 INV5",
+            "OP3 INV4",
+            "OP3 INV5",
+            "OP4 INV4",
+            "OP4 INV5",
+            "OP5 INV4",
+            "HiOP HiINV"
+          ]
+        }
+      ]
+    },
+    "universe_manifest_sha256": "4116f11c664f2ec1f7150cfafba279f6a89cb26f82e454e63a6259fc7ea032b5",
+    "price_file_sha256": "d5893b5213483d1ec443d7aea80351b03d1914aa5a098720757570524ee6eace",
+    "factor_file_sha256": null,
+    "auxiliary_files": {
+      "frozen_result": "df7c5e9dbff92351b3034475e9591ff005cc4a2d93374de86de72709361fe872"
+    },
+    "locked": true,
+    "manifest_sha256": "01da860cbf2dc3a11d94e1a44ce5110ba29cc0e51ce59f6508be55f69789ce66",
+    "promotion_safe": true,
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_quality_momentum_validation_split_v1.json",
+    "file_sha256": "cf702739ecabb239aefc106c200d5336b43ced4a2fd5588e6110ae50d23b7241"
+  },
+  "data": {
+    "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_profitability_investment_prices_1998_2011.csv",
+    "price_provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_profitability_investment_prices_1998_2011.provenance.json",
+    "row_count": 3523,
+    "ticker_count": 25
+  },
+  "settings": {
+    "train_window": 505,
+    "horizon": 63,
+    "rebalance_step": 63,
+    "momentum_lookback": 252,
+    "momentum_skip": 21,
+    "momentum_weight": 0.5,
+    "profitability_weight": 0.25,
+    "conservative_investment_weight": 0.25,
+    "profitability_signal": "official_annual_operating_profitability_quintile",
+    "investment_signal": "inverse_official_annual_investment_quintile",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "frozen_candidate_policy": {
+      "source_split_id": "fama-french-25-quality-momentum-research-1965-1999-v1",
+      "candidate": "quality_momentum",
+      "candidate_specification": "unchanged"
+    },
+    "validation_cases": [
+      {
+        "id": "low_profitability",
+        "tickers": [
+          "LoOP LoINV",
+          "OP1 INV2",
+          "OP1 INV3",
+          "OP1 INV4",
+          "LoOP HiINV",
+          "OP2 INV1",
+          "OP2 INV2",
+          "OP2 INV3",
+          "OP2 INV4",
+          "OP2 INV5"
+        ]
+      },
+      {
+        "id": "high_profitability",
+        "tickers": [
+          "OP4 INV1",
+          "OP4 INV2",
+          "OP4 INV3",
+          "OP4 INV4",
+          "OP4 INV5",
+          "HiOP LoINV",
+          "OP5 INV2",
+          "OP5 INV3",
+          "OP5 INV4",
+          "HiOP HiINV"
+        ]
+      },
+      {
+        "id": "low_investment",
+        "tickers": [
+          "LoOP LoINV",
+          "OP1 INV2",
+          "OP2 INV1",
+          "OP2 INV2",
+          "OP3 INV1",
+          "OP3 INV2",
+          "OP4 INV1",
+          "OP4 INV2",
+          "HiOP LoINV",
+          "OP5 INV2"
+        ]
+      },
+      {
+        "id": "high_investment",
+        "tickers": [
+          "OP1 INV4",
+          "LoOP HiINV",
+          "OP2 INV4",
+          "OP2 INV5",
+          "OP3 INV4",
+          "OP3 INV5",
+          "OP4 INV4",
+          "OP4 INV5",
+          "OP5 INV4",
+          "HiOP HiINV"
+        ]
+      }
+    ]
+  },
+  "candidate": "quality_momentum",
+  "baseline": "momentum_12_1",
+  "passed_case_count": 4,
+  "case_count": 4,
+  "aggregate_gate": {
+    "status": "rejected",
+    "reasons": [
+      "Positive mean rank-IC bootstrap probability is below 95%."
+    ],
+    "candidate_gate": {
+      "status": "rejected",
+      "reasons": [
+        "Positive mean rank-IC bootstrap probability is below 95%."
+      ],
+      "minimum_bootstrap_probability": 0.95
+    },
+    "candidate_bootstrap": {
+      "status": "ok",
+      "observation_count": 47,
+      "block_size": 4,
+      "samples": 2000,
+      "seed": 42,
+      "observed": {
+        "mean_rank_ic": 0.0696663599351249,
+        "mean_top_bottom_spread": 0.016436844654665606
+      },
+      "probability": {
+        "positive_mean_rank_ic": 0.916,
+        "positive_mean_top_bottom_spread": 0.9755
+      },
+      "interval": {
+        "mean_rank_ic": {
+          "lower_95": -0.0340390287246705,
+          "median": 0.07005991077175366,
+          "upper_95": 0.1717353870166069
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": 7.18487651061493e-05,
+          "median": 0.015984697359402687,
+          "upper_95": 0.0358625412680082
+        }
+      }
+    },
+    "paired_gate": {
+      "status": "passed",
+      "reasons": []
+    },
+    "paired_bootstrap": {
+      "status": "ok",
+      "observation_count": 47,
+      "block_size": 4,
+      "samples": 2000,
+      "seed": 44,
+      "observed_difference": {
+        "mean_rank_ic": 0.06077928955869283,
+        "mean_top_bottom_spread": 0.01488196288310172
+      },
+      "probability": {
+        "higher_mean_rank_ic": 0.985,
+        "higher_mean_top_bottom_spread": 0.999
+      },
+      "difference_interval": {
+        "mean_rank_ic": {
+          "lower_95": 0.0035433911977956548,
+          "median": 0.06162278658354088,
+          "upper_95": 0.11608752951292874
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": 0.003812294009536682,
+          "median": 0.014343706138993528,
+          "upper_95": 0.02905698452621869
+        }
+      }
+    },
+    "paired_holm": {
+      "raw_p_value": 0.015000000000000013,
+      "adjusted_p_value": 0.015000000000000013,
+      "significant": true
+    }
+  },
+  "case_runs": [
+    {
+      "case": {
+        "id": "low_profitability",
+        "tickers": [
+          "LoOP LoINV",
+          "OP1 INV2",
+          "OP1 INV3",
+          "OP1 INV4",
+          "LoOP HiINV",
+          "OP2 INV1",
+          "OP2 INV2",
+          "OP2 INV3",
+          "OP2 INV4",
+          "OP2 INV5"
+        ]
+      },
+      "candidate": {
+        "period_count": 47,
+        "mean_rank_ic": 0.0458776043082925,
+        "positive_rank_ic_rate": 0.5531914893617021,
+        "mean_top_bottom_spread": 0.013718631914748775,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 47,
+        "mean_rank_ic": -0.018181818181818184,
+        "positive_rank_ic_rate": 0.44680851063829785,
+        "mean_top_bottom_spread": 0.0006773578017733205,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "high_profitability",
+        "tickers": [
+          "OP4 INV1",
+          "OP4 INV2",
+          "OP4 INV3",
+          "OP4 INV4",
+          "OP4 INV5",
+          "HiOP LoINV",
+          "OP5 INV2",
+          "OP5 INV3",
+          "OP5 INV4",
+          "HiOP HiINV"
+        ]
+      },
+      "candidate": {
+        "period_count": 47,
+        "mean_rank_ic": 0.04629871789461191,
+        "positive_rank_ic_rate": 0.48936170212765956,
+        "mean_top_bottom_spread": 0.017349529068827505,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 47,
+        "mean_rank_ic": 0.020502901353965174,
+        "positive_rank_ic_rate": 0.6170212765957447,
+        "mean_top_bottom_spread": 0.007458867511812934,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "low_investment",
+        "tickers": [
+          "LoOP LoINV",
+          "OP1 INV2",
+          "OP2 INV1",
+          "OP2 INV2",
+          "OP3 INV1",
+          "OP3 INV2",
+          "OP4 INV1",
+          "OP4 INV2",
+          "HiOP LoINV",
+          "OP5 INV2"
+        ]
+      },
+      "candidate": {
+        "period_count": 47,
+        "mean_rank_ic": 0.06499288543847741,
+        "positive_rank_ic_rate": 0.6170212765957447,
+        "mean_top_bottom_spread": 0.007515387412241128,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 47,
+        "mean_rank_ic": -0.026176660219213412,
+        "positive_rank_ic_rate": 0.5106382978723404,
+        "mean_top_bottom_spread": -0.005072409424740908,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "high_investment",
+        "tickers": [
+          "OP1 INV4",
+          "LoOP HiINV",
+          "OP2 INV4",
+          "OP2 INV5",
+          "OP3 INV4",
+          "OP3 INV5",
+          "OP4 INV4",
+          "OP4 INV5",
+          "OP5 INV4",
+          "HiOP HiINV"
+        ]
+      },
+      "candidate": {
+        "period_count": 47,
+        "mean_rank_ic": 0.06787858890417311,
+        "positive_rank_ic_rate": 0.5106382978723404,
+        "mean_top_bottom_spread": 0.017612404509394913,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 47,
+        "mean_rank_ic": 0.031334622823984526,
+        "positive_rank_ic_rate": 0.5319148936170213,
+        "mean_top_bottom_spread": 0.011489493935335595,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    }
+  ],
+  "aggregate_rank_diagnostics": {
+    "candidate": {
+      "period_count": 47,
+      "mean_rank_ic": 0.0696663599351249,
+      "positive_rank_ic_rate": 0.5957446808510638,
+      "mean_top_bottom_spread": 0.016436844654665606,
+      "mean_coverage_rate": 1.0
+    },
+    "baseline": {
+      "period_count": 47,
+      "mean_rank_ic": 0.008887070376432073,
+      "positive_rank_ic_rate": 0.5531914893617021,
+      "mean_top_bottom_spread": 0.0015548817715638845,
+      "mean_coverage_rate": 1.0
+    }
+  },
+  "validation_passed": false,
+  "promotion_eligible": false
+}

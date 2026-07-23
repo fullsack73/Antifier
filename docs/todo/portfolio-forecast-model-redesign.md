@@ -101,6 +101,8 @@
 - 새 fundamental feature도 paired uplift를 만들지 못했으므로 이 결과는 Transformer HPO 근거가 아닙니다.
 - OP×investment quality composite를 raw 12-1 momentum과 결합한 고정 선형 신호는 IC/spread paired improvement와 Holm gate를 통과했습니다.
 - 복잡한 Transformer HPO 없이 데이터/feature family 변경으로 uplift를 얻었습니다. frozen 4-case validation 전 architecture와 weight를 변경하지 않습니다.
+- untouched 2000~2011 validation에서도 quality-momentum은 raw momentum 대비 paired IC/spread gate와 4/4 case를 통과했습니다.
+- 다만 absolute P(IC>0)가 `91.60%`로 95%에 못 미쳐 최종 validation은 탈락입니다. Transformer HPO 또는 blend 재튜닝으로 이 결과에 맞추지 않습니다.
 
 ## 선행조건
 
@@ -124,3 +126,4 @@
 - Factor-residual momentum research: `docs/reports/260724-0210-01-factor-residual-momentum-research.md`
 - Profitability-momentum research: `docs/reports/260724-0226-01-profitability-momentum-research.md`
 - Quality-momentum research: `docs/reports/260724-0232-01-quality-momentum-research.md`
+- Quality-momentum validation: `docs/reports/260724-0238-01-quality-momentum-validation.md`

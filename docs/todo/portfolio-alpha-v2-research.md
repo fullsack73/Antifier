@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: quality-momentum이 research gate를 통과해 frozen validation 대기
+- 현재 상태: frozen quality-momentum이 validation 절대 IC gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -101,6 +101,10 @@
 - paired P(higher IC/spread)는 `97.95%`/`98.55%`, Holm-adjusted p-value는 `0.0205`로 candidate, paired, familywise gate를 모두 통과했습니다.
 - 후보를 freeze합니다. validation 전 momentum/OP/investment weight, lookback, skip, horizon을 변경하지 않습니다.
 - 다음 단계는 untouched 2000~2011의 full universe와 low/high OP, low/high investment 4-case validation입니다.
+- frozen candidate를 untouched 2000~2011에 변경 없이 적용했습니다. low/high OP와 low/high investment 4개 case는 모두 deterministic gate를 통과했습니다.
+- 전체 IC는 `0.0089→0.0697`, spread는 `0.00155→0.01644`로 개선됐고 paired P(higher IC/spread)는 `98.50%`/`99.90%`, Holm p-value는 `0.0150`이었습니다.
+- 그러나 candidate absolute P(IC>0)가 `91.60%`로 사전 95% gate에 미달했습니다. P(spread>0)는 `97.55%`였습니다.
+- validation을 탈락 처리하고 같은 2000~2011 결과로 weight/window를 재튜닝하지 않습니다. 2012+ holdout은 봉인합니다.
 
 ## 참고
 
@@ -117,3 +121,4 @@
 - Factor-residual momentum 폐기: `docs/reports/260724-0210-01-factor-residual-momentum-research.md`
 - Profitability-momentum 폐기: `docs/reports/260724-0226-01-profitability-momentum-research.md`
 - Quality-momentum freeze: `docs/reports/260724-0232-01-quality-momentum-research.md`
+- Quality-momentum validation: `docs/reports/260724-0238-01-quality-momentum-validation.md`

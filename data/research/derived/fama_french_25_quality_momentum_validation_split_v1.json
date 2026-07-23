@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-quality-momentum-validation-2000-2011-v1",
+  "role": "validation",
+  "evaluation_start": "2000-01-04",
+  "evaluation_end": "2011-09-30",
+  "experiment_namespace": "alpha-v10-quality-momentum-validation",
+  "objectives": [
+    "quality_momentum"
+  ],
+  "settings": {
+    "train_window": 505,
+    "horizon": 63,
+    "rebalance_step": 63,
+    "momentum_lookback": 252,
+    "momentum_skip": 21,
+    "momentum_weight": 0.5,
+    "profitability_weight": 0.25,
+    "conservative_investment_weight": 0.25,
+    "profitability_signal": "official_annual_operating_profitability_quintile",
+    "investment_signal": "inverse_official_annual_investment_quintile",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "frozen_candidate_policy": {
+      "source_split_id": "fama-french-25-quality-momentum-research-1965-1999-v1",
+      "candidate": "quality_momentum",
+      "candidate_specification": "unchanged"
+    },
+    "validation_cases": [
+      {
+        "id": "low_profitability",
+        "tickers": [
+          "LoOP LoINV",
+          "OP1 INV2",
+          "OP1 INV3",
+          "OP1 INV4",
+          "LoOP HiINV",
+          "OP2 INV1",
+          "OP2 INV2",
+          "OP2 INV3",
+          "OP2 INV4",
+          "OP2 INV5"
+        ]
+      },
+      {
+        "id": "high_profitability",
+        "tickers": [
+          "OP4 INV1",
+          "OP4 INV2",
+          "OP4 INV3",
+          "OP4 INV4",
+          "OP4 INV5",
+          "HiOP LoINV",
+          "OP5 INV2",
+          "OP5 INV3",
+          "OP5 INV4",
+          "HiOP HiINV"
+        ]
+      },
+      {
+        "id": "low_investment",
+        "tickers": [
+          "LoOP LoINV",
+          "OP1 INV2",
+          "OP2 INV1",
+          "OP2 INV2",
+          "OP3 INV1",
+          "OP3 INV2",
+          "OP4 INV1",
+          "OP4 INV2",
+          "HiOP LoINV",
+          "OP5 INV2"
+        ]
+      },
+      {
+        "id": "high_investment",
+        "tickers": [
+          "OP1 INV4",
+          "LoOP HiINV",
+          "OP2 INV4",
+          "OP2 INV5",
+          "OP3 INV4",
+          "OP3 INV5",
+          "OP4 INV4",
+          "OP4 INV5",
+          "OP5 INV4",
+          "HiOP HiINV"
+        ]
+      }
+    ]
+  },
+  "universe_manifest_sha256": "4116f11c664f2ec1f7150cfafba279f6a89cb26f82e454e63a6259fc7ea032b5",
+  "price_file_sha256": "d5893b5213483d1ec443d7aea80351b03d1914aa5a098720757570524ee6eace",
+  "factor_file_sha256": null,
+  "auxiliary_files": {
+    "frozen_result": "df7c5e9dbff92351b3034475e9591ff005cc4a2d93374de86de72709361fe872"
+  },
+  "locked": true,
+  "manifest_sha256": "01da860cbf2dc3a11d94e1a44ce5110ba29cc0e51ce59f6508be55f69789ce66"
+}

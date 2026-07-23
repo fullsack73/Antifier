@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: quality-momentum research gate 통과, frozen validation 대기
+- 현재 상태: quality-momentum validation이 absolute IC 95% gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -94,6 +94,8 @@
 - official French 25 size×operating-profitability의 50/50 profitability-momentum은 자체 signal gate를 통과했지만 raw momentum 대비 paired IC/spread 개선 확률이 `22.40%`/`45.05%`라 탈락했습니다.
 - official French 25 operating-profitability×investment의 frozen quality-momentum은 raw momentum 대비 IC `0.0668→0.1085`, spread `0.00697→0.01303`으로 개선했습니다.
 - paired P(higher IC/spread) `97.95%`/`98.55%`, Holm-adjusted p-value `0.0205`로 research gate를 통과했습니다. untouched 4-case validation 전 사양 변경을 금지합니다.
+- frozen quality-momentum은 untouched 2000~2011에서 4/4 case와 paired P(higher IC/spread) `98.50%`/`99.90%`를 통과했습니다.
+- candidate absolute P(IC>0)가 `91.60%`라 95% validation gate에서 탈락했습니다. 이 결과를 근거로 사양을 변경하지 않고 2012+ holdout을 봉인합니다.
 
 ## 금지
 

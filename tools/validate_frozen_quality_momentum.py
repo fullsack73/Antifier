@@ -1,0 +1,458 @@
+#!/usr/bin/env python3
+"""Validate frozen quality momentum on a locked four-case split."""
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+import pandas as pd
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BACKEND = ROOT / "src" / "backend"
+TOOLS = ROOT / "tools"
+for directory in (BACKEND, TOOLS):
+    if str(directory) not in sys.path:
+        sys.path.insert(0, str(directory))
+
+from forecast_signal_research import (  # noqa: E402
+    cross_sectional_rank_diagnostics,
+    paired_rank_signal_block_bootstrap,
+    rank_signal_block_bootstrap,
+    signal_only_gate,
+)
+from research_profitability_momentum import (  # noqa: E402
+    BASELINE,
+    MOMENTUM_WEIGHT,
+    QUALITY_CANDIDATE,
+    _distribution_diagnostics,
+    _paired_gate,
+    _run_periods,
+    investment_buckets,
+    operating_profitability_buckets,
+)
+from research_split import validate_research_split_run  # noqa: E402
+
+
+VALIDATION_CASES = (
+    {
+        "id": "low_profitability",
+        "tickers": (
+            "LoOP LoINV", "OP1 INV2", "OP1 INV3", "OP1 INV4",
+            "LoOP HiINV", "OP2 INV1", "OP2 INV2", "OP2 INV3",
+            "OP2 INV4", "OP2 INV5",
+        ),
+    },
+    {
+        "id": "high_profitability",
+        "tickers": (
+            "OP4 INV1", "OP4 INV2", "OP4 INV3", "OP4 INV4",
+            "OP4 INV5", "HiOP LoINV", "OP5 INV2", "OP5 INV3",
+            "OP5 INV4", "HiOP HiINV",
+        ),
+    },
+    {
+        "id": "low_investment",
+        "tickers": (
+            "LoOP LoINV", "OP1 INV2", "OP2 INV1", "OP2 INV2",
+            "OP3 INV1", "OP3 INV2", "OP4 INV1", "OP4 INV2",
+            "HiOP LoINV", "OP5 INV2",
+        ),
+    },
+    {
+        "id": "high_investment",
+        "tickers": (
+            "OP1 INV4", "LoOP HiINV", "OP2 INV4", "OP2 INV5",
+            "OP3 INV4", "OP3 INV5", "OP4 INV4", "OP4 INV5",
+            "OP5 INV4", "HiOP HiINV",
+        ),
+    },
+)
+
+
+def _sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _load_json(path):
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def _settings(args):
+    return {
+        "train_window": int(args.train_window),
+        "horizon": int(args.horizon),
+        "rebalance_step": int(args.rebalance_step),
+        "momentum_lookback": 252,
+        "momentum_skip": 21,
+        "momentum_weight": 0.50,
+        "profitability_weight": 0.25,
+        "conservative_investment_weight": 0.25,
+        "profitability_signal": (
+            "official_annual_operating_profitability_quintile"
+        ),
+        "investment_signal": (
+            "inverse_official_annual_investment_quintile"
+        ),
+        "baseline": BASELINE,
+        "bootstrap_samples": int(args.bootstrap_samples),
+        "bootstrap_block_size": int(args.bootstrap_block_size),
+        "bootstrap_minimum_probability": float(
+            args.bootstrap_minimum_probability
+        ),
+        "frozen_candidate_policy": {
+            "source_split_id": str(args.frozen_from),
+            "candidate": QUALITY_CANDIDATE,
+            "candidate_specification": "unchanged",
+        },
+        "validation_cases": [
+            {
+                "id": case["id"],
+                "tickers": list(case["tickers"]),
+            }
+            for case in VALIDATION_CASES
+        ],
+    }
+
+
+def _load_frozen_result(args):
+    path = Path(args.frozen_result).expanduser().resolve()
+    payload = _load_json(path)
+    if payload.get("research_split") != args.frozen_from:
+        raise ValueError(
+            "Frozen result split does not match --frozen-from"
+        )
+    if payload.get("candidate", {}).get("name") != QUALITY_CANDIDATE:
+        raise ValueError("Frozen result candidate does not match")
+    if not payload.get("promotion_eligible"):
+        raise ValueError("Frozen result is not promotion eligible")
+    frozen_settings = payload.get("settings", {})
+    expected = {
+        "momentum_weight": 0.50,
+        "profitability_weight": 0.25,
+        "conservative_investment_weight": 0.25,
+        "momentum_lookback": 252,
+        "momentum_skip": 21,
+    }
+    if any(frozen_settings.get(key) != value for key, value in expected.items()):
+        raise ValueError("Frozen result candidate specification drifted")
+    return payload, path, _sha256(path)
+
+
+def _load_prices(args):
+    path = Path(args.csv).expanduser().resolve()
+    provenance_path = Path(
+        args.price_provenance
+    ).expanduser().resolve()
+    provenance = _load_json(provenance_path)
+    if provenance.get("price_file_sha256") != _sha256(path):
+        raise ValueError("Price CSV SHA-256 does not match provenance")
+    prices = pd.read_csv(path, index_col=0, parse_dates=True)
+    if list(provenance.get("tickers") or []) != list(prices.columns):
+        raise ValueError("Price provenance ticker order mismatch")
+    required = {
+        ticker
+        for case in VALIDATION_CASES
+        for ticker in case["tickers"]
+    }
+    missing = sorted(required - set(prices.columns))
+    if missing:
+        raise ValueError(
+            "Validation price panel is missing: " + ", ".join(missing)
+        )
+    return prices, provenance, path, provenance_path
+
+
+def _fundamental_signal(tickers):
+    profitability = operating_profitability_buckets(tickers)
+    investment = investment_buckets(tickers)
+    return (
+        0.50 * profitability
+        + 0.50 * (6.0 - investment)
+    )
+
+
+def _rank_results(prices, args):
+    candidate_periods, baseline_periods = _run_periods(
+        prices,
+        _fundamental_signal(prices.columns),
+        args,
+    )
+    return {
+        "candidate_periods": candidate_periods,
+        "baseline_periods": baseline_periods,
+        "candidate": cross_sectional_rank_diagnostics(
+            candidate_periods
+        ),
+        "baseline": cross_sectional_rank_diagnostics(
+            baseline_periods
+        ),
+    }
+
+
+def _case_gate(result):
+    candidate = result["candidate"]
+    baseline = result["baseline"]
+    reasons = []
+    if candidate["period_count"] < 16:
+        reasons.append("Fewer than 16 completed validation periods.")
+    if candidate["mean_coverage_rate"] < 0.80:
+        reasons.append("Candidate coverage is below 80%.")
+    if candidate["mean_rank_ic"] <= 0.0:
+        reasons.append("Candidate mean rank IC is not positive.")
+    if candidate["mean_top_bottom_spread"] <= 0.0:
+        reasons.append("Candidate top-bottom spread is not positive.")
+    if candidate["mean_rank_ic"] <= baseline["mean_rank_ic"]:
+        reasons.append("Candidate mean rank IC does not beat baseline.")
+    if (
+        candidate["mean_top_bottom_spread"]
+        <= baseline["mean_top_bottom_spread"]
+    ):
+        reasons.append(
+            "Candidate top-bottom spread does not beat baseline."
+        )
+    return {
+        "status": "passed" if not reasons else "rejected",
+        "reasons": reasons,
+    }
+
+
+def _aggregate_gate(result, args):
+    candidate_distribution = _distribution_diagnostics(
+        result["candidate_periods"]
+    )
+    candidate_bootstrap = rank_signal_block_bootstrap(
+        result["candidate_periods"],
+        block_size=args.bootstrap_block_size,
+        samples=args.bootstrap_samples,
+        seed=42,
+    )
+    candidate_gate = signal_only_gate(
+        result["candidate"],
+        candidate_distribution,
+        rank_bootstrap=candidate_bootstrap,
+        minimum_bootstrap_probability=(
+            args.bootstrap_minimum_probability
+        ),
+    )
+    paired = paired_rank_signal_block_bootstrap(
+        result["candidate_periods"],
+        result["baseline_periods"],
+        block_size=args.bootstrap_block_size,
+        samples=args.bootstrap_samples,
+        seed=44,
+    )
+    paired_gate, paired_holm = _paired_gate(
+        paired,
+        args.bootstrap_minimum_probability,
+        QUALITY_CANDIDATE,
+    )
+    reasons = (
+        list(candidate_gate["reasons"])
+        + list(paired_gate["reasons"])
+    )
+    return {
+        "status": "passed" if not reasons else "rejected",
+        "reasons": reasons,
+        "candidate_gate": candidate_gate,
+        "candidate_bootstrap": candidate_bootstrap,
+        "paired_gate": paired_gate,
+        "paired_bootstrap": paired,
+        "paired_holm": paired_holm,
+    }
+
+
+def _write_report(payload, output_path):
+    lines = [
+        "# Frozen Quality-Momentum Validation",
+        "",
+        f"- Split: `{payload['validation_split']}`",
+        f"- Frozen from: `{payload['frozen_from']}`",
+        f"- Passed cases: {payload['passed_case_count']} / 4",
+        f"- Aggregate gate: `{payload['aggregate_gate']['status']}`",
+        f"- Promotion eligible: `{payload['promotion_eligible']}`",
+        "",
+        "## Cases",
+        "",
+        (
+            "| Case | Candidate IC | Baseline IC | Candidate spread | "
+            "Baseline spread | Gate |"
+        ),
+        "|---|---:|---:|---:|---:|---|",
+    ]
+    for run in payload["case_runs"]:
+        lines.append(
+            "| {case} | {candidate_ic:.4f} | {baseline_ic:.4f} | "
+            "{candidate_spread:.4f} | {baseline_spread:.4f} | "
+            "{gate} |".format(
+                case=run["case"]["id"],
+                candidate_ic=run["candidate"]["mean_rank_ic"],
+                baseline_ic=run["baseline"]["mean_rank_ic"],
+                candidate_spread=run["candidate"][
+                    "mean_top_bottom_spread"
+                ],
+                baseline_spread=run["baseline"][
+                    "mean_top_bottom_spread"
+                ],
+                gate=run["gate"]["status"],
+            )
+        )
+    paired = payload["aggregate_gate"]["paired_bootstrap"]
+    probability = paired.get("probability", {})
+    lines.extend([
+        "",
+        "## Aggregate",
+        "",
+        (
+            "- P(higher mean rank IC): "
+            f"`{probability.get('higher_mean_rank_ic', 0.0):.4f}`"
+        ),
+        (
+            "- P(higher mean spread): "
+            f"`{probability.get('higher_mean_top_bottom_spread', 0.0):.4f}`"
+        ),
+        (
+            "- Holm-adjusted p-value: "
+            f"`{payload['aggregate_gate']['paired_holm']['adjusted_p_value']:.4f}`"
+        ),
+        "",
+        "## Decision",
+        "",
+        "- All four deterministic cases and aggregate statistical gate must pass.",
+        "- 2012+ locked holdout remains sealed unless validation passes.",
+    ])
+    report_path = Path(output_path).with_suffix(".md")
+    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return report_path
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--csv", required=True)
+    parser.add_argument("--price-provenance", required=True)
+    parser.add_argument("--split-manifest", required=True)
+    parser.add_argument("--validation-split", required=True)
+    parser.add_argument("--experiment-namespace", required=True)
+    parser.add_argument("--frozen-from", required=True)
+    parser.add_argument("--frozen-result", required=True)
+    parser.add_argument("--train-window", type=int, default=505)
+    parser.add_argument("--horizon", type=int, default=63)
+    parser.add_argument("--rebalance-step", type=int, default=63)
+    parser.add_argument("--bootstrap-samples", type=int, default=2000)
+    parser.add_argument("--bootstrap-block-size", type=int, default=4)
+    parser.add_argument(
+        "--bootstrap-minimum-probability",
+        type=float,
+        default=0.95,
+    )
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args(argv)
+
+    try:
+        frozen, frozen_path, frozen_sha = _load_frozen_result(args)
+        prices, provenance, price_path, provenance_path = (
+            _load_prices(args)
+        )
+        split_path = Path(args.split_manifest).expanduser().resolve()
+        split = validate_research_split_run(
+            _load_json(split_path),
+            split_id=args.validation_split,
+            experiment_namespace=args.experiment_namespace,
+            objectives=[QUALITY_CANDIDATE],
+            settings=_settings(args),
+            evaluation_start=prices.index[args.train_window],
+            evaluation_end=prices.index[
+                len(prices) - int(args.horizon) - 1
+            ],
+            universe_manifest_sha256=provenance.get(
+                "basket_manifest_sha256"
+            ),
+            price_file_sha256=provenance.get("price_file_sha256"),
+            factor_file_sha256=None,
+            auxiliary_files={"frozen_result": frozen_sha},
+        )
+        if split["role"] != "validation":
+            raise ValueError("Validation manifest role must be validation")
+
+        aggregate_result = _rank_results(prices, args)
+        aggregate_gate = _aggregate_gate(aggregate_result, args)
+        case_runs = []
+        for case in VALIDATION_CASES:
+            case_result = _rank_results(
+                prices.loc[:, list(case["tickers"])],
+                args,
+            )
+            case_runs.append({
+                "case": {
+                    "id": case["id"],
+                    "tickers": list(case["tickers"]),
+                },
+                "candidate": case_result["candidate"],
+                "baseline": case_result["baseline"],
+                "gate": _case_gate(case_result),
+            })
+        passed_case_count = sum(
+            run["gate"]["status"] == "passed"
+            for run in case_runs
+        )
+        validation_passed = bool(
+            passed_case_count == len(VALIDATION_CASES)
+            and aggregate_gate["status"] == "passed"
+        )
+        payload = {
+            "validation_split": args.validation_split,
+            "experiment_namespace": args.experiment_namespace,
+            "frozen_from": args.frozen_from,
+            "frozen_result": {
+                "file": str(frozen_path),
+                "sha256": frozen_sha,
+                "promotion_eligible": frozen["promotion_eligible"],
+            },
+            "split": {
+                **split,
+                "file": str(split_path),
+                "file_sha256": _sha256(split_path),
+            },
+            "data": {
+                "price_file": str(price_path),
+                "price_provenance_file": str(provenance_path),
+                "row_count": int(len(prices)),
+                "ticker_count": int(len(prices.columns)),
+            },
+            "settings": _settings(args),
+            "candidate": QUALITY_CANDIDATE,
+            "baseline": BASELINE,
+            "passed_case_count": int(passed_case_count),
+            "case_count": int(len(VALIDATION_CASES)),
+            "aggregate_gate": aggregate_gate,
+            "case_runs": case_runs,
+            "aggregate_rank_diagnostics": {
+                "candidate": aggregate_result["candidate"],
+                "baseline": aggregate_result["baseline"],
+            },
+            "validation_passed": validation_passed,
+            "promotion_eligible": bool(
+                validation_passed
+                and split.get("promotion_safe", False)
+                and provenance.get("promotion_safe", False)
+            ),
+        }
+        output_path = Path(args.output).expanduser().resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, indent=2),
+            encoding="utf-8",
+        )
+        report_path = _write_report(payload, output_path)
+    except Exception as exc:
+        parser.exit(2, f"error: {exc}\n")
+
+    print(f"Wrote {output_path}")
+    print(f"Wrote {report_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
