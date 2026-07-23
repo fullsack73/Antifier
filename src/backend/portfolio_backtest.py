@@ -1592,6 +1592,7 @@ def _portfolio_metrics(
     value_timeline,
     risk_free_rate,
     risk_free_daily_returns=None,
+    initial_value=None,
 ):
     empty_metrics = {
         "cagr": 0.0,
@@ -1616,11 +1617,42 @@ def _portfolio_metrics(
             "final_value": float(series.iloc[-1]) if len(series) else 0.0,
         }
 
-    returns = series.pct_change().replace([np.inf, -np.inf], np.nan).dropna()
+    metric_initial_value = _to_float(initial_value, np.nan)
+    has_initial_anchor = bool(
+        np.isfinite(metric_initial_value)
+        and metric_initial_value > 0.0
+    )
+    returns = (
+        series.pct_change()
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()
+    )
+    if has_initial_anchor and len(series) >= 2 and len(returns) >= 1:
+        returns.iloc[0] = (
+            float(series.iloc[1]) / metric_initial_value - 1.0
+        )
     years = max((len(series) - 1) / TRADING_DAYS_PER_YEAR, 1 / TRADING_DAYS_PER_YEAR)
-    cagr = (series.iloc[-1] / series.iloc[0]) ** (1 / years) - 1 if series.iloc[0] > 0 else 0.0
+    starting_value = (
+        metric_initial_value
+        if has_initial_anchor
+        else float(series.iloc[0])
+    )
+    cagr = (
+        (series.iloc[-1] / starting_value) ** (1 / years) - 1
+        if starting_value > 0
+        else 0.0
+    )
     annual_vol = float(returns.std(ddof=0) * np.sqrt(TRADING_DAYS_PER_YEAR)) if len(returns) else 0.0
-    drawdown = series / series.cummax() - 1
+    drawdown_values = (
+        pd.Series(
+            np.concatenate(
+                ([metric_initial_value], series.to_numpy(dtype=float))
+            )
+        )
+        if has_initial_anchor
+        else series
+    )
+    drawdown = drawdown_values / drawdown_values.cummax() - 1
     max_drawdown = float(drawdown.min())
     if risk_free_daily_returns is None:
         daily_risk_free = (
@@ -2696,6 +2728,7 @@ def run_portfolio_model_backtest(
             state["values"],
             risk_free_rate,
             risk_free_daily_returns=risk_free_daily_returns,
+            initial_value=initial_value,
         )
         total_turnover = float(sum(state["turnovers"]))
         total_controlled_turnover = float(sum(state["controlled_turnovers"]))

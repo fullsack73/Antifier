@@ -176,6 +176,7 @@ Backend-only research tool:
   - backtest 최초 현금 배치는 rebalance band/turnover cap을 적용하지 않되 transaction cost는 부과합니다.
   - backtest transaction cost는 실행 후 실제 gross traded notional에 비용률을 곱합니다. 목표 현금이 비용을 충당하지 못하면 기존 보유 전체를 비례 축소하지 않고 매수 주문만 비례 축소하며, 축소 후 체결액·비용·잔여 현금의 회계 항등식을 다시 계산합니다.
   - gross period return은 net period end value에 시작 비용을 단순 가산하지 않습니다. 동일한 pre-cost controlled target과 현금으로 별도 costless 기간 경로를 평가해, 비용 때문에 매수하지 못한 자산의 기간 수익까지 gross/net cost drag에 반영합니다.
+  - primary CAGR, Sharpe, downside/tail risk, drawdown은 최초 배치 전 `initial_value`를 base로 사용합니다. 최초 transaction cost는 첫 실제 일수익률과 wealth drawdown에 포함하며, 비용 차감 후 첫 portfolio value를 새 원금처럼 취급하지 않습니다.
   - 부분 위험노출 research model의 잔여 현금은 signal date에 이용 가능한 historical daily risk-free return으로 적립하며, risk forecast는 실제 위험자산 노출을 사용합니다.
 
 API 변경 규칙:

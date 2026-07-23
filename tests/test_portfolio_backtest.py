@@ -1012,6 +1012,45 @@ def test_gross_period_return_values_the_costless_target_path():
     assert metrics["net_cumulative_return"] == pytest.approx(0.81818181818)
 
 
+def test_primary_metrics_include_initial_allocation_cost():
+    dates = pd.date_range("2024-01-02", periods=6, freq="B")
+    prices = pd.DataFrame(
+        {
+            "AAA": np.full(6, 100.0),
+            "BBB": np.full(6, 100.0),
+        },
+        index=dates,
+    )
+
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("equal_weight",),
+        train_window=3,
+        rebalance_frequency=2,
+        forecast_horizon=1,
+        transaction_cost_bps=1000.0,
+        risk_free_rate=0.0,
+        rebalance_band=0.0,
+        max_turnover=1.0,
+        initial_value=10000.0,
+    )
+
+    metrics = result["summary_by_model"]["equal_weight"]
+    expected_net_return = 9090.9090909 / 10000.0 - 1.0
+    expected_cagr = (
+        (1.0 + expected_net_return)
+        ** (portfolio_backtest.TRADING_DAYS_PER_YEAR / 2.0)
+        - 1.0
+    )
+    assert metrics["final_value"] == pytest.approx(9090.9090909)
+    assert metrics["net_cumulative_return"] == pytest.approx(
+        expected_net_return
+    )
+    assert metrics["cagr"] == pytest.approx(expected_cagr)
+    assert metrics["max_drawdown"] == pytest.approx(expected_net_return)
+    assert metrics["annual_volatility"] > 0.0
+
+
 def test_inverse_vol_risk_parity_weights_sum_cap_and_prefer_lower_vol():
     dates = pd.date_range("2024-01-02", periods=80, freq="B")
     x = np.arange(len(dates))

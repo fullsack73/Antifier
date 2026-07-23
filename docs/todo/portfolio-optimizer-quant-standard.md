@@ -175,6 +175,8 @@
 - 이미 본 early 49-industry panel의 mechanical diagnostic에서 비용 항등식 최대 오차는 `0`, 최소 잔여 현금은 `0`이었습니다. 이는 execution truth 개선이며 candidate 승격 근거로 재사용하지 않습니다.
 - Gross return의 기존 `net period end + starting cost` 근사는 비용 때문에 매수하지 못한 자산의 기간 수익을 누락했습니다. 동일 pre-cost controlled target의 별도 costless path로 교체해 gross/net cost drag를 정확히 계산합니다.
 - +100% synthetic period와 10% 비용에서 기존 gross `90.91%`가 `100%`, cost drag `9.09%p`가 `18.18%p`로 교정됐습니다. Net path와 optimizer weight는 바뀌지 않습니다.
+- Primary metric timeline이 비용 차감 후 첫 value에서 시작해 최초 배치 비용을 CAGR/Sharpe/drawdown에서 누락하던 결함을 수정했습니다. `initial_value`를 metric base로 사용하고 비용을 첫 실제 일수익률과 wealth drawdown에 포함합니다.
+- Flat-price synthetic에서 비용 후 terminal return `-9.09%`인데 CAGR이 `0%`였던 불일치가 제거됐습니다. Early-history mechanical diagnostic의 terminal wealth identity error는 모든 모델 `5.7e-14` 이하였습니다.
 
 ## 금지
 
