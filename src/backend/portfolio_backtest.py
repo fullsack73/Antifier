@@ -96,6 +96,10 @@ logger = logging.getLogger(__name__)
 TRADING_DAYS_PER_YEAR = 252
 LIGHTWEIGHT_RANK_TARGET_ACTIVE_SHARE = 0.20
 PRICE_SIGNAL_TARGET_ACTIVE_SHARE = 0.20
+MINVAR_MOMENTUM_COMPONENT_WEIGHTS = {
+    "min_variance": 0.50,
+    "momentum_12_1_rank_tilt": 0.50,
+}
 DEFAULT_BACKTEST_MODELS = (
     "equal_weight",
     "min_variance",
@@ -143,6 +147,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "momentum_12_1_rank_tilt",
     "high_momentum_rank_tilt",
     "risk_momentum_blend",
+    "minvar_momentum_blend",
 )
 
 PROMOTION_BASELINE_MODELS = (
@@ -1230,6 +1235,51 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             ),
             "construction_method": (
                 "fixed_risk_parity_momentum_rank_tilt_blend"
+            ),
+            "target_active_share": (
+                PRICE_SIGNAL_TARGET_ACTIVE_SHARE
+            ),
+        }
+
+    if model_name == "minvar_momentum_blend":
+        scores = momentum_12_1(train_prices).reindex(tickers)
+        minimum_variance = pd.Series(
+            _efficient_frontier_weights(
+                pd.Series(0.0, index=tickers),
+                covariance,
+                max_asset_weight,
+                "min_volatility",
+                risk_free_rate,
+            ),
+            dtype=float,
+        ).reindex(tickers).fillna(0.0)
+        momentum_weights, _ = _price_signal_rank_tilt_weights(
+            train_prices,
+            "momentum_12_1",
+            max_asset_weight,
+        )
+        momentum_weights = pd.Series(
+            momentum_weights,
+            dtype=float,
+        ).reindex(tickers).fillna(0.0)
+        weights = (
+            MINVAR_MOMENTUM_COMPONENT_WEIGHTS["min_variance"]
+            * minimum_variance
+            + MINVAR_MOMENTUM_COMPONENT_WEIGHTS[
+                "momentum_12_1_rank_tilt"
+            ]
+            * momentum_weights
+        )
+        weights = _normalize_weights(weights, tickers)
+        return weights, {
+            "failed_forecast_count": int(scores.isna().sum()),
+            "avg_forecast_confidence": None,
+            "signal_scores": _finite_series_dict(scores),
+            "alpha_component_weights": dict(
+                MINVAR_MOMENTUM_COMPONENT_WEIGHTS
+            ),
+            "construction_method": (
+                "fixed_minimum_variance_momentum_rank_tilt_blend"
             ),
             "target_active_share": (
                 PRICE_SIGNAL_TARGET_ACTIVE_SHARE

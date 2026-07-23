@@ -167,6 +167,7 @@ tools/
 ├─ research_high_momentum.py          # 52-week-high/momentum signal gate
 ├─ research_raw_momentum.py           # raw momentum vs live-default gate
 ├─ research_risk_momentum_blend.py    # risk/momentum construction gate
+├─ research_minvar_momentum_blend.py  # min-var/momentum construction gate
 ├─ research_online_reversal_ensemble.py # completed-feedback signal Hedge 연구
 ├─ validate_risk_allocator_candidate.py # frozen risk candidate 4-case validation
 └─ tune_transformer_hpo.py

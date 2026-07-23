@@ -150,6 +150,8 @@
 - Lightweight 대비 paired P(higher IC/spread)도 `62.45%`/`56.95%`, risk-parity Sharpe guard도 실패했습니다. Candidate를 기각하고 validation/holdout을 열지 않습니다.
 - Official French 12-industry `1970~1999`에서 raw momentum signal은 IC `0.0868`, spread `0.00990`, P(IC>0/spread>0) `99.75%/98.25%`로 absolute gate를 통과했습니다.
 - 하지만 이를 inverse-vol risk parity와 50/50 결합한 construction은 momentum 단독 Sharpe `0.5893`보다 낮은 `0.5610`이었고 paired P(higher Sharpe)는 `4.35%`였습니다. Signal 통과만으로 construction을 승격하지 않습니다.
+- Fresh official French 10-industry `1970~1999`에서도 momentum IC `0.0675`, spread `0.01410`은 absolute gate를 통과했지만 minvar/momentum 50/50 blend Sharpe `0.6325`는 plain minimum variance `0.6829`보다 낮았습니다.
+- Alpha sleeve 추가가 강한 risk baseline을 개선하지 못했으므로 momentum weight를 같은 split에서 재튜닝하지 않습니다.
 
 ## 참고
 

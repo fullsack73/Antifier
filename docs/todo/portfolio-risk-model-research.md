@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: fixed risk-parity/momentum blend도 dual-component gate에서 탈락, 기본 allocator 유지
+- 현재 상태: minvar/momentum blend도 실패하고 plain Ledoit minimum variance가 strongest baseline
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -96,6 +96,13 @@
 - Blend volatility/Sharpe `13.36%/0.5610`은 risk parity `13.06%/0.5581`과 momentum `13.68%/0.5893` 사이에 머물렀습니다.
 - P(lower volatility/higher Sharpe)는 risk parity 대비 `0%/59.00%`, momentum 대비 `100%/4.35%`였습니다.
 - 두 component를 동시에 개선하지 못해 기각하며 blend weight를 같은 split에서 재튜닝하지 않습니다.
+
+## 2026-07-24 minimum-variance/momentum construction
+
+- Official French 10-industry `1970~1999` fresh split에서 Ledoit-Wolf minimum variance와 raw momentum rank tilt를 fixed 50/50으로 결합했습니다.
+- Plain minimum variance volatility/Sharpe `11.95%/0.6829`가 blend `12.70%/0.6325`, momentum `13.67%/0.5878`보다 강했습니다.
+- Blend의 P(higher Sharpe)는 minvar 대비 `6.45%`, momentum 대비 `94.10%`였고 six-hypothesis Holm gate를 통과하지 못했습니다.
+- Blend를 폐기하고 plain Ledoit minimum variance를 current default 대비 fresh promotion research candidate로 검증합니다.
 
 ## 2026-07-24 RMT research
 

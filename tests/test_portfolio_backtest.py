@@ -448,6 +448,86 @@ def test_risk_momentum_blend_is_opt_in_and_ignores_future_rows():
     }
 
 
+def test_minvar_momentum_blend_is_exact_fixed_component_average():
+    prices = _synthetic_factor_research_data(
+        rows=520,
+        ticker_count=8,
+    )[0].iloc[:504]
+    minimum_variance, _ = portfolio_backtest._model_weights(
+        "min_variance",
+        prices,
+        63,
+        0.25,
+        0.02,
+    )
+    momentum, _ = (
+        portfolio_backtest._price_signal_rank_tilt_weights(
+            prices,
+            "momentum_12_1",
+            0.25,
+        )
+    )
+
+    blended, diagnostics = portfolio_backtest._model_weights(
+        "minvar_momentum_blend",
+        prices,
+        63,
+        0.25,
+        0.02,
+    )
+    expected = (
+        0.50 * pd.Series(minimum_variance)
+        + 0.50 * pd.Series(momentum)
+    )
+
+    assert blended == pytest.approx(expected.to_dict())
+    assert diagnostics["alpha_component_weights"] == {
+        "min_variance": 0.50,
+        "momentum_12_1_rank_tilt": 0.50,
+    }
+
+
+def test_minvar_momentum_blend_is_opt_in_and_ignores_future_rows():
+    prices = _synthetic_factor_research_data(
+        rows=580,
+        ticker_count=8,
+    )[0]
+    cutoff = 503
+    changed = prices.copy()
+    changed.iloc[cutoff + 1:] *= np.linspace(
+        1.0,
+        50.0,
+        len(changed) - cutoff - 1,
+    )[:, None]
+
+    weights, diagnostics = portfolio_backtest._model_weights(
+        "minvar_momentum_blend",
+        prices.iloc[:cutoff + 1],
+        63,
+        0.25,
+        0.02,
+    )
+    repeated, repeated_diagnostics = (
+        portfolio_backtest._model_weights(
+            "minvar_momentum_blend",
+            changed.iloc[:cutoff + 1],
+            63,
+            0.25,
+            0.02,
+        )
+    )
+
+    assert "minvar_momentum_blend" in (
+        portfolio_backtest.SUPPORTED_BACKTEST_MODELS
+    )
+    assert "minvar_momentum_blend" not in (
+        portfolio_backtest.DEFAULT_BACKTEST_MODELS
+    )
+    assert weights == pytest.approx(repeated)
+    assert diagnostics == repeated_diagnostics
+    assert sum(weights.values()) == pytest.approx(1.0)
+
+
 def test_james_stein_expected_returns_reduce_cross_sectional_dispersion():
     dates = pd.date_range("2020-01-02", periods=400, freq="B")
     rng = np.random.default_rng(42)

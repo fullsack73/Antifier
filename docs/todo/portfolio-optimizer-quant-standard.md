@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: fixed risk-parity/momentum blend가 dual-component/Holm gate에서 탈락
+- 현재 상태: minvar/momentum blend가 탈락하고 plain Ledoit minimum variance promotion research 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -144,6 +144,10 @@
 - Momentum signal absolute gate는 통과했지만 blend Sharpe `0.5610`은 risk parity `0.5581`을 미세 개선하고 momentum `0.5893`에는 열위였습니다.
 - Paired P(lower vol/higher Sharpe)는 risk parity 대비 `0%/59.00%`, momentum 대비 `100%/4.35%`였고 six-hypothesis Holm gate를 통과하지 못했습니다.
 - Blend weight를 재튜닝하지 않고 후보를 폐기합니다. 다음 fresh construction은 stronger Ledoit-Wolf minimum-variance sleeve와 momentum fixed blend입니다.
+- Fixed 50/50 Ledoit-Wolf minimum-variance/momentum blend도 fresh official French 10-industry `1970~1999`에서 검증했습니다.
+- Plain minimum variance Sharpe `0.6829`가 blend `0.6325`와 momentum `0.5878`보다 높았고, blend의 P(higher Sharpe)는 minvar 대비 `6.45%`, momentum 대비 `94.10%`였습니다.
+- Alpha sleeve가 risk baseline을 개선하지 못했으므로 blend를 폐기하고 같은 split에서 weight를 재튜닝하지 않습니다.
+- 다음 단계는 복잡한 새 모델이 아니라 plain Ledoit-Wolf minimum variance를 fresh period에서 current lightweight/default 및 risk-parity guard와 비교하는 promotion research입니다.
 
 ## 금지
 

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-10-industry-minvar-momentum-research-1970-1999-v1",
+  "role": "research",
+  "evaluation_start": "1970-02-11",
+  "evaluation_end": "1999-12-31",
+  "experiment_namespace": "construction-v2-minvar-momentum-industry-portfolios",
+  "objectives": [
+    "minvar_momentum_blend"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "portfolio_bootstrap_block_size": 21,
+    "signal_bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "minvar_momentum_blend",
+    "baselines": [
+      "min_variance",
+      "momentum_12_1_rank_tilt"
+    ],
+    "models": [
+      "equal_weight",
+      "min_variance",
+      "momentum_12_1_rank_tilt",
+      "minvar_momentum_blend"
+    ],
+    "construction_policy": {
+      "component_weights": {
+        "min_variance": 0.5,
+        "momentum_12_1_rank_tilt": 0.5
+      },
+      "risk_component": "ledoit_wolf_long_only_minimum_variance",
+      "momentum_signal": "cross_sectional_12_1_rank",
+      "momentum_lookback": 252,
+      "momentum_skip": 21,
+      "momentum_allocator": "equal_weight_active_share_rank_tilt",
+      "momentum_target_active_share": 0.2,
+      "blend_policy": "fixed_weight_convex_combination"
+    }
+  },
+  "universe_manifest_sha256": "d13db6e67d7cb1466efec514c8f808fd37a39f16a57af004185d6f596954a03e",
+  "price_file_sha256": "dd6aaabf95fa7a8274482c92dd8cf7c79e4766f40b668c2d38b8d9c9054ad8ac",
+  "factor_file_sha256": "80ec821767801d1e4332513e91777f0a371255209f2e6c4e16e9562825ccaaf1",
+  "auxiliary_files": {
+    "price_provenance": "e980d4855265dff1e4c0960f191c037b7d4cbe57e0569dfd9b327c68d1f95485",
+    "risk_free_provenance": "1ae7721fde4baf5a9c411b33317c73ac8ab23741920d5294c099ff7906177843"
+  },
+  "locked": true,
+  "manifest_sha256": "2c5826dd30991c0063008a3204feb5e6e33862e6aa1b5f7797c6180f451bf7fc"
+}
