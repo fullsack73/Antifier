@@ -209,6 +209,45 @@ def test_factor_residual_price_baseline_uses_same_target_without_fundamentals():
     )
 
 
+def test_separate_target_factors_keep_realized_targets_fixed():
+    prices = _research_prices()
+    target_factors = _point_in_time_features(prices)
+    changed_predictors = target_factors.copy()
+    changed_predictors["quality"] *= -10.0
+    common = {
+        "price_data": prices,
+        "objective": "factor_residual_ridge",
+        "horizon": 21,
+        "rebalance_step": 21,
+        "minimum_training_periods": 4,
+        "maximum_training_periods": 8,
+        "minimum_observations": 20,
+        "target_point_in_time_features": target_factors,
+    }
+
+    baseline = walk_forward_pooled_ridge(
+        point_in_time_features=target_factors,
+        **common,
+    )
+    candidate = walk_forward_pooled_ridge(
+        point_in_time_features=changed_predictors,
+        **common,
+    )
+
+    assert baseline["settings"]["separate_target_factors"]
+    assert candidate["settings"]["separate_target_factors"]
+    assert [
+        record["realized_returns"] for record in baseline["records"]
+    ] == [
+        record["realized_returns"] for record in candidate["records"]
+    ]
+    assert [
+        record["scores"] for record in baseline["records"]
+    ] != [
+        record["scores"] for record in candidate["records"]
+    ]
+
+
 def test_nested_factor_ridge_selects_penalty_from_completed_inner_folds():
     prices = _research_prices()
     result = walk_forward_pooled_ridge(

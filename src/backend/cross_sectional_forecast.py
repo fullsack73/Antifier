@@ -477,6 +477,7 @@ def walk_forward_pooled_ridge(
     nested_validation_periods=3,
     nominal_uncertainty_coverage=0.80,
     point_in_time_features=None,
+    target_point_in_time_features=None,
     market_factor_returns=None,
     universe_manifest=None,
     evaluation_start=None,
@@ -499,6 +500,11 @@ def walk_forward_pooled_ridge(
             "Nested ridge requires at least one non-negative penalty"
         )
     prices = _clean_prices(price_data)
+    target_factors = (
+        point_in_time_features
+        if target_point_in_time_features is None
+        else target_point_in_time_features
+    )
     normalized_market_factor = None
     if market_factor_returns is not None:
         normalized_market_factor = pd.Series(
@@ -597,7 +603,7 @@ def walk_forward_pooled_ridge(
             position,
             horizon,
             target_kind,
-            point_in_time_features=point_in_time_features,
+            point_in_time_features=target_factors,
             active_tickers=active_tickers,
             market_returns_history=(
                 None
@@ -901,6 +907,9 @@ def walk_forward_pooled_ridge(
             "point_in_time_fundamentals": (
                 objective in FACTOR_FULL_OBJECTIVES
                 | {"factor_residual_quality_ridge"}
+            ),
+            "separate_target_factors": (
+                target_point_in_time_features is not None
             ),
         },
         "rank_diagnostics": rank_diagnostics,

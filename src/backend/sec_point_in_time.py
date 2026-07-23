@@ -26,6 +26,14 @@ ANNUAL_FORMS = {
     "40-F",
     "40-F/A",
 }
+QUARTERLY_FORMS = {"10-Q", "10-Q/A"}
+PERIODIC_FORMS = ANNUAL_FORMS | QUARTERLY_FORMS
+FLOW_CONCEPTS = (
+    "net_income",
+    "revenue",
+    "gross_profit",
+    "operating_cash_flow",
+)
 
 CONCEPTS = {
     "net_income": (
@@ -580,6 +588,192 @@ def annual_filing_anchors(company_facts):
     )
 
 
+def _periodic_entries(company_facts, concept_name):
+    return [
+        entry
+        for entry in _concept_entries(company_facts, concept_name)
+        if entry.get("form") in PERIODIC_FORMS
+        and entry.get("filed") is not None
+        and entry.get("start") is not None
+        and entry.get("end") is not None
+        and _duration_days(entry) is not None
+        and 60 <= _duration_days(entry) <= 450
+    ]
+
+
+def periodic_filing_anchors(company_facts):
+    """Return actual current-period 10-Q/10-K filing anchors."""
+    grouped = {}
+    for concept_name in (
+        "net_income",
+        "revenue",
+        "operating_cash_flow",
+    ):
+        for entry in _periodic_entries(company_facts, concept_name):
+            accession = str(entry.get("accn") or "").strip()
+            if not accession:
+                continue
+            key = (
+                accession,
+                pd.Timestamp(entry["filed"]),
+                str(entry.get("form") or ""),
+            )
+            report_end = pd.Timestamp(entry["end"])
+            report_start = pd.Timestamp(entry["start"])
+            previous = grouped.get(key)
+            if previous is None or report_end > previous["report_end"]:
+                grouped[key] = {
+                    "accn": accession,
+                    "filed": pd.Timestamp(entry["filed"]),
+                    "report_end": report_end,
+                    "report_start": report_start,
+                    "form": entry.get("form"),
+                }
+            elif report_end == previous["report_end"]:
+                previous["report_start"] = min(
+                    previous["report_start"],
+                    report_start,
+                )
+    return sorted(
+        grouped.values(),
+        key=lambda item: (
+            item["filed"],
+            item["report_end"],
+            item["accn"],
+        ),
+    )
+
+
+def _anchor_duration_entries(company_facts, concept_name, anchor):
+    return [
+        entry
+        for entry in _concept_entries(company_facts, concept_name)
+        if entry.get("accn") == anchor["accn"]
+        and entry.get("form") == anchor["form"]
+        and entry.get("filed") is not None
+        and pd.Timestamp(entry["filed"]) <= anchor["filed"]
+        and entry.get("start") is not None
+        and entry.get("end") is not None
+        and pd.Timestamp(entry["end"]) == anchor["report_end"]
+        and _duration_days(entry) is not None
+    ]
+
+
+def _quarter_flow_value(
+    company_facts,
+    concept_name,
+    anchor,
+    quarter_history,
+):
+    entries = _anchor_duration_entries(
+        company_facts,
+        concept_name,
+        anchor,
+    )
+    direct = [
+        entry
+        for entry in entries
+        if 60 <= _duration_days(entry) <= 120
+    ]
+    if direct:
+        selected = min(
+            direct,
+            key=lambda entry: abs(_duration_days(entry) - 91),
+        )
+        return float(selected["val"])
+
+    if anchor["form"] in ANNUAL_FORMS:
+        cumulative = [
+            entry
+            for entry in entries
+            if 250 <= _duration_days(entry) <= 450
+        ]
+        selected = (
+            None
+            if not cumulative
+            else min(
+                cumulative,
+                key=lambda entry: abs(_duration_days(entry) - 365),
+            )
+        )
+    else:
+        cumulative = [
+            entry
+            for entry in entries
+            if 120 < _duration_days(entry) <= 300
+        ]
+        selected = (
+            None
+            if not cumulative
+            else max(cumulative, key=_duration_days)
+        )
+    if selected is None:
+        return None
+
+    period_start = pd.Timestamp(selected["start"])
+    period_end = pd.Timestamp(selected["end"])
+    prior_quarters = [
+        value
+        for quarter_end, value in quarter_history.items()
+        if period_start < quarter_end < period_end
+    ]
+    expected_prior_quarters = max(
+        1,
+        int(round(_duration_days(selected) / 91.0)) - 1,
+    )
+    if len(prior_quarters) < expected_prior_quarters:
+        return None
+    return float(selected["val"] - sum(prior_quarters))
+
+
+def _trailing_four_quarters(quarter_history, report_end):
+    eligible = sorted(
+        (
+            pd.Timestamp(quarter_end),
+            float(value),
+        )
+        for quarter_end, value in quarter_history.items()
+        if pd.Timestamp(quarter_end) <= pd.Timestamp(report_end)
+        and np.isfinite(float(value))
+    )
+    if len(eligible) < 4:
+        return None
+    trailing = eligible[-4:]
+    if trailing[-1][0] != pd.Timestamp(report_end):
+        return None
+    span = int((trailing[-1][0] - trailing[0][0]).days)
+    if not 240 <= span <= 380:
+        return None
+    return float(sum(value for _, value in trailing))
+
+
+def _periodic_weighted_shares(company_facts, anchor):
+    entries = _anchor_duration_entries(
+        company_facts,
+        "weighted_average_shares",
+        anchor,
+    )
+    positive = [
+        entry for entry in entries if float(entry["val"]) > 0
+    ]
+    if not positive:
+        return None
+    direct = [
+        entry
+        for entry in positive
+        if 60 <= _duration_days(entry) <= 120
+    ]
+    selected = (
+        min(
+            direct,
+            key=lambda entry: abs(_duration_days(entry) - 91),
+        )
+        if direct
+        else max(positive, key=_duration_days)
+    )
+    return float(selected["val"])
+
+
 def _select_fact(
     company_facts,
     concept_name,
@@ -804,6 +998,169 @@ def build_company_pit_features(
     )
 
 
+def build_company_quarterly_ttm_features(
+    ticker,
+    company_facts,
+    submissions,
+    price_series,
+    start_date=None,
+    end_date=None,
+    sector_override=None,
+):
+    """Build filing-date quarterly TTM features without future filings."""
+    ticker = str(ticker).strip().upper()
+    sector = (
+        str(sector_override).strip()
+        if sector_override is not None
+        and str(sector_override).strip()
+        else sic_sector(submissions.get("sic"))
+    )
+    quarter_history = {
+        concept_name: {} for concept_name in FLOW_CONCEPTS
+    }
+    rows = []
+    for anchor in periodic_filing_anchors(company_facts):
+        for concept_name in FLOW_CONCEPTS:
+            quarter_value = _quarter_flow_value(
+                company_facts,
+                concept_name,
+                anchor,
+                quarter_history[concept_name],
+            )
+            if quarter_value is not None and np.isfinite(quarter_value):
+                quarter_history[concept_name][
+                    anchor["report_end"]
+                ] = float(quarter_value)
+
+        available_date = anchor["filed"]
+        if start_date and available_date < pd.Timestamp(start_date):
+            continue
+        if end_date and available_date > pd.Timestamp(end_date):
+            continue
+
+        trailing = {
+            concept_name: _trailing_four_quarters(
+                quarter_history[concept_name],
+                anchor["report_end"],
+            )
+            for concept_name in FLOW_CONCEPTS
+        }
+        selected = {
+            "assets": _select_fact(
+                company_facts,
+                "assets",
+                anchor,
+                duration=False,
+            ),
+            "current_assets": _select_fact(
+                company_facts,
+                "current_assets",
+                anchor,
+                duration=False,
+            ),
+            "current_liabilities": _select_fact(
+                company_facts,
+                "current_liabilities",
+                anchor,
+                duration=False,
+            ),
+            "shares": _select_fact(
+                company_facts,
+                "shares",
+                anchor,
+                duration=False,
+            ),
+        }
+        values = {
+            name: None if entry is None else float(entry["val"])
+            for name, entry in selected.items()
+        }
+        filing_price = _price_on_or_before(price_series, available_date)
+        shares = values["shares"]
+        if shares is None or shares <= 0:
+            shares = _periodic_weighted_shares(company_facts, anchor)
+        market_cap = (
+            None
+            if filing_price is None
+            or shares is None
+            or shares <= 0
+            else float(filing_price * shares)
+        )
+        assets = values["assets"]
+        net_income = trailing["net_income"]
+        quality_numerator = (
+            trailing["operating_cash_flow"]
+            if trailing["operating_cash_flow"] is not None
+            else net_income
+        )
+        quality = _safe_ratio(quality_numerator, assets)
+        profitability = _safe_ratio(
+            trailing["gross_profit"],
+            trailing["revenue"],
+        )
+        if not np.isfinite(profitability):
+            profitability = _safe_ratio(
+                net_income,
+                trailing["revenue"],
+            )
+        valuation = _safe_ratio(net_income, market_cap)
+        liquidity = _safe_ratio(
+            values["current_assets"],
+            values["current_liabilities"],
+        )
+        if market_cap is None or market_cap <= 0:
+            continue
+        if all(
+            not np.isfinite(value)
+            for value in (
+                quality,
+                profitability,
+                valuation,
+                liquidity,
+            )
+        ):
+            continue
+        rows.append({
+            "available_date": available_date,
+            "ticker": ticker,
+            "sector": sector,
+            "market_cap": market_cap,
+            "quality": quality,
+            "profitability": profitability,
+            "valuation": valuation,
+            "liquidity": liquidity,
+            "filing_accession": anchor["accn"],
+            "filing_form": anchor["form"],
+            "report_end": anchor["report_end"],
+            "filing_price": filing_price,
+            "shares_outstanding": shares,
+        })
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "available_date",
+                "ticker",
+                "sector",
+                "market_cap",
+                "quality",
+                "profitability",
+                "valuation",
+                "liquidity",
+                "filing_accession",
+                "filing_form",
+                "report_end",
+                "filing_price",
+                "shares_outstanding",
+            ]
+        )
+    return (
+        pd.DataFrame(rows)
+        .sort_values(["available_date", "ticker", "report_end"])
+        .drop_duplicates(["ticker", "available_date"], keep="last")
+        .reset_index(drop=True)
+    )
+
+
 def build_sec_pit_features(
     tickers,
     prices,
@@ -811,10 +1168,16 @@ def build_sec_pit_features(
     start_date=None,
     end_date=None,
     refresh=False,
+    filing_frequency="annual",
 ):
     """Fetch SEC facts and construct a long-form PIT feature dataset."""
     prices = pd.DataFrame(prices).copy()
     prices.index = pd.to_datetime(prices.index)
+    filing_frequency = str(filing_frequency).strip().lower()
+    if filing_frequency not in {"annual", "quarterly-ttm"}:
+        raise ValueError(
+            "filing_frequency must be annual or quarterly-ttm"
+        )
     ticker_map = client.ticker_cik_map(refresh=refresh)
     frames = []
     failures = {}
@@ -876,7 +1239,12 @@ def build_sec_pit_features(
             try:
                 facts = client.company_facts(cik, refresh=refresh)
                 submissions = client.submissions(cik, refresh=refresh)
-                frame = build_company_pit_features(
+                builder = (
+                    build_company_pit_features
+                    if filing_frequency == "annual"
+                    else build_company_quarterly_ttm_features
+                )
+                frame = builder(
                     ticker,
                     facts,
                     submissions,
@@ -946,6 +1314,7 @@ def build_sec_pit_features(
         ),
         "availability_policy": "SEC filing date; filed <= signal as-of date",
         "feature_policy": {
+            "filing_frequency": filing_frequency,
             "quality": "operating_cash_flow/assets; net_income/assets fallback",
             "profitability": "gross_profit/revenue; net_margin fallback",
             "valuation": "net_income/(filing-date price * shares)",

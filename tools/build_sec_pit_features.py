@@ -187,6 +187,11 @@ def main(argv=None):
         "--submissions-dir",
         help="Optional extracted SEC submissions directory for SIC metadata",
     )
+    parser.add_argument(
+        "--filing-frequency",
+        choices=("annual", "quarterly-ttm"),
+        default="annual",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -297,6 +302,7 @@ def main(argv=None):
             start_date=start,
             end_date=end,
             refresh=args.refresh,
+            filing_frequency=args.filing_frequency,
         )
         if features.empty:
             failure_summary = json.dumps(

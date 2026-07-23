@@ -17,6 +17,7 @@ from sec_point_in_time import (  # noqa: E402
     SecEdgarClient,
     build_sec_pit_features,
     build_company_pit_features,
+    build_company_quarterly_ttm_features,
     extract_cik_from_filing_metadata,
     normalize_ticker_cik_history,
     normalize_ticker_cik_map,
@@ -100,6 +101,144 @@ def _company_facts(include_future_amendment=False):
             "dei": {
                 "EntityCommonStockSharesOutstanding": {
                     "units": {"shares": instants([100.0, 110.0])}
+                }
+            },
+        },
+    }
+
+
+def _quarterly_company_facts(include_future_amendment=False):
+    periods = [
+        (
+            "2023-01-01",
+            "2023-03-31",
+            "2023-05-01",
+            "q1",
+            "10-Q",
+        ),
+        (
+            "2023-04-01",
+            "2023-06-30",
+            "2023-08-01",
+            "q2",
+            "10-Q",
+        ),
+        (
+            "2023-07-01",
+            "2023-09-30",
+            "2023-11-01",
+            "q3",
+            "10-Q",
+        ),
+        (
+            "2023-01-01",
+            "2023-12-31",
+            "2024-02-15",
+            "k1",
+            "10-K",
+        ),
+    ]
+
+    def flows(values):
+        return [
+            _duration_fact(
+                value,
+                start,
+                end,
+                filed,
+                accession,
+                form=form,
+            )
+            for value, (start, end, filed, accession, form)
+            in zip(values, periods)
+        ]
+
+    def instants(values):
+        return [
+            _instant_fact(
+                value,
+                end,
+                filed,
+                accession,
+                form=form,
+            )
+            for value, (_, end, filed, accession, form)
+            in zip(values, periods)
+        ]
+
+    net_income = flows([10.0, 20.0, 30.0, 100.0])
+    if include_future_amendment:
+        net_income.append(
+            _duration_fact(
+                999.0,
+                "2023-01-01",
+                "2023-12-31",
+                "2024-04-01",
+                "k1-amended",
+                form="10-K/A",
+            )
+        )
+    operating_cash_flow = [
+        _duration_fact(
+            15.0,
+            "2023-01-01",
+            "2023-03-31",
+            "2023-05-01",
+            "q1",
+            form="10-Q",
+        ),
+        _duration_fact(
+            40.0,
+            "2023-01-01",
+            "2023-06-30",
+            "2023-08-01",
+            "q2",
+            form="10-Q",
+        ),
+        _duration_fact(
+            75.0,
+            "2023-01-01",
+            "2023-09-30",
+            "2023-11-01",
+            "q3",
+            form="10-Q",
+        ),
+        _duration_fact(
+            130.0,
+            "2023-01-01",
+            "2023-12-31",
+            "2024-02-15",
+            "k1",
+            form="10-K",
+        ),
+    ]
+    return {
+        "entityName": "Quarterly Example Corp",
+        "facts": {
+            "us-gaap": {
+                "NetIncomeLoss": {"units": {"USD": net_income}},
+                "Revenues": {
+                    "units": {"USD": flows([100.0, 200.0, 300.0, 1000.0])}
+                },
+                "GrossProfit": {
+                    "units": {"USD": flows([40.0, 80.0, 120.0, 400.0])}
+                },
+                "NetCashProvidedByUsedInOperatingActivities": {
+                    "units": {"USD": operating_cash_flow}
+                },
+                "Assets": {
+                    "units": {"USD": instants([800.0, 850.0, 900.0, 1000.0])}
+                },
+                "AssetsCurrent": {
+                    "units": {"USD": instants([200.0, 220.0, 240.0, 300.0])}
+                },
+                "LiabilitiesCurrent": {
+                    "units": {"USD": instants([100.0, 110.0, 120.0, 150.0])}
+                },
+            },
+            "dei": {
+                "EntityCommonStockSharesOutstanding": {
+                    "units": {"shares": instants([10.0, 10.0, 10.0, 10.0])}
                 }
             },
         },
@@ -233,6 +372,68 @@ def test_company_features_accept_ifrs_20f_facts():
 
     assert len(result) == 2
     assert result.iloc[0]["profitability"] == pytest.approx(0.4)
+
+
+def test_quarterly_ttm_features_derive_ytd_and_fourth_quarter_flows():
+    prices = pd.Series(
+        [10.0, 10.0, 10.0, 10.0],
+        index=pd.to_datetime(
+            [
+                "2023-05-01",
+                "2023-08-01",
+                "2023-11-01",
+                "2024-02-15",
+            ]
+        ),
+    )
+
+    result = build_company_quarterly_ttm_features(
+        "EXM",
+        _quarterly_company_facts(),
+        {"sic": "3571"},
+        prices,
+    )
+
+    assert len(result) == 4
+    row = result.iloc[-1]
+    assert row["available_date"] == pd.Timestamp("2024-02-15")
+    assert row["filing_form"] == "10-K"
+    assert row["market_cap"] == pytest.approx(100.0)
+    assert row["quality"] == pytest.approx(0.13)
+    assert row["profitability"] == pytest.approx(0.40)
+    assert row["valuation"] == pytest.approx(1.0)
+    assert row["liquidity"] == pytest.approx(2.0)
+
+
+def test_future_quarterly_amendment_does_not_rewrite_prior_row():
+    prices = pd.Series(
+        [10.0, 10.0, 10.0, 10.0, 10.0],
+        index=pd.to_datetime(
+            [
+                "2023-05-01",
+                "2023-08-01",
+                "2023-11-01",
+                "2024-02-15",
+                "2024-04-01",
+            ]
+        ),
+    )
+    baseline = build_company_quarterly_ttm_features(
+        "EXM",
+        _quarterly_company_facts(),
+        {"sic": "3571"},
+        prices,
+        end_date="2024-03-01",
+    )
+    amended = build_company_quarterly_ttm_features(
+        "EXM",
+        _quarterly_company_facts(include_future_amendment=True),
+        {"sic": "3571"},
+        prices,
+        end_date="2024-03-01",
+    )
+
+    pd.testing.assert_frame_equal(baseline, amended)
 
 
 def test_sec_client_requires_declared_contact_and_does_not_pin_host(tmp_path):
