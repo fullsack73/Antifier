@@ -38,6 +38,8 @@ NET_ISSUANCE_CANDIDATE = "net_issuance_quality_momentum"
 NET_ISSUANCE_DIAGNOSTIC = "net_issuance_quality"
 RESIDUAL_VARIANCE_CANDIDATE = "low_residual_variance_momentum"
 RESIDUAL_VARIANCE_DIAGNOSTIC = "low_residual_variance"
+SHORT_TERM_REVERSAL_CANDIDATE = "short_term_reversal_momentum"
+SHORT_TERM_REVERSAL_DIAGNOSTIC = "short_term_reversal"
 MOMENTUM_WEIGHT = 0.50
 
 
@@ -113,6 +115,26 @@ def residual_variance_quality_buckets(tickers):
     return pd.Series(values, dtype=float)
 
 
+def short_term_reversal_buckets(tickers):
+    """Parse inverse prior-month return quintiles from French labels."""
+    values = {}
+    for ticker in tickers:
+        label = str(ticker).strip()
+        if "LoPRIOR" in label:
+            prior_bucket = 1
+        elif "HiPRIOR" in label:
+            prior_bucket = 5
+        else:
+            match = re.search(r"\bPRIOR([1-5])(?:\s|$)", label)
+            if match is None:
+                raise ValueError(
+                    f"Cannot parse prior-month-return bucket: {label}"
+                )
+            prior_bucket = int(match.group(1))
+        values[label] = float(6 - prior_bucket)
+    return pd.Series(values, dtype=float)
+
+
 def _signal_kind(args):
     return str(getattr(args, "signal_kind", "accrual"))
 
@@ -122,6 +144,7 @@ def _candidate_name(args):
         "accrual": CANDIDATE,
         "net_issuance": NET_ISSUANCE_CANDIDATE,
         "residual_variance": RESIDUAL_VARIANCE_CANDIDATE,
+        "short_term_reversal": SHORT_TERM_REVERSAL_CANDIDATE,
     }[_signal_kind(args)]
 
 
@@ -130,6 +153,7 @@ def _diagnostic_name(args):
         "accrual": DIAGNOSTIC,
         "net_issuance": NET_ISSUANCE_DIAGNOSTIC,
         "residual_variance": RESIDUAL_VARIANCE_DIAGNOSTIC,
+        "short_term_reversal": SHORT_TERM_REVERSAL_DIAGNOSTIC,
     }[_signal_kind(args)]
 
 
@@ -186,6 +210,24 @@ def _settings(args):
                 "VAR3",
                 "VAR4",
                 "HiVAR",
+            ],
+        })
+    elif _signal_kind(args) == "short_term_reversal":
+        settings.update({
+            "short_term_reversal_weight": 1.0 - MOMENTUM_WEIGHT,
+            "short_term_reversal_signal": (
+                "inverse_official_monthly_prior_1_1_return_quintile"
+            ),
+            "short_term_reversal_definition": (
+                "prior_month_return_with_price_at_t_minus_2_and_"
+                "good_return_at_t_minus_1"
+            ),
+            "bucket_order_best_to_worst": [
+                "LoPRIOR",
+                "PRIOR2",
+                "PRIOR3",
+                "PRIOR4",
+                "HiPRIOR",
             ],
         })
     else:
@@ -398,10 +440,15 @@ def _fmt(value):
 def _write_report(payload, output_path):
     net_issuance = payload["feature_kind"] == "net_issuance"
     residual_variance = payload["feature_kind"] == "residual_variance"
+    short_term_reversal = (
+        payload["feature_kind"] == "short_term_reversal"
+    )
     if net_issuance:
         title = "# Net-Issuance Quality Momentum Research"
     elif residual_variance:
         title = "# Low Residual-Variance Momentum Research"
+    elif short_term_reversal:
+        title = "# Short-Term Reversal Momentum Research"
     else:
         title = "# Accrual-Quality Momentum Research"
     lines = [
@@ -411,7 +458,7 @@ def _write_report(payload, output_path):
         f"- Promotion eligible: `{payload['promotion_eligible']}`",
         *(
             []
-            if net_issuance or residual_variance
+            if net_issuance or residual_variance or short_term_reversal
             else [
                 (
                     "- Economic benchmark only: French working-capital "
@@ -496,7 +543,12 @@ def main(argv=None):
     parser.add_argument("--experiment-namespace", required=True)
     parser.add_argument(
         "--signal-kind",
-        choices=("accrual", "net_issuance", "residual_variance"),
+        choices=(
+            "accrual",
+            "net_issuance",
+            "residual_variance",
+            "short_term_reversal",
+        ),
         default="accrual",
     )
     parser.add_argument("--train-window", type=int, default=72)
@@ -522,6 +574,7 @@ def main(argv=None):
             "accrual": accrual_quality_buckets,
             "net_issuance": net_issuance_quality_buckets,
             "residual_variance": residual_variance_quality_buckets,
+            "short_term_reversal": short_term_reversal_buckets,
         }[args.signal_kind]
         quality = quality_loader(prices.columns)
         candidate_name = _candidate_name(args)
@@ -608,6 +661,9 @@ def main(argv=None):
                     ),
                     "residual_variance": (
                         "portfolio_residual_variance_quality_buckets"
+                    ),
+                    "short_term_reversal": (
+                        "portfolio_short_term_reversal_buckets"
                     ),
                 }[args.signal_kind]: {
                     ticker: int(value)

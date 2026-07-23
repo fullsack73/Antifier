@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
-- 현재 상태: low-residual-variance blend도 paired research uplift에서 탈락
+- 현재 상태: short-term-reversal feature가 validation 통과 후 locked holdout에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -130,6 +130,8 @@
 - 이 실패는 Transformer capacity/HPO 근거가 아니며 2012+ holdout을 열지 않습니다.
 - Official French FF3 residual-variance feature를 추가한 fixed blend는 absolute signal이 강했지만 momentum 대비 paired IC/spread 개선 확률이 `80.75%`/`77.15%`에 그쳤습니다.
 - Residual-risk 정보도 incremental forecast ordering을 증명하지 못했으므로 Transformer HPO나 capacity 확대 근거로 사용하지 않습니다.
+- Fixed short-term-reversal-momentum은 복잡한 모델 없이 research와 untouched validation을 통과했지만 final locked holdout의 paired uplift가 `70.45%`/`84.75%`에 그쳤습니다.
+- Feature horizon diversification이 유망하다는 증거는 생겼지만 default 승격 또는 Transformer HPO 근거는 아닙니다.
 - fresh official French 12-industry 1933~1952 split에서 고정 market trend/volatility interaction을 nested ridge에 추가했지만 IC `0.0193→0.0050`, spread `0.00445→0.00286`으로 악화됐습니다.
 - candidate의 paired P(higher IC/spread)는 `35.75%`/`40.25%`였고 계산시간은 baseline `32.68s`에서 `50.64s`로 증가했습니다. macro/regime interaction도 Transformer HPO 근거를 만들지 못했습니다.
 - 1953+ validation/holdout을 열지 않고 같은 split에서 lookback, threshold, interaction subset을 재튜닝하지 않습니다.
@@ -167,3 +169,4 @@
 - Net-issuance quality-momentum research: `docs/reports/260724-0438-01-net-issuance-quality-momentum-research.md`
 - Net-issuance quality-momentum validation: `docs/reports/260724-0443-01-net-issuance-quality-momentum-validation.md`
 - Low residual-variance momentum research: `docs/reports/260724-0448-01-low-residual-variance-momentum-research.md`
+- Short-term reversal-momentum gauntlet: `docs/reports/260724-0500-01-short-term-reversal-momentum-gauntlet.md`

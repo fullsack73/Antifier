@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: low-residual-variance-momentum도 paired/Holm research gate에서 탈락
+- 현재 상태: short-term-reversal-momentum이 final locked holdout에서 paired/Holm gate 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -120,6 +120,9 @@
 - Low-net-issuance case가 baseline보다 낮아 `3/4` case만 통과했습니다. Candidate를 폐기하고 같은 validation에 맞춘 재튜닝과 2012+ holdout 실행을 금지합니다.
 - official French 25 size×FF3 residual-variance의 fixed 50/50 low-residual-variance-momentum은 absolute IC `0.2800`, spread `0.03599`로 강했습니다.
 - 그러나 raw momentum 대비 paired P(higher IC/spread) `80.75%`/`77.15%`, Holm-adjusted p-value `0.2285`로 incremental uplift를 증명하지 못했습니다. Default alpha/risk model은 변경하지 않고 validation/holdout을 봉인합니다.
+- official French size×prior-month-return의 fixed reversal-momentum은 locked research와 untouched validation 4/4를 통과했습니다.
+- 최종 locked holdout에서 candidate IC `0.2120`, spread `0.01309`는 양수였지만 raw momentum 대비 paired P(higher IC/spread) `70.45%`/`84.75%`, Holm `0.2955`, cases `3/4`였습니다.
+- Validation-result SHA chain과 locked-holdout role 검증은 강화됐지만 default alpha/optimizer는 변경하지 않습니다. Holdout 재튜닝·재실행을 금지합니다.
 
 ## 금지
 

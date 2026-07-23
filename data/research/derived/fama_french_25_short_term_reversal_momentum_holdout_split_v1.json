@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-short-term-reversal-momentum-holdout-1971-1982-v1",
+  "role": "locked_holdout",
+  "evaluation_start": "1971-02-28",
+  "evaluation_end": "1982-12-31",
+  "experiment_namespace": "alpha-v17-short-term-reversal-momentum-locked-holdout",
+  "objectives": [
+    "short_term_reversal_momentum"
+  ],
+  "settings": {
+    "train_window": 72,
+    "horizon": 1,
+    "rebalance_step": 1,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "short_term_reversal_weight": 0.5,
+    "short_term_reversal_signal": "inverse_official_monthly_prior_1_1_return_quintile",
+    "short_term_reversal_definition": "prior_month_return_with_price_at_t_minus_2_and_good_return_at_t_minus_1",
+    "bucket_order_best_to_worst": [
+      "LoPRIOR",
+      "PRIOR2",
+      "PRIOR3",
+      "PRIOR4",
+      "HiPRIOR"
+    ],
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 12,
+    "bootstrap_minimum_probability": 0.95,
+    "minimum_case_periods": 60,
+    "frozen_candidate_policy": {
+      "source_split_id": "fama-french-25-short-term-reversal-momentum-research-1932-1955-v1",
+      "candidate": "short_term_reversal_momentum",
+      "candidate_specification": "unchanged"
+    },
+    "validation_cases": [
+      {
+        "id": "small_size",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME1 PRIOR3",
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME2 PRIOR3",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5"
+        ]
+      },
+      {
+        "id": "large_size",
+        "tickers": [
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "ME4 PRIOR3",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2",
+          "ME5 PRIOR3",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      },
+      {
+        "id": "prior_losers",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME3 PRIOR1",
+          "ME3 PRIOR2",
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2"
+        ]
+      },
+      {
+        "id": "prior_winners",
+        "tickers": [
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5",
+          "ME3 PRIOR4",
+          "ME3 PRIOR5",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      }
+    ],
+    "locked_holdout_policy": {
+      "validation_split_id": "fama-french-25-short-term-reversal-momentum-validation-1958-1969-v1",
+      "validation_result_sha256": "a37ffa55f7b22e86b76dac20a8b81f8d4e996659a75b22fb578c070c2b895dc4",
+      "candidate_specification": "unchanged"
+    }
+  },
+  "universe_manifest_sha256": "271bc40259c9bdb51e042ec776c46310d3cacb0c1deded4fbbe330b0e32cb494",
+  "price_file_sha256": "29259140bc7f8bc43e5d3860e1c70fc14ba866cd8ff4a3b25733879ea3b44016",
+  "factor_file_sha256": null,
+  "auxiliary_files": {
+    "frozen_result": "41f695f29c9654e59c166f3ccdfabd4fb654532b2e2518792d035b97d362d486",
+    "validation_result": "a37ffa55f7b22e86b76dac20a8b81f8d4e996659a75b22fb578c070c2b895dc4"
+  },
+  "locked": true,
+  "manifest_sha256": "ead2ce55d1591669a8bde4f473655bc06a517eb7fd69a3378fb205a6e1a54920"
+}

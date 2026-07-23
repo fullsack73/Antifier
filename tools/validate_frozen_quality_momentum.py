@@ -37,9 +37,11 @@ from research_profitability_momentum import (  # noqa: E402
 )
 from research_accrual_quality import (  # noqa: E402
     NET_ISSUANCE_CANDIDATE,
+    SHORT_TERM_REVERSAL_CANDIDATE,
     _paired_gate as _issuance_paired_gate,
     _run_periods as _run_issuance_periods,
     net_issuance_quality_buckets,
+    short_term_reversal_buckets,
 )
 from research_split import validate_research_split_run  # noqa: E402
 
@@ -152,9 +154,49 @@ NET_ISSUANCE_VALIDATION_CASES = (
         ),
     },
 )
+SHORT_TERM_REVERSAL_VALIDATION_CASES = (
+    {
+        "id": "small_size",
+        "tickers": (
+            "SMALL LoPRIOR", "ME1 PRIOR2", "ME1 PRIOR3",
+            "ME1 PRIOR4", "SMALL HiPRIOR", "ME2 PRIOR1",
+            "ME2 PRIOR2", "ME2 PRIOR3", "ME2 PRIOR4", "ME2 PRIOR5",
+        ),
+    },
+    {
+        "id": "large_size",
+        "tickers": (
+            "ME4 PRIOR1", "ME4 PRIOR2", "ME4 PRIOR3",
+            "ME4 PRIOR4", "ME4 PRIOR5", "BIG LoPRIOR",
+            "ME5 PRIOR2", "ME5 PRIOR3", "ME5 PRIOR4", "BIG HiPRIOR",
+        ),
+    },
+    {
+        "id": "prior_losers",
+        "tickers": (
+            "SMALL LoPRIOR", "ME1 PRIOR2",
+            "ME2 PRIOR1", "ME2 PRIOR2",
+            "ME3 PRIOR1", "ME3 PRIOR2",
+            "ME4 PRIOR1", "ME4 PRIOR2",
+            "BIG LoPRIOR", "ME5 PRIOR2",
+        ),
+    },
+    {
+        "id": "prior_winners",
+        "tickers": (
+            "ME1 PRIOR4", "SMALL HiPRIOR",
+            "ME2 PRIOR4", "ME2 PRIOR5",
+            "ME3 PRIOR4", "ME3 PRIOR5",
+            "ME4 PRIOR4", "ME4 PRIOR5",
+            "ME5 PRIOR4", "BIG HiPRIOR",
+        ),
+    },
+)
 
 
 def _candidate_name(args):
+    if args.signal_kind == "short_term_reversal":
+        return SHORT_TERM_REVERSAL_CANDIDATE
     if args.signal_kind == "net_issuance":
         return NET_ISSUANCE_CANDIDATE
     return (
@@ -165,6 +207,8 @@ def _candidate_name(args):
 
 
 def _validation_cases(args):
+    if args.signal_kind == "short_term_reversal":
+        return SHORT_TERM_REVERSAL_VALIDATION_CASES
     if args.signal_kind == "net_issuance":
         return NET_ISSUANCE_VALIDATION_CASES
     return (
@@ -182,9 +226,52 @@ def _load_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
-def _settings(args):
+def _base_settings(args):
     candidate = _candidate_name(args)
     cases = _validation_cases(args)
+    if args.signal_kind == "short_term_reversal":
+        return {
+            "train_window": int(args.train_window),
+            "horizon": int(args.horizon),
+            "rebalance_step": int(args.rebalance_step),
+            "momentum_lookback": 12,
+            "momentum_skip": 1,
+            "momentum_weight": 0.50,
+            "short_term_reversal_weight": 0.50,
+            "short_term_reversal_signal": (
+                "inverse_official_monthly_prior_1_1_return_quintile"
+            ),
+            "short_term_reversal_definition": (
+                "prior_month_return_with_price_at_t_minus_2_and_"
+                "good_return_at_t_minus_1"
+            ),
+            "bucket_order_best_to_worst": [
+                "LoPRIOR",
+                "PRIOR2",
+                "PRIOR3",
+                "PRIOR4",
+                "HiPRIOR",
+            ],
+            "baseline": BASELINE,
+            "bootstrap_samples": int(args.bootstrap_samples),
+            "bootstrap_block_size": int(args.bootstrap_block_size),
+            "bootstrap_minimum_probability": float(
+                args.bootstrap_minimum_probability
+            ),
+            "minimum_case_periods": 60,
+            "frozen_candidate_policy": {
+                "source_split_id": str(args.frozen_from),
+                "candidate": candidate,
+                "candidate_specification": "unchanged",
+            },
+            "validation_cases": [
+                {
+                    "id": case["id"],
+                    "tickers": list(case["tickers"]),
+                }
+                for case in cases
+            ],
+        }
     if args.signal_kind == "net_issuance":
         return {
             "train_window": int(args.train_window),
@@ -299,6 +386,22 @@ def _settings(args):
     }
 
 
+def _settings(args):
+    settings = _base_settings(args)
+    if getattr(args, "evaluation_role", "validation") != "locked_holdout":
+        return settings
+    return {
+        **settings,
+        "locked_holdout_policy": {
+            "validation_split_id": str(args.validated_from),
+            "validation_result_sha256": _sha256(
+                Path(args.validated_result).expanduser().resolve()
+            ),
+            "candidate_specification": "unchanged",
+        },
+    }
+
+
 def _load_frozen_result(args):
     path = Path(args.frozen_result).expanduser().resolve()
     payload = _load_json(path)
@@ -312,7 +415,14 @@ def _load_frozen_result(args):
     if not payload.get("promotion_eligible"):
         raise ValueError("Frozen result is not promotion eligible")
     frozen_settings = payload.get("settings", {})
-    if args.signal_kind == "net_issuance":
+    if args.signal_kind == "short_term_reversal":
+        expected = {
+            "momentum_weight": 0.50,
+            "short_term_reversal_weight": 0.50,
+            "momentum_lookback": 12,
+            "momentum_skip": 1,
+        }
+    elif args.signal_kind == "net_issuance":
         expected = {
             "momentum_weight": 0.50,
             "net_issuance_quality_weight": 0.50,
@@ -337,6 +447,33 @@ def _load_frozen_result(args):
         }
     if any(frozen_settings.get(key) != value for key, value in expected.items()):
         raise ValueError("Frozen result candidate specification drifted")
+    return payload, path, _sha256(path)
+
+
+def _load_validated_result(args):
+    if getattr(args, "evaluation_role", "validation") != "locked_holdout":
+        return None, None, None
+    if not args.validated_from or not args.validated_result:
+        raise ValueError(
+            "Locked holdout requires --validated-from and "
+            "--validated-result"
+        )
+    path = Path(args.validated_result).expanduser().resolve()
+    payload = _load_json(path)
+    evaluation_split = (
+        payload.get("evaluation_split")
+        or payload.get("validation_split")
+    )
+    if evaluation_split != args.validated_from:
+        raise ValueError(
+            "Validated result split does not match --validated-from"
+        )
+    if payload.get("candidate") != _candidate_name(args):
+        raise ValueError("Validated result candidate does not match")
+    if not payload.get("validation_passed"):
+        raise ValueError("Validated result did not pass validation")
+    if not payload.get("promotion_eligible"):
+        raise ValueError("Validated result is not promotion eligible")
     return payload, path, _sha256(path)
 
 
@@ -366,6 +503,8 @@ def _load_prices(args):
 
 
 def _fundamental_signal(tickers, args):
+    if args.signal_kind == "short_term_reversal":
+        return short_term_reversal_buckets(tickers)
     if args.signal_kind == "net_issuance":
         return net_issuance_quality_buckets(tickers)
     profitability = operating_profitability_buckets(tickers)
@@ -381,7 +520,7 @@ def _fundamental_signal(tickers, args):
 
 
 def _rank_results(prices, args):
-    if args.signal_kind == "net_issuance":
+    if args.signal_kind in {"net_issuance", "short_term_reversal"}:
         run_args = argparse.Namespace(**vars(args))
         run_args.momentum_lookback = 12
         run_args.momentum_skip = 1
@@ -464,7 +603,7 @@ def _aggregate_gate(result, args):
     )
     paired_gate_fn = (
         _issuance_paired_gate
-        if args.signal_kind == "net_issuance"
+        if args.signal_kind in {"net_issuance", "short_term_reversal"}
         else _paired_gate
     )
     paired_gate, paired_holm = paired_gate_fn(
@@ -488,16 +627,20 @@ def _aggregate_gate(result, args):
 
 
 def _write_report(payload, output_path):
-    if payload["candidate"] == NET_ISSUANCE_CANDIDATE:
+    if payload["candidate"] == SHORT_TERM_REVERSAL_CANDIDATE:
+        title = "# Frozen Short-Term Reversal-Momentum Validation"
+    elif payload["candidate"] == NET_ISSUANCE_CANDIDATE:
         title = "# Frozen Net-Issuance Quality-Momentum Validation"
     elif payload["candidate"] == VALUE_QUALITY_CANDIDATE:
         title = "# Frozen Value-Quality-Momentum Validation"
     else:
         title = "# Frozen Quality-Momentum Validation"
+    if payload["evaluation_role"] == "locked_holdout":
+        title = title.replace("Validation", "Locked Holdout")
     lines = [
         title,
         "",
-        f"- Split: `{payload['validation_split']}`",
+        f"- Split: `{payload['evaluation_split']}`",
         f"- Frozen from: `{payload['frozen_from']}`",
         f"- Passed cases: {payload['passed_case_count']} / 4",
         f"- Aggregate gate: `{payload['aggregate_gate']['status']}`",
@@ -550,7 +693,11 @@ def _write_report(payload, output_path):
         "## Decision",
         "",
         "- All four deterministic cases and aggregate statistical gate must pass.",
-        "- 2012+ locked holdout remains sealed unless validation passes.",
+        (
+            "- This is the final locked holdout evaluation."
+            if payload["evaluation_role"] == "locked_holdout"
+            else "- Reserved locked holdout remains sealed unless validation passes."
+        ),
     ])
     report_path = Path(output_path).with_suffix(".md")
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -561,16 +708,33 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--signal-kind",
-        choices=("quality", "value_quality", "net_issuance"),
+        choices=(
+            "quality",
+            "value_quality",
+            "net_issuance",
+            "short_term_reversal",
+        ),
         default="quality",
     )
     parser.add_argument("--csv", required=True)
     parser.add_argument("--price-provenance", required=True)
     parser.add_argument("--split-manifest", required=True)
-    parser.add_argument("--validation-split", required=True)
+    parser.add_argument(
+        "--validation-split",
+        "--evaluation-split",
+        dest="validation_split",
+        required=True,
+    )
+    parser.add_argument(
+        "--evaluation-role",
+        choices=("validation", "locked_holdout"),
+        default="validation",
+    )
     parser.add_argument("--experiment-namespace", required=True)
     parser.add_argument("--frozen-from", required=True)
     parser.add_argument("--frozen-result", required=True)
+    parser.add_argument("--validated-from")
+    parser.add_argument("--validated-result")
     parser.add_argument("--train-window", type=int, default=505)
     parser.add_argument("--horizon", type=int, default=63)
     parser.add_argument("--rebalance-step", type=int, default=63)
@@ -586,6 +750,9 @@ def main(argv=None):
 
     try:
         frozen, frozen_path, frozen_sha = _load_frozen_result(args)
+        validated, validated_path, validated_sha = (
+            _load_validated_result(args)
+        )
         candidate = _candidate_name(args)
         cases = _validation_cases(args)
         prices, provenance, price_path, provenance_path = (
@@ -608,17 +775,27 @@ def main(argv=None):
             ),
             price_file_sha256=provenance.get("price_file_sha256"),
             factor_file_sha256=None,
-            auxiliary_files={"frozen_result": frozen_sha},
+            auxiliary_files={
+                "frozen_result": frozen_sha,
+                **(
+                    {}
+                    if validated_sha is None
+                    else {"validation_result": validated_sha}
+                ),
+            },
         )
-        if split["role"] != "validation":
-            raise ValueError("Validation manifest role must be validation")
+        if split["role"] != args.evaluation_role:
+            raise ValueError(
+                "Evaluation manifest role must match --evaluation-role"
+            )
 
         aggregate_result = _rank_results(prices, args)
         aggregate_gate = _aggregate_gate(aggregate_result, args)
         case_runs = []
-        minimum_case_periods = (
-            10 if args.signal_kind == "net_issuance" else 16
-        )
+        minimum_case_periods = {
+            "net_issuance": 10,
+            "short_term_reversal": 60,
+        }.get(args.signal_kind, 16)
         for case in cases:
             case_result = _rank_results(
                 prices.loc[:, list(case["tickers"])],
@@ -640,11 +817,13 @@ def main(argv=None):
             run["gate"]["status"] == "passed"
             for run in case_runs
         )
-        validation_passed = bool(
+        evaluation_passed = bool(
             passed_case_count == len(cases)
             and aggregate_gate["status"] == "passed"
         )
         payload = {
+            "evaluation_split": args.validation_split,
+            "evaluation_role": args.evaluation_role,
             "validation_split": args.validation_split,
             "experiment_namespace": args.experiment_namespace,
             "frozen_from": args.frozen_from,
@@ -653,6 +832,18 @@ def main(argv=None):
                 "sha256": frozen_sha,
                 "promotion_eligible": frozen["promotion_eligible"],
             },
+            "validated_result": (
+                None
+                if validated is None
+                else {
+                    "file": str(validated_path),
+                    "sha256": validated_sha,
+                    "validation_split": args.validated_from,
+                    "promotion_eligible": validated[
+                        "promotion_eligible"
+                    ],
+                }
+            ),
             "split": {
                 **split,
                 "file": str(split_path),
@@ -675,9 +866,19 @@ def main(argv=None):
                 "candidate": aggregate_result["candidate"],
                 "baseline": aggregate_result["baseline"],
             },
-            "validation_passed": validation_passed,
+            "evaluation_passed": evaluation_passed,
+            "validation_passed": (
+                evaluation_passed
+                if args.evaluation_role == "validation"
+                else None
+            ),
+            "holdout_passed": (
+                evaluation_passed
+                if args.evaluation_role == "locked_holdout"
+                else None
+            ),
             "promotion_eligible": bool(
-                validation_passed
+                evaluation_passed
                 and split.get("promotion_safe", False)
                 and provenance.get("promotion_safe", False)
             ),

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from argparse import Namespace
 from pathlib import Path
 
@@ -85,3 +86,47 @@ def test_net_issuance_case_gate_accepts_eleven_annual_periods():
         VALIDATION._case_gate(result, minimum_periods=10)["status"]
         == "passed"
     )
+
+
+def test_short_term_reversal_validation_freezes_four_cases():
+    args = Namespace(signal_kind="short_term_reversal")
+    cases = VALIDATION._validation_cases(args)
+
+    assert (
+        VALIDATION._candidate_name(args)
+        == "short_term_reversal_momentum"
+    )
+    assert [case["id"] for case in cases] == [
+        "small_size",
+        "large_size",
+        "prior_losers",
+        "prior_winners",
+    ]
+    assert all(len(case["tickers"]) == 10 for case in cases)
+
+
+def test_locked_holdout_requires_passing_validation_sha_chain(tmp_path):
+    path = tmp_path / "validation.json"
+    path.write_text(
+        json.dumps({
+            "validation_split": "validation-v1",
+            "candidate": "short_term_reversal_momentum",
+            "validation_passed": True,
+            "promotion_eligible": True,
+        }),
+        encoding="utf-8",
+    )
+    args = Namespace(
+        evaluation_role="locked_holdout",
+        validated_from="validation-v1",
+        validated_result=str(path),
+        signal_kind="short_term_reversal",
+    )
+
+    payload, loaded_path, digest = VALIDATION._load_validated_result(
+        args
+    )
+
+    assert payload["validation_passed"] is True
+    assert loaded_path == path.resolve()
+    assert len(digest) == 64

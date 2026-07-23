@@ -1,0 +1,485 @@
+{
+  "evaluation_split": "fama-french-25-short-term-reversal-momentum-holdout-1971-1982-v1",
+  "evaluation_role": "locked_holdout",
+  "validation_split": "fama-french-25-short-term-reversal-momentum-holdout-1971-1982-v1",
+  "experiment_namespace": "alpha-v17-short-term-reversal-momentum-locked-holdout",
+  "frozen_from": "fama-french-25-short-term-reversal-momentum-research-1932-1955-v1",
+  "frozen_result": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_short_term_reversal_momentum_research_result_v1.json",
+    "sha256": "41f695f29c9654e59c166f3ccdfabd4fb654532b2e2518792d035b97d362d486",
+    "promotion_eligible": true
+  },
+  "validated_result": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_short_term_reversal_momentum_validation_result_v1.json",
+    "sha256": "a37ffa55f7b22e86b76dac20a8b81f8d4e996659a75b22fb578c070c2b895dc4",
+    "validation_split": "fama-french-25-short-term-reversal-momentum-validation-1958-1969-v1",
+    "promotion_eligible": true
+  },
+  "split": {
+    "schema_version": 1,
+    "split_id": "fama-french-25-short-term-reversal-momentum-holdout-1971-1982-v1",
+    "role": "locked_holdout",
+    "evaluation_start": "1971-02-28",
+    "evaluation_end": "1982-12-31",
+    "experiment_namespace": "alpha-v17-short-term-reversal-momentum-locked-holdout",
+    "objectives": [
+      "short_term_reversal_momentum"
+    ],
+    "settings": {
+      "train_window": 72,
+      "horizon": 1,
+      "rebalance_step": 1,
+      "momentum_lookback": 12,
+      "momentum_skip": 1,
+      "momentum_weight": 0.5,
+      "short_term_reversal_weight": 0.5,
+      "short_term_reversal_signal": "inverse_official_monthly_prior_1_1_return_quintile",
+      "short_term_reversal_definition": "prior_month_return_with_price_at_t_minus_2_and_good_return_at_t_minus_1",
+      "bucket_order_best_to_worst": [
+        "LoPRIOR",
+        "PRIOR2",
+        "PRIOR3",
+        "PRIOR4",
+        "HiPRIOR"
+      ],
+      "baseline": "momentum_12_1",
+      "bootstrap_samples": 2000,
+      "bootstrap_block_size": 12,
+      "bootstrap_minimum_probability": 0.95,
+      "minimum_case_periods": 60,
+      "frozen_candidate_policy": {
+        "source_split_id": "fama-french-25-short-term-reversal-momentum-research-1932-1955-v1",
+        "candidate": "short_term_reversal_momentum",
+        "candidate_specification": "unchanged"
+      },
+      "validation_cases": [
+        {
+          "id": "small_size",
+          "tickers": [
+            "SMALL LoPRIOR",
+            "ME1 PRIOR2",
+            "ME1 PRIOR3",
+            "ME1 PRIOR4",
+            "SMALL HiPRIOR",
+            "ME2 PRIOR1",
+            "ME2 PRIOR2",
+            "ME2 PRIOR3",
+            "ME2 PRIOR4",
+            "ME2 PRIOR5"
+          ]
+        },
+        {
+          "id": "large_size",
+          "tickers": [
+            "ME4 PRIOR1",
+            "ME4 PRIOR2",
+            "ME4 PRIOR3",
+            "ME4 PRIOR4",
+            "ME4 PRIOR5",
+            "BIG LoPRIOR",
+            "ME5 PRIOR2",
+            "ME5 PRIOR3",
+            "ME5 PRIOR4",
+            "BIG HiPRIOR"
+          ]
+        },
+        {
+          "id": "prior_losers",
+          "tickers": [
+            "SMALL LoPRIOR",
+            "ME1 PRIOR2",
+            "ME2 PRIOR1",
+            "ME2 PRIOR2",
+            "ME3 PRIOR1",
+            "ME3 PRIOR2",
+            "ME4 PRIOR1",
+            "ME4 PRIOR2",
+            "BIG LoPRIOR",
+            "ME5 PRIOR2"
+          ]
+        },
+        {
+          "id": "prior_winners",
+          "tickers": [
+            "ME1 PRIOR4",
+            "SMALL HiPRIOR",
+            "ME2 PRIOR4",
+            "ME2 PRIOR5",
+            "ME3 PRIOR4",
+            "ME3 PRIOR5",
+            "ME4 PRIOR4",
+            "ME4 PRIOR5",
+            "ME5 PRIOR4",
+            "BIG HiPRIOR"
+          ]
+        }
+      ],
+      "locked_holdout_policy": {
+        "validation_split_id": "fama-french-25-short-term-reversal-momentum-validation-1958-1969-v1",
+        "validation_result_sha256": "a37ffa55f7b22e86b76dac20a8b81f8d4e996659a75b22fb578c070c2b895dc4",
+        "candidate_specification": "unchanged"
+      }
+    },
+    "universe_manifest_sha256": "271bc40259c9bdb51e042ec776c46310d3cacb0c1deded4fbbe330b0e32cb494",
+    "price_file_sha256": "29259140bc7f8bc43e5d3860e1c70fc14ba866cd8ff4a3b25733879ea3b44016",
+    "factor_file_sha256": null,
+    "auxiliary_files": {
+      "frozen_result": "41f695f29c9654e59c166f3ccdfabd4fb654532b2e2518792d035b97d362d486",
+      "validation_result": "a37ffa55f7b22e86b76dac20a8b81f8d4e996659a75b22fb578c070c2b895dc4"
+    },
+    "locked": true,
+    "manifest_sha256": "ead2ce55d1591669a8bde4f473655bc06a517eb7fd69a3378fb205a6e1a54920",
+    "promotion_safe": true,
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_short_term_reversal_momentum_holdout_split_v1.json",
+    "file_sha256": "ed97e6934f022d3e10f89aa1922a07a2ce55b72e82d2e62454eb4edc87577776"
+  },
+  "data": {
+    "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_size_short_term_reversal_prices_1965_1983.csv",
+    "price_provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_size_short_term_reversal_prices_1965_1983.provenance.json",
+    "row_count": 216,
+    "ticker_count": 25
+  },
+  "settings": {
+    "train_window": 72,
+    "horizon": 1,
+    "rebalance_step": 1,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "short_term_reversal_weight": 0.5,
+    "short_term_reversal_signal": "inverse_official_monthly_prior_1_1_return_quintile",
+    "short_term_reversal_definition": "prior_month_return_with_price_at_t_minus_2_and_good_return_at_t_minus_1",
+    "bucket_order_best_to_worst": [
+      "LoPRIOR",
+      "PRIOR2",
+      "PRIOR3",
+      "PRIOR4",
+      "HiPRIOR"
+    ],
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 12,
+    "bootstrap_minimum_probability": 0.95,
+    "minimum_case_periods": 60,
+    "frozen_candidate_policy": {
+      "source_split_id": "fama-french-25-short-term-reversal-momentum-research-1932-1955-v1",
+      "candidate": "short_term_reversal_momentum",
+      "candidate_specification": "unchanged"
+    },
+    "validation_cases": [
+      {
+        "id": "small_size",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME1 PRIOR3",
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME2 PRIOR3",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5"
+        ]
+      },
+      {
+        "id": "large_size",
+        "tickers": [
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "ME4 PRIOR3",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2",
+          "ME5 PRIOR3",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      },
+      {
+        "id": "prior_losers",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME3 PRIOR1",
+          "ME3 PRIOR2",
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2"
+        ]
+      },
+      {
+        "id": "prior_winners",
+        "tickers": [
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5",
+          "ME3 PRIOR4",
+          "ME3 PRIOR5",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      }
+    ],
+    "locked_holdout_policy": {
+      "validation_split_id": "fama-french-25-short-term-reversal-momentum-validation-1958-1969-v1",
+      "validation_result_sha256": "a37ffa55f7b22e86b76dac20a8b81f8d4e996659a75b22fb578c070c2b895dc4",
+      "candidate_specification": "unchanged"
+    }
+  },
+  "candidate": "short_term_reversal_momentum",
+  "baseline": "momentum_12_1",
+  "passed_case_count": 3,
+  "case_count": 4,
+  "aggregate_gate": {
+    "status": "rejected",
+    "reasons": [
+      "Paired rank-IC improvement probability is below 95%.",
+      "Paired spread improvement probability is below 95%.",
+      "Paired improvement is not significant after Holm correction."
+    ],
+    "candidate_gate": {
+      "status": "passed",
+      "reasons": [],
+      "minimum_bootstrap_probability": 0.95
+    },
+    "candidate_bootstrap": {
+      "status": "ok",
+      "observation_count": 143,
+      "block_size": 12,
+      "samples": 2000,
+      "seed": 42,
+      "observed": {
+        "mean_rank_ic": 0.21197978483150132,
+        "mean_top_bottom_spread": 0.013088111888111893
+      },
+      "probability": {
+        "positive_mean_rank_ic": 1.0,
+        "positive_mean_top_bottom_spread": 1.0
+      },
+      "interval": {
+        "mean_rank_ic": {
+          "lower_95": 0.1383165171464071,
+          "median": 0.21349690320365056,
+          "upper_95": 0.2899389750619703
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": 0.007458940559440571,
+          "median": 0.013062447552447556,
+          "upper_95": 0.019473293706293714
+        }
+      }
+    },
+    "paired_gate": {
+      "status": "rejected",
+      "reasons": [
+        "Paired rank-IC improvement probability is below 95%.",
+        "Paired spread improvement probability is below 95%.",
+        "Paired improvement is not significant after Holm correction."
+      ]
+    },
+    "paired_bootstrap": {
+      "status": "ok",
+      "observation_count": 143,
+      "block_size": 12,
+      "samples": 2000,
+      "seed": 44,
+      "observed_difference": {
+        "mean_rank_ic": 0.0141949131136664,
+        "mean_top_bottom_spread": 0.0019637762237762276
+      },
+      "probability": {
+        "higher_mean_rank_ic": 0.7045,
+        "higher_mean_top_bottom_spread": 0.8475
+      },
+      "difference_interval": {
+        "mean_rank_ic": {
+          "lower_95": -0.0409981301288162,
+          "median": 0.014093386848599877,
+          "upper_95": 0.06525758613022466
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": -0.0018564020979021088,
+          "median": 0.002042377622377625,
+          "upper_95": 0.005599688811188804
+        }
+      }
+    },
+    "paired_holm": {
+      "raw_p_value": 0.2955,
+      "adjusted_p_value": 0.2955,
+      "significant": false
+    }
+  },
+  "case_runs": [
+    {
+      "case": {
+        "id": "small_size",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME1 PRIOR3",
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME2 PRIOR3",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5"
+        ]
+      },
+      "candidate": {
+        "period_count": 143,
+        "mean_rank_ic": 0.31240630605086067,
+        "positive_rank_ic_rate": 0.7342657342657343,
+        "mean_top_bottom_spread": 0.01832902097902099,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 143,
+        "mean_rank_ic": 0.28088658738669126,
+        "positive_rank_ic_rate": 0.7622377622377622,
+        "mean_top_bottom_spread": 0.015486013986013984,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "large_size",
+        "tickers": [
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "ME4 PRIOR3",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2",
+          "ME5 PRIOR3",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      },
+      "candidate": {
+        "period_count": 143,
+        "mean_rank_ic": 0.11941479484180281,
+        "positive_rank_ic_rate": 0.6293706293706294,
+        "mean_top_bottom_spread": 0.006841258741258738,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 143,
+        "mean_rank_ic": 0.08954487234081497,
+        "positive_rank_ic_rate": 0.6013986013986014,
+        "mean_top_bottom_spread": 0.0036031468531468563,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "prior_losers",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME3 PRIOR1",
+          "ME3 PRIOR2",
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2"
+        ]
+      },
+      "candidate": {
+        "period_count": 143,
+        "mean_rank_ic": 0.17776397306514416,
+        "positive_rank_ic_rate": 0.6643356643356644,
+        "mean_top_bottom_spread": 0.011590909090909098,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 143,
+        "mean_rank_ic": 0.1861270043741806,
+        "positive_rank_ic_rate": 0.6433566433566433,
+        "mean_top_bottom_spread": 0.010212237762237779,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "rejected",
+        "reasons": [
+          "Candidate mean rank IC does not beat baseline."
+        ]
+      }
+    },
+    {
+      "case": {
+        "id": "prior_winners",
+        "tickers": [
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5",
+          "ME3 PRIOR4",
+          "ME3 PRIOR5",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      },
+      "candidate": {
+        "period_count": 143,
+        "mean_rank_ic": 0.1836329254317608,
+        "positive_rank_ic_rate": 0.6853146853146853,
+        "mean_top_bottom_spread": 0.008817132867132864,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 143,
+        "mean_rank_ic": 0.16960956123323623,
+        "positive_rank_ic_rate": 0.6363636363636364,
+        "mean_top_bottom_spread": 0.006468881118881117,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    }
+  ],
+  "aggregate_rank_diagnostics": {
+    "candidate": {
+      "period_count": 143,
+      "mean_rank_ic": 0.21197978483150132,
+      "positive_rank_ic_rate": 0.7132867132867133,
+      "mean_top_bottom_spread": 0.013088111888111893,
+      "mean_coverage_rate": 1.0
+    },
+    "baseline": {
+      "period_count": 143,
+      "mean_rank_ic": 0.1977848717178349,
+      "positive_rank_ic_rate": 0.6783216783216783,
+      "mean_top_bottom_spread": 0.011124335664335665,
+      "mean_coverage_rate": 1.0
+    }
+  },
+  "evaluation_passed": false,
+  "validation_passed": null,
+  "holdout_passed": false,
+  "promotion_eligible": false
+}

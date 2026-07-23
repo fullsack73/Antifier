@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: low-residual-variance-momentum이 paired/Holm research gate에서 탈락
+- 현재 상태: short-term-reversal-momentum이 research/validation 통과 후 locked holdout에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -131,6 +131,10 @@
 - official French 25 size×FF3 residual-variance의 fresh 1969~1989 research에서 fixed 50/50 low-residual-variance-momentum은 IC `0.2800`, spread `0.03599`로 absolute gate를 통과했습니다.
 - Raw momentum 대비 delta IC/spread는 `+0.0351`/`+0.00353`이었지만 paired P(higher IC/spread)는 `80.75%`/`77.15%`, Holm-adjusted p-value는 `0.2285`여서 폐기합니다.
 - 1991~1998 validation과 2000~2011 holdout을 열지 않고 같은 split에서 weight, horizon, cadence를 재튜닝하지 않습니다.
+- official French 25 size×prior-month-return의 fixed 50/50 reversal-momentum은 1932~1955 research에서 paired P(higher IC/spread) `100%`/`100%`로 통과했습니다.
+- Frozen 후보는 untouched 1958~1969 validation에서도 paired P `99.90%`/`99.80%`, Holm `0.0020`, 4-case `4/4`로 통과했습니다.
+- 최종 1971~1982 locked holdout에서는 absolute IC/spread가 양수였지만 paired P `70.45%`/`84.75%`, Holm `0.2955`, cases `3/4`로 탈락했습니다.
+- Holdout에 맞춘 weight/horizon/cadence 재튜닝과 재실행 없이 후보를 폐기합니다.
 - official French 12-industry daily panel의 fresh 1933~1952 research split에서 price predictor와 252일 market trend, 63일 volatility regime의 interaction을 사전 고정했습니다.
 - regime candidate는 baseline nested ridge 대비 IC `0.0193→0.0050`, spread `0.00445→0.00286`으로 악화됐습니다. paired P(higher IC/spread)는 `35.75%`/`40.25%`, Holm-adjusted p-value는 `0.6070`이었습니다.
 - 93개 OOS period 모두 trend/volatility regime이 가용했고 coverage는 100%였으므로 실패 원인은 결측 regime이 아닙니다. 후보를 폐기하고 1953+ validation/holdout은 봉인합니다.
@@ -159,3 +163,4 @@
 - Net-issuance quality-momentum freeze: `docs/reports/260724-0438-01-net-issuance-quality-momentum-research.md`
 - Net-issuance quality-momentum validation: `docs/reports/260724-0443-01-net-issuance-quality-momentum-validation.md`
 - Low residual-variance momentum research: `docs/reports/260724-0448-01-low-residual-variance-momentum-research.md`
+- Short-term reversal-momentum gauntlet: `docs/reports/260724-0500-01-short-term-reversal-momentum-gauntlet.md`

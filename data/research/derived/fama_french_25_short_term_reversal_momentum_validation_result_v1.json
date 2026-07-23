@@ -1,0 +1,458 @@
+{
+  "validation_split": "fama-french-25-short-term-reversal-momentum-validation-1958-1969-v1",
+  "experiment_namespace": "alpha-v17-short-term-reversal-momentum-validation",
+  "frozen_from": "fama-french-25-short-term-reversal-momentum-research-1932-1955-v1",
+  "frozen_result": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_short_term_reversal_momentum_research_result_v1.json",
+    "sha256": "41f695f29c9654e59c166f3ccdfabd4fb654532b2e2518792d035b97d362d486",
+    "promotion_eligible": true
+  },
+  "split": {
+    "schema_version": 1,
+    "split_id": "fama-french-25-short-term-reversal-momentum-validation-1958-1969-v1",
+    "role": "validation",
+    "evaluation_start": "1958-02-28",
+    "evaluation_end": "1969-12-31",
+    "experiment_namespace": "alpha-v17-short-term-reversal-momentum-validation",
+    "objectives": [
+      "short_term_reversal_momentum"
+    ],
+    "settings": {
+      "train_window": 72,
+      "horizon": 1,
+      "rebalance_step": 1,
+      "momentum_lookback": 12,
+      "momentum_skip": 1,
+      "momentum_weight": 0.5,
+      "short_term_reversal_weight": 0.5,
+      "short_term_reversal_signal": "inverse_official_monthly_prior_1_1_return_quintile",
+      "short_term_reversal_definition": "prior_month_return_with_price_at_t_minus_2_and_good_return_at_t_minus_1",
+      "bucket_order_best_to_worst": [
+        "LoPRIOR",
+        "PRIOR2",
+        "PRIOR3",
+        "PRIOR4",
+        "HiPRIOR"
+      ],
+      "baseline": "momentum_12_1",
+      "bootstrap_samples": 2000,
+      "bootstrap_block_size": 12,
+      "bootstrap_minimum_probability": 0.95,
+      "minimum_case_periods": 60,
+      "frozen_candidate_policy": {
+        "source_split_id": "fama-french-25-short-term-reversal-momentum-research-1932-1955-v1",
+        "candidate": "short_term_reversal_momentum",
+        "candidate_specification": "unchanged"
+      },
+      "validation_cases": [
+        {
+          "id": "small_size",
+          "tickers": [
+            "SMALL LoPRIOR",
+            "ME1 PRIOR2",
+            "ME1 PRIOR3",
+            "ME1 PRIOR4",
+            "SMALL HiPRIOR",
+            "ME2 PRIOR1",
+            "ME2 PRIOR2",
+            "ME2 PRIOR3",
+            "ME2 PRIOR4",
+            "ME2 PRIOR5"
+          ]
+        },
+        {
+          "id": "large_size",
+          "tickers": [
+            "ME4 PRIOR1",
+            "ME4 PRIOR2",
+            "ME4 PRIOR3",
+            "ME4 PRIOR4",
+            "ME4 PRIOR5",
+            "BIG LoPRIOR",
+            "ME5 PRIOR2",
+            "ME5 PRIOR3",
+            "ME5 PRIOR4",
+            "BIG HiPRIOR"
+          ]
+        },
+        {
+          "id": "prior_losers",
+          "tickers": [
+            "SMALL LoPRIOR",
+            "ME1 PRIOR2",
+            "ME2 PRIOR1",
+            "ME2 PRIOR2",
+            "ME3 PRIOR1",
+            "ME3 PRIOR2",
+            "ME4 PRIOR1",
+            "ME4 PRIOR2",
+            "BIG LoPRIOR",
+            "ME5 PRIOR2"
+          ]
+        },
+        {
+          "id": "prior_winners",
+          "tickers": [
+            "ME1 PRIOR4",
+            "SMALL HiPRIOR",
+            "ME2 PRIOR4",
+            "ME2 PRIOR5",
+            "ME3 PRIOR4",
+            "ME3 PRIOR5",
+            "ME4 PRIOR4",
+            "ME4 PRIOR5",
+            "ME5 PRIOR4",
+            "BIG HiPRIOR"
+          ]
+        }
+      ]
+    },
+    "universe_manifest_sha256": "271bc40259c9bdb51e042ec776c46310d3cacb0c1deded4fbbe330b0e32cb494",
+    "price_file_sha256": "de55bc13190d6b2f4f7a5fa107ab7329782d9d288909fff4ad0861868b6ea90b",
+    "factor_file_sha256": null,
+    "auxiliary_files": {
+      "frozen_result": "41f695f29c9654e59c166f3ccdfabd4fb654532b2e2518792d035b97d362d486"
+    },
+    "reserved_locked_holdout_interval": {
+      "start": "1971-02-28",
+      "end": "1982-12-31"
+    },
+    "locked": true,
+    "manifest_sha256": "afaad0ff9bbb1540e3147a61f9bbebf80377b97b941b80ce0bd2ad107ed4c6fe",
+    "promotion_safe": true,
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_short_term_reversal_momentum_validation_split_v1.json",
+    "file_sha256": "48437c9a6f3f8c1318fc7dae8b53ffb44656cebb13792f78a582e0a61e28aed7"
+  },
+  "data": {
+    "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_size_short_term_reversal_prices_1952_1970.csv",
+    "price_provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_25_size_short_term_reversal_prices_1952_1970.provenance.json",
+    "row_count": 216,
+    "ticker_count": 25
+  },
+  "settings": {
+    "train_window": 72,
+    "horizon": 1,
+    "rebalance_step": 1,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "short_term_reversal_weight": 0.5,
+    "short_term_reversal_signal": "inverse_official_monthly_prior_1_1_return_quintile",
+    "short_term_reversal_definition": "prior_month_return_with_price_at_t_minus_2_and_good_return_at_t_minus_1",
+    "bucket_order_best_to_worst": [
+      "LoPRIOR",
+      "PRIOR2",
+      "PRIOR3",
+      "PRIOR4",
+      "HiPRIOR"
+    ],
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 12,
+    "bootstrap_minimum_probability": 0.95,
+    "minimum_case_periods": 60,
+    "frozen_candidate_policy": {
+      "source_split_id": "fama-french-25-short-term-reversal-momentum-research-1932-1955-v1",
+      "candidate": "short_term_reversal_momentum",
+      "candidate_specification": "unchanged"
+    },
+    "validation_cases": [
+      {
+        "id": "small_size",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME1 PRIOR3",
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME2 PRIOR3",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5"
+        ]
+      },
+      {
+        "id": "large_size",
+        "tickers": [
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "ME4 PRIOR3",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2",
+          "ME5 PRIOR3",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      },
+      {
+        "id": "prior_losers",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME3 PRIOR1",
+          "ME3 PRIOR2",
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2"
+        ]
+      },
+      {
+        "id": "prior_winners",
+        "tickers": [
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5",
+          "ME3 PRIOR4",
+          "ME3 PRIOR5",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      }
+    ]
+  },
+  "candidate": "short_term_reversal_momentum",
+  "baseline": "momentum_12_1",
+  "passed_case_count": 4,
+  "case_count": 4,
+  "aggregate_gate": {
+    "status": "passed",
+    "reasons": [],
+    "candidate_gate": {
+      "status": "passed",
+      "reasons": [],
+      "minimum_bootstrap_probability": 0.95
+    },
+    "candidate_bootstrap": {
+      "status": "ok",
+      "observation_count": 143,
+      "block_size": 12,
+      "samples": 2000,
+      "seed": 42,
+      "observed": {
+        "mean_rank_ic": 0.1702769502725777,
+        "mean_top_bottom_spread": 0.00913034965034965
+      },
+      "probability": {
+        "positive_mean_rank_ic": 1.0,
+        "positive_mean_top_bottom_spread": 1.0
+      },
+      "interval": {
+        "mean_rank_ic": {
+          "lower_95": 0.11943782438428935,
+          "median": 0.169421600364242,
+          "upper_95": 0.22372255098983482
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": 0.005853020979020979,
+          "median": 0.009057132867132861,
+          "upper_95": 0.012663276223776219
+        }
+      }
+    },
+    "paired_gate": {
+      "status": "passed",
+      "reasons": []
+    },
+    "paired_bootstrap": {
+      "status": "ok",
+      "observation_count": 143,
+      "block_size": 12,
+      "samples": 2000,
+      "seed": 44,
+      "observed_difference": {
+        "mean_rank_ic": 0.07848730815040636,
+        "mean_top_bottom_spread": 0.004173286713286711
+      },
+      "probability": {
+        "higher_mean_rank_ic": 0.999,
+        "higher_mean_top_bottom_spread": 0.998
+      },
+      "difference_interval": {
+        "mean_rank_ic": {
+          "lower_95": 0.03261432768472227,
+          "median": 0.07944472431588658,
+          "upper_95": 0.1259950123344842
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": 0.0011365944055944021,
+          "median": 0.00415587412587413,
+          "upper_95": 0.007460548951048934
+        }
+      }
+    },
+    "paired_holm": {
+      "raw_p_value": 0.0020000000000000018,
+      "adjusted_p_value": 0.0020000000000000018,
+      "significant": true
+    }
+  },
+  "case_runs": [
+    {
+      "case": {
+        "id": "small_size",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME1 PRIOR3",
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME2 PRIOR3",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5"
+        ]
+      },
+      "candidate": {
+        "period_count": 143,
+        "mean_rank_ic": 0.21657124307012715,
+        "positive_rank_ic_rate": 0.6783216783216783,
+        "mean_top_bottom_spread": 0.011081468531468523,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 143,
+        "mean_rank_ic": 0.1443981599456009,
+        "positive_rank_ic_rate": 0.6503496503496503,
+        "mean_top_bottom_spread": 0.007247552447552441,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "large_size",
+        "tickers": [
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "ME4 PRIOR3",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2",
+          "ME5 PRIOR3",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      },
+      "candidate": {
+        "period_count": 143,
+        "mean_rank_ic": 0.15475623509993217,
+        "positive_rank_ic_rate": 0.6573426573426573,
+        "mean_top_bottom_spread": 0.00683776223776223,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 143,
+        "mean_rank_ic": 0.09456360716382317,
+        "positive_rank_ic_rate": 0.6013986013986014,
+        "mean_top_bottom_spread": 0.004299999999999988,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "prior_losers",
+        "tickers": [
+          "SMALL LoPRIOR",
+          "ME1 PRIOR2",
+          "ME2 PRIOR1",
+          "ME2 PRIOR2",
+          "ME3 PRIOR1",
+          "ME3 PRIOR2",
+          "ME4 PRIOR1",
+          "ME4 PRIOR2",
+          "BIG LoPRIOR",
+          "ME5 PRIOR2"
+        ]
+      },
+      "candidate": {
+        "period_count": 143,
+        "mean_rank_ic": 0.07159049847617625,
+        "positive_rank_ic_rate": 0.5944055944055944,
+        "mean_top_bottom_spread": 0.005852447552447556,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 143,
+        "mean_rank_ic": 0.03482653592107034,
+        "positive_rank_ic_rate": 0.48951048951048953,
+        "mean_top_bottom_spread": 0.004049300699300703,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "prior_winners",
+        "tickers": [
+          "ME1 PRIOR4",
+          "SMALL HiPRIOR",
+          "ME2 PRIOR4",
+          "ME2 PRIOR5",
+          "ME3 PRIOR4",
+          "ME3 PRIOR5",
+          "ME4 PRIOR4",
+          "ME4 PRIOR5",
+          "ME5 PRIOR4",
+          "BIG HiPRIOR"
+        ]
+      },
+      "candidate": {
+        "period_count": 143,
+        "mean_rank_ic": 0.061452472061437925,
+        "positive_rank_ic_rate": 0.5594405594405595,
+        "mean_top_bottom_spread": 0.003134615384615377,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 143,
+        "mean_rank_ic": 0.030491007121479598,
+        "positive_rank_ic_rate": 0.5524475524475524,
+        "mean_top_bottom_spread": 0.0016059440559440558,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    }
+  ],
+  "aggregate_rank_diagnostics": {
+    "candidate": {
+      "period_count": 143,
+      "mean_rank_ic": 0.1702769502725777,
+      "positive_rank_ic_rate": 0.7132867132867133,
+      "mean_top_bottom_spread": 0.00913034965034965,
+      "mean_coverage_rate": 1.0
+    },
+    "baseline": {
+      "period_count": 143,
+      "mean_rank_ic": 0.09178964212217135,
+      "positive_rank_ic_rate": 0.5804195804195804,
+      "mean_top_bottom_spread": 0.004957062937062938,
+      "mean_coverage_rate": 1.0
+    }
+  },
+  "validation_passed": true,
+  "promotion_eligible": true
+}

@@ -60,6 +60,22 @@ def test_residual_variance_quality_inverts_official_quintiles():
     assert result.tolist() == [5.0, 5.0, 4.0, 3.0, 2.0, 1.0, 1.0]
 
 
+def test_short_term_reversal_inverts_prior_month_quintiles():
+    labels = [
+        "SMALL LoPRIOR",
+        "ME2 PRIOR1",
+        "ME3 PRIOR2",
+        "ME3 PRIOR3",
+        "ME4 PRIOR4",
+        "ME5 PRIOR5",
+        "BIG HiPRIOR",
+    ]
+
+    result = RESEARCH.short_term_reversal_buckets(labels)
+
+    assert result.tolist() == [5.0, 5.0, 4.0, 3.0, 2.0, 1.0, 1.0]
+
+
 def test_accrual_research_uses_only_pre_signal_momentum_prices():
     dates = pd.date_range("2000-01-31", periods=18, freq="ME")
     prices = pd.DataFrame(
