@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: trend-filtered risk parity가 독립 research 복제를 통과해 untouched validation 대기
+- 현재 상태: trend-filtered risk parity가 untouched 4-case validation 0/4로 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -86,6 +86,8 @@
 - 동일 frozen trend-risk-parity를 기간·universe가 겹치지 않는 French 30-industry 1928~1971에서 독립 복제했습니다.
 - 복제에서는 Sharpe `0.4909→0.7237`, volatility `15.24%→9.74%`, drawdown `-82.70%→-37.77%`, P(higher Sharpe) `98.60%`, Holm p `0.0140`으로 모든 research gate를 통과했습니다.
 - 후보 사양을 freeze했으며 다음 단계는 untouched 2018~2021 4-case validation입니다. 통과 전 2022+ holdout은 열지 않습니다.
+- frozen 후보는 2018~2021 validation 전체에서 Sharpe `0.6752→0.4969`, P(higher Sharpe) `2.05%`로 탈락했고 4개 산업 case도 `0/4`였습니다.
+- validation 결과로 trend family를 재튜닝하지 않으며 2022+ locked holdout은 계속 봉인합니다.
 
 ## 금지
 

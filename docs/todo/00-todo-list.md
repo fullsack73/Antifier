@@ -4,5 +4,5 @@
 
 - `portfolio-alpha-v2-research.md`: Nasdaq, nonlinear, fundamental, and dual-horizon momentum candidates failed gates; validation remains sealed.
 - `portfolio-forecast-model-redesign.md`: nonlinear and fundamental-momentum pooled models failed paired IC/spread gates; keep Transformer tuning blocked.
-- `portfolio-risk-model-research.md`: trend-filtered risk parity passed independent research replication; frozen candidate awaits validation.
-- `portfolio-optimizer-quant-standard.md`: frozen trend-risk-parity candidate still needs 4-case validation and untouched holdout.
+- `portfolio-risk-model-research.md`: frozen trend-risk-parity failed 4-case validation 0/4; defaults remain unchanged.
+- `portfolio-optimizer-quant-standard.md`: research candidate failed validation; a new feature/model family still needs validation and holdout.

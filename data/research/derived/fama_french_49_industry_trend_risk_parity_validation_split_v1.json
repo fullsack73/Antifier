@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-49-industry-trend-risk-parity-validation-2018-2021-v1",
+  "role": "validation",
+  "evaluation_start": "2018-01-03",
+  "evaluation_end": "2021-12-31",
+  "experiment_namespace": "risk-v9-trend-filtered-risk-parity-validation",
+  "objectives": [
+    "trend_filtered_risk_parity"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "frozen_candidate_policy": {
+      "source_split_id": "fama-french-30-industry-trend-risk-parity-replication-1928-1971-v1",
+      "candidate": "trend_filtered_risk_parity",
+      "candidate_specification": "unchanged"
+    },
+    "candidate_policy": {
+      "trend_measure": "trailing_total_return_gt_zero",
+      "trend_lookback": 252,
+      "inactive_allocation": "historical_risk_free_cash",
+      "base_allocator": "inverse_volatility"
+    },
+    "validation_cases": [
+      {
+        "id": "defensive_consumption_health",
+        "tickers": [
+          "Food",
+          "Soda",
+          "Beer",
+          "Smoke",
+          "Hshld",
+          "Hlth",
+          "MedEq",
+          "Drugs",
+          "Util",
+          "Telcm",
+          "Meals",
+          "Rtail"
+        ]
+      },
+      {
+        "id": "industrial_cyclical",
+        "tickers": [
+          "Agric",
+          "Toys",
+          "Fun",
+          "Books",
+          "Clths",
+          "Chems",
+          "Rubbr",
+          "BldMt",
+          "Cnstr",
+          "Steel",
+          "Mach",
+          "ElcEq",
+          "Autos",
+          "Aero",
+          "Ships",
+          "Trans"
+        ]
+      },
+      {
+        "id": "technology_services",
+        "tickers": [
+          "PerSv",
+          "BusSv",
+          "Hardw",
+          "Softw",
+          "Chips",
+          "LabEq",
+          "Telcm",
+          "MedEq",
+          "ElcEq",
+          "Aero",
+          "Whlsl",
+          "Other"
+        ]
+      },
+      {
+        "id": "real_assets_financials",
+        "tickers": [
+          "Gold",
+          "Mines",
+          "Coal",
+          "Oil",
+          "Util",
+          "Banks",
+          "Insur",
+          "RlEst",
+          "Fin",
+          "Paper",
+          "Boxes",
+          "Other"
+        ]
+      }
+    ]
+  },
+  "universe_manifest_sha256": "cad36f71a324c4cf9a24bde8f184f792bc2c499b6be218b9de1ec943848b4ad9",
+  "price_file_sha256": "365744cf7eba369f7d76d51d7245bd93be633dff022f600f6642bdafda09b3d4",
+  "factor_file_sha256": "39e1d1cdbc239af95cc6caf4c2d73004ebb99ea0bd38d68ba62966294bae087b",
+  "auxiliary_files": {
+    "frozen_result": "9d08732091360de3731b887945bfdcc266a1e554735e47831035e3bdfbf8417a"
+  },
+  "locked": true,
+  "manifest_sha256": "2abc8b96abd559c6998fd0e3ae132323b6a2f0918aa3a629287855df79e7b44e"
+}
