@@ -46,6 +46,7 @@ RISK_RESEARCH_MODELS = (
     "volatility_targeted_min_variance",
     "random_matrix_minimum_variance",
     "risk_managed_momentum",
+    "dual_horizon_momentum",
 )
 RISK_CANDIDATES = (
     "robust_min_variance",
@@ -62,6 +63,7 @@ RISK_CANDIDATES = (
     "volatility_targeted_min_variance",
     "random_matrix_minimum_variance",
     "risk_managed_momentum",
+    "dual_horizon_momentum",
 )
 RESERVED_SPLITS = {
     "validation",
@@ -96,6 +98,18 @@ def _research_settings(args):
         settings["random_matrix_policy"] = {
             "correlation": "marchenko_pastur_noise_eigenvalue_mean",
             "variance": "ledoit_wolf_diagonal",
+        }
+    if "dual_horizon_momentum" in args.candidates:
+        settings["dual_horizon_momentum_policy"] = {
+            "component_weights": {
+                "momentum_6m": 0.50,
+                "momentum_12_1": 0.50,
+            },
+            "lookbacks": {
+                "momentum_6m": 126,
+                "momentum_12_1": 252,
+                "momentum_12_1_skip": 21,
+            },
         }
     return settings
 
@@ -222,7 +236,10 @@ def _risk_gate(summary, candidate_name):
     inverse_vol = summary["risk_parity"]
     baseline_name = (
         "momentum_6m"
-        if candidate_name == "risk_managed_momentum"
+        if candidate_name in {
+            "risk_managed_momentum",
+            "dual_horizon_momentum",
+        }
         else (
             "min_variance"
             if candidate_name in {

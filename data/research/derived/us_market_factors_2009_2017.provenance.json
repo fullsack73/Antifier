@@ -1,0 +1,33 @@
+{
+  "source": "Kenneth French Data Library daily U.S. factors and FRED DGS3MO",
+  "retrieved_at": "2026-07-23T16:28:21.684110+00:00",
+  "official_sources": {
+    "fama_french_daily_factors": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip",
+    "fred_dgs3mo": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS3MO"
+  },
+  "availability_policy": "daily observations joined to the latest DGS3MO observation on or before each factor date",
+  "units": {
+    "mkt_rf": "daily decimal return",
+    "smb": "daily decimal return",
+    "hml": "daily decimal return",
+    "rf_daily": "daily decimal return",
+    "rf_daily_dgs3mo": "daily decimal return derived from latest DGS3MO annual yield",
+    "dgs3mo_annual_yield": "annual decimal yield"
+  },
+  "start_date": "2009-01-02",
+  "end_date": "2017-12-29",
+  "row_count": 2265,
+  "factor_file": "/Applications/react/my-app/portfolio-project/data/research/derived/us_market_factors_2009_2017.csv",
+  "factor_file_sha256": "cd8213abe10b823047d03460ccddf76ed0e4a91fc025eb679fd9c170599071cc",
+  "raw_files": {
+    "fama_french_daily_factors": {
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/market_factors/fama_french_daily_factors.zip",
+      "sha256": "af8aec07d55c98caa15045a77b87455be68cb8847b2ee5bd03bf5c2c8a3f96e2"
+    },
+    "fred_dgs3mo": {
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/market_factors/fred_dgs3mo.csv",
+      "sha256": "5156d319c9b529b02d3f2dba321068a8d1aa6cdf3c663735700542a49a73175c"
+    }
+  },
+  "promotion_safe": true
+}

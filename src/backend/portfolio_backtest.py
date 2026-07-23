@@ -55,11 +55,13 @@ from portfolio_risk_models import (
 )
 from portfolio_signals import (
     ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
+    DUAL_HORIZON_MOMENTUM_COMPONENT_WEIGHTS,
     FORECAST_RANK_VIEW_UNCERTAINTY,
     MOMENTUM_VIEW_UNCERTAINTY,
     SIGNAL_STACK_VIEW_UNCERTAINTY,
     SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
     adaptive_cross_sectional_alpha,
+    dual_horizon_momentum_weights,
     low_volatility_tilt,
     market_cap_weight,
     momentum_bl_views,
@@ -111,6 +113,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "volatility_targeted_min_variance",
     "random_matrix_minimum_variance",
     "risk_managed_momentum",
+    "dual_horizon_momentum",
 )
 
 PROMOTION_BASELINE_MODELS = (
@@ -880,6 +883,20 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             max_asset_weight=max_asset_weight,
         ).to_dict()
         return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
+    if model_name == "dual_horizon_momentum":
+        weights = dual_horizon_momentum_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "construction_method": "fixed_dual_horizon_momentum_rank_blend",
+            "component_weights": dict(
+                DUAL_HORIZON_MOMENTUM_COMPONENT_WEIGHTS
+            ),
+        }
 
     if model_name == "risk_managed_momentum":
         scores = rank_to_unit_scores(

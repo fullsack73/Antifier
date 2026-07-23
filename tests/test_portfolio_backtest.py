@@ -37,6 +37,7 @@ from portfolio_signals import (
     adaptive_cross_sectional_alpha,
     calibrate_cross_sectional_alpha,
     drawdown_score,
+    dual_horizon_momentum_weights,
     market_cap_weight,
     momentum_6m,
     momentum_12_1,
@@ -390,6 +391,45 @@ def test_six_month_momentum_low_vol_and_drawdown_scores_rank_cross_sectionally()
     assert momentum_scores["MOM"] > momentum_scores["CALM"]
     assert vol_scores["CALM"] > vol_scores["VOL"]
     assert dd_scores["CALM"] > dd_scores["VOL"]
+
+
+def test_dual_horizon_momentum_blends_fixed_ranks_and_respects_cap():
+    dates = pd.date_range("2023-01-02", periods=280, freq="B")
+    x = np.arange(len(dates))
+    prices = pd.DataFrame(
+        {
+            "STEADY": 100.0 * np.exp(0.0010 * x),
+            "REVERSAL": np.r_[
+                100.0 * np.exp(0.0020 * x[:-21]),
+                np.linspace(165.0, 90.0, 21),
+            ],
+            "FLAT": np.full(len(dates), 100.0),
+        },
+        index=dates,
+    )
+
+    weights = dual_horizon_momentum_weights(
+        prices,
+        max_asset_weight=0.50,
+    )
+
+    assert weights.sum() == pytest.approx(1.0)
+    assert (weights >= 0.0).all()
+    assert weights.max() <= 0.50 + 1e-12
+    assert weights["STEADY"] > weights["REVERSAL"]
+
+
+def test_dual_horizon_momentum_uses_only_supplied_history():
+    prices = _synthetic_prices(300)
+
+    first = dual_horizon_momentum_weights(prices.iloc[:280])
+    mutated = prices.copy()
+    mutated.iloc[280:] *= pd.Series(
+        {"AAA": 0.25, "BBB": 3.0, "CCC": 2.0}
+    )
+    second = dual_horizon_momentum_weights(mutated.iloc[:280])
+
+    pd.testing.assert_series_equal(first, second)
 
 
 def test_short_term_reversal_prefers_recent_relative_loser():
@@ -800,6 +840,7 @@ def test_synthetic_backtest_runs_new_baselines_and_gauntlet_aggregate():
             "risk_parity",
             "momentum_bl",
             "momentum_6m",
+            "dual_horizon_momentum",
             "low_volatility",
             "market_cap_weight",
             "momentum_12_1",
@@ -817,6 +858,7 @@ def test_synthetic_backtest_runs_new_baselines_and_gauntlet_aggregate():
     ])
 
     assert result["summary_by_model"]["momentum_6m"]["rebalance_count"] > 0
+    assert result["summary_by_model"]["dual_horizon_momentum"]["rebalance_count"] > 0
     assert result["summary_by_model"]["low_volatility"]["rebalance_count"] > 0
     assert result["summary_by_model"]["market_cap_weight"]["market_cap_available_count"] > 0
     assert aggregate["usable_count"] == 1

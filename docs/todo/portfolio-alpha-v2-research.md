@@ -87,6 +87,9 @@
 - Nasdaq-100 2018~2019의 새 locked research split에서 300일 이상 이전 공시 대비 quality/profitability/valuation/liquidity 변화를 추가했습니다.
 - fundamental-momentum 후보는 baseline 대비 IC `0.0681→0.0461`, spread `0.02095→0.00546`으로 하락했고 paired P(higher IC/spread)는 `12.35%`/`1.20%`여서 폐기했습니다.
 - 동일 구간에서 lag, missing flag, penalty를 재튜닝하지 않으며 2020+ 데이터는 이 후보 평가에 사용하지 않았습니다.
+- 공식 French 49-industry 2011~2017 fresh research에서 6개월/12-1개월 순위를 50/50으로 고정한 dual-horizon momentum을 6개월 momentum과 비교했습니다.
+- dual-horizon은 회전율을 `17.79%→10.44%`로 낮췄지만 Sharpe `0.8259→0.7987`, 변동성 `15.38%→15.64%`, drawdown `-24.16%→-25.37%`로 악화되어 폐기했습니다.
+- paired P(lower volatility/higher Sharpe)는 `5.60%`/`22.00%`였습니다. 같은 기간에서 horizon weight를 재튜닝하지 않습니다.
 
 ## 참고
 
@@ -99,3 +102,4 @@
 - Quarterly TTM 폐기: `docs/reports/260724-0024-01-quarterly-ttm-research.md`
 - Country ETF nonlinear 폐기: `docs/reports/260724-0049-01-country-etf-nonlinear-research.md`
 - Fundamental momentum 폐기: `docs/reports/260724-0111-01-fundamental-momentum-research.md`
+- Dual-horizon momentum 폐기: `docs/reports/260724-0129-01-dual-horizon-momentum-research.md`

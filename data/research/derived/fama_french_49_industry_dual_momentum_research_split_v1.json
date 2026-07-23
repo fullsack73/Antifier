@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-49-industry-dual-momentum-research-2011-2017-v1",
+  "role": "research",
+  "evaluation_start": "2011-01-03",
+  "evaluation_end": "2017-12-29",
+  "experiment_namespace": "alpha-v7-dual-horizon-industry-portfolios",
+  "objectives": [
+    "dual_horizon_momentum"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "dual_horizon_momentum_policy": {
+      "component_weights": {
+        "momentum_6m": 0.5,
+        "momentum_12_1": 0.5
+      },
+      "lookbacks": {
+        "momentum_6m": 126,
+        "momentum_12_1": 252,
+        "momentum_12_1_skip": 21
+      }
+    }
+  },
+  "universe_manifest_sha256": "cad36f71a324c4cf9a24bde8f184f792bc2c499b6be218b9de1ec943848b4ad9",
+  "price_file_sha256": "1bf586272b21e15666439302dc9d90466d400f4582c39bc001250c1454f60b58",
+  "factor_file_sha256": "cd8213abe10b823047d03460ccddf76ed0e4a91fc025eb679fd9c170599071cc",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "cd6f5c4ba5757c5350f2a26969fb0f2e64df03ad143a547be5678c197a76b716"
+}

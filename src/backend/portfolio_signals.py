@@ -8,6 +8,10 @@ TRADING_DAYS_PER_YEAR = 252
 MOMENTUM_SKIP_DAYS = 21
 MOMENTUM_LOOKBACK_DAYS = 252
 SIX_MONTH_MOMENTUM_LOOKBACK_DAYS = 126
+DUAL_HORIZON_MOMENTUM_COMPONENT_WEIGHTS = {
+    "momentum_6m": 0.50,
+    "momentum_12_1": 0.50,
+}
 SHORT_TERM_REVERSAL_DAYS = 21
 MOMENTUM_VIEW_UNCERTAINTY = 0.20
 SIGNAL_STACK_VIEW_UNCERTAINTY = 0.40
@@ -145,6 +149,32 @@ def momentum_12_1(price_data, lookback=MOMENTUM_LOOKBACK_DAYS, skip=MOMENTUM_SKI
 def momentum_6m(price_data, lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS):
     """Six-month cross-sectional momentum rank score in [-1, 1]."""
     return momentum_rank(price_data, lookback=lookback, skip=0)
+
+
+def dual_horizon_momentum_weights(price_data, max_asset_weight=0.2):
+    """Blend fixed 6-month and 12-1 cross-sectional momentum ranks."""
+    data = _clean_price_frame(price_data)
+    if data.empty:
+        return pd.Series(dtype=float)
+
+    component_scores = {
+        "momentum_6m": momentum_6m(data),
+        "momentum_12_1": momentum_12_1(data),
+    }
+    composite = pd.Series(0.0, index=data.columns, dtype=float)
+    available_weight = pd.Series(0.0, index=data.columns, dtype=float)
+    for name, weight in DUAL_HORIZON_MOMENTUM_COMPONENT_WEIGHTS.items():
+        aligned = component_scores[name].reindex(data.columns)
+        valid = aligned.notna()
+        composite.loc[valid] += aligned.loc[valid] * float(weight)
+        available_weight.loc[valid] += float(weight)
+
+    composite = composite / available_weight.replace(0.0, np.nan)
+    raw = (composite + 1.0).clip(lower=0.0).fillna(0.0)
+    return cap_and_normalize_weights(
+        raw.reindex(data.columns),
+        max_asset_weight=max_asset_weight,
+    )
 
 
 def short_term_reversal_score(price_data, lookback=SHORT_TERM_REVERSAL_DAYS):
