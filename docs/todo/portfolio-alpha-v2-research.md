@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: short-term-reversal-momentum이 research/validation 통과 후 locked holdout에서 탈락
+- 현재 상태: no-tune online reversal Hedge가 dual-baseline paired/Holm research gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -135,6 +135,10 @@
 - Frozen 후보는 untouched 1958~1969 validation에서도 paired P `99.90%`/`99.80%`, Holm `0.0020`, 4-case `4/4`로 통과했습니다.
 - 최종 1971~1982 locked holdout에서는 absolute IC/spread가 양수였지만 paired P `70.45%`/`84.75%`, Holm `0.2955`, cases `3/4`로 탈락했습니다.
 - Holdout에 맞춘 weight/horizon/cadence 재튜닝과 재실행 없이 후보를 폐기합니다.
+- Fresh 1986~2004 split에서 completed-feedback Hedge로 momentum/reversal weight를 이론식에 따라 online 갱신했습니다.
+- Candidate absolute IC `0.0887`, spread `0.00681`은 양수였지만 fixed 50/50 대비 delta IC `-0.0056`, P(higher IC/spread) `24.55%`/`89.55%`였습니다.
+- Raw momentum 대비 P(higher IC/spread)는 `74.40%`/`98.60%`였고 두 comparison의 Holm-adjusted p-value는 `0.7545`/`0.5120`이었습니다.
+- Learning-rate/loss/cap을 같은 split에서 재튜닝하지 않고 2006+ validation/holdout을 봉인합니다.
 - official French 12-industry daily panel의 fresh 1933~1952 research split에서 price predictor와 252일 market trend, 63일 volatility regime의 interaction을 사전 고정했습니다.
 - regime candidate는 baseline nested ridge 대비 IC `0.0193→0.0050`, spread `0.00445→0.00286`으로 악화됐습니다. paired P(higher IC/spread)는 `35.75%`/`40.25%`, Holm-adjusted p-value는 `0.6070`이었습니다.
 - 93개 OOS period 모두 trend/volatility regime이 가용했고 coverage는 100%였으므로 실패 원인은 결측 regime이 아닙니다. 후보를 폐기하고 1953+ validation/holdout은 봉인합니다.
@@ -164,3 +168,4 @@
 - Net-issuance quality-momentum validation: `docs/reports/260724-0443-01-net-issuance-quality-momentum-validation.md`
 - Low residual-variance momentum research: `docs/reports/260724-0448-01-low-residual-variance-momentum-research.md`
 - Short-term reversal-momentum gauntlet: `docs/reports/260724-0500-01-short-term-reversal-momentum-gauntlet.md`
+- Online reversal Hedge research: `docs/reports/260724-0507-01-online-reversal-hedge-research.md`

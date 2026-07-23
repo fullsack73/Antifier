@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: short-term-reversal-momentum이 final locked holdout에서 paired/Holm gate 탈락
+- 현재 상태: online reversal Hedge가 dual-baseline paired/Holm research gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -123,6 +123,8 @@
 - official French size×prior-month-return의 fixed reversal-momentum은 locked research와 untouched validation 4/4를 통과했습니다.
 - 최종 locked holdout에서 candidate IC `0.2120`, spread `0.01309`는 양수였지만 raw momentum 대비 paired P(higher IC/spread) `70.45%`/`84.75%`, Holm `0.2955`, cases `3/4`였습니다.
 - Validation-result SHA chain과 locked-holdout role 검증은 강화됐지만 default alpha/optimizer는 변경하지 않습니다. Holdout 재튜닝·재실행을 금지합니다.
+- Completed-feedback online Hedge는 no-tune learning rate와 completed-only expert loss를 사용했지만 fixed reversal blend보다 IC가 낮았습니다.
+- Raw momentum 대비 spread는 개선됐어도 IC improvement probability `74.40%`, familywise Holm `0.5120`으로 승격하지 않습니다. Validation/holdout을 열지 않고 default optimizer를 유지합니다.
 
 ## 금지
 
