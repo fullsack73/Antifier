@@ -33,6 +33,10 @@ from forecast_signal_research import (
     prediction_distribution_diagnostics,
     signal_only_gate,
 )
+from lightweight_forecast import (
+    calibrated_lightweight_ensemble_forecast,
+    lightweight_ensemble_forecast,
+)
 from portfolio_signals import (
     adaptive_cross_sectional_alpha,
     adaptive_factor_momentum_scores,
@@ -177,6 +181,82 @@ def test_forecast_distribution_and_oos_uncertainty_diagnostics():
     assert calibration["reported_uncertainty_coverage"] == pytest.approx(1.0)
     assert gate["status"] == "rejected"
     assert "Forecast boundary saturation is too high." in gate["reasons"]
+
+
+def test_calibrated_lightweight_forecast_uses_completed_origins_only():
+    rows = 520
+    x = np.arange(rows)
+    prices = 100.0 * np.exp(
+        0.0004 * x + 0.012 * np.sin(x / 11.0)
+    )
+    cutoff = 479
+
+    result = calibrated_lightweight_ensemble_forecast(
+        prices[:cutoff + 1],
+        horizon=63,
+    )
+    mutated = prices.copy()
+    mutated[cutoff + 1:] *= np.linspace(1.0, 8.0, rows - cutoff - 1)
+    repeated = calibrated_lightweight_ensemble_forecast(
+        mutated[:cutoff + 1],
+        horizon=63,
+    )
+
+    assert result["period_return"] == pytest.approx(
+        lightweight_ensemble_forecast(
+            prices[:cutoff + 1],
+            horizon=63,
+        )
+    )
+    assert result["annual_expected_return"] == pytest.approx(
+        repeated["annual_expected_return"]
+    )
+    assert result["annual_uncertainty"] == pytest.approx(
+        repeated["annual_uncertainty"]
+    )
+    diagnostics = result["diagnostics"]
+    assert diagnostics["observation_count"] == 5
+    assert all(
+        row["forward_end_position"] <= cutoff
+        for row in diagnostics["calibration_rows"]
+    )
+
+
+def test_calibrated_lightweight_bl_reports_oos_uncertainty():
+    prices = _synthetic_factor_research_data(
+        rows=520,
+        ticker_count=8,
+    )[0]
+
+    views, uncertainties, failed, diagnostics = (
+        portfolio_backtest._forecast_views(
+            prices.iloc[:504],
+            "calibrated_lightweight",
+            63,
+        )
+    )
+
+    assert failed == 0
+    assert views.notna().all()
+    assert uncertainties.between(1e-4, 5.0).all()
+    calibration = diagnostics[
+        "lightweight_uncertainty_calibration"
+    ]
+    assert set(calibration) == set(prices.columns)
+    assert all(
+        item["observation_count"] == 6
+        for item in calibration.values()
+    )
+    _, bl_diagnostics = portfolio_backtest._black_litterman_weights(
+        prices.iloc[:504],
+        "calibrated_lightweight",
+        63,
+        0.25,
+        0.02,
+    )
+    assert bl_diagnostics["signal_scores"] == (
+        bl_diagnostics["raw_views"]
+    )
 
 
 def test_completed_forecast_targets_respect_training_cutoff():

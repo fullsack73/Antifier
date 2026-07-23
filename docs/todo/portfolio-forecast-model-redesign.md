@@ -109,6 +109,13 @@
 - low-value/low-profitability 약점을 validation 결과로 보정하거나 Transformer로 fitting하지 않습니다.
 - fresh B/M×investment universe에서 completed-period IC 기반 online factor-weight calibration도 raw momentum 대비 paired IC/spread uplift가 `64.00%`/`87.40%`에 그쳤습니다.
 - 단순 weight adaptation도 generalizable uplift를 만들지 못했으므로 calibration hyperparameter나 Transformer capacity를 같은 결과에 맞춰 확대하지 않습니다.
+- fresh official French 17-industry `1969~1999` panel에서 현재 lightweight point forecast는 그대로 두고 completed OOS residual RMSE로 uncertainty만 보정하는 후보를 사전 고정했습니다.
+- 최대 6개 non-overlap origin, 최소 126일 history, fixed 20% prior에 대한 50% variance shrinkage를 사용했고 모든 calibration target은 현재 training end 전에 완료됐습니다.
+- calibrated BL은 current lightweight BL 대비 volatility `13.36%→13.09%`, max drawdown `-43.97%→-43.27%`, average turnover `6.53%→2.15%`로 개선했습니다.
+- 하지만 CAGR은 `13.10%→13.09%`로 감소했고 Sharpe `0.5100→0.5169`의 paired improvement probability는 `71.05%`, higher-return probability는 `39.40%`였습니다. Holm-adjusted p-value는 각각 `0.5790`/`0.6060`입니다.
+- raw lightweight signal의 mean rank IC는 `0.0223`이지만 top-bottom spread가 `-0.00041`이라 signal gate도 실패했습니다. 후보를 폐기하고 `2000~2011` validation을 열지 않습니다.
+- BL raw view가 backtest `signal_scores`로 전달되지 않아 rank diagnostics가 항상 비던 결함을 수정했습니다. 이는 model weight를 바꾸지 않는 audit fix입니다.
+- OOS uncertainty 방향은 구현 검증됐지만 alpha 품질을 만들지 못했습니다. 같은 split에서 prior weight, origin 수, horizon을 재튜닝하거나 Transformer HPO 근거로 사용하지 않습니다.
 
 ## 선행조건
 
@@ -136,3 +143,4 @@
 - Value-quality-momentum research: `docs/reports/260724-0245-01-value-quality-momentum-research.md`
 - Value-quality-momentum validation: `docs/reports/260724-0250-01-value-quality-momentum-validation.md`
 - Adaptive value-investment research: `docs/reports/260724-0301-01-adaptive-value-investment-momentum-research.md`
+- Lightweight OOS uncertainty research: `docs/reports/260724-0320-01-lightweight-oos-uncertainty-research.md`

@@ -93,11 +93,13 @@
 
 Backend-only research tool:
 
-- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `alpha_diagnostics`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_6m`, `low_volatility`, `market_cap_weight`, `momentum_12_1`, `momentum_bl`, `signal_stack_bl`, `adaptive_signal_tilt`, `arima_transformer_rank_bl`, `transformer_rank_bl`이 포함됩니다.
+- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `alpha_diagnostics`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_6m`, `low_volatility`, `market_cap_weight`, `momentum_12_1`, `momentum_bl`, `signal_stack_bl`, `adaptive_signal_tilt`, `calibrated_lightweight_bl`, `arima_transformer_rank_bl`, `transformer_rank_bl`이 포함됩니다.
   - `adaptive_signal_tilt`은 12-1/6개월 momentum, 1개월 reversal, low-volatility, drawdown rank를 training window 내부의 완료된 forward-relative-return 구간으로 IC calibration하고 equal-weight 주변의 명시적 active-share tilt로 변환합니다. calibration과 target 생성은 rebalance date 이전 가격만 사용합니다.
   - research model `maximum_diversification`은 Ledoit-Wolf covariance와 long-only/max-weight 제약에서 diversification ratio를 최대화합니다. promotion gate 통과 전 기본 allocator로 사용하지 않습니다.
   - research signal `profitability_momentum_scores`는 12-1 momentum rank와 filing-date/PIT fundamental rank를 명시적 고정 비중으로 결합합니다. quality mode는 profitability와 conservative investment rank를, value-quality mode는 value와 profitability rank를 결합합니다. blend는 새 split에서 사전 고정하고 paired signal gate를 통과해야 합니다.
   - `adaptive_factor_momentum_scores`는 training window 안에서 완료된 forward period의 component IC만 사용하고 fixed prior로 shrink한 뒤 component cap을 적용합니다. 미래 가격/factor row는 calibration에 사용할 수 없습니다.
+  - research model `calibrated_lightweight_bl`은 기존 lightweight ensemble의 point forecast와 ensemble weight를 변경하지 않고, training window 안에서 완료된 non-overlap horizon residual의 annualized RMSE로 ticker별 uncertainty만 보정합니다. 최대 6개 origin, 126일 최소 history, fixed 20% uncertainty prior에 대한 50% variance shrinkage는 split manifest로 고정합니다.
+  - BL 계열의 raw absolute view는 `signal_scores`로도 기록해 realized cross-sectional rank IC와 top-bottom spread를 계산합니다. posterior return이나 최종 weight를 raw signal 진단으로 대체하지 않습니다.
   - `alpha_diagnostics`는 signal의 rank IC/top-minus-bottom/horizon decay/persistence/coverage, construction의 signal-weight rank correlation/active share/BL view retention/concentration/예측 변동성, execution의 raw-controlled turnover/weight loss/비용 전후 수익을 분리합니다.
   - `--gauntlet-preset candidate`는 bull/crash/inflation-rate-shock/sideways를 대표하는 4개 validation basket/regime을 기본 63거래일 리밸런싱으로 빠르게 선별하며, 기본 후보는 `adaptive_signal_tilt`입니다.
   - `--gauntlet-preset standard`는 SP500 sample, DOW, tech, defensive, mixed ETF-like basket을 4개 regime과 rebalance band 2/3/5%, max turnover 20/35/50% sensitivity로 실행합니다.

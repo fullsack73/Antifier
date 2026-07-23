@@ -12,7 +12,10 @@ import pandas as pd
 from pypfopt import EfficientFrontier, risk_models, black_litterman, BlackLittermanModel
 from pypfopt.exceptions import OptimizationError
 
-from lightweight_forecast import lightweight_ensemble_forecast
+from lightweight_forecast import (
+    calibrated_lightweight_ensemble_forecast,
+    lightweight_ensemble_forecast,
+)
 from portfolio_optimization import (
     DEFAULT_FORECAST_UNCERTAINTY,
     DEFAULT_MAX_TURNOVER,
@@ -95,6 +98,7 @@ DEFAULT_BACKTEST_MODELS = (
     "adaptive_signal_tilt",
     "historical_mpt",
     "lightweight_bl",
+    "calibrated_lightweight_bl",
     "arima_transformer_rank_bl",
     "transformer_rank_bl",
     "arima_transformer_bl",
@@ -553,6 +557,7 @@ def _forecast_views(train_prices, method, forecast_horizon):
     tickers = list(train_prices.columns)
     views = {}
     uncertainties = {}
+    calibration_diagnostics = {}
     failed = 0
 
     if method == "momentum":
@@ -593,6 +598,24 @@ def _forecast_views(train_prices, method, forecast_horizon):
         prices = train_prices[ticker].dropna()
         if method == "historical":
             continue
+        if method == "calibrated_lightweight":
+            try:
+                prediction = calibrated_lightweight_ensemble_forecast(
+                    prices.values,
+                    horizon=forecast_horizon,
+                )
+                views[ticker] = prediction["annual_expected_return"]
+                uncertainties[ticker] = prediction["annual_uncertainty"]
+                calibration_diagnostics[ticker] = {
+                    key: value
+                    for key, value in prediction["diagnostics"].items()
+                    if key != "calibration_rows"
+                }
+            except (TypeError, ValueError, FloatingPointError):
+                views[ticker] = np.nan
+                uncertainties[ticker] = MAX_FORECAST_UNCERTAINTY
+                failed += 1
+            continue
         if method == "lightweight":
             period_return = lightweight_ensemble_forecast(prices.values, horizon=forecast_horizon)
             views[ticker] = _period_return_to_annual_simple_return(period_return, forecast_horizon)
@@ -620,7 +643,15 @@ def _forecast_views(train_prices, method, forecast_horizon):
 
     views = pd.Series(views).reindex(tickers)
     uncertainties = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
-    return views, uncertainties, failed, {}
+    return views, uncertainties, failed, (
+        {
+            "lightweight_uncertainty_calibration": (
+                calibration_diagnostics
+            ),
+        }
+        if method == "calibrated_lightweight"
+        else {}
+    )
 
 
 def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_asset_weight, risk_free_rate):
@@ -689,6 +720,7 @@ def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_as
         "avg_forecast_confidence": avg_confidence,
         "prior_returns": _finite_series_dict(prior),
         "raw_views": _finite_series_dict(raw_views),
+        "signal_scores": _finite_series_dict(raw_views),
         "adjusted_views": _finite_series_dict(adjusted_views),
         "posterior_returns": _finite_series_dict(mu),
         "view_signal_retention": view_retention,
@@ -1097,6 +1129,7 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
         "momentum_bl": "momentum",
         "signal_stack_bl": "signal_stack",
         "lightweight_bl": "lightweight",
+        "calibrated_lightweight_bl": "calibrated_lightweight",
         "arima_transformer_rank_bl": "arima_transformer_rank",
         "transformer_rank_bl": "transformer_rank",
         "arima_transformer_bl": "arima_transformer",
@@ -2197,6 +2230,9 @@ def run_portfolio_model_backtest(
                 "adjusted_views": diagnostics.get("adjusted_views", {}),
                 "posterior_returns": diagnostics.get("posterior_returns", {}),
                 "view_signal_retention": diagnostics.get("view_signal_retention"),
+                "lightweight_uncertainty_calibration": diagnostics.get(
+                    "lightweight_uncertainty_calibration"
+                ),
                 "gross_period_return": gross_period_return,
                 "net_period_return": net_period_return,
                 "transaction_cost_return_drag": float(gross_period_return - net_period_return),

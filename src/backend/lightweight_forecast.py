@@ -10,6 +10,29 @@ from sklearn.linear_model import LinearRegression
 
 logger = logging.getLogger(__name__)
 
+TRADING_DAYS_PER_YEAR = 252
+DEFAULT_CALIBRATION_MIN_HISTORY = 126
+DEFAULT_CALIBRATION_MAX_ORIGINS = 6
+DEFAULT_UNCERTAINTY_PRIOR = 0.20
+DEFAULT_UNCERTAINTY_PRIOR_WEIGHT = 0.50
+MAX_CALIBRATED_UNCERTAINTY = 5.0
+
+
+def _annualize_period_return(period_return, horizon):
+    """Convert a simple horizon return to a bounded annual simple return."""
+    value = float(period_return)
+    if not np.isfinite(value):
+        raise ValueError("period_return must be finite")
+    horizon = max(1, int(horizon))
+    annual_log_return = (
+        np.log1p(max(-0.99, value))
+        * TRADING_DAYS_PER_YEAR
+        / horizon
+    )
+    lower = np.log1p(-0.99)
+    upper = np.log1p(10.0)
+    return float(np.expm1(np.clip(annual_log_return, lower, upper)))
+
 
 def exponential_smoothing_forecast(prices, alpha=0.3, horizon=252):
     """Fast exponential smoothing forecast.
@@ -145,3 +168,121 @@ def lightweight_ensemble_forecast(prices, horizon=252):
     forecast_value = np.clip(forecast_value, -0.5, 1.0)
     
     return forecast_value
+
+
+def calibrated_lightweight_ensemble_forecast(
+    prices,
+    horizon=63,
+    min_origin_history=DEFAULT_CALIBRATION_MIN_HISTORY,
+    max_origins=DEFAULT_CALIBRATION_MAX_ORIGINS,
+    uncertainty_prior=DEFAULT_UNCERTAINTY_PRIOR,
+    uncertainty_prior_weight=DEFAULT_UNCERTAINTY_PRIOR_WEIGHT,
+):
+    """Estimate forecast uncertainty from completed historical residuals.
+
+    The point forecast is deliberately identical to
+    ``lightweight_ensemble_forecast``. Calibration origins are spaced by one
+    forecast horizon and only use targets completed by the final input row.
+    """
+    values = np.asarray(prices, dtype=float).reshape(-1)
+    values = values[np.isfinite(values) & (values > 0.0)]
+    if len(values) < 10:
+        raise ValueError(
+            "Calibrated lightweight forecast requires at least 10 prices"
+        )
+
+    horizon = max(1, int(horizon))
+    min_origin_history = max(10, int(min_origin_history))
+    max_origins = max(1, int(max_origins))
+    prior = max(1e-4, abs(float(uncertainty_prior)))
+    prior_weight = float(
+        np.clip(uncertainty_prior_weight, 0.0, 1.0)
+    )
+
+    period_forecast = float(
+        lightweight_ensemble_forecast(values, horizon=horizon)
+    )
+    annual_forecast = _annualize_period_return(
+        period_forecast,
+        horizon,
+    )
+    last_completed_origin = len(values) - horizon - 1
+    origins = (
+        []
+        if last_completed_origin < min_origin_history - 1
+        else list(
+            range(
+                min_origin_history - 1,
+                last_completed_origin + 1,
+                horizon,
+            )
+        )[-max_origins:]
+    )
+
+    residuals = []
+    calibration_rows = []
+    for origin in origins:
+        historical_period_forecast = float(
+            lightweight_ensemble_forecast(
+                values[:origin + 1],
+                horizon=horizon,
+            )
+        )
+        predicted = _annualize_period_return(
+            historical_period_forecast,
+            horizon,
+        )
+        realized_period_return = float(
+            values[origin + horizon] / values[origin] - 1.0
+        )
+        realized = _annualize_period_return(
+            realized_period_return,
+            horizon,
+        )
+        residual = float(realized - predicted)
+        residuals.append(residual)
+        calibration_rows.append({
+            "origin_position": int(origin),
+            "forward_end_position": int(origin + horizon),
+            "predicted_annual_return": predicted,
+            "realized_annual_return": realized,
+            "residual": residual,
+        })
+
+    if residuals:
+        residual_array = np.asarray(residuals, dtype=float)
+        raw_rmse = float(
+            np.sqrt(np.mean(np.square(residual_array)))
+        )
+        bias = float(np.mean(residual_array))
+    else:
+        raw_rmse = prior
+        bias = None
+    calibrated_variance = (
+        prior_weight * prior ** 2
+        + (1.0 - prior_weight) * raw_rmse ** 2
+    )
+    uncertainty = float(
+        np.clip(
+            np.sqrt(max(0.0, calibrated_variance)),
+            1e-4,
+            MAX_CALIBRATED_UNCERTAINTY,
+        )
+    )
+    return {
+        "period_return": period_forecast,
+        "annual_expected_return": annual_forecast,
+        "annual_uncertainty": uncertainty,
+        "diagnostics": {
+            "method": "completed_oos_residual_rmse",
+            "horizon": horizon,
+            "min_origin_history": min_origin_history,
+            "max_origins": max_origins,
+            "uncertainty_prior": prior,
+            "uncertainty_prior_weight": prior_weight,
+            "observation_count": int(len(residuals)),
+            "raw_oos_rmse": raw_rmse,
+            "oos_bias": bias,
+            "calibration_rows": calibration_rows,
+        },
+    }

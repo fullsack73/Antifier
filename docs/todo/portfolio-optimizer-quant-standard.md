@@ -102,6 +102,9 @@
 - validation 결과에 맞춘 사양 변경 없이 2012+ holdout을 봉인합니다.
 - completed-period IC를 prior `50/25/25`에 75% shrink하는 adaptive value-investment-momentum도 absolute gate는 통과했지만 paired P(higher IC/spread) `64.00%`/`87.40%`로 탈락했습니다.
 - online weight history, cap, no-lookahead 검증은 추가됐지만 default alpha와 quant-standard 상태는 변경하지 않습니다.
+- current lightweight point forecast를 유지하고 completed OOS residual RMSE로 uncertainty만 보정한 후보는 fresh French 17-industry research에서 volatility와 turnover를 낮췄습니다.
+- calibrated 후보 Sharpe는 `0.5100→0.5169`였지만 P(higher Sharpe) `71.05%`, P(higher return) `39.40%`, negative top-bottom spread로 statistical/signal gate를 통과하지 못했습니다.
+- validation을 열지 않고 public default를 변경하지 않습니다. uncertainty calibration hyperparameter와 Transformer capacity를 같은 결과에 맞춰 재탐색하지 않습니다.
 
 ## 금지
 

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-17-industry-lightweight-uncertainty-research-1971-1999-v1",
+  "role": "research",
+  "evaluation_start": "1971-01-04",
+  "evaluation_end": "1999-12-31",
+  "experiment_namespace": "forecast-v5-lightweight-oos-uncertainty",
+  "objectives": [
+    "calibrated_lightweight_bl"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "calibrated_lightweight_bl",
+    "baseline": "lightweight_bl",
+    "models": [
+      "equal_weight",
+      "risk_parity",
+      "historical_bl",
+      "lightweight_bl",
+      "calibrated_lightweight_bl"
+    ],
+    "calibration": {
+      "method": "completed_oos_residual_rmse",
+      "min_origin_history": 126,
+      "max_origins": 6,
+      "origin_step": "forecast_horizon",
+      "uncertainty_prior": 0.2,
+      "uncertainty_prior_weight": 0.5,
+      "point_forecast": "unchanged_lightweight_ensemble"
+    }
+  },
+  "universe_manifest_sha256": "fdccd88eb13c030a8990c6ac051c83ce6f584f306506a9f78da47eefbe2f7fa9",
+  "price_file_sha256": "c0815e9d2150425231aa102f0fb4dca80f55f6c236b51f8328445d47ed72ee49",
+  "factor_file_sha256": "fffb3740c5dfd9511ac10cadbc181ce5e9be55ed5c5351a9cd1ed571973823b5",
+  "auxiliary_files": {
+    "price_provenance": "f19c792e8d247917aebaec80aae3fc42122855b7e465bfc50c050cb96d2329e1",
+    "risk_free_provenance": "4ed539cd9a8c5852f5d3e33fbe2098f556490da7e80ede2a4b72f3373126503e"
+  },
+  "locked": true,
+  "manifest_sha256": "fe71a75f5f53589113b20ff9ca0b3d67ea281e10f7a97cb35b0a33c94f9d8ae0"
+}
