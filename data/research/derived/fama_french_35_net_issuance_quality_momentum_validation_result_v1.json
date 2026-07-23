@@ -1,0 +1,525 @@
+{
+  "validation_split": "fama-french-35-net-issuance-quality-momentum-validation-2000-2011-v1",
+  "experiment_namespace": "alpha-v15-net-issuance-quality-momentum-validation",
+  "frozen_from": "fama-french-35-net-issuance-quality-momentum-research-1969-1998-v1",
+  "frozen_result": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_35_net_issuance_quality_momentum_research_result_v1.json",
+    "sha256": "b5249cdb832a3750a2d7a47e1ab9006a9141653f327259e483254940cb4083a8",
+    "promotion_eligible": true
+  },
+  "split": {
+    "schema_version": 1,
+    "split_id": "fama-french-35-net-issuance-quality-momentum-validation-2000-2011-v1",
+    "role": "validation",
+    "evaluation_start": "2000-01-31",
+    "evaluation_end": "2010-12-31",
+    "experiment_namespace": "alpha-v15-net-issuance-quality-momentum-validation",
+    "objectives": [
+      "net_issuance_quality_momentum"
+    ],
+    "settings": {
+      "train_window": 72,
+      "horizon": 12,
+      "rebalance_step": 12,
+      "momentum_lookback": 12,
+      "momentum_skip": 1,
+      "momentum_weight": 0.5,
+      "net_issuance_quality_weight": 0.5,
+      "net_issuance_signal": "inverse_official_annual_net_share_issues_bucket",
+      "net_issuance_definition": "change_in_log_split_adjusted_shares_outstanding_from_fiscal_t_minus_2_to_t_minus_1",
+      "bucket_order_best_to_worst": [
+        "NegNI",
+        "ZeroNI",
+        "LoNI",
+        "NI2",
+        "NI3",
+        "NI4",
+        "HiNI"
+      ],
+      "baseline": "momentum_12_1",
+      "bootstrap_samples": 2000,
+      "bootstrap_block_size": 3,
+      "bootstrap_minimum_probability": 0.95,
+      "minimum_case_periods": 10,
+      "frozen_candidate_policy": {
+        "source_split_id": "fama-french-35-net-issuance-quality-momentum-research-1969-1998-v1",
+        "candidate": "net_issuance_quality_momentum",
+        "candidate_specification": "unchanged"
+      },
+      "validation_cases": [
+        {
+          "id": "small_size",
+          "tickers": [
+            "SMALL NegNI",
+            "SMALL ZeroNI",
+            "SMALL LoNI",
+            "ME1 NI2",
+            "ME1 NI3",
+            "ME1 NI4",
+            "SMALL HiNI",
+            "ME2 NegNI",
+            "ME2 ZeroNI",
+            "ME2 LoNI",
+            "ME2 NI2",
+            "ME2 NI3",
+            "ME2 NI4",
+            "ME2 HiNI"
+          ]
+        },
+        {
+          "id": "large_size",
+          "tickers": [
+            "ME4 NegNI",
+            "ME4 ZeroNI",
+            "ME4 LoNI",
+            "ME4 NI2",
+            "ME4 NI3",
+            "ME4 NI4",
+            "ME4 HiNI",
+            "BIG NegNI",
+            "BIG ZeroNI",
+            "BIG LoNI",
+            "ME5 NI2",
+            "ME5 NI3",
+            "ME5 NI4",
+            "BIG HiNI"
+          ]
+        },
+        {
+          "id": "low_net_issuance",
+          "tickers": [
+            "SMALL NegNI",
+            "SMALL ZeroNI",
+            "SMALL LoNI",
+            "ME2 NegNI",
+            "ME2 ZeroNI",
+            "ME2 LoNI",
+            "ME3 NegNI",
+            "ME3 ZeroNI",
+            "ME3 LoNI",
+            "ME4 NegNI",
+            "ME4 ZeroNI",
+            "ME4 LoNI",
+            "BIG NegNI",
+            "BIG ZeroNI",
+            "BIG LoNI"
+          ]
+        },
+        {
+          "id": "high_net_issuance",
+          "tickers": [
+            "ME1 NI3",
+            "ME1 NI4",
+            "SMALL HiNI",
+            "ME2 NI3",
+            "ME2 NI4",
+            "ME2 HiNI",
+            "ME3 NI3",
+            "ME3 NI4",
+            "ME3 HiNI",
+            "ME4 NI3",
+            "ME4 NI4",
+            "ME4 HiNI",
+            "ME5 NI3",
+            "ME5 NI4",
+            "BIG HiNI"
+          ]
+        }
+      ]
+    },
+    "universe_manifest_sha256": "9e550f8e9a6c31b8341b5ced86f36898b8ec18cd7c88a99b11b30659c63adbd0",
+    "price_file_sha256": "ee0887e66882847a6c9a2d52a3694ace0d8ff8f4897fac40f44a78d7d6e2940c",
+    "factor_file_sha256": null,
+    "auxiliary_files": {
+      "frozen_result": "b5249cdb832a3750a2d7a47e1ab9006a9141653f327259e483254940cb4083a8"
+    },
+    "reserved_locked_holdout_interval": {
+      "start": "2012-01-01",
+      "end": "2025-12-31"
+    },
+    "locked": true,
+    "manifest_sha256": "0b4c505e963bb77fc5fb097ecbd6d4df3ecd2ee72bcb0551734ec30fe167733a",
+    "promotion_safe": true,
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_35_net_issuance_quality_momentum_validation_split_v1.json",
+    "file_sha256": "5a7a46ce90fe2d1e36d4b629b84323437728500b154cc979a1c56a085f1df19d"
+  },
+  "data": {
+    "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_35_size_net_issuance_prices_1994_2011.csv",
+    "price_provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_35_size_net_issuance_prices_1994_2011.provenance.json",
+    "row_count": 216,
+    "ticker_count": 35
+  },
+  "settings": {
+    "train_window": 72,
+    "horizon": 12,
+    "rebalance_step": 12,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "net_issuance_quality_weight": 0.5,
+    "net_issuance_signal": "inverse_official_annual_net_share_issues_bucket",
+    "net_issuance_definition": "change_in_log_split_adjusted_shares_outstanding_from_fiscal_t_minus_2_to_t_minus_1",
+    "bucket_order_best_to_worst": [
+      "NegNI",
+      "ZeroNI",
+      "LoNI",
+      "NI2",
+      "NI3",
+      "NI4",
+      "HiNI"
+    ],
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 3,
+    "bootstrap_minimum_probability": 0.95,
+    "minimum_case_periods": 10,
+    "frozen_candidate_policy": {
+      "source_split_id": "fama-french-35-net-issuance-quality-momentum-research-1969-1998-v1",
+      "candidate": "net_issuance_quality_momentum",
+      "candidate_specification": "unchanged"
+    },
+    "validation_cases": [
+      {
+        "id": "small_size",
+        "tickers": [
+          "SMALL NegNI",
+          "SMALL ZeroNI",
+          "SMALL LoNI",
+          "ME1 NI2",
+          "ME1 NI3",
+          "ME1 NI4",
+          "SMALL HiNI",
+          "ME2 NegNI",
+          "ME2 ZeroNI",
+          "ME2 LoNI",
+          "ME2 NI2",
+          "ME2 NI3",
+          "ME2 NI4",
+          "ME2 HiNI"
+        ]
+      },
+      {
+        "id": "large_size",
+        "tickers": [
+          "ME4 NegNI",
+          "ME4 ZeroNI",
+          "ME4 LoNI",
+          "ME4 NI2",
+          "ME4 NI3",
+          "ME4 NI4",
+          "ME4 HiNI",
+          "BIG NegNI",
+          "BIG ZeroNI",
+          "BIG LoNI",
+          "ME5 NI2",
+          "ME5 NI3",
+          "ME5 NI4",
+          "BIG HiNI"
+        ]
+      },
+      {
+        "id": "low_net_issuance",
+        "tickers": [
+          "SMALL NegNI",
+          "SMALL ZeroNI",
+          "SMALL LoNI",
+          "ME2 NegNI",
+          "ME2 ZeroNI",
+          "ME2 LoNI",
+          "ME3 NegNI",
+          "ME3 ZeroNI",
+          "ME3 LoNI",
+          "ME4 NegNI",
+          "ME4 ZeroNI",
+          "ME4 LoNI",
+          "BIG NegNI",
+          "BIG ZeroNI",
+          "BIG LoNI"
+        ]
+      },
+      {
+        "id": "high_net_issuance",
+        "tickers": [
+          "ME1 NI3",
+          "ME1 NI4",
+          "SMALL HiNI",
+          "ME2 NI3",
+          "ME2 NI4",
+          "ME2 HiNI",
+          "ME3 NI3",
+          "ME3 NI4",
+          "ME3 HiNI",
+          "ME4 NI3",
+          "ME4 NI4",
+          "ME4 HiNI",
+          "ME5 NI3",
+          "ME5 NI4",
+          "BIG HiNI"
+        ]
+      }
+    ]
+  },
+  "candidate": "net_issuance_quality_momentum",
+  "baseline": "momentum_12_1",
+  "passed_case_count": 3,
+  "case_count": 4,
+  "aggregate_gate": {
+    "status": "rejected",
+    "reasons": [
+      "Positive mean rank-IC bootstrap probability is below 95%.",
+      "Positive mean top-minus-bottom bootstrap probability is below 95%."
+    ],
+    "candidate_gate": {
+      "status": "rejected",
+      "reasons": [
+        "Positive mean rank-IC bootstrap probability is below 95%.",
+        "Positive mean top-minus-bottom bootstrap probability is below 95%."
+      ],
+      "minimum_bootstrap_probability": 0.95
+    },
+    "candidate_bootstrap": {
+      "status": "ok",
+      "observation_count": 11,
+      "block_size": 3,
+      "samples": 2000,
+      "seed": 42,
+      "observed": {
+        "mean_rank_ic": 0.12965072762815935,
+        "mean_top_bottom_spread": 0.06477095380225828
+      },
+      "probability": {
+        "positive_mean_rank_ic": 0.8455,
+        "positive_mean_top_bottom_spread": 0.8735
+      },
+      "interval": {
+        "mean_rank_ic": {
+          "lower_95": -0.08144959066627958,
+          "median": 0.12381800937816884,
+          "upper_95": 0.3922400150088562
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": -0.02762205257094853,
+          "median": 0.06109912049364001,
+          "upper_95": 0.18653414064934262
+        }
+      }
+    },
+    "paired_gate": {
+      "status": "passed",
+      "reasons": []
+    },
+    "paired_bootstrap": {
+      "status": "ok",
+      "observation_count": 11,
+      "block_size": 3,
+      "samples": 2000,
+      "seed": 44,
+      "observed_difference": {
+        "mean_rank_ic": 0.13685724659938422,
+        "mean_top_bottom_spread": 0.03694601684510477
+      },
+      "probability": {
+        "higher_mean_rank_ic": 1.0,
+        "higher_mean_top_bottom_spread": 0.9805
+      },
+      "difference_interval": {
+        "mean_rank_ic": {
+          "lower_95": 0.04867143977228239,
+          "median": 0.1359504762917837,
+          "upper_95": 0.22863548161787425
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": 0.001638212522448809,
+          "median": 0.03460822125497713,
+          "upper_95": 0.07939053001437651
+        }
+      }
+    },
+    "paired_holm": {
+      "raw_p_value": 0.019499999999999962,
+      "adjusted_p_value": 0.019499999999999962,
+      "significant": true
+    }
+  },
+  "case_runs": [
+    {
+      "case": {
+        "id": "small_size",
+        "tickers": [
+          "SMALL NegNI",
+          "SMALL ZeroNI",
+          "SMALL LoNI",
+          "ME1 NI2",
+          "ME1 NI3",
+          "ME1 NI4",
+          "SMALL HiNI",
+          "ME2 NegNI",
+          "ME2 ZeroNI",
+          "ME2 LoNI",
+          "ME2 NI2",
+          "ME2 NI3",
+          "ME2 NI4",
+          "ME2 HiNI"
+        ]
+      },
+      "candidate": {
+        "period_count": 11,
+        "mean_rank_ic": 0.12367632367632368,
+        "positive_rank_ic_rate": 0.6363636363636364,
+        "mean_top_bottom_spread": 0.07085056640644041,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 11,
+        "mean_rank_ic": 0.04215784215784213,
+        "positive_rank_ic_rate": 0.45454545454545453,
+        "mean_top_bottom_spread": 0.06297007908181243,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "large_size",
+        "tickers": [
+          "ME4 NegNI",
+          "ME4 ZeroNI",
+          "ME4 LoNI",
+          "ME4 NI2",
+          "ME4 NI3",
+          "ME4 NI4",
+          "ME4 HiNI",
+          "BIG NegNI",
+          "BIG ZeroNI",
+          "BIG LoNI",
+          "ME5 NI2",
+          "ME5 NI3",
+          "ME5 NI4",
+          "BIG HiNI"
+        ]
+      },
+      "candidate": {
+        "period_count": 11,
+        "mean_rank_ic": 0.14525474525474524,
+        "positive_rank_ic_rate": 0.6363636363636364,
+        "mean_top_bottom_spread": 0.052061406471306304,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 11,
+        "mean_rank_ic": -0.028971028971028975,
+        "positive_rank_ic_rate": 0.5454545454545454,
+        "mean_top_bottom_spread": 0.013624755695564216,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    },
+    {
+      "case": {
+        "id": "low_net_issuance",
+        "tickers": [
+          "SMALL NegNI",
+          "SMALL ZeroNI",
+          "SMALL LoNI",
+          "ME2 NegNI",
+          "ME2 ZeroNI",
+          "ME2 LoNI",
+          "ME3 NegNI",
+          "ME3 ZeroNI",
+          "ME3 LoNI",
+          "ME4 NegNI",
+          "ME4 ZeroNI",
+          "ME4 LoNI",
+          "BIG NegNI",
+          "BIG ZeroNI",
+          "BIG LoNI"
+        ]
+      },
+      "candidate": {
+        "period_count": 11,
+        "mean_rank_ic": 0.01847713400023139,
+        "positive_rank_ic_rate": 0.5454545454545454,
+        "mean_top_bottom_spread": 0.003859704805146691,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 11,
+        "mean_rank_ic": 0.060389610389610375,
+        "positive_rank_ic_rate": 0.5454545454545454,
+        "mean_top_bottom_spread": 0.027716365742984073,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "rejected",
+        "reasons": [
+          "Candidate mean rank IC does not beat baseline.",
+          "Candidate top-bottom spread does not beat baseline."
+        ]
+      }
+    },
+    {
+      "case": {
+        "id": "high_net_issuance",
+        "tickers": [
+          "ME1 NI3",
+          "ME1 NI4",
+          "SMALL HiNI",
+          "ME2 NI3",
+          "ME2 NI4",
+          "ME2 HiNI",
+          "ME3 NI3",
+          "ME3 NI4",
+          "ME3 HiNI",
+          "ME4 NI3",
+          "ME4 NI4",
+          "ME4 HiNI",
+          "ME5 NI3",
+          "ME5 NI4",
+          "BIG HiNI"
+        ]
+      },
+      "candidate": {
+        "period_count": 11,
+        "mean_rank_ic": 0.25055218028692255,
+        "positive_rank_ic_rate": 0.7272727272727273,
+        "mean_top_bottom_spread": 0.08611399771698547,
+        "mean_coverage_rate": 1.0
+      },
+      "baseline": {
+        "period_count": 11,
+        "mean_rank_ic": 0.06753246753246754,
+        "positive_rank_ic_rate": 0.36363636363636365,
+        "mean_top_bottom_spread": 0.036273615403698264,
+        "mean_coverage_rate": 1.0
+      },
+      "gate": {
+        "status": "passed",
+        "reasons": []
+      }
+    }
+  ],
+  "aggregate_rank_diagnostics": {
+    "candidate": {
+      "period_count": 11,
+      "mean_rank_ic": 0.12965072762815935,
+      "positive_rank_ic_rate": 0.6363636363636364,
+      "mean_top_bottom_spread": 0.06477095380225828,
+      "mean_coverage_rate": 1.0
+    },
+    "baseline": {
+      "period_count": 11,
+      "mean_rank_ic": -0.007206518971224859,
+      "positive_rank_ic_rate": 0.2727272727272727,
+      "mean_top_bottom_spread": 0.02782493695715349,
+      "mean_coverage_rate": 1.0
+    }
+  },
+  "validation_passed": false,
+  "promotion_eligible": false
+}
