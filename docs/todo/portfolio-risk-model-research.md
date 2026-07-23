@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: online allocator ensemble도 Sharpe gate에서 탈락, 기본 allocator 유지
+- 현재 상태: fixed risk-parity/momentum blend도 dual-component gate에서 탈락, 기본 allocator 유지
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -89,6 +89,13 @@
 - 결과 보고서: `docs/reports/260723-2040-01-risk-allocator-research.md`
 - cash/volatility-target 보고서: `docs/reports/260724-0039-01-risk-cash-volatility-target.md`
 - RMT denoising 보고서: `docs/reports/260724-0121-01-rmt-covariance-research.md`
+
+## 2026-07-24 risk-momentum construction
+
+- Official French 12-industry `1970~1999` fresh split에서 inverse-vol risk parity와 raw 12-1 momentum rank tilt를 fixed 50/50으로 결합했습니다.
+- Blend volatility/Sharpe `13.36%/0.5610`은 risk parity `13.06%/0.5581`과 momentum `13.68%/0.5893` 사이에 머물렀습니다.
+- P(lower volatility/higher Sharpe)는 risk parity 대비 `0%/59.00%`, momentum 대비 `100%/4.35%`였습니다.
+- 두 component를 동시에 개선하지 못해 기각하며 blend weight를 같은 split에서 재튜닝하지 않습니다.
 
 ## 2026-07-24 RMT research
 

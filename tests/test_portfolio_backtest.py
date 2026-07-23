@@ -51,6 +51,7 @@ from portfolio_signals import (
     momentum_12_1,
     profitability_momentum_scores,
     risk_parity,
+    risk_momentum_blend_weights,
     short_term_reversal_score,
     signal_tilt_weights,
     signal_stack_bl_views,
@@ -364,6 +365,87 @@ def test_high_momentum_models_are_opt_in_with_same_construction():
         )
         for record in records
     )
+
+
+def test_risk_momentum_blend_is_exact_fixed_component_average():
+    prices = _synthetic_factor_research_data(
+        rows=520,
+        ticker_count=8,
+    )[0]
+    risk_weights = risk_parity(
+        prices.iloc[:504],
+        max_asset_weight=0.25,
+    )
+    momentum_weights, _ = (
+        portfolio_backtest._price_signal_rank_tilt_weights(
+            prices.iloc[:504],
+            "momentum_12_1",
+            0.25,
+        )
+    )
+
+    blended = risk_momentum_blend_weights(
+        prices.iloc[:504],
+        max_asset_weight=0.25,
+        target_active_share=(
+            portfolio_backtest.PRICE_SIGNAL_TARGET_ACTIVE_SHARE
+        ),
+    )
+    expected = (
+        0.50 * risk_weights
+        + 0.50 * pd.Series(momentum_weights)
+    )
+
+    pd.testing.assert_series_equal(
+        blended,
+        expected,
+        check_names=False,
+    )
+
+
+def test_risk_momentum_blend_is_opt_in_and_ignores_future_rows():
+    prices = _synthetic_factor_research_data(
+        rows=580,
+        ticker_count=8,
+    )[0]
+    cutoff = 503
+    changed = prices.copy()
+    changed.iloc[cutoff + 1:] *= np.linspace(
+        1.0,
+        50.0,
+        len(changed) - cutoff - 1,
+    )[:, None]
+
+    weights, diagnostics = portfolio_backtest._model_weights(
+        "risk_momentum_blend",
+        prices.iloc[:cutoff + 1],
+        63,
+        0.25,
+        0.02,
+    )
+    repeated, repeated_diagnostics = (
+        portfolio_backtest._model_weights(
+            "risk_momentum_blend",
+            changed.iloc[:cutoff + 1],
+            63,
+            0.25,
+            0.02,
+        )
+    )
+
+    assert "risk_momentum_blend" in (
+        portfolio_backtest.SUPPORTED_BACKTEST_MODELS
+    )
+    assert "risk_momentum_blend" not in (
+        portfolio_backtest.DEFAULT_BACKTEST_MODELS
+    )
+    assert weights == pytest.approx(repeated)
+    assert diagnostics == repeated_diagnostics
+    assert sum(weights.values()) == pytest.approx(1.0)
+    assert diagnostics["alpha_component_weights"] == {
+        "risk_parity": 0.50,
+        "momentum_12_1_rank_tilt": 0.50,
+    }
 
 
 def test_james_stein_expected_returns_reduce_cross_sectional_dispersion():

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-12-industry-risk-momentum-research-1970-1999-v1",
+  "role": "research",
+  "evaluation_start": "1970-02-11",
+  "evaluation_end": "1999-12-31",
+  "experiment_namespace": "construction-v1-risk-momentum-industry-portfolios",
+  "objectives": [
+    "risk_momentum_blend"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "portfolio_bootstrap_block_size": 21,
+    "signal_bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "risk_momentum_blend",
+    "baselines": [
+      "risk_parity",
+      "momentum_12_1_rank_tilt"
+    ],
+    "models": [
+      "equal_weight",
+      "risk_parity",
+      "momentum_12_1_rank_tilt",
+      "risk_momentum_blend"
+    ],
+    "construction_policy": {
+      "component_weights": {
+        "risk_parity": 0.5,
+        "momentum_12_1_rank_tilt": 0.5
+      },
+      "risk_component": "inverse_volatility_risk_parity",
+      "momentum_signal": "cross_sectional_12_1_rank",
+      "momentum_lookback": 252,
+      "momentum_skip": 21,
+      "momentum_allocator": "equal_weight_active_share_rank_tilt",
+      "momentum_target_active_share": 0.2,
+      "blend_policy": "fixed_weight_convex_combination"
+    }
+  },
+  "universe_manifest_sha256": "f5cd9ec046bfde0e8f809ab0280f88bdfbd8694d288b6fefb88c94b1048fa2b2",
+  "price_file_sha256": "770cd36216820c536835301b868a9c7ca211a5369fc0213c01f4b3f5633b49fb",
+  "factor_file_sha256": "80ec821767801d1e4332513e91777f0a371255209f2e6c4e16e9562825ccaaf1",
+  "auxiliary_files": {
+    "price_provenance": "c99735352cf6bc5e6911f775706240dade30041847b47b1dddbf72f93df34b6f",
+    "risk_free_provenance": "d009d3a912a1478efd1279b11709e88ebadf75ab62616f7cfac07d5c947a773f"
+  },
+  "locked": true,
+  "manifest_sha256": "3c0a02f002665c47a562abe8f00a2587492f35b2520b4bdd575d798916f9c461"
+}

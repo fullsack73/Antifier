@@ -69,6 +69,7 @@ from portfolio_signals import (
     FORECAST_RANK_VIEW_UNCERTAINTY,
     HIGH_MOMENTUM_COMPONENT_WEIGHTS,
     MOMENTUM_VIEW_UNCERTAINTY,
+    RISK_MOMENTUM_COMPONENT_WEIGHTS,
     SIGNAL_STACK_VIEW_UNCERTAINTY,
     SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
     adaptive_cross_sectional_alpha,
@@ -83,6 +84,7 @@ from portfolio_signals import (
     rank_to_unit_scores,
     risk_parity,
     risk_managed_momentum_weights,
+    risk_momentum_blend_weights,
     signal_tilt_weights,
     signal_stack_bl_views,
 )
@@ -140,6 +142,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "hac_historical_bl",
     "momentum_12_1_rank_tilt",
     "high_momentum_rank_tilt",
+    "risk_momentum_blend",
 )
 
 PROMOTION_BASELINE_MODELS = (
@@ -1210,6 +1213,28 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             "high_momentum",
             max_asset_weight,
         )
+
+    if model_name == "risk_momentum_blend":
+        scores = momentum_12_1(train_prices).reindex(tickers)
+        weights = risk_momentum_blend_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+            target_active_share=PRICE_SIGNAL_TARGET_ACTIVE_SHARE,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": int(scores.isna().sum()),
+            "avg_forecast_confidence": None,
+            "signal_scores": _finite_series_dict(scores),
+            "alpha_component_weights": dict(
+                RISK_MOMENTUM_COMPONENT_WEIGHTS
+            ),
+            "construction_method": (
+                "fixed_risk_parity_momentum_rank_tilt_blend"
+            ),
+            "target_active_share": (
+                PRICE_SIGNAL_TARGET_ACTIVE_SHARE
+            ),
+        }
 
     if model_name == "adaptive_signal_tilt":
         scores, alpha_diagnostics = adaptive_cross_sectional_alpha(

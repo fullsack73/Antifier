@@ -16,6 +16,10 @@ HIGH_MOMENTUM_COMPONENT_WEIGHTS = {
     "momentum_12_1": 0.50,
     "fifty_two_week_high": 0.50,
 }
+RISK_MOMENTUM_COMPONENT_WEIGHTS = {
+    "risk_parity": 0.50,
+    "momentum_12_1_rank_tilt": 0.50,
+}
 FIFTY_TWO_WEEK_HIGH_LOOKBACK_DAYS = 252
 SHORT_TERM_REVERSAL_DAYS = 21
 MOMENTUM_VIEW_UNCERTAINTY = 0.20
@@ -778,6 +782,37 @@ def signal_tilt_weights(
     desired_l1 = 2.0 * min(0.49, max(0.0, float(target_active_share)))
     tilted = (base + centered / absolute_total * desired_l1).clip(lower=0.0)
     return cap_and_normalize_weights(tilted, max_asset_weight=max_asset_weight)
+
+
+def risk_momentum_blend_weights(
+    price_data,
+    max_asset_weight=0.2,
+    target_active_share=ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
+):
+    """Blend inverse-vol risk parity and raw 12-1 rank tilt equally."""
+    data = _clean_price_frame(price_data)
+    risk_weights = risk_parity(
+        data,
+        max_asset_weight=max_asset_weight,
+    )
+    momentum_scores = momentum_12_1(data)
+    momentum_weights = signal_tilt_weights(
+        momentum_scores,
+        max_asset_weight=max_asset_weight,
+        target_active_share=target_active_share,
+    )
+    blended = (
+        RISK_MOMENTUM_COMPONENT_WEIGHTS["risk_parity"]
+        * risk_weights.reindex(data.columns).fillna(0.0)
+        + RISK_MOMENTUM_COMPONENT_WEIGHTS[
+            "momentum_12_1_rank_tilt"
+        ]
+        * momentum_weights.reindex(data.columns).fillna(0.0)
+    )
+    return cap_and_normalize_weights(
+        blended,
+        max_asset_weight=max_asset_weight,
+    )
 
 
 def momentum_tilt_weights(price_data, lookback=MOMENTUM_LOOKBACK_DAYS, skip=MOMENTUM_SKIP_DAYS,

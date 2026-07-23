@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: raw momentum이 lightweight를 이겼지만 signal/risk-parity/Holm gate에서 탈락
+- 현재 상태: fixed risk-parity/momentum blend가 dual-component/Holm gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -140,6 +140,10 @@
 - Candidate CAGR/Sharpe `5.94%/0.2700`은 lightweight `4.91%/0.2256`보다 높고 paired P(higher return/Sharpe)는 `96.35%/95.40%`였습니다.
 - 그러나 absolute spread `-0.00250`, signal paired P(higher IC/spread) `62.45%/56.95%`, risk-parity Sharpe `0.2868`, combined Holm-adjusted portfolio p `0.1460` 때문에 승격하지 않습니다.
 - Raw momentum 단독 validation/holdout은 열지 않습니다. 다음 독립 construction family는 사전 고정 risk-parity/momentum diversification이며 같은 17-industry 결과에 blend weight를 맞추지 않습니다.
+- Fixed 50/50 risk-parity/momentum construction을 fresh official French 12-industry `1970~1999`에서 검증했습니다.
+- Momentum signal absolute gate는 통과했지만 blend Sharpe `0.5610`은 risk parity `0.5581`을 미세 개선하고 momentum `0.5893`에는 열위였습니다.
+- Paired P(lower vol/higher Sharpe)는 risk parity 대비 `0%/59.00%`, momentum 대비 `100%/4.35%`였고 six-hypothesis Holm gate를 통과하지 못했습니다.
+- Blend weight를 재튜닝하지 않고 후보를 폐기합니다. 다음 fresh construction은 stronger Ledoit-Wolf minimum-variance sleeve와 momentum fixed blend입니다.
 
 ## 금지
 

@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: raw momentum이 lightweight 대비 portfolio는 개선했지만 absolute/paired signal gate에서 탈락
+- 현재 상태: momentum signal은 long history에서 회복했지만 risk/momentum construction이 component gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -148,6 +148,8 @@
 - Raw 12-1 rank tilt를 새 official French 17-industry `2000~2011`에서 current `lightweight_bl` 대비 독립 candidate로 사전 등록했습니다.
 - Candidate는 lightweight 대비 P(higher return/Sharpe) `96.35%`/`95.40%`였지만 absolute IC `0.0042`, spread `-0.00250`, P(IC>0/spread>0) `53.65%`/`44.35%`로 signal gate를 실패했습니다.
 - Lightweight 대비 paired P(higher IC/spread)도 `62.45%`/`56.95%`, risk-parity Sharpe guard도 실패했습니다. Candidate를 기각하고 validation/holdout을 열지 않습니다.
+- Official French 12-industry `1970~1999`에서 raw momentum signal은 IC `0.0868`, spread `0.00990`, P(IC>0/spread>0) `99.75%/98.25%`로 absolute gate를 통과했습니다.
+- 하지만 이를 inverse-vol risk parity와 50/50 결합한 construction은 momentum 단독 Sharpe `0.5893`보다 낮은 `0.5610`이었고 paired P(higher Sharpe)는 `4.35%`였습니다. Signal 통과만으로 construction을 승격하지 않습니다.
 
 ## 참고
 
