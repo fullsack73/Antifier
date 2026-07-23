@@ -28,6 +28,7 @@ from portfolio_optimization import (
     _calculate_historical_cagr,
     _confidence_from_uncertainty,
     _dedupe_tickers,
+    _james_stein_expected_returns,
     _normalize_expected_return_series,
     _normalize_uncertainty_series,
     _period_return_to_annual_simple_return,
@@ -128,6 +129,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "maximum_diversification",
     "online_allocator_ensemble",
     "lightweight_rank_tilt",
+    "james_stein_bl",
 )
 
 PROMOTION_BASELINE_MODELS = (
@@ -594,6 +596,25 @@ def _forecast_views(train_prices, method, forecast_horizon):
         }
         uncertainties = _normalize_uncertainty_series(pd.Series(uncertainties), tickers)
         return views.reindex(tickers), uncertainties, failed, {}
+
+    if method == "james_stein":
+        views, estimator_diagnostics = (
+            _james_stein_expected_returns(train_prices)
+        )
+        uncertainties = _normalize_uncertainty_series(
+            pd.Series(
+                DEFAULT_FORECAST_UNCERTAINTY,
+                index=tickers,
+                dtype=float,
+            ),
+            tickers,
+        )
+        return (
+            views.reindex(tickers),
+            uncertainties,
+            0,
+            {"mean_estimator": estimator_diagnostics},
+        )
 
     if method in ("arima_transformer_rank", "transformer_rank"):
         return _forecast_rank_views(train_prices, method, forecast_horizon)
@@ -1195,6 +1216,7 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
 
     bl_methods = {
         "historical_bl": "historical",
+        "james_stein_bl": "james_stein",
         "momentum_bl": "momentum",
         "signal_stack_bl": "signal_stack",
         "lightweight_bl": "lightweight",
@@ -2302,6 +2324,7 @@ def run_portfolio_model_backtest(
                 "lightweight_uncertainty_calibration": diagnostics.get(
                     "lightweight_uncertainty_calibration"
                 ),
+                "mean_estimator": diagnostics.get("mean_estimator"),
                 "gross_period_return": gross_period_return,
                 "net_period_return": net_period_return,
                 "transaction_cost_return_drag": float(gross_period_return - net_period_return),

@@ -5,4 +5,4 @@
 - `portfolio-alpha-v2-research.md`: no-tune online reversal Hedge failed dual-baseline paired/Holm research gate.
 - `portfolio-forecast-model-redesign.md`: online signal adaptation also failed incremental IC; Transformer HPO remains unsupported.
 - `portfolio-risk-model-research.md`: online allocator ensemble lowered risk/turnover but failed the Sharpe gate; defaults remain unchanged.
-- `portfolio-optimizer-quant-standard.md`: online reversal Hedge failed research promotion; default optimizer remains unchanged.
+- `portfolio-optimizer-quant-standard.md`: James–Stein mean shrinkage reduced risk but failed the Sharpe gate; default optimizer remains unchanged.

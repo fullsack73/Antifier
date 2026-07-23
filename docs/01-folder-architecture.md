@@ -163,6 +163,7 @@ tools/
 ├─ build_research_price_panel.py        # explicit research basket 가격과 SHA provenance 생성
 ├─ build_market_factor_panel.py         # French factors + FRED DGS3MO PIT-aligned panel
 ├─ research_risk_allocators.py        # research-only risk allocator 비교
+├─ research_mean_shrinkage.py         # locked expected-return shrinkage 비교
 ├─ research_online_reversal_ensemble.py # completed-feedback signal Hedge 연구
 ├─ validate_risk_allocator_candidate.py # frozen risk candidate 4-case validation
 └─ tune_transformer_hpo.py

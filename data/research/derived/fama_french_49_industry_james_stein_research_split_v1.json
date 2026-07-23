@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-49-industry-james-stein-research-1983-1999-v1",
+  "role": "research",
+  "evaluation_start": "1983-08-29",
+  "evaluation_end": "1999-12-31",
+  "experiment_namespace": "mean-v1-james-stein-industry-portfolios",
+  "objectives": [
+    "james_stein_bl"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "candidate_policy": {
+      "estimator": "jorion_bayes_stein",
+      "shrinkage_target": "global_minimum_variance_expected_return",
+      "shrinkage_intensity": "closed_form_parameter_free",
+      "annualization": "arithmetic_daily_mean_times_252",
+      "black_litterman": "same_prior_covariance_uncertainty_and_constraints_as_historical_bl"
+    }
+  },
+  "universe_manifest_sha256": "cad36f71a324c4cf9a24bde8f184f792bc2c499b6be218b9de1ec943848b4ad9",
+  "price_file_sha256": "561ce8bb4517081a09796ff813a3ebd52afbb9c4aa32499769521223c3143a8f",
+  "factor_file_sha256": "03a069ca107a8ec7f75986fac81060ec7c314fc7d9b04e5ee8ceaef2363785b0",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "eaf788ad6d869bb1d1cdb37bddc136f33bdb964573c6b10a63caaa48d83fe104"
+}

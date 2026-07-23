@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: online reversal Hedge가 dual-baseline paired/Holm research gate에서 탈락
+- 현재 상태: James–Stein mean shrinkage가 historical BL 대비 Sharpe gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -125,6 +125,9 @@
 - Validation-result SHA chain과 locked-holdout role 검증은 강화됐지만 default alpha/optimizer는 변경하지 않습니다. Holdout 재튜닝·재실행을 금지합니다.
 - Completed-feedback online Hedge는 no-tune learning rate와 completed-only expert loss를 사용했지만 fixed reversal blend보다 IC가 낮았습니다.
 - Raw momentum 대비 spread는 개선됐어도 IC improvement probability `74.40%`, familywise Holm `0.5120`으로 승격하지 않습니다. Validation/holdout을 열지 않고 default optimizer를 유지합니다.
+- Raw historical CAGR의 estimation error를 줄이기 위해 global-minimum-variance expected return을 target으로 하는 parameter-free Jorion/Bayes-Stein 수축을 research-only `james_stein_bl`로 추가했습니다.
+- Official French 49-industry locked research `1983~1999`에서 평균 수축 강도는 `47.39%`였고 volatility `13.87%→13.46%`, turnover `2.15%→1.78%`로 감소했습니다.
+- 그러나 Sharpe는 `0.6725→0.6436`, P(higher Sharpe)는 `3.50%`, Holm-adjusted p-value는 `0.9650`이어서 후보를 기각합니다. 수축 강도를 같은 split에 맞춰 조절하지 않고 validation/holdout을 열지 않습니다.
 
 ## 금지
 

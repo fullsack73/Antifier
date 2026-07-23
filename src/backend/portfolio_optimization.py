@@ -52,6 +52,7 @@ MAX_FORECAST_CONFIDENCE = 0.95
 MAX_FORECAST_UNCERTAINTY = 5.0
 DEFAULT_REBALANCE_BAND = 0.02
 DEFAULT_MAX_TURNOVER = 0.35
+TRADING_DAYS_PER_YEAR = 252
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
@@ -293,6 +294,118 @@ def _calculate_historical_cagr(data):
         except Exception:
             cagr_series[ticker] = 0.0
     return _normalize_expected_return_series(pd.Series(cagr_series))
+
+
+def _james_stein_expected_returns(data):
+    """Shrink sample means toward the global-minimum-variance mean.
+
+    This is the parameter-free Jorion/Bayes-Stein cross-sectional estimator.
+    It reduces expected-return estimation error without inspecting any rows
+    outside the price frame supplied by the caller.
+    """
+    prices = (
+        pd.DataFrame(data)
+        .apply(pd.to_numeric, errors="coerce")
+        .replace([np.inf, -np.inf], np.nan)
+    )
+    tickers = list(prices.columns)
+    returns = (
+        prices.pct_change(fill_method=None)
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna(axis=0, how="any")
+    )
+    fallback = _calculate_historical_cagr(prices).reindex(tickers).fillna(0.0)
+    diagnostics = {
+        "estimator": "jorion_bayes_stein",
+        "observation_count": int(len(returns)),
+        "asset_count": int(len(tickers)),
+        "shrinkage_intensity": 0.0,
+        "target_daily_return": None,
+        "target_annual_return": None,
+    }
+    if returns.empty or not tickers:
+        diagnostics["fallback_reason"] = "insufficient_complete_returns"
+        return fallback, diagnostics
+
+    sample_mean = returns.mean().reindex(tickers).astype(float)
+    if len(tickers) == 1 or len(returns) < 2:
+        annualized = _normalize_expected_return_series(
+            sample_mean * TRADING_DAYS_PER_YEAR
+        )
+        target_daily = float(sample_mean.iloc[0])
+        diagnostics.update({
+            "target_daily_return": target_daily,
+            "target_annual_return": float(
+                annualized.iloc[0]
+            ),
+            "fallback_reason": "insufficient_cross_section",
+        })
+        return annualized, diagnostics
+
+    covariance = returns.cov().reindex(
+        index=tickers,
+        columns=tickers,
+    )
+    covariance_values = covariance.to_numpy(dtype=float)
+    mean_values = sample_mean.to_numpy(dtype=float)
+    try:
+        precision = np.linalg.pinv(covariance_values)
+        ones = np.ones(len(tickers), dtype=float)
+        denominator = float(ones @ precision @ ones)
+        if not np.isfinite(denominator) or denominator <= 0.0:
+            raise ValueError("non-positive GMV precision denominator")
+        target_daily = float(
+            (ones @ precision @ mean_values) / denominator
+        )
+        deviation = mean_values - target_daily
+        distance = float(
+            len(returns) * (deviation @ precision @ deviation)
+        )
+        if not np.isfinite(distance):
+            raise ValueError("non-finite mean dispersion")
+        distance = max(0.0, distance)
+        numerator = float(len(tickers) + 2)
+        shrinkage = float(
+            np.clip(
+                numerator / (numerator + distance),
+                0.0,
+                1.0,
+            )
+        )
+        shrunk_daily = (
+            target_daily + (1.0 - shrinkage) * deviation
+        )
+    except (ValueError, FloatingPointError, np.linalg.LinAlgError) as exc:
+        diagnostics["fallback_reason"] = (
+            f"estimator_failure:{type(exc).__name__}"
+        )
+        return fallback, diagnostics
+
+    annualized = _normalize_expected_return_series(
+        pd.Series(
+            shrunk_daily * TRADING_DAYS_PER_YEAR,
+            index=tickers,
+            dtype=float,
+        )
+    )
+    diagnostics.update({
+        "shrinkage_intensity": shrinkage,
+        "target_daily_return": target_daily,
+        "target_annual_return": float(
+            np.clip(
+                target_daily * TRADING_DAYS_PER_YEAR,
+                EXPECTED_RETURN_LOWER_BOUND,
+                EXPECTED_RETURN_UPPER_BOUND,
+            )
+        ),
+        "sample_mean_dispersion": float(
+            sample_mean.std(ddof=0)
+        ),
+        "shrunk_mean_dispersion": float(
+            pd.Series(shrunk_daily).std(ddof=0)
+        ),
+    })
+    return annualized, diagnostics
 
 
 def _align_price_history_without_lookahead(data):

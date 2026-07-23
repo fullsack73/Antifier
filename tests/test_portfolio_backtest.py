@@ -259,6 +259,102 @@ def test_calibrated_lightweight_bl_reports_oos_uncertainty():
     )
 
 
+def test_james_stein_expected_returns_reduce_cross_sectional_dispersion():
+    dates = pd.date_range("2020-01-02", periods=400, freq="B")
+    rng = np.random.default_rng(42)
+    daily_returns = rng.normal(
+        loc=np.array([0.0015, 0.0005, -0.0004]),
+        scale=np.array([0.012, 0.010, 0.011]),
+        size=(len(dates), 3),
+    )
+    prices = pd.DataFrame(
+        100.0 * np.cumprod(1.0 + daily_returns, axis=0),
+        index=dates,
+        columns=["AAA", "BBB", "CCC"],
+    )
+
+    estimates, diagnostics = (
+        portfolio_optimization._james_stein_expected_returns(prices)
+    )
+
+    raw_annual_means = prices.pct_change(
+        fill_method=None
+    ).dropna().mean() * 252
+    assert estimates.notna().all()
+    assert diagnostics["estimator"] == "jorion_bayes_stein"
+    assert 0.0 <= diagnostics["shrinkage_intensity"] <= 1.0
+    assert estimates.std(ddof=0) < raw_annual_means.std(ddof=0)
+    assert diagnostics["shrunk_mean_dispersion"] < (
+        diagnostics["sample_mean_dispersion"]
+    )
+
+
+def test_james_stein_estimator_uses_only_supplied_training_rows():
+    prices = _synthetic_factor_research_data(
+        rows=580,
+        ticker_count=8,
+    )[0]
+    cutoff = 503
+    changed = prices.copy()
+    changed.iloc[cutoff + 1:] *= np.linspace(
+        1.0,
+        50.0,
+        len(changed) - cutoff - 1,
+    )[:, None]
+
+    estimates, diagnostics = (
+        portfolio_optimization._james_stein_expected_returns(
+            prices.iloc[:cutoff + 1]
+        )
+    )
+    repeated, repeated_diagnostics = (
+        portfolio_optimization._james_stein_expected_returns(
+            changed.iloc[:cutoff + 1]
+        )
+    )
+
+    pd.testing.assert_series_equal(estimates, repeated)
+    assert diagnostics == repeated_diagnostics
+
+
+def test_james_stein_bl_is_opt_in_and_reports_estimator_diagnostics():
+    prices = _synthetic_factor_research_data(
+        rows=520,
+        ticker_count=8,
+    )[0]
+
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("historical_bl", "james_stein_bl"),
+        train_window=504,
+        rebalance_frequency=8,
+        forecast_horizon=8,
+        max_asset_weight=0.25,
+    )
+
+    assert "james_stein_bl" in (
+        portfolio_backtest.SUPPORTED_BACKTEST_MODELS
+    )
+    assert "james_stein_bl" not in (
+        portfolio_backtest.DEFAULT_BACKTEST_MODELS
+    )
+    records = [
+        record
+        for record in result["rebalance_records"]
+        if record["model"] == "james_stein_bl"
+    ]
+    assert records
+    assert all(
+        record["mean_estimator"]["estimator"]
+        == "jorion_bayes_stein"
+        for record in records
+    )
+    assert all(
+        0.0 <= record["mean_estimator"]["shrinkage_intensity"] <= 1.0
+        for record in records
+    )
+
+
 def test_lightweight_rank_tilt_ignores_future_rows_and_hits_active_share():
     prices = _synthetic_factor_research_data(
         rows=580,
