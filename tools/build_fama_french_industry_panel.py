@@ -84,6 +84,10 @@ def main(argv=None):
         default=SOURCE_URL,
         help="Official source URL recorded in provenance",
     )
+    parser.add_argument(
+        "--portfolio-policy",
+        help="Portfolio construction policy recorded in provenance",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -120,8 +124,11 @@ def main(argv=None):
                     "source_url": args.source_url,
                     "source_section": SECTION_LABEL,
                     "source_portfolio_policy": (
-                        f"{len(prices.columns)} SIC industry portfolios, "
-                        "reconstituted annually"
+                        args.portfolio_policy
+                        or (
+                            f"{len(prices.columns)} SIC industry "
+                            "portfolios, reconstituted annually"
+                        )
                     ),
                     "return_weighting": "value_weighted",
                     "retrieved_at": datetime.now(

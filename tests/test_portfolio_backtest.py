@@ -38,6 +38,7 @@ from portfolio_signals import (
     calibrate_cross_sectional_alpha,
     drawdown_score,
     dual_horizon_momentum_weights,
+    factor_residual_momentum_scores,
     market_cap_weight,
     momentum_6m,
     momentum_12_1,
@@ -430,6 +431,59 @@ def test_dual_horizon_momentum_uses_only_supplied_history():
     second = dual_horizon_momentum_weights(mutated.iloc[:280])
 
     pd.testing.assert_series_equal(first, second)
+
+
+def test_factor_residual_momentum_removes_common_factor_and_has_no_lookahead():
+    rng = np.random.default_rng(123)
+    dates = pd.date_range("2010-01-04", periods=620, freq="B")
+    factors = pd.DataFrame(
+        {
+            "mkt_rf": rng.normal(0.0003, 0.010, len(dates)),
+            "smb": rng.normal(0.0001, 0.005, len(dates)),
+            "hml": rng.normal(0.0001, 0.005, len(dates)),
+            "rf_daily": np.full(len(dates), 0.00005),
+        },
+        index=dates,
+    )
+    residual_trends = {
+        "POS": 0.0008,
+        "FLAT": 0.0,
+        "NEG": -0.0008,
+    }
+    prices = {}
+    for ticker, residual_trend in residual_trends.items():
+        changing_residual = np.zeros(len(dates))
+        changing_residual[300:] = residual_trend
+        returns = (
+            factors["rf_daily"]
+            + factors["mkt_rf"]
+            + 0.4 * factors["smb"]
+            - 0.2 * factors["hml"]
+            + changing_residual
+            + rng.normal(0.0, 0.002, len(dates))
+        )
+        prices[ticker] = 100.0 * np.exp(
+            np.cumsum(np.log1p(returns))
+        )
+    prices = pd.DataFrame(prices, index=dates)
+
+    scores, diagnostics = factor_residual_momentum_scores(
+        prices.iloc[:580],
+        factors.iloc[:580],
+    )
+    mutated = prices.copy()
+    mutated.iloc[580:] *= pd.Series(
+        {"POS": 0.25, "FLAT": 2.0, "NEG": 4.0}
+    )
+    repeated, _ = factor_residual_momentum_scores(
+        mutated.iloc[:580],
+        factors.iloc[:580],
+    )
+
+    assert scores["POS"] > scores["FLAT"] > scores["NEG"]
+    assert diagnostics["coverage_count"] == 3
+    assert diagnostics["beta_lookback"] == 504
+    pd.testing.assert_series_equal(scores, repeated)
 
 
 def test_short_term_reversal_prefers_recent_relative_loser():

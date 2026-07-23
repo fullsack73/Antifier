@@ -151,6 +151,140 @@ def momentum_6m(price_data, lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS):
     return momentum_rank(price_data, lookback=lookback, skip=0)
 
 
+def factor_residual_momentum_scores(
+    price_data,
+    factor_data,
+    beta_lookback=504,
+    signal_lookback=MOMENTUM_LOOKBACK_DAYS,
+    skip=MOMENTUM_SKIP_DAYS,
+):
+    """Rank trailing momentum after removing dated MKT/SMB/HML exposure."""
+    prices = _clean_price_frame(price_data).dropna(how="any")
+    factors = pd.DataFrame(factor_data).copy()
+    factors.index = pd.to_datetime(factors.index)
+    factors = (
+        factors.sort_index()
+        .apply(pd.to_numeric, errors="coerce")
+        .replace([np.inf, -np.inf], np.nan)
+    )
+    required_factors = ["mkt_rf", "smb", "hml", "rf_daily"]
+    missing = [
+        column for column in required_factors
+        if column not in factors
+    ]
+    if missing:
+        raise ValueError(
+            "Factor residual momentum requires: "
+            + ", ".join(required_factors)
+        )
+
+    beta_window = max(int(signal_lookback), int(beta_lookback))
+    signal_window = max(2, int(signal_lookback))
+    skip = max(0, int(skip))
+    required_price_rows = max(
+        beta_window + 1,
+        signal_window + skip + 1,
+    )
+    if prices.empty or len(prices) < required_price_rows:
+        return pd.Series(np.nan, index=prices.columns), {
+            "coverage_count": 0,
+            "required_price_rows": int(required_price_rows),
+        }
+
+    returns = prices.pct_change().dropna(how="any")
+    aligned_factors = factors.reindex(returns.index)
+    beta_returns = returns.tail(beta_window)
+    beta_factors = aligned_factors.reindex(beta_returns.index)
+    if skip > 0:
+        signal_returns = returns.iloc[
+            -(signal_window + skip):-skip
+        ]
+    else:
+        signal_returns = returns.tail(signal_window)
+    signal_factors = aligned_factors.reindex(signal_returns.index)
+
+    raw_scores = pd.Series(np.nan, index=prices.columns, dtype=float)
+    exposures = {}
+    design_columns = ["intercept", "mkt_rf", "smb", "hml"]
+    for ticker in prices.columns:
+        beta_frame = pd.concat(
+            [
+                beta_returns[ticker].rename("asset_return"),
+                beta_factors[required_factors],
+            ],
+            axis=1,
+        ).dropna()
+        if len(beta_frame) < signal_window:
+            continue
+        design = np.column_stack([
+            np.ones(len(beta_frame)),
+            beta_frame[["mkt_rf", "smb", "hml"]].to_numpy(
+                dtype=float
+            ),
+        ])
+        excess = (
+            beta_frame["asset_return"] - beta_frame["rf_daily"]
+        ).to_numpy(dtype=float)
+        coefficients, _, _, _ = np.linalg.lstsq(
+            design,
+            excess,
+            rcond=None,
+        )
+
+        signal_frame = pd.concat(
+            [
+                signal_returns[ticker].rename("asset_return"),
+                signal_factors[required_factors],
+            ],
+            axis=1,
+        ).dropna()
+        if len(signal_frame) < signal_window:
+            continue
+        signal_design = np.column_stack([
+            np.ones(len(signal_frame)),
+            signal_frame[["mkt_rf", "smb", "hml"]].to_numpy(
+                dtype=float
+            ),
+        ])
+        signal_excess = (
+            signal_frame["asset_return"] - signal_frame["rf_daily"]
+        ).to_numpy(dtype=float)
+        residuals = signal_excess - signal_design @ coefficients
+        residual_volatility = float(np.std(residuals, ddof=0))
+        if residual_volatility <= 1e-12:
+            continue
+        raw_scores[ticker] = float(
+            np.mean(residuals)
+            / residual_volatility
+            * np.sqrt(TRADING_DAYS_PER_YEAR)
+        )
+        exposures[str(ticker)] = {
+            name: float(value)
+            for name, value in zip(design_columns, coefficients)
+        }
+
+    scores = rank_to_unit_scores(
+        raw_scores,
+        higher_is_better=True,
+    ).reindex(prices.columns)
+    coverage_count = int(scores.notna().sum())
+    return scores, {
+        "method": "ff3_residual_sharpe_momentum",
+        "beta_lookback": int(beta_window),
+        "signal_lookback": int(signal_window),
+        "skip": int(skip),
+        "coverage_count": coverage_count,
+        "coverage_rate": float(
+            coverage_count / len(prices.columns)
+        ),
+        "raw_scores": {
+            str(ticker): float(value)
+            for ticker, value in raw_scores.dropna().items()
+        },
+        "factor_exposures": exposures,
+    }
+
+
 def dual_horizon_momentum_weights(price_data, max_asset_weight=0.2):
     """Blend fixed 6-month and 12-1 cross-sectional momentum ranks."""
     data = _clean_price_frame(price_data)

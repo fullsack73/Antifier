@@ -90,6 +90,9 @@
 - 공식 French 49-industry 2011~2017 fresh research에서 6개월/12-1개월 순위를 50/50으로 고정한 dual-horizon momentum을 6개월 momentum과 비교했습니다.
 - dual-horizon은 회전율을 `17.79%→10.44%`로 낮췄지만 Sharpe `0.8259→0.7987`, 변동성 `15.38%→15.64%`, drawdown `-24.16%→-25.37%`로 악화되어 폐기했습니다.
 - paired P(lower volatility/higher Sharpe)는 `5.60%`/`22.00%`였습니다. 같은 기간에서 horizon weight를 재튜닝하지 않습니다.
+- official French 25 size×book-to-market 1935~1970 research에서 MKT/SMB/HML residual momentum을 raw 12-1 momentum과 직접 비교했습니다.
+- residual candidate는 IC `0.0119<0.0613`, spread `-0.00080<0.00704`였고 paired P(higher IC/spread)는 `5.40%`/`5.65%`로 폐기했습니다.
+- 같은 결과에서 factor set, beta window, residual window를 재튜닝하지 않습니다.
 
 ## 참고
 
@@ -103,3 +106,4 @@
 - Country ETF nonlinear 폐기: `docs/reports/260724-0049-01-country-etf-nonlinear-research.md`
 - Fundamental momentum 폐기: `docs/reports/260724-0111-01-fundamental-momentum-research.md`
 - Dual-horizon momentum 폐기: `docs/reports/260724-0129-01-dual-horizon-momentum-research.md`
+- Factor-residual momentum 폐기: `docs/reports/260724-0210-01-factor-residual-momentum-research.md`

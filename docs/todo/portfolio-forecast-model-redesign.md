@@ -95,6 +95,8 @@
 - paired P(higher IC/spread)는 `25.65%`/`57.35%`였고 속도는 ridge보다 약 2.25배 느려 폐기했습니다. 2017+ validation/holdout은 열지 않습니다.
 - fresh Nasdaq 2018~2019 research에서 공시 level에 1년 변화 feature를 더한 fundamental-momentum nested ridge는 baseline보다 IC `-0.0220`, spread `-0.01549` 낮았습니다.
 - paired P(higher IC/spread)는 `12.35%`/`1.20%`여서 폐기했고, Transformer 확장 근거는 생기지 않았습니다.
+- fresh French size×value portfolio research에서 FF3 residual momentum도 raw 12-1 momentum보다 IC `-0.0494`, spread `-0.00784` 열위였습니다.
+- factor exposure 제거 자체가 Transformer hyperparameter 확대 근거를 만들지 못했으므로 residual window/factor set을 같은 결과에 맞춰 재튜닝하지 않습니다.
 
 ## 선행조건
 
@@ -115,3 +117,4 @@
 - Quarterly TTM research: `docs/reports/260724-0024-01-quarterly-ttm-research.md`
 - Country ETF nonlinear research: `docs/reports/260724-0049-01-country-etf-nonlinear-research.md`
 - Fundamental momentum research: `docs/reports/260724-0111-01-fundamental-momentum-research.md`
+- Factor-residual momentum research: `docs/reports/260724-0210-01-factor-residual-momentum-research.md`

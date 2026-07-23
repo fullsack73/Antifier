@@ -67,6 +67,8 @@ def test_french_industry_builder_records_selected_source_and_count(
         str(output_path),
         "--source-url",
         source_url,
+        "--portfolio-policy",
+        "synthetic two-portfolio test",
     ])
 
     provenance = json.loads(
@@ -75,6 +77,6 @@ def test_french_industry_builder_records_selected_source_and_count(
     assert status == 0
     assert provenance["source_url"] == source_url
     assert provenance["ticker_count"] == 2
-    assert provenance["source_portfolio_policy"].startswith(
-        "2 SIC industry portfolios"
+    assert provenance["source_portfolio_policy"] == (
+        "synthetic two-portfolio test"
     )

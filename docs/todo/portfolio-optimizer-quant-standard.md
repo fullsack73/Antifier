@@ -88,6 +88,7 @@
 - 후보 사양을 freeze했으며 다음 단계는 untouched 2018~2021 4-case validation입니다. 통과 전 2022+ holdout은 열지 않습니다.
 - frozen 후보는 2018~2021 validation 전체에서 Sharpe `0.6752→0.4969`, P(higher Sharpe) `2.05%`로 탈락했고 4개 산업 case도 `0/4`였습니다.
 - validation 결과로 trend family를 재튜닝하지 않으며 2022+ locked holdout은 계속 봉인합니다.
+- official French 25 size×value portfolio의 FF3 residual momentum은 raw 12-1 momentum보다 paired IC/spread가 명확히 낮아 signal-only 단계에서 폐기했습니다.
 
 ## 금지
 
