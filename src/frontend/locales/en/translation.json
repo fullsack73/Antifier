@@ -333,6 +333,8 @@
     "investmentAllocation": "Investment Allocation",
     "investmentBudget": "Investment Budget",
     "enterBudget": "Enter budget amount",
+    "invalidInvestmentBudget": "Enter a positive, finite investment budget.",
+    "missingAllocationPrices": "Allocation is unavailable because valid prices are missing for: {{tickers}}.",
     "calculate": "Calculate",
     "allocationResults": "Allocation Results",
     "ticker": "Ticker",

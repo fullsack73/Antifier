@@ -5,4 +5,4 @@
 - `portfolio-alpha-v2-research.md`: momentum signal recovered on long history, but fixed risk/momentum construction failed component gates.
 - `portfolio-forecast-model-redesign.md`: seasonal earnings also failed; next alpha research requires delisted-inclusive PIT price/identity data.
 - `portfolio-risk-model-research.md`: plain minvar replication beat risk parity but failed the lightweight 95% Sharpe gate.
-- `portfolio-optimizer-quant-standard.md`: default promotion still pending; execution metrics now distinguish modeled risk, cash, and retained unmodeled holdings.
+- `portfolio-optimizer-quant-standard.md`: default promotion still pending; modeled/cash/unmodeled exposure and executable-price coverage are enforced.

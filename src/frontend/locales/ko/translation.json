@@ -333,6 +333,8 @@
     "investmentAllocation": "투자 배분",
     "investmentBudget": "투자 예산",
     "enterBudget": "예산 금액 입력",
+    "invalidInvestmentBudget": "0보다 큰 유효한 투자 예산을 입력하세요.",
+    "missingAllocationPrices": "다음 종목의 유효한 가격이 없어 투자 배분을 계산할 수 없습니다: {{tickers}}.",
     "calculate": "계산하기",
     "allocationResults": "배분 결과",
     "ticker": "티커",

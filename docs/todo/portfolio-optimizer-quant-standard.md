@@ -183,6 +183,8 @@
 - `30/30` risky weights와 40% cash 재현에서 표시 return/risk를 `8.0%/18.03%`에서 `5.6%/10.82%`로 교정했습니다. Risk-free cash scaling이므로 Sharpe는 동일하며 응답에 risky/cash exposure를 노출합니다.
 - Turnover cap 때문에 모델 universe 밖 기존 보유가 controlled portfolio에 남을 때 해당 weight를 현금으로 오인하던 false precision을 제거했습니다. 미모델 exposure와 performance coverage를 노출하고 완전한 mu/covariance가 없으면 return/risk/Sharpe를 계산 불가로 반환합니다.
 - `OLD 70%`가 남는 재현에서 기존 엔진은 이를 risk-free cash처럼 처리해 return/risk/Sharpe를 생성했습니다. 수정 후 coverage `30%`, unmodeled exposure `70%`, 성과 `null`이며 frontend도 crash 없이 한/영 경고를 표시합니다.
+- Frontend 투자금 배분이 가격 없는 ticker에 `$1`을 대입해 가짜 share plan을 만들던 fallback을 제거했습니다. Positive-weight ticker의 가격이 누락/비정상일 때 누락 목록을 표시하고 allocation을 차단합니다.
+- 미모델 `OLD 70%`와 가격 누락 재현에서 더 이상 예산 70%를 `$1` 종목으로 배분하지 않습니다. 양수 finite 예산과 전 ticker 가격 coverage를 모두 통과해야 계산합니다.
 
 ## 금지
 

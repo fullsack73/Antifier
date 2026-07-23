@@ -36,6 +36,10 @@ const translations = {
   "optimizer.sharpeRatio": "Sharpe Ratio",
   "optimizer.metricUnavailable": "Unavailable",
   "optimizer.performanceUnavailable": "Performance metrics are unavailable because retained holdings fall outside the modeled universe. Review unmodeled weights before acting.",
+  "optimizer.missingAllocationPrices": "Allocation is unavailable because valid prices are missing for: {{tickers}}.",
+  "optimizer.investmentBudget": "Investment Budget",
+  "optimizer.calculate": "Calculate",
+  "optimizer.allocationResults": "Allocation Results",
   "optimizer.weights": "Weights",
   "optimizer.cancel": "Cancel",
   "optimizer.cancelled": "Optimization cancelled",
@@ -46,7 +50,10 @@ const translations = {
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key, fallback) => translations[key] ?? fallback ?? key,
+    t: (key, fallback, values = {}) => Object.entries(values).reduce(
+      (text, [name, value]) => text.replaceAll(`{{${name}}}`, String(value)),
+      translations[key] ?? fallback ?? key,
+    ),
   }),
 }))
 
@@ -231,6 +238,17 @@ describe("Optimizer job lifecycle", () => {
     })
     expect(screen.getAllByText("Unavailable")).toHaveLength(3)
     expect(screen.getByText("OLD")).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText("Investment Budget"), {
+      target: { value: "10000" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Calculate" }))
+    await waitFor(() => {
+      expect(screen.getByText(
+        "Allocation is unavailable because valid prices are missing for: OLD.",
+      )).toBeInTheDocument()
+      expect(screen.queryByText("Allocation Results")).not.toBeInTheDocument()
+    })
   })
 
   it("sends a cancel request for the restored running job", async () => {

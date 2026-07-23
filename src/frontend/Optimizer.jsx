@@ -26,6 +26,7 @@ const Optimizer = () => {
   const [errorDetails, setErrorDetails] = useState(null)
   const [investmentAmount, setInvestmentAmount] = useState("")
   const [allocation, setAllocation] = useState(null)
+  const [allocationError, setAllocationError] = useState(null)
   const [customTickers, setCustomTickers] = useState([])
   const [forecastHorizon, setForecastHorizon] = useState("63")
   const [minHistory, setMinHistory] = useState("504")
@@ -127,10 +128,39 @@ const Optimizer = () => {
     const totalInvestment = Number.parseFloat(investmentAmount)
     const weights = optimizedPortfolio.weights
     const prices = optimizedPortfolio.prices || {}
+    if (!Number.isFinite(totalInvestment) || totalInvestment <= 0) {
+      setAllocation(null)
+      setAllocationError(
+        t(
+          "optimizer.invalidInvestmentBudget",
+          "Enter a positive, finite investment budget.",
+        ),
+      )
+      return
+    }
+    const missingPriceTickers = Object.entries(weights)
+      .filter(([, weight]) => Number(weight) > 0.0001)
+      .map(([ticker]) => ticker)
+      .filter((ticker) => {
+        const price = Number(prices[ticker])
+        return !Number.isFinite(price) || price <= 0
+      })
+    if (missingPriceTickers.length > 0) {
+      setAllocation(null)
+      setAllocationError(
+        t(
+          "optimizer.missingAllocationPrices",
+          "Allocation is unavailable because valid prices are missing for: {{tickers}}.",
+          { tickers: missingPriceTickers.join(", ") },
+        ),
+      )
+      return
+    }
+    setAllocationError(null)
 
     // Step 1: Allocate per-ticker based on fractional eligibility
     const entries = Object.entries(weights).map(([ticker, weight]) => {
-      const price = prices[ticker] ?? 1
+      const price = Number(prices[ticker])
       const idealAmount = totalInvestment * weight
       const idealShares = idealAmount / price
       const fractional = isTickerFractional(ticker)
@@ -180,7 +210,7 @@ const Optimizer = () => {
     }
 
     setAllocation({ items: entries, remainingCash: Math.max(0, remaining) })
-  }, [investmentAmount, isTickerFractional, optimizedPortfolio])
+  }, [investmentAmount, isTickerFractional, optimizedPortfolio, t])
 
   // Auto-calculate allocation when fractional settings change
   const hasAllocation = allocation !== null
@@ -189,6 +219,10 @@ const Optimizer = () => {
       handleAllocation()
     }
   }, [handleAllocation, hasAllocation])
+
+  useEffect(() => {
+    setAllocationError(null)
+  }, [optimizedPortfolio])
 
   const handleDownloadPortfolio = () => {
     if (!optimizedPortfolio) return
@@ -1200,7 +1234,10 @@ const Optimizer = () => {
                   className="optimizer-input"
                   type="number"
                   value={investmentAmount}
-                  onChange={(e) => setInvestmentAmount(e.target.value)}
+                  onChange={(e) => {
+                    setInvestmentAmount(e.target.value)
+                    setAllocationError(null)
+                  }}
                   placeholder={t("optimizer.enterBudget")}
                 />
               </div>
@@ -1220,6 +1257,12 @@ const Optimizer = () => {
                 {t("optimizer.calculate")}
               </button>
             </div>
+
+            {allocationError && (
+              <div className="error-banner" role="alert">
+                {allocationError}
+              </div>
+            )}
             
             {allocation && (
               <div className="allocation-results-container">
