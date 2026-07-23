@@ -67,6 +67,7 @@
 - SEC 20-F/40-F, IFRS taxonomy, weighted-average shares fallback으로 holdout PIT coverage를 최대 96.0%까지 높였습니다.
 - frozen nested ridge는 Nasdaq holdout에서 IC `0.0260`, spread `-0.0022`였고 fixed 대비 paired improvement 확률도 `60.55%`/`61.35%`에 그쳐 탈락했습니다.
 - 이 실패로 current alpha engine은 quant-standard 승격 조건을 충족하지 못합니다.
+- 후속 rank-target nested ridge도 raw nested보다 IC `-0.0090`, spread `-0.0075` 열위여서 폐기했습니다.
 
 ## 금지
 
@@ -75,3 +76,4 @@
 - validation/holdout 결과를 보고 hyperparameter 재탐색
 - 평균 Sharpe만으로 승격
 - Transformer 크기 확장을 데이터/target 개선보다 먼저 수행
+- 소진된 Nasdaq holdout 또는 반복 사용한 DOW research에 맞춘 tail-weight/penalty 연속 탐색

@@ -592,6 +592,7 @@ def main(argv=None):
             "factor_residual_price_ridge",
             "factor_residual_ridge",
             "factor_residual_nested_ridge",
+            "factor_residual_rank_nested_ridge",
             "factor_residual_market_nested_ridge",
             "factor_residual_quality_ridge",
         }

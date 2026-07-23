@@ -245,6 +245,39 @@ def test_nested_factor_ridge_selects_penalty_from_completed_inner_folds():
         )
 
 
+def test_rank_target_nested_factor_ridge_uses_completed_inner_folds():
+    prices = _research_prices()
+    result = walk_forward_pooled_ridge(
+        prices,
+        objective="factor_residual_rank_nested_ridge",
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=6,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        nested_ridge_penalties=[0.0, 10.0],
+        nested_validation_periods=2,
+        point_in_time_features=_point_in_time_features(prices),
+    )
+
+    assert result["records"]
+    assert result["target_kind"] == "factor_residual"
+    assert result["settings"]["point_in_time_fundamentals"]
+    assert result["settings"]["training_target_transform"] == (
+        "cross_sectional_percentile_rank_centered"
+    )
+    for record in result["records"]:
+        nested = record["fit"]["nested_selection"]
+        assert nested["selected_penalty"] in {0.0, 10.0}
+        for candidate in nested["candidates"].values():
+            assert all(
+                pd.Timestamp(fold["training_latest_forward_end"])
+                <= pd.Timestamp(fold["validation_date"])
+                < pd.Timestamp(record["as_of_date"])
+                for fold in candidate["folds"]
+            )
+
+
 def test_external_market_nested_ridge_uses_official_market_beta_history():
     prices = _research_prices()
     market_returns = prices.pct_change().mean(axis=1).fillna(0.0)

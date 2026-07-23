@@ -50,12 +50,28 @@ QUALITY_POOLED_FEATURE_COLUMNS = (
     "profitability_missing",
 )
 DEFAULT_NESTED_RIDGE_PENALTIES = (1.0, 5.0, 20.0, 100.0)
+FACTOR_FULL_OBJECTIVES = {
+    "factor_residual_ridge",
+    "factor_residual_nested_ridge",
+    "factor_residual_rank_nested_ridge",
+    "factor_residual_market_nested_ridge",
+}
+NESTED_RIDGE_OBJECTIVES = {
+    "factor_residual_nested_ridge",
+    "factor_residual_rank_nested_ridge",
+    "factor_residual_market_nested_ridge",
+}
+RANK_TARGET_OBJECTIVES = {
+    "listwise_rank_ridge",
+    "factor_residual_rank_nested_ridge",
+}
 POOLED_OBJECTIVES = (
     "absolute_ridge",
     "relative_ridge",
     "factor_residual_price_ridge",
     "factor_residual_ridge",
     "factor_residual_nested_ridge",
+    "factor_residual_rank_nested_ridge",
     "factor_residual_market_nested_ridge",
     "factor_residual_quality_ridge",
     "pairwise_ridge",
@@ -202,6 +218,7 @@ def _objective_target_kind(objective):
         "factor_residual_price_ridge",
         "factor_residual_ridge",
         "factor_residual_nested_ridge",
+        "factor_residual_rank_nested_ridge",
         "factor_residual_market_nested_ridge",
         "factor_residual_quality_ridge",
     }:
@@ -231,7 +248,7 @@ def _fit_pooled_ridge(
     x = frame.loc[:, feature_columns].to_numpy(dtype=float)
     y = frame["target"].to_numpy(dtype=float)
     fit_row_count = len(frame)
-    if objective == "listwise_rank_ridge":
+    if objective in RANK_TARGET_OBJECTIVES:
         ranked = frame.groupby("as_of_date")["target"].rank(
             method="average",
             pct=True,
@@ -293,6 +310,7 @@ def _select_nested_ridge_penalty(
     minimum_observations,
     feature_columns,
     validation_periods=3,
+    fit_objective="factor_residual_ridge",
 ):
     """Select regularization using only completed inner time folds."""
     frame = pd.DataFrame(training_rows).copy()
@@ -320,7 +338,7 @@ def _select_nested_ridge_penalty(
             try:
                 intercept, coefficients, fit = _fit_pooled_ridge(
                     inner_training,
-                    "factor_residual_ridge",
+                    fit_objective,
                     penalty,
                     minimum_observations,
                     feature_columns,
@@ -474,10 +492,7 @@ def walk_forward_pooled_ridge(
             if np.isfinite(float(value)) and float(value) >= 0.0
         })
     )
-    if objective in {
-        "factor_residual_nested_ridge",
-        "factor_residual_market_nested_ridge",
-    } and not (
+    if objective in NESTED_RIDGE_OBJECTIVES and not (
         nested_ridge_penalties
     ):
         raise ValueError(
@@ -514,11 +529,7 @@ def walk_forward_pooled_ridge(
         )
     )
     target_kind = _objective_target_kind(objective)
-    if objective in {
-        "factor_residual_ridge",
-        "factor_residual_nested_ridge",
-        "factor_residual_market_nested_ridge",
-    }:
+    if objective in FACTOR_FULL_OBJECTIVES:
         feature_columns = FACTOR_POOLED_FEATURE_COLUMNS
     elif objective == "factor_residual_quality_ridge":
         feature_columns = QUALITY_POOLED_FEATURE_COLUMNS
@@ -568,10 +579,7 @@ def walk_forward_pooled_ridge(
         features = pooled_price_features(
             prices.iloc[:position + 1].loc[:, active_tickers]
         )
-        if objective in {
-            "factor_residual_ridge",
-            "factor_residual_nested_ridge",
-            "factor_residual_market_nested_ridge",
+        if objective in FACTOR_FULL_OBJECTIVES | {
             "factor_residual_quality_ridge",
         }:
             pit_features = pooled_point_in_time_features(
@@ -658,10 +666,7 @@ def walk_forward_pooled_ridge(
         try:
             effective_penalty = float(ridge_penalty)
             nested_diagnostics = None
-            if objective in {
-                "factor_residual_nested_ridge",
-                "factor_residual_market_nested_ridge",
-            }:
+            if objective in NESTED_RIDGE_OBJECTIVES:
                 effective_penalty, nested_diagnostics = (
                     _select_nested_ridge_penalty(
                         training_rows,
@@ -669,6 +674,7 @@ def walk_forward_pooled_ridge(
                         minimum_observations,
                         feature_columns,
                         validation_periods=nested_validation_periods,
+                        fit_objective=objective,
                     )
                 )
             intercept, coefficients, fit_diagnostics = _fit_pooled_ridge(
@@ -887,13 +893,14 @@ def walk_forward_pooled_ridge(
                 else evaluation_end.strftime("%Y-%m-%d")
             ),
             "feature_columns": list(feature_columns),
+            "training_target_transform": (
+                "cross_sectional_percentile_rank_centered"
+                if objective in RANK_TARGET_OBJECTIVES
+                else "raw_forward_target"
+            ),
             "point_in_time_fundamentals": (
-                objective in {
-                    "factor_residual_ridge",
-                    "factor_residual_nested_ridge",
-                    "factor_residual_market_nested_ridge",
-                    "factor_residual_quality_ridge",
-                }
+                objective in FACTOR_FULL_OBJECTIVES
+                | {"factor_residual_quality_ridge"}
             ),
         },
         "rank_diagnostics": rank_diagnostics,
@@ -976,6 +983,10 @@ def compare_pooled_objectives(
         ),
         (
             "factor_residual_market_nested_ridge",
+            "factor_residual_nested_ridge",
+        ),
+        (
+            "factor_residual_rank_nested_ridge",
             "factor_residual_nested_ridge",
         ),
     )

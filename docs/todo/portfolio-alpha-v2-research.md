@@ -78,6 +78,8 @@
 - 20-F/40-F와 IFRS facts, weighted-average shares fallback을 지원해 Nasdaq PIT feature를 1,244행/152 ticker로 확장했습니다.
 - 2022-2025 locked holdout에서 nested IC `0.0260`, spread `-0.0022`, fixed 대비 paired improvement `60.55%`/`61.35%`로 signal gate를 통과하지 못했습니다.
 - Nasdaq holdout은 소진됐으며 같은 결과를 사용한 feature/penalty 재탐색을 금지합니다.
+- PIT factor-residual의 centered percentile rank를 직접 학습하는 nested objective도 raw nested보다 IC와 spread가 낮아 폐기했습니다.
+- rank-target minus raw paired P(higher)는 IC `18.75%`, spread `1.75%`였습니다. 같은 DOW 기간에서 tail-weight 변형을 연속 탐색하지 않습니다.
 
 ## 참고
 
@@ -86,3 +88,4 @@
 - v2 기반 보고서: `docs/reports/260723-1921-01-portfolio-alpha-v2-foundation.md`
 - pooled price-only 결과: `docs/reports/260723-2032-01-pooled-cross-sectional-research.md`
 - 독립 holdout 결과: `docs/reports/260724-0000-01-nasdaq100-frozen-holdout.md`
+- Rank-target 폐기: `docs/reports/260724-0009-01-rank-target-research.md`

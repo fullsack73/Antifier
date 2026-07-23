@@ -84,6 +84,8 @@
 - SEC parser에 20-F/40-F, IFRS taxonomy, weighted-average shares fallback을 추가해 2025 active PIT coverage를 `87.1%→96.0%`으로 높였습니다.
 - frozen nested ridge의 Nasdaq holdout IC는 `0.0260`, spread는 `-0.0022`였고 fixed ridge 대비 paired improvement 확률은 IC `60.55%`, spread `61.35%`로 탈락했습니다.
 - 이 holdout 결과로 penalty, grid, 기간을 재튜닝하지 않습니다. 현재 증거는 Transformer hyperparameter 확대보다 새로운 feature/model family와 새 untouched holdout이 필요함을 지지합니다.
+- 새 v4 research namespace에서 cross-sectional percentile-rank target을 직접 학습하는 nested ridge를 사전 잠그고 비교했습니다.
+- rank-target은 raw nested 대비 IC `0.0538<0.0627`, spread `0.0078<0.0153`이었고 paired improvement 확률도 `18.75%`/`1.75%`여서 폐기했습니다.
 
 ## 선행조건
 
@@ -100,3 +102,4 @@
 - 기반 보고서: `docs/reports/260723-1932-01-forecast-signal-diagnostics.md`
 - pooled research 결과: `docs/reports/260723-2032-01-pooled-cross-sectional-research.md`
 - Nasdaq locked holdout: `docs/reports/260724-0000-01-nasdaq100-frozen-holdout.md`
+- Rank-target research: `docs/reports/260724-0009-01-rank-target-research.md`
