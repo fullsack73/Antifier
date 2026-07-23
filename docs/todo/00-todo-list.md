@@ -4,5 +4,5 @@
 
 - `portfolio-alpha-v2-research.md`: momentum signal recovered on long history, but fixed risk/momentum construction failed component gates.
 - `portfolio-forecast-model-redesign.md`: lightweight remains weak, but raw momentum is not robust enough to replace it.
-- `portfolio-risk-model-research.md`: constant-correlation shrinkage improved every mean metric but failed Sharpe significance.
-- `portfolio-optimizer-quant-standard.md`: latest covariance target passed deterministic checks but failed 95%/Holm promotion.
+- `portfolio-risk-model-research.md`: constant-correlation shrinkage repeated mean improvements but failed closest-minvar replication significance.
+- `portfolio-optimizer-quant-standard.md`: unchanged covariance candidate failed independent replication gate; default remains unchanged.

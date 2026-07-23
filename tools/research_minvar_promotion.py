@@ -81,7 +81,7 @@ def _settings(
     guard_baselines=GUARD_BASELINES,
     models=MODELS,
 ):
-    return {
+    settings = {
         "train_window": int(args.train_window),
         "rebalance_frequency": int(args.rebalance_frequency),
         "forecast_horizon": int(args.forecast_horizon),
@@ -100,6 +100,16 @@ def _settings(
         "models": list(models),
         "candidate_policy": CANDIDATE_POLICIES[candidate],
     }
+    if getattr(args, "replication_of", None):
+        settings["replication_policy"] = {
+            "prior_split_id": str(args.replication_of),
+            "candidate_specification": "unchanged",
+            "prior_requirement": "deterministic_gate_passed",
+            "replication_requirement": (
+                "deterministic_statistical_and_holm_gates_passed"
+            ),
+        }
+    return settings
 
 
 def _deterministic_gate(
@@ -390,6 +400,47 @@ def _candidate_risk_diagnostics(result, candidate):
     }
 
 
+def _load_replication(args, candidate):
+    if bool(args.replication_of) != bool(args.prior_result):
+        raise ValueError(
+            "--replication-of and --prior-result must be used together"
+        )
+    if not args.replication_of:
+        return None, {}
+
+    path = Path(args.prior_result).expanduser().resolve()
+    prior = _load_json(path)
+    if prior.get("research_split") != args.replication_of:
+        raise ValueError(
+            "Prior result split does not match --replication-of"
+        )
+    prior_settings = prior.get("settings") or {}
+    if prior_settings.get("candidate") != candidate:
+        raise ValueError("Prior result candidate does not match")
+    if prior_settings.get("candidate_policy") != CANDIDATE_POLICIES[
+        candidate
+    ]:
+        raise ValueError(
+            "Prior result candidate policy does not match unchanged policy"
+        )
+    prior_gate = prior.get("promotion_gate") or {}
+    if (
+        (prior_gate.get("deterministic") or {}).get("status")
+        != "passed"
+    ):
+        raise ValueError(
+            "Replication requires prior deterministic gate pass"
+        )
+    digest = _sha256(path)
+    return {
+        "prior_split_id": args.replication_of,
+        "prior_result_file": str(path),
+        "prior_result_sha256": digest,
+        "candidate_specification": "unchanged",
+        "prior_deterministic_gate": "passed",
+    }, {"prior_result": digest}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--csv", required=True)
@@ -399,6 +450,8 @@ def main(argv=None):
     parser.add_argument("--research-split", required=True)
     parser.add_argument("--experiment-namespace", required=True)
     parser.add_argument("--split-manifest", required=True)
+    parser.add_argument("--replication-of")
+    parser.add_argument("--prior-result")
     parser.add_argument(
         "--candidate",
         choices=tuple(CANDIDATE_POLICIES),
@@ -450,6 +503,10 @@ def main(argv=None):
             *statistical_baselines,
             candidate,
         )
+        replication, replication_auxiliary = _load_replication(
+            args,
+            candidate,
+        )
         prices, price_path, price_provenance_path, price_provenance = (
             _load_prices(args)
         )
@@ -489,6 +546,7 @@ def main(argv=None):
                 "risk_free_provenance": _sha256(
                     risk_free_provenance_path
                 ),
+                **replication_auxiliary,
             },
         )
         if split["role"] != "research":
@@ -568,6 +626,7 @@ def main(argv=None):
                 "tickers": list(prices.columns),
             },
             "settings": settings,
+            "replication": replication,
             "paired_bootstrap": paired,
             "holm_gate": holm,
             "promotion_gate": promotion_gate,

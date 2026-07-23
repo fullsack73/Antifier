@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: constant-correlation minvar도 statistical promotion gate에서 탈락
+- 현재 상태: constant-correlation minvar가 독립 복제에서도 closest-baseline gate 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -160,6 +160,10 @@
 - Official French 38-industry source의 33개 complete portfolio `1971~1980` locked research에서 candidate는 minvar 대비 CAGR `10.34%→10.56%`, volatility `10.33%→10.24%`, Sharpe `0.3514→0.3729`, drawdown `-34.65%→-34.59%`로 deterministic gate를 통과했습니다.
 - 세 statistical baseline 모두에서 P(lower volatility)는 `100%`였지만 P(higher Sharpe)는 minvar/risk parity/lightweight 대비 `89.85%/85.65%/76.90%`로 95%와 Holm gate에 미달했습니다.
 - 평균 지표의 일관된 개선만으로 승격하지 않습니다. Shrinkage target을 같은 split에서 재탐색하지 않고 validation/holdout을 봉인합니다.
+- Constant-correlation candidate 사양을 변경하지 않고 prior result SHA를 연결한 independent replication을 official French 25 size×B/M `2000~2011`에서 실행했습니다.
+- Candidate는 다시 minvar 대비 CAGR `10.55%→10.64%`, volatility `20.53%→20.46%`, Sharpe `0.4811→0.4860`, drawdown `-55.34%→-54.97%`로 deterministic 개선을 반복했습니다.
+- Risk parity와 lightweight 대비 lower-volatility/higher-Sharpe는 모두 `99.95%+`였지만 closest minvar 대비 확률은 `96.85%/83.00%`, Holm-adjusted p-value `0.0630/0.1700`이었습니다.
+- Unchanged replication도 full gate에 실패했으므로 candidate를 최종 폐기합니다. Validation/locked holdout은 열지 않습니다.
 
 ## 금지
 

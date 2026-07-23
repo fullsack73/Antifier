@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-size-value-constant-correlation-replication-2000-2011-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2011-12-30",
+  "experiment_namespace": "allocator-v3-constant-correlation-minvar-size-value-replication",
+  "objectives": [
+    "constant_correlation_minimum_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "constant_correlation_minimum_variance",
+    "statistical_baselines": [
+      "min_variance",
+      "risk_parity",
+      "lightweight_bl"
+    ],
+    "guard_baselines": [
+      "equal_weight",
+      "historical_bl"
+    ],
+    "models": [
+      "equal_weight",
+      "historical_bl",
+      "min_variance",
+      "risk_parity",
+      "lightweight_bl",
+      "constant_correlation_minimum_variance"
+    ],
+    "candidate_policy": {
+      "objective": "long_only_minimum_variance",
+      "covariance": "ledoit_wolf_constant_correlation",
+      "shrinkage_target": "constant_correlation",
+      "expected_returns": "unused",
+      "forecast_model": "unused"
+    },
+    "replication_policy": {
+      "prior_split_id": "fama-french-38-source-33-complete-constant-correlation-research-1971-1980-v1",
+      "candidate_specification": "unchanged",
+      "prior_requirement": "deterministic_gate_passed",
+      "replication_requirement": "deterministic_statistical_and_holm_gates_passed"
+    }
+  },
+  "universe_manifest_sha256": "4857be922e444f9735d2b8fdba188b603c13d2b9608f50bc6c581a64a32c72e5",
+  "price_file_sha256": "e2e380906399d748ac74da10ea16324053dbc4b8597d3341d1e110dcd580d73d",
+  "factor_file_sha256": "ec66ea8c568369a6dc14cad574a143897af95c0b0cea9bd5fd15e23a9fb70cbc",
+  "auxiliary_files": {
+    "price_provenance": "05fd0b066eb40d8e82846baba0d081c8cbed8833e00b17f0f9be1ed1ef533417",
+    "risk_free_provenance": "f87746ddf96ed4f8cb19a62c9c5ce919b9bfaf1e8876787be998034c313d1fb5",
+    "prior_result": "9c4ff299009c33ff290d742cdd4076541a85cfd1154650b97827988b78f283fe"
+  },
+  "locked": true,
+  "manifest_sha256": "b590526945479555b5930c5292e350ce2e6684f984b355f2234f29792b61cc7c"
+}

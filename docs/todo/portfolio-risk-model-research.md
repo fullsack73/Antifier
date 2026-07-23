@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: constant-correlation shrinkage는 deterministic 개선 후 statistical gate에서 탈락
+- 현재 상태: constant-correlation shrinkage가 독립 복제에서도 closest minvar 통계 gate 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -136,6 +136,17 @@
 - 평균 shrinkage intensity는 `9.10%`, 범위는 `5.45%~16.65%`, optimizer 성공률은 `100%`였습니다.
 - Default를 변경하지 않고 shrinkage target 재탐색과 validation/holdout 실행을 금지합니다.
 - 보고서: `docs/reports/260724-0636-01-constant-correlation-minvar-research.md`
+
+## 2026-07-24 constant-correlation independent replication
+
+- Prior result SHA, candidate policy, deterministic pass를 새 manifest auxiliary lineage로 강제하는 replication guard를 promotion runner에 추가했습니다.
+- Candidate specification을 변경하지 않고 official French 25 size×B/M portfolio `2000~2011`에서 독립 복제했습니다.
+- Candidate volatility/Sharpe `20.46%/0.4860`은 minvar `20.53%/0.4811`, risk parity `23.20%/0.3401`, lightweight `23.43%/0.2941`보다 평균적으로 우수했습니다.
+- Risk parity/lightweight 대비 P(lower volatility/higher Sharpe)는 `100%/99.95%`로 통과했습니다.
+- Closest minvar 대비 P(lower volatility/higher Sharpe)는 `96.85%/83.00%`, Holm-adjusted p-value는 `0.0630/0.1700`이었습니다.
+- 두 independent universe에서 deterministic 방향은 반복됐지만 closest-baseline Sharpe uplift를 95%로 증명하지 못했습니다.
+- Candidate를 최종 폐기하고 validation/holdout을 봉인합니다.
+- 보고서: `docs/reports/260724-0643-01-constant-correlation-replication.md`
 
 ## 2026-07-24 RMT research
 

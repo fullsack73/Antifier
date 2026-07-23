@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -157,3 +158,41 @@ def test_constant_correlation_policy_is_return_forecast_free():
     )
     assert policy["expected_returns"] == "unused"
     assert policy["forecast_model"] == "unused"
+
+
+def test_replication_requires_unchanged_prior_candidate(tmp_path):
+    prior = tmp_path / "prior.json"
+    prior.write_text(
+        json.dumps({
+            "research_split": "prior-split",
+            "settings": {
+                "candidate": (
+                    "constant_correlation_minimum_variance"
+                ),
+                "candidate_policy": (
+                    research_minvar_promotion.CANDIDATE_POLICIES[
+                        "constant_correlation_minimum_variance"
+                    ]
+                ),
+            },
+            "promotion_gate": {
+                "deterministic": {"status": "passed"},
+                "statistical": {"status": "rejected"},
+            },
+        }),
+        encoding="utf-8",
+    )
+    args = type("Args", (), {
+        "replication_of": "prior-split",
+        "prior_result": str(prior),
+    })()
+
+    replication, auxiliary = (
+        research_minvar_promotion._load_replication(
+            args,
+            "constant_correlation_minimum_variance",
+        )
+    )
+
+    assert replication["candidate_specification"] == "unchanged"
+    assert len(auxiliary["prior_result"]) == 64

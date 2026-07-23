@@ -73,6 +73,8 @@
 - 같은 split에서 constant-variance, constant-correlation, single-factor target을 사후 비교하지 않습니다.
 - Validation과 locked holdout을 열지 않습니다.
 - 구현은 research-only comparison allocator로 유지합니다.
+- Unchanged independent replication도 closest minvar 대비 P(higher Sharpe) `83.00%`로 탈락했습니다. 최종 결정은 폐기입니다.
+- Replication 보고서: `docs/reports/260724-0643-01-constant-correlation-replication.md`
 
 ## 구현 및 검증
 
