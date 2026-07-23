@@ -18,6 +18,7 @@ if str(BACKEND) not in sys.path:
 from cross_sectional_forecast import (  # noqa: E402
     FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS,
     HIST_GRADIENT_BOOSTING_SETTINGS,
+    MARKET_REGIME_POLICY,
     POOLED_OBJECTIVES,
     compare_pooled_objectives,
 )
@@ -80,6 +81,10 @@ def _research_settings(args):
     if "relative_hist_gradient_boosting" in args.objectives:
         settings["relative_hist_gradient_boosting"] = dict(
             HIST_GRADIENT_BOOSTING_SETTINGS
+        )
+    if "relative_market_regime_nested_ridge" in args.objectives:
+        settings["market_regime_interaction_policy"] = dict(
+            MARKET_REGIME_POLICY
         )
     if (
         "factor_residual_fundamental_momentum_nested_ridge"
@@ -688,6 +693,13 @@ def main(argv=None):
         ):
             raise ValueError(
                 "factor-residual objectives require --factor-data"
+            )
+        if (
+            "relative_market_regime_nested_ridge" in args.objectives
+            and not args.market_factor_data
+        ):
+            raise ValueError(
+                "market-regime objective requires --market-factor-data"
             )
         universe_manifest, universe_provenance = _load_universe(args)
         price_provenance = _load_price_provenance(args)

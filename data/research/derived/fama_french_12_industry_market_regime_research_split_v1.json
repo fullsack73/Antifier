@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-12-industry-market-regime-research-1933-1952-v1",
+  "role": "research",
+  "evaluation_start": "1933-01-01",
+  "evaluation_end": "1952-12-31",
+  "experiment_namespace": "alpha-v14-market-regime-interactions",
+  "objectives": [
+    "relative_nested_ridge",
+    "relative_market_regime_nested_ridge"
+  ],
+  "settings": {
+    "horizon": 63,
+    "rebalance_step": 63,
+    "minimum_feature_history": 253,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 24,
+    "minimum_observations": 40,
+    "ridge_penalty": 5.0,
+    "nested_ridge_penalties": [
+      1.0,
+      5.0,
+      20.0,
+      100.0
+    ],
+    "nested_validation_periods": 3,
+    "nominal_uncertainty_coverage": 0.8,
+    "market_beta_policy": "fama_french_market_total_return",
+    "market_regime_interaction_policy": {
+      "trend_lookback": 252,
+      "volatility_window": 63,
+      "volatility_history": 756,
+      "minimum_volatility_history": 252,
+      "encoding": "binary_minus_one_plus_one_zero_if_unavailable",
+      "threshold": "completed_prior_rolling_volatility_median"
+    }
+  },
+  "universe_manifest_sha256": "479b72b382c9a9d6378b121b19f8c69933a0335f4f3f0c6b2170c0822fe1db8b",
+  "price_file_sha256": "03c7df05951286a72177e10ca63880b6639c351b0d75ac22048d83fc7ed3805c",
+  "factor_file_sha256": null,
+  "auxiliary_files": {
+    "market_factor_file_sha256": "af5df62ecef99c3e3db207e5dd82e56060ba8d3ee979ff774590a6e83e418778"
+  },
+  "reserved_validation_interval": {
+    "start": "1953-01-01",
+    "end": "1961-12-31"
+  },
+  "reserved_locked_holdout_interval": {
+    "start": "1962-01-01",
+    "end": "1970-12-31"
+  },
+  "locked": true,
+  "manifest_sha256": "cce4527e1726ae5ec2140881616e74209bcd63bb7ebbf5031b01822516b2805f"
+}

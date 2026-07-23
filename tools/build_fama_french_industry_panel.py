@@ -97,6 +97,14 @@ def main(argv=None):
             "recorded in provenance"
         ),
     )
+    parser.add_argument(
+        "--uppercase-columns",
+        action="store_true",
+        help=(
+            "Canonicalize selected portfolio labels to uppercase after "
+            "source-name exclusions"
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -144,6 +152,16 @@ def main(argv=None):
                 "Requested French industry interval contains missing data: "
                 + json.dumps(missing, sort_keys=True)
             )
+        selected_source_columns = list(returns.columns)
+        if args.uppercase_columns:
+            canonical_columns = [
+                str(column).upper() for column in returns.columns
+            ]
+            if len(canonical_columns) != len(set(canonical_columns)):
+                raise ValueError(
+                    "Uppercase canonicalization creates duplicate labels"
+                )
+            returns.columns = canonical_columns
         prices = (1.0 + returns).cumprod() * 100.0
         output_path = Path(args.output).expanduser().resolve()
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -173,7 +191,13 @@ def main(argv=None):
                     "row_count": int(len(prices)),
                     "source_ticker_count": int(len(source_columns)),
                     "ticker_count": int(len(prices.columns)),
+                    "selected_source_tickers": selected_source_columns,
                     "tickers": list(prices.columns),
+                    "ticker_label_policy": (
+                        "uppercase"
+                        if args.uppercase_columns
+                        else "source_labels"
+                    ),
                     "excluded_tickers": excluded_columns,
                     "exclusion_diagnostics": exclusion_diagnostics,
                     "exclusion_policy": (

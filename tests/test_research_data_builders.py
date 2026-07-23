@@ -127,6 +127,50 @@ def test_french_industry_builder_records_explicit_exclusions(tmp_path):
     }
 
 
+def test_french_industry_builder_can_canonicalize_uppercase_labels(
+    tmp_path,
+):
+    archive_path = tmp_path / "industries.zip"
+    output_path = tmp_path / "prices.csv"
+    payload = "\n".join([
+        "Metadata",
+        "",
+        "Average Value Weighted Returns -- Daily",
+        ",NoDur,BusEq",
+        "20000103,1.00,-0.50",
+        "20000104,0.25,0.25",
+        "",
+    ])
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("industries.csv", payload)
+
+    status = build_industry_panel([
+        "--archive",
+        str(archive_path),
+        "--start",
+        "2000-01-03",
+        "--end",
+        "2000-01-04",
+        "--output",
+        str(output_path),
+        "--portfolio-policy",
+        "synthetic two-portfolio test",
+        "--uppercase-columns",
+    ])
+
+    prices = pd.read_csv(output_path, index_col=0)
+    provenance = json.loads(
+        output_path.with_suffix(".provenance.json").read_text()
+    )
+    assert status == 0
+    assert list(prices.columns) == ["NODUR", "BUSEQ"]
+    assert provenance["selected_source_tickers"] == [
+        "NoDur",
+        "BusEq",
+    ]
+    assert provenance["ticker_label_policy"] == "uppercase"
+
+
 def test_french_monthly_parser_selects_value_weighted_section(tmp_path):
     archive_path = tmp_path / "monthly.zip"
     payload = "\n".join([

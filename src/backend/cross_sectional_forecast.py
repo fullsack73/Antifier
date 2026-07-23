@@ -85,6 +85,25 @@ CASH_ACCRUAL_POOLED_FEATURE_COLUMNS = (
     POOLED_FEATURE_COLUMNS
     + CASH_ACCRUAL_PIT_FEATURE_COLUMNS
 )
+MARKET_REGIME_POLICY = {
+    "trend_lookback": 252,
+    "volatility_window": 63,
+    "volatility_history": 756,
+    "minimum_volatility_history": 252,
+    "encoding": "binary_minus_one_plus_one_zero_if_unavailable",
+    "threshold": "completed_prior_rolling_volatility_median",
+}
+MARKET_TREND_INTERACTION_COLUMNS = tuple(
+    f"{column}_x_market_trend" for column in POOLED_FEATURE_COLUMNS
+)
+MARKET_VOLATILITY_INTERACTION_COLUMNS = tuple(
+    f"{column}_x_market_volatility" for column in POOLED_FEATURE_COLUMNS
+)
+MARKET_REGIME_POOLED_FEATURE_COLUMNS = (
+    POOLED_FEATURE_COLUMNS
+    + MARKET_TREND_INTERACTION_COLUMNS
+    + MARKET_VOLATILITY_INTERACTION_COLUMNS
+)
 DEFAULT_NESTED_RIDGE_PENALTIES = (1.0, 5.0, 20.0, 100.0)
 FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS = 300
 HIST_GRADIENT_BOOSTING_SETTINGS = {
@@ -106,6 +125,8 @@ FACTOR_FULL_OBJECTIVES = {
     "factor_residual_cash_accrual_nested_ridge",
 }
 NESTED_RIDGE_OBJECTIVES = {
+    "relative_nested_ridge",
+    "relative_market_regime_nested_ridge",
     "factor_residual_nested_ridge",
     "factor_residual_rank_nested_ridge",
     "factor_residual_market_nested_ridge",
@@ -119,6 +140,8 @@ RANK_TARGET_OBJECTIVES = {
 POOLED_OBJECTIVES = (
     "absolute_ridge",
     "relative_ridge",
+    "relative_nested_ridge",
+    "relative_market_regime_nested_ridge",
     "factor_residual_price_ridge",
     "factor_residual_ridge",
     "factor_residual_nested_ridge",
@@ -248,6 +271,110 @@ def pooled_point_in_time_cash_accrual_features(
         features[column] = _cross_sectional_standardize(raw).fillna(0.0)
         features[f"{column}_missing"] = raw.isna().astype(float)
     return features.loc[:, CASH_ACCRUAL_PIT_FEATURE_COLUMNS]
+
+
+def market_regime_interaction_features(
+    price_features,
+    market_returns_history,
+):
+    """Interact cross-sectional predictors with completed market regimes."""
+    features = pd.DataFrame(price_features).copy()
+    missing = sorted(set(POOLED_FEATURE_COLUMNS) - set(features.columns))
+    if missing:
+        raise ValueError(
+            "Market-regime interactions require price features: "
+            + ", ".join(missing)
+        )
+    market = pd.Series(market_returns_history, dtype=float).copy()
+    market.index = pd.to_datetime(market.index)
+    market = (
+        market.sort_index()
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna()
+    )
+    trend_lookback = MARKET_REGIME_POLICY["trend_lookback"]
+    volatility_window = MARKET_REGIME_POLICY["volatility_window"]
+    volatility_history = MARKET_REGIME_POLICY["volatility_history"]
+    minimum_volatility_history = MARKET_REGIME_POLICY[
+        "minimum_volatility_history"
+    ]
+
+    trend_available = len(market) >= trend_lookback
+    trend_return = (
+        None
+        if not trend_available
+        else float(
+            (1.0 + market.iloc[-trend_lookback:]).prod() - 1.0
+        )
+    )
+    trend_regime = (
+        0.0
+        if trend_return is None
+        else (1.0 if trend_return >= 0.0 else -1.0)
+    )
+
+    rolling_volatility = (
+        market.rolling(volatility_window).std(ddof=0)
+        * np.sqrt(252.0)
+    ).dropna()
+    current_volatility = (
+        None
+        if rolling_volatility.empty
+        else float(rolling_volatility.iloc[-1])
+    )
+    completed_volatility_history = (
+        rolling_volatility.iloc[:-1]
+        .tail(volatility_history)
+        .dropna()
+    )
+    volatility_available = bool(
+        current_volatility is not None
+        and len(completed_volatility_history)
+        >= minimum_volatility_history
+    )
+    volatility_threshold = (
+        None
+        if not volatility_available
+        else float(completed_volatility_history.median())
+    )
+    volatility_regime = (
+        0.0
+        if volatility_threshold is None
+        else (
+            1.0
+            if current_volatility >= volatility_threshold
+            else -1.0
+        )
+    )
+    for column in POOLED_FEATURE_COLUMNS:
+        features[f"{column}_x_market_trend"] = (
+            features[column] * trend_regime
+        )
+        features[f"{column}_x_market_volatility"] = (
+            features[column] * volatility_regime
+        )
+    diagnostics = {
+        "as_of_date": (
+            None
+            if market.empty
+            else market.index[-1].strftime("%Y-%m-%d")
+        ),
+        "market_observation_count": int(len(market)),
+        "trend_available": bool(trend_available),
+        "trend_return": trend_return,
+        "trend_regime": float(trend_regime),
+        "current_annualized_volatility": current_volatility,
+        "volatility_history_count": int(
+            len(completed_volatility_history)
+        ),
+        "volatility_threshold": volatility_threshold,
+        "volatility_available": volatility_available,
+        "volatility_regime": float(volatility_regime),
+    }
+    return (
+        features.loc[:, MARKET_REGIME_POOLED_FEATURE_COLUMNS],
+        diagnostics,
+    )
 
 
 def pooled_point_in_time_fundamental_momentum_features(
@@ -712,6 +839,13 @@ def walk_forward_pooled_ridge(
         raise ValueError(
             "External-market nested ridge requires market_factor_returns"
         )
+    if (
+        objective == "relative_market_regime_nested_ridge"
+        and normalized_market_factor is None
+    ):
+        raise ValueError(
+            "Market-regime nested ridge requires market_factor_returns"
+        )
     horizon = max(1, int(horizon))
     step = horizon if rebalance_step is None else max(1, int(rebalance_step))
     positions = list(
@@ -731,6 +865,8 @@ def walk_forward_pooled_ridge(
         )
     elif objective == "factor_residual_cash_accrual_nested_ridge":
         feature_columns = CASH_ACCRUAL_POOLED_FEATURE_COLUMNS
+    elif objective == "relative_market_regime_nested_ridge":
+        feature_columns = MARKET_REGIME_POOLED_FEATURE_COLUMNS
     elif objective in FACTOR_FULL_OBJECTIVES:
         feature_columns = FACTOR_POOLED_FEATURE_COLUMNS
     elif objective == "factor_residual_quality_ridge":
@@ -781,6 +917,16 @@ def walk_forward_pooled_ridge(
         features = pooled_price_features(
             prices.iloc[:position + 1].loc[:, active_tickers]
         )
+        regime_diagnostics = None
+        if objective == "relative_market_regime_nested_ridge":
+            features, regime_diagnostics = (
+                market_regime_interaction_features(
+                    features,
+                    normalized_market_factor.reindex(
+                        prices.index[:position + 1]
+                    ),
+                )
+            )
         if objective in FACTOR_FULL_OBJECTIVES | {
             "factor_residual_quality_ridge",
         }:
@@ -835,6 +981,7 @@ def walk_forward_pooled_ridge(
             "target_diagnostics": target_diagnostics,
             "active_tickers": active_tickers,
             "requested_active_tickers": requested_active_tickers,
+            "regime_diagnostics": regime_diagnostics,
             "training_rows": [
                 {
                     "as_of_date": prices.index[position],
@@ -1017,6 +1164,9 @@ def walk_forward_pooled_ridge(
             "target_diagnostics": snapshots[evaluation_position][
                 "target_diagnostics"
             ],
+            "regime_diagnostics": snapshots[evaluation_position][
+                "regime_diagnostics"
+            ],
             "coefficients": {
                 name: float(value)
                 for name, value in coefficients.items()
@@ -1177,6 +1327,11 @@ def walk_forward_pooled_ridge(
                 == "factor_residual_fundamental_momentum_nested_ridge"
                 else None
             ),
+            "market_regime_policy": (
+                dict(MARKET_REGIME_POLICY)
+                if objective == "relative_market_regime_nested_ridge"
+                else None
+            ),
             "separate_target_factors": (
                 target_point_in_time_features is not None
             ),
@@ -1255,6 +1410,10 @@ def compare_pooled_objectives(
     ]
     paired_improvement = {}
     paired_comparisons = (
+        (
+            "relative_market_regime_nested_ridge",
+            "relative_nested_ridge",
+        ),
         (
             "relative_hist_gradient_boosting",
             "relative_ridge",

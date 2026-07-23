@@ -1,0 +1,17 @@
+{
+  "source": "Kenneth R. French Data Library 12 Industry Portfolios",
+  "source_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/12_Industry_Portfolios_daily_CSV.zip",
+  "retrieved_at": "2026-07-23T19:04:19Z",
+  "universe_policy": "fixed set of 12 dynamic industry portfolios declared by the official source",
+  "survivorship_policy": "survivorship_safe",
+  "portfolio_membership_policy": "each source portfolio is reconstituted annually from eligible NYSE, AMEX, and NASDAQ firms",
+  "raw_archive_sha256": "7b8ee059073c70cbdf17241d1623e73016b8f24c45c3d1d2092617c50aa290c4",
+  "price_file_sha256": "03c7df05951286a72177e10ca63880b6639c351b0d75ac22048d83fc7ed3805c",
+  "basket_manifest_sha256": "bfe0abb165831f8b4b1a838c5facc93f990e3a484c0c6e7566b3e87644797e17",
+  "manifest_sha256": "479b72b382c9a9d6378b121b19f8c69933a0335f4f3f0c6b2170c0822fe1db8b",
+  "ticker_count": 12,
+  "start_date": "1926-07-01",
+  "end_date": "1971-03-11",
+  "promotion_note": "Portfolio columns are stable definitions whose underlying eligible firms change through time.",
+  "promotion_safe": true
+}

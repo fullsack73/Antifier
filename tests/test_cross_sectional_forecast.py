@@ -19,9 +19,11 @@ from cross_sectional_forecast import (  # noqa: E402
     FACTOR_POOLED_FEATURE_COLUMNS,
     FUNDAMENTAL_MOMENTUM_PIT_FEATURE_COLUMNS,
     FUNDAMENTAL_MOMENTUM_POOLED_FEATURE_COLUMNS,
+    MARKET_REGIME_POOLED_FEATURE_COLUMNS,
     POOLED_FEATURE_COLUMNS,
     PIT_MISSING_FEATURE_COLUMNS,
     compare_pooled_objectives,
+    market_regime_interaction_features,
     pooled_point_in_time_fundamental_momentum_features,
     pooled_point_in_time_features,
     pooled_point_in_time_cash_accrual_features,
@@ -88,6 +90,33 @@ def test_pooled_price_features_use_history_through_as_of_only():
     pd.testing.assert_frame_equal(baseline, changed)
     assert list(baseline.columns) == list(POOLED_FEATURE_COLUMNS)
     assert baseline.notna().all().all()
+
+
+def test_market_regime_interactions_use_completed_history_only():
+    prices = _research_prices(rows=1200)
+    as_of_position = 1000
+    price_features = pooled_price_features(
+        prices.iloc[:as_of_position + 1]
+    )
+    market = prices.pct_change(fill_method=None).mean(axis=1)
+    baseline, baseline_diagnostics = market_regime_interaction_features(
+        price_features,
+        market.iloc[:as_of_position + 1],
+    )
+    changed = market.copy()
+    changed.iloc[as_of_position + 1:] = 1e6
+    result, result_diagnostics = market_regime_interaction_features(
+        price_features,
+        changed.iloc[:as_of_position + 1],
+    )
+
+    pd.testing.assert_frame_equal(baseline, result)
+    assert baseline_diagnostics == result_diagnostics
+    assert list(result.columns) == list(
+        MARKET_REGIME_POOLED_FEATURE_COLUMNS
+    )
+    assert result_diagnostics["trend_available"]
+    assert result_diagnostics["volatility_available"]
 
 
 def test_cash_accrual_features_ignore_future_filing_rows():
@@ -637,6 +666,35 @@ def test_cash_accrual_nested_model_adds_opt_in_predictors():
     )
     assert "cash_accrual_quality" in result["mean_coefficients"]
     assert "cash_accrual_quality_missing" in result["mean_coefficients"]
+
+
+def test_market_regime_nested_model_records_pit_regimes():
+    prices = _research_prices(rows=1200)
+    market = prices.pct_change(fill_method=None).mean(axis=1)
+    result = walk_forward_pooled_ridge(
+        prices,
+        objective="relative_market_regime_nested_ridge",
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=4,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        market_factor_returns=market,
+    )
+
+    assert result["records"]
+    assert result["settings"]["feature_columns"] == list(
+        MARKET_REGIME_POOLED_FEATURE_COLUMNS
+    )
+    assert result["settings"]["market_regime_policy"]
+    assert all(
+        record["regime_diagnostics"]["as_of_date"]
+        <= record["as_of_date"]
+        for record in result["records"]
+    )
+    assert set(result["mean_coefficients"]) == set(
+        MARKET_REGIME_POOLED_FEATURE_COLUMNS
+    )
 
 
 def test_pooled_objective_comparison_keeps_models_signal_only():
