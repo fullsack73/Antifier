@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-17-industry-raw-momentum-research-2000-2011-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2011-12-30",
+  "experiment_namespace": "alpha-v12-raw-momentum-industry-portfolios",
+  "objectives": [
+    "momentum_12_1_rank_tilt"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "portfolio_bootstrap_block_size": 21,
+    "signal_bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "momentum_12_1_rank_tilt",
+    "baseline": "lightweight_bl",
+    "models": [
+      "equal_weight",
+      "risk_parity",
+      "historical_bl",
+      "lightweight_bl",
+      "momentum_12_1_rank_tilt"
+    ],
+    "candidate_policy": {
+      "signal": "cross_sectional_12_1_momentum_rank",
+      "lookback": 252,
+      "skip": 21,
+      "allocator": "equal_weight_active_share_rank_tilt",
+      "target_active_share": 0.2
+    },
+    "baseline_policy": {
+      "signal": "current_lightweight_ensemble_point_forecast",
+      "allocator": "current_black_litterman"
+    }
+  },
+  "universe_manifest_sha256": "fdccd88eb13c030a8990c6ac051c83ce6f584f306506a9f78da47eefbe2f7fa9",
+  "price_file_sha256": "2e2ae920a7ecec713fda60e0925c17e0803aa4c6fe771f474421d805ad5f1cae",
+  "factor_file_sha256": "ec66ea8c568369a6dc14cad574a143897af95c0b0cea9bd5fd15e23a9fb70cbc",
+  "auxiliary_files": {
+    "price_provenance": "70dfa5eef8b13323c62a97f46810bcba0e86258505f069ae2e29be6b6a71aa21",
+    "risk_free_provenance": "5065d46fc2bf4abae38ec31c97d355182e399159795d6dbdfa182775b52649d2"
+  },
+  "locked": true,
+  "manifest_sha256": "d07e394dcb1948dbe92284a1558b72a883ea3fc9d7e4ca9bf85230d30edc608b"
+}

@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: 52-week-high momentum blend가 raw-momentum paired signal/portfolio gate에서 탈락
+- 현재 상태: raw momentum이 lightweight 대비 portfolio는 개선했지만 absolute/paired signal gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -145,6 +145,9 @@
 - Fresh official French 30-industry `1973~1999`에서 52-week-high proximity rank와 12-1 momentum rank의 고정 50/50 blend를 동일 20% active-share construction으로 비교했습니다.
 - Candidate 자체 IC `0.0985`, spread `0.0163`은 absolute gate를 통과했지만 raw momentum보다 IC `-0.01135`, spread `-0.00522` 낮았습니다. Paired P(higher IC/spread)는 `18.70%`/`7.90%`였습니다.
 - Portfolio Sharpe도 `0.5955→0.5791`, P(higher return/Sharpe)는 `9.70%`/`9.25%`여서 후보를 폐기하고 validation/holdout을 열지 않습니다.
+- Raw 12-1 rank tilt를 새 official French 17-industry `2000~2011`에서 current `lightweight_bl` 대비 독립 candidate로 사전 등록했습니다.
+- Candidate는 lightweight 대비 P(higher return/Sharpe) `96.35%`/`95.40%`였지만 absolute IC `0.0042`, spread `-0.00250`, P(IC>0/spread>0) `53.65%`/`44.35%`로 signal gate를 실패했습니다.
+- Lightweight 대비 paired P(higher IC/spread)도 `62.45%`/`56.95%`, risk-parity Sharpe guard도 실패했습니다. Candidate를 기각하고 validation/holdout을 열지 않습니다.
 
 ## 참고
 

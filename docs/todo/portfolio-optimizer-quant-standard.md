@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: 52-week-high blend가 raw momentum 대비 signal/portfolio gate에서 탈락
+- 현재 상태: raw momentum이 lightweight를 이겼지만 signal/risk-parity/Holm gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -136,6 +136,10 @@
 - Official French 30-industry `1973~1999`에서 candidate absolute IC/spread는 양수였지만 raw momentum 대비 paired P(higher IC/spread)는 `18.70%`/`7.90%`, P(higher return/Sharpe)는 `9.70%`/`9.25%`였습니다.
 - 52-week-high blend를 폐기합니다. 같은 split에서 component weight/lookback을 변경하지 않으며 validation/holdout을 열지 않습니다.
 - Raw 12-1 rank tilt baseline은 IC `0.1098`, spread `0.02155`, Sharpe `0.5955`로 absolute gate와 equal/risk-parity guard를 통과했습니다. 이는 즉시 승격 근거가 아니라 fresh universe에서 raw candidate를 사전 등록할 가설 근거로만 사용합니다.
+- Raw 12-1 rank tilt를 fresh official French 17-industry `2000~2011`에서 current `lightweight_bl` 대비 독립 candidate로 검증했습니다.
+- Candidate CAGR/Sharpe `5.94%/0.2700`은 lightweight `4.91%/0.2256`보다 높고 paired P(higher return/Sharpe)는 `96.35%/95.40%`였습니다.
+- 그러나 absolute spread `-0.00250`, signal paired P(higher IC/spread) `62.45%/56.95%`, risk-parity Sharpe `0.2868`, combined Holm-adjusted portfolio p `0.1460` 때문에 승격하지 않습니다.
+- Raw momentum 단독 validation/holdout은 열지 않습니다. 다음 독립 construction family는 사전 고정 risk-parity/momentum diversification이며 같은 17-industry 결과에 blend weight를 맞추지 않습니다.
 
 ## 금지
 

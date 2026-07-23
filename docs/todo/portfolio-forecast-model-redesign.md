@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
-- 현재 상태: 52-week-high blend도 raw momentum보다 낮아 Transformer HPO 근거 없음
+- 현재 상태: lightweight는 약하지만 raw momentum도 replacement signal gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -137,6 +137,8 @@
 - fresh official French 12-industry 1933~1952 split에서 고정 market trend/volatility interaction을 nested ridge에 추가했지만 IC `0.0193→0.0050`, spread `0.00445→0.00286`으로 악화됐습니다.
 - Fresh official French 30-industry `1973~1999`에서 52-week-high/momentum fixed blend도 raw 12-1 momentum보다 IC와 spread가 각각 `0.01135`, `0.00522` 낮았습니다.
 - Candidate가 nonlinear model 없이도 absolute predictiveness는 보였지만 incremental ordering은 실패했습니다. 단순 raw momentum이 engineered blend보다 강한 상태에서 Transformer capacity/HPO를 확대하지 않습니다.
+- Fresh French 17-industry `2000~2011`에서 current lightweight point forecast IC/spread는 `-0.0120/-0.00421`, raw momentum은 `0.0042/-0.00250`이었습니다.
+- Raw momentum portfolio는 lightweight 대비 return/Sharpe uplift 확률 `96.35%/95.40%`였지만 absolute/paired signal 및 risk-parity guard를 통과하지 못했습니다. 약한 current model을 확인했다는 이유만으로 불완전한 replacement를 승격하지 않습니다.
 - candidate의 paired P(higher IC/spread)는 `35.75%`/`40.25%`였고 계산시간은 baseline `32.68s`에서 `50.64s`로 증가했습니다. macro/regime interaction도 Transformer HPO 근거를 만들지 못했습니다.
 - 1953+ validation/holdout을 열지 않고 같은 split에서 lookback, threshold, interaction subset을 재튜닝하지 않습니다.
 

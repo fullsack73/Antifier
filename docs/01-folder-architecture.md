@@ -165,6 +165,7 @@ tools/
 ├─ research_risk_allocators.py        # research-only risk allocator 비교
 ├─ research_mean_shrinkage.py         # locked expected-return shrinkage 비교
 ├─ research_high_momentum.py          # 52-week-high/momentum signal gate
+├─ research_raw_momentum.py           # raw momentum vs live-default gate
 ├─ research_online_reversal_ensemble.py # completed-feedback signal Hedge 연구
 ├─ validate_risk_allocator_candidate.py # frozen risk candidate 4-case validation
 └─ tune_transformer_hpo.py
