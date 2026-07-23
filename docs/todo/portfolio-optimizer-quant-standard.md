@@ -179,6 +179,8 @@
 - Flat-price synthetic에서 비용 후 terminal return `-9.09%`인데 CAGR이 `0%`였던 불일치가 제거됐습니다. Early-history mechanical diagnostic의 terminal wealth identity error는 모든 모델 `5.7e-14` 이하였습니다.
 - `min_holding_weight`로 작은 position을 제거한 뒤 단순 재정규화해 solver의 `max_asset_weight`를 위반하던 결함을 수정했습니다. Sparse selection 후 cap-preserving normalization을 적용하고 cap 충족에 필요한 최소 종목 수를 유지합니다.
 - `60/36/4`, minimum 5%, cap 60% 재현에서 기존 결과 `62.5/37.5/0`을 `60/40/0`으로 교정했습니다. Production과 backtest 양쪽에 합계 1/cap 불변식 회귀 테스트를 추가했습니다.
+- Production optimizer가 turnover control 후 위험자산 합계가 1 미만인 weight를 성과 계산에서 다시 100%로 정규화하던 결함을 수정했습니다. 잔여 현금을 risk-free asset으로 명시해 실제 risky exposure 기준 return/risk/Sharpe를 계산합니다.
+- `30/30` risky weights와 40% cash 재현에서 표시 return/risk를 `8.0%/18.03%`에서 `5.6%/10.82%`로 교정했습니다. Risk-free cash scaling이므로 Sharpe는 동일하며 응답에 risky/cash exposure를 노출합니다.
 
 ## 금지
 

@@ -922,6 +922,42 @@ def test_optimizer_min_holding_output_preserves_asset_cap(monkeypatch):
         "effective_max_asset_weight"
     ] == pytest.approx(0.60)
 
+    controlled = portfolio_optimization.optimize_portfolio(
+        start_date="2024-01-01",
+        end_date="2024-12-31",
+        risk_free_rate=0.02,
+        tickers=tickers,
+        optimization_method="MPT",
+        forecast_method="LIGHTWEIGHT",
+        max_asset_weight=0.60,
+        min_holding_weight=0.05,
+        current_weights={"AAA": 0.20, "BBB": 0.20},
+        rebalance_band=0.0,
+        max_turnover=0.20,
+    )
+
+    controlled_weights = pd.Series(controlled["weights"], dtype=float)
+    optimizer_mu = pd.Series(
+        controlled["optimizer_expected_returns"],
+        dtype=float,
+    )
+    expected_return = float(
+        controlled_weights.reindex(tickers).fillna(0.0) @ optimizer_mu
+        + controlled["cash_weight"] * 0.02
+    )
+    expected_risk = float(
+        np.sqrt(
+            controlled_weights["AAA"] ** 2 * 0.04
+            + controlled_weights["BBB"] ** 2 * 0.03
+        )
+    )
+    assert controlled_weights.sum() == pytest.approx(0.60)
+    assert controlled["risky_exposure"] == pytest.approx(0.60)
+    assert controlled["cash_weight"] == pytest.approx(0.40)
+    assert controlled["controlled_cash_weight"] == pytest.approx(0.40)
+    assert controlled["return"] == pytest.approx(expected_return)
+    assert controlled["risk"] == pytest.approx(expected_risk)
+
 
 def test_optimizer_adds_turnover_penalty_objective_when_current_weights_exist(monkeypatch):
     captured = {"objectives": []}

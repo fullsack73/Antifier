@@ -757,22 +757,41 @@ def _weights_from_values(values, denominator):
     }
 
 
-def _performance_for_weights(weights, expected_returns, covariance, risk_free_rate):
+def _performance_for_weights(
+    weights,
+    expected_returns,
+    covariance,
+    risk_free_rate,
+    preserve_cash_exposure=False,
+):
     """Calculate metrics for the weights actually returned to the caller."""
     mu = pd.Series(expected_returns, dtype=float)
     weight_series = (
         pd.Series(weights, dtype=float)
         .reindex(mu.index)
+        .replace([np.inf, -np.inf], np.nan)
         .fillna(0.0)
+        .clip(lower=0.0)
     )
     total = float(weight_series.sum())
-    if total > 0:
+    if total > 1.0 + 1e-12 or (
+        total > 0.0 and not preserve_cash_exposure
+    ):
         weight_series = weight_series / total
+        total = 1.0
+    cash_weight = (
+        max(0.0, 1.0 - total)
+        if preserve_cash_exposure
+        else 0.0
+    )
     matrix = pd.DataFrame(covariance).reindex(
         index=mu.index,
         columns=mu.index,
     )
-    expected_return = float(weight_series @ mu)
+    expected_return = float(
+        weight_series @ mu
+        + cash_weight * float(risk_free_rate)
+    )
     variance = float(
         weight_series.values @ matrix.values @ weight_series.values
     )
@@ -2643,10 +2662,20 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 if np.isfinite(weight) and weight > 1e-4
             }
             final_weights = controlled_weights
+            pre_control_cash_weight = max(
+                0.0,
+                1.0 - float(sum(pre_control_weights.values())),
+            )
+            controlled_cash_weight = max(
+                0.0,
+                1.0 - float(sum(controlled_weights.values())),
+            )
             control_payload = {
                 "rebalance_controls": rebalance_controls,
                 "pre_control_weights": pre_control_weights,
                 "controlled_weights": controlled_weights,
+                "pre_control_cash_weight": pre_control_cash_weight,
+                "controlled_cash_weight": controlled_cash_weight,
             }
 
         performance = _performance_for_weights(
@@ -2654,7 +2683,13 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             mu,
             S,
             risk_free_rate,
+            preserve_cash_exposure=True,
         )
+        risky_exposure = min(
+            1.0,
+            max(0.0, float(sum(final_weights.values()))),
+        )
+        cash_weight = max(0.0, 1.0 - risky_exposure)
         
         # Filter prices
         final_prices = {t: latest_prices.get(t, 0.0) for t in final_tickers}
@@ -2664,6 +2699,8 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "return": performance[0],
             "risk": performance[1],
             "sharpe_ratio": performance[2],
+            "risky_exposure": risky_exposure,
+            "cash_weight": cash_weight,
             "prices": final_prices,
             "asset_names": get_asset_names(final_weights.keys()),
             "price_currency": price_currency,

@@ -621,6 +621,33 @@ def test_reported_performance_uses_returned_weights():
     assert sharpe == pytest.approx((expected_return - 0.02) / volatility)
 
 
+def test_reported_performance_preserves_cash_exposure_when_requested():
+    mu = pd.Series({"A": 0.10, "B": 0.06})
+    covariance = pd.DataFrame(
+        [[0.04, 0.0], [0.0, 0.09]],
+        index=mu.index,
+        columns=mu.index,
+    )
+
+    expected_return, volatility, sharpe = (
+        portfolio_optimization._performance_for_weights(
+            {"A": 0.30, "B": 0.30},
+            mu,
+            covariance,
+            risk_free_rate=0.02,
+            preserve_cash_exposure=True,
+        )
+    )
+
+    assert expected_return == pytest.approx(0.056)
+    assert volatility == pytest.approx(
+        np.sqrt(0.30 ** 2 * 0.04 + 0.30 ** 2 * 0.09)
+    )
+    assert sharpe == pytest.approx(
+        (expected_return - 0.02) / volatility
+    )
+
+
 def test_regression_endpoint_returns_error_status_for_empty_market_data():
     stock = MagicMock()
     stock.history.return_value = pd.DataFrame()
