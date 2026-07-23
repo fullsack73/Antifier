@@ -100,6 +100,8 @@
 - paired P(higher IC/spread) `98.20%`/`95.75%`, Holm-adjusted p-value `0.0425`로 research gate를 통과했습니다. untouched validation 전 사양 변경을 금지합니다.
 - frozen value-quality-momentum은 untouched validation에서 absolute signal gate를 통과했지만 paired P(higher IC/spread) `93.85%`/`94.20%`, Holm p-value `0.0615`, 4-case `2/4`로 탈락했습니다.
 - validation 결과에 맞춘 사양 변경 없이 2012+ holdout을 봉인합니다.
+- completed-period IC를 prior `50/25/25`에 75% shrink하는 adaptive value-investment-momentum도 absolute gate는 통과했지만 paired P(higher IC/spread) `64.00%`/`87.40%`로 탈락했습니다.
+- online weight history, cap, no-lookahead 검증은 추가됐지만 default alpha와 quant-standard 상태는 변경하지 않습니다.
 
 ## 금지
 

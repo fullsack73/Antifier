@@ -107,6 +107,8 @@
 - 새 candidate도 고정 선형 신호이므로 Transformer HPO는 계속 보류하고 untouched validation부터 실행합니다.
 - untouched validation에서 value-quality-momentum 자체 IC/spread는 95% absolute gate를 통과했지만 baseline 대비 paired 확률은 `93.85%`/`94.20%`, 4-case는 `2/4`였습니다.
 - low-value/low-profitability 약점을 validation 결과로 보정하거나 Transformer로 fitting하지 않습니다.
+- fresh B/M×investment universe에서 completed-period IC 기반 online factor-weight calibration도 raw momentum 대비 paired IC/spread uplift가 `64.00%`/`87.40%`에 그쳤습니다.
+- 단순 weight adaptation도 generalizable uplift를 만들지 못했으므로 calibration hyperparameter나 Transformer capacity를 같은 결과에 맞춰 확대하지 않습니다.
 
 ## 선행조건
 
@@ -133,3 +135,4 @@
 - Quality-momentum validation: `docs/reports/260724-0238-01-quality-momentum-validation.md`
 - Value-quality-momentum research: `docs/reports/260724-0245-01-value-quality-momentum-research.md`
 - Value-quality-momentum validation: `docs/reports/260724-0250-01-value-quality-momentum-validation.md`
+- Adaptive value-investment research: `docs/reports/260724-0301-01-adaptive-value-investment-momentum-research.md`

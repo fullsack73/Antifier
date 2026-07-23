@@ -183,6 +183,202 @@ def profitability_momentum_scores(
     ).reindex(data.columns)
 
 
+def _point_in_time_component_scores(component, as_of_date, tickers):
+    """Return a ranked component snapshot available by ``as_of_date``."""
+    if isinstance(component, pd.DataFrame):
+        history = component.copy()
+        history.index = pd.to_datetime(history.index)
+        history = history.sort_index()
+        history = history.loc[
+            history.index <= pd.Timestamp(as_of_date)
+        ]
+        raw = (
+            pd.Series(np.nan, index=tickers, dtype=float)
+            if history.empty
+            else pd.to_numeric(
+                history.iloc[-1],
+                errors="coerce",
+            ).reindex(tickers)
+        )
+    else:
+        raw = pd.Series(component, dtype=float).reindex(tickers)
+    return rank_to_unit_scores(raw, higher_is_better=True).reindex(tickers)
+
+
+def adaptive_factor_momentum_scores(
+    price_data,
+    factor_components,
+    horizon=63,
+    max_observations=12,
+    prior_weights=None,
+    prior_shrinkage=0.75,
+    max_component_weight=0.60,
+):
+    """Shrink completed-period IC weights toward a fixed factor prior."""
+    data = _clean_price_frame(price_data)
+    tickers = list(data.columns)
+    components = {
+        str(name): value
+        for name, value in dict(factor_components or {}).items()
+    }
+    component_names = ["momentum_12_1", *components]
+    if len(component_names) < 2:
+        raise ValueError(
+            "Adaptive factor momentum requires a fundamental component"
+        )
+    prior_shrinkage = float(prior_shrinkage)
+    if (
+        not np.isfinite(prior_shrinkage)
+        or prior_shrinkage < 0.0
+        or prior_shrinkage > 1.0
+    ):
+        raise ValueError("prior_shrinkage must be between 0 and 1")
+
+    default_factor_weight = 0.50 / max(1, len(components))
+    prior = pd.Series(
+        (
+            {
+                "momentum_12_1": 0.50,
+                **{
+                    name: default_factor_weight
+                    for name in components
+                },
+            }
+            if prior_weights is None
+            else prior_weights
+        ),
+        index=component_names,
+        dtype=float,
+    )
+    prior = cap_and_normalize_weights(
+        prior,
+        max_asset_weight=max_component_weight,
+    )
+    horizon = max(1, int(horizon))
+    latest_signal_position = len(data) - horizon - 1
+    positions = (
+        []
+        if latest_signal_position < MOMENTUM_LOOKBACK_DAYS - 1
+        else list(
+            range(
+                MOMENTUM_LOOKBACK_DAYS - 1,
+                latest_signal_position + 1,
+                horizon,
+            )
+        )[-max(1, int(max_observations)):]
+    )
+
+    component_ics = {name: [] for name in component_names}
+    calibration_rows = []
+    for position in positions:
+        as_of = data.index[position]
+        history = data.iloc[:position + 1]
+        scores = {
+            "momentum_12_1": momentum_12_1(history),
+            **{
+                name: _point_in_time_component_scores(
+                    component,
+                    as_of,
+                    tickers,
+                )
+                for name, component in components.items()
+            },
+        }
+        forward_returns = (
+            data.iloc[position + horizon] / data.iloc[position] - 1.0
+        ).replace([np.inf, -np.inf], np.nan)
+        relative_returns = (
+            forward_returns - float(forward_returns.median(skipna=True))
+        )
+        row_ics = {}
+        for name, values in scores.items():
+            rank_ic = _finite_spearman(values, relative_returns)
+            row_ics[name] = rank_ic
+            if rank_ic is not None:
+                component_ics[name].append(rank_ic)
+        calibration_rows.append({
+            "as_of_date": as_of.strftime("%Y-%m-%d"),
+            "forward_end_date": data.index[
+                position + horizon
+            ].strftime("%Y-%m-%d"),
+            "component_rank_ic": row_ics,
+        })
+
+    raw_evidence = pd.Series(
+        {
+            name: (
+                0.0
+                if not values
+                else max(0.0, float(np.mean(values)))
+            )
+            for name, values in component_ics.items()
+        },
+        dtype=float,
+    )
+    empirical = (
+        prior
+        if float(raw_evidence.sum()) <= 0.0
+        else cap_and_normalize_weights(
+            raw_evidence,
+            max_asset_weight=max_component_weight,
+        )
+    )
+    weights = cap_and_normalize_weights(
+        prior_shrinkage * prior
+        + (1.0 - prior_shrinkage) * empirical,
+        max_asset_weight=max_component_weight,
+    )
+
+    as_of = data.index[-1] if not data.empty else pd.NaT
+    current_scores = {
+        "momentum_12_1": momentum_12_1(data),
+        **{
+            name: _point_in_time_component_scores(
+                component,
+                as_of,
+                tickers,
+            )
+            for name, component in components.items()
+        },
+    }
+    weighted = pd.Series(0.0, index=tickers, dtype=float)
+    available = pd.Series(0.0, index=tickers, dtype=float)
+    for name, scores in current_scores.items():
+        aligned = pd.Series(scores, dtype=float).reindex(tickers)
+        valid = aligned.notna()
+        weighted.loc[valid] += aligned.loc[valid] * float(weights[name])
+        available.loc[valid] += float(weights[name])
+    combined = weighted / available.replace(0.0, np.nan)
+    scores = rank_to_unit_scores(
+        combined,
+        higher_is_better=True,
+    ).reindex(tickers)
+    return scores, {
+        "component_weights": {
+            name: float(value) for name, value in weights.items()
+        },
+        "prior_weights": {
+            name: float(value) for name, value in prior.items()
+        },
+        "empirical_weights": {
+            name: float(value) for name, value in empirical.items()
+        },
+        "prior_shrinkage": prior_shrinkage,
+        "max_component_weight": float(max_component_weight),
+        "components": {
+            name: {
+                "mean_rank_ic": (
+                    None if not values else float(np.mean(values))
+                ),
+                "observation_count": int(len(values)),
+            }
+            for name, values in component_ics.items()
+        },
+        "calibration_rows": calibration_rows,
+        "coverage_count": int(scores.notna().sum()),
+    }
+
+
 def momentum_6m(price_data, lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS):
     """Six-month cross-sectional momentum rank score in [-1, 1]."""
     return momentum_rank(price_data, lookback=lookback, skip=0)

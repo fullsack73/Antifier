@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-adaptive-value-investment-momentum-research-1968-1999-v1",
+  "role": "research",
+  "evaluation_start": "1968-07-11",
+  "evaluation_end": "1999-10-01",
+  "experiment_namespace": "alpha-v12-adaptive-value-investment-momentum",
+  "objectives": [
+    "adaptive_value_investment_momentum"
+  ],
+  "settings": {
+    "train_window": 1260,
+    "horizon": 63,
+    "rebalance_step": 63,
+    "momentum_lookback": 252,
+    "momentum_skip": 21,
+    "baseline": "momentum_12_1",
+    "factor_components": [
+      "momentum_12_1",
+      "value",
+      "conservative_investment"
+    ],
+    "prior_weights": {
+      "momentum_12_1": 0.5,
+      "value": 0.25,
+      "conservative_investment": 0.25
+    },
+    "calibration_max_observations": 12,
+    "prior_shrinkage": 0.75,
+    "max_component_weight": 0.6,
+    "value_signal": "official_annual_book_to_market_quintile",
+    "investment_signal": "inverse_official_annual_investment_quintile",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95
+  },
+  "universe_manifest_sha256": "7d9df7f2463668d6c1b731c727eed9cba369c62a7970bdcc88509e0b256a93bd",
+  "price_file_sha256": "fa2eeaf58fb3241b4c75afff83cf1261a3773e771eb0289609c04777579955f3",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "212e853c4bbc71802de6200fbd689a4d1e9f1417e69697af7f0b3a9a24150d0b"
+}

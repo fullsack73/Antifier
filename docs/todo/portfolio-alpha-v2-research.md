@@ -113,6 +113,10 @@
 - paired P(higher IC/spread)는 `93.85%`/`94.20%`, Holm-adjusted p-value는 `0.0615`로 95% gate에 미달했습니다.
 - high-value와 high-profitability case는 통과했지만 low-value와 low-profitability candidate IC가 음수여서 4-case는 `2/4`였습니다.
 - validation을 탈락 처리하고 같은 결과로 weight/window/case를 재튜닝하지 않습니다. 2012+ holdout은 봉인합니다.
+- official French 25 book-to-market×investment의 fresh 1968~1999 split에서 completed 63일 IC만 사용하는 online factor-weight calibration을 추가했습니다.
+- prior `momentum/value/conservative-investment=50/25/25`, prior shrinkage 75%, component cap 60%, 최대 12 completed observations를 결과 전에 고정했습니다.
+- adaptive 후보 자체 IC `0.0698`, spread `0.01177`은 absolute gate를 통과했지만 raw momentum 대비 ΔIC `0.00705`, Δspread `0.00346`에 그쳤습니다.
+- paired P(higher IC/spread)는 `64.00%`/`87.40%`, Holm-adjusted p-value는 `0.3600`이라 폐기합니다. 같은 split에서 shrinkage, cap, prior, history를 재튜닝하지 않습니다.
 
 ## 참고
 
@@ -132,3 +136,4 @@
 - Quality-momentum validation: `docs/reports/260724-0238-01-quality-momentum-validation.md`
 - Value-quality-momentum freeze: `docs/reports/260724-0245-01-value-quality-momentum-research.md`
 - Value-quality-momentum validation: `docs/reports/260724-0250-01-value-quality-momentum-validation.md`
+- Adaptive value-investment-momentum 폐기: `docs/reports/260724-0301-01-adaptive-value-investment-momentum-research.md`

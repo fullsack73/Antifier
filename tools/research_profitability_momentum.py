@@ -24,6 +24,7 @@ from forecast_signal_research import (  # noqa: E402
     signal_only_gate,
 )
 from portfolio_signals import (  # noqa: E402
+    adaptive_factor_momentum_scores,
     momentum_12_1,
     profitability_momentum_scores,
 )
@@ -34,6 +35,9 @@ from research_split import validate_research_split_run  # noqa: E402
 CANDIDATE = "profitability_momentum"
 QUALITY_CANDIDATE = "quality_momentum"
 VALUE_QUALITY_CANDIDATE = "value_quality_momentum"
+ADAPTIVE_VALUE_INVESTMENT_CANDIDATE = (
+    "adaptive_value_investment_momentum"
+)
 BASELINE = "momentum_12_1"
 MOMENTUM_WEIGHT = 0.50
 
@@ -111,10 +115,49 @@ def _candidate_name(args):
         return QUALITY_CANDIDATE
     if args.signal_kind == "value_quality":
         return VALUE_QUALITY_CANDIDATE
+    if args.signal_kind == "adaptive_value_investment":
+        return ADAPTIVE_VALUE_INVESTMENT_CANDIDATE
     return CANDIDATE
 
 
 def _settings(args):
+    if args.signal_kind == "adaptive_value_investment":
+        return {
+            "train_window": int(args.train_window),
+            "horizon": int(args.horizon),
+            "rebalance_step": int(args.rebalance_step),
+            "momentum_lookback": 252,
+            "momentum_skip": 21,
+            "baseline": BASELINE,
+            "factor_components": [
+                "momentum_12_1",
+                "value",
+                "conservative_investment",
+            ],
+            "prior_weights": {
+                "momentum_12_1": 0.50,
+                "value": 0.25,
+                "conservative_investment": 0.25,
+            },
+            "calibration_max_observations": int(
+                args.calibration_max_observations
+            ),
+            "prior_shrinkage": float(args.prior_shrinkage),
+            "max_component_weight": float(
+                args.max_component_weight
+            ),
+            "value_signal": (
+                "official_annual_book_to_market_quintile"
+            ),
+            "investment_signal": (
+                "inverse_official_annual_investment_quintile"
+            ),
+            "bootstrap_samples": int(args.bootstrap_samples),
+            "bootstrap_block_size": int(args.bootstrap_block_size),
+            "bootstrap_minimum_probability": float(
+                args.bootstrap_minimum_probability
+            ),
+        }
     settings = {
         "train_window": int(args.train_window),
         "horizon": int(args.horizon),
@@ -260,6 +303,71 @@ def _run_periods(prices, fundamental_signal, args):
     return candidate_periods, baseline_periods
 
 
+def _run_adaptive_periods(prices, factor_components, args):
+    candidate_periods = []
+    baseline_periods = []
+    signal_diagnostics = []
+    last_position = len(prices) - int(args.horizon) - 1
+    for position in range(
+        int(args.train_window),
+        last_position + 1,
+        int(args.rebalance_step),
+    ):
+        train_prices = prices.iloc[
+            position - int(args.train_window):position
+        ]
+        as_of = prices.index[position]
+        forward_end = prices.index[position + int(args.horizon)]
+        candidate_scores, diagnostics = adaptive_factor_momentum_scores(
+            train_prices,
+            factor_components,
+            horizon=args.horizon,
+            max_observations=args.calibration_max_observations,
+            prior_weights={
+                "momentum_12_1": 0.50,
+                "value": 0.25,
+                "conservative_investment": 0.25,
+            },
+            prior_shrinkage=args.prior_shrinkage,
+            max_component_weight=args.max_component_weight,
+        )
+        baseline_scores = momentum_12_1(train_prices)
+        realized = (
+            prices.iloc[position + int(args.horizon)]
+            / prices.iloc[position]
+            - 1.0
+        ).replace([np.inf, -np.inf], np.nan)
+        period_id = as_of.strftime("%Y-%m-%d")
+        candidate_periods.append(
+            _period_record(
+                period_id,
+                forward_end,
+                candidate_scores,
+                realized,
+            )
+        )
+        baseline_periods.append(
+            _period_record(
+                period_id,
+                forward_end,
+                baseline_scores,
+                realized,
+            )
+        )
+        signal_diagnostics.append({
+            "period_id": period_id,
+            "component_weights": diagnostics[
+                "component_weights"
+            ],
+            "empirical_weights": diagnostics[
+                "empirical_weights"
+            ],
+            "components": diagnostics["components"],
+            "calibration_rows": diagnostics["calibration_rows"],
+        })
+    return candidate_periods, baseline_periods, signal_diagnostics
+
+
 def _paired_gate(paired, minimum_probability, candidate_name):
     probability = paired.get("probability", {})
     reasons = []
@@ -314,7 +422,11 @@ def _write_report(payload, output_path):
             else (
                 "# Quality-Momentum Research"
                 if candidate_name == QUALITY_CANDIDATE
-                else "# Value-Quality-Momentum Research"
+                else (
+                    "# Value-Quality-Momentum Research"
+                    if candidate_name == VALUE_QUALITY_CANDIDATE
+                    else "# Adaptive Value-Investment-Momentum Research"
+                )
             )
         ),
         "",
@@ -389,7 +501,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--signal-kind",
-        choices=("profitability", "quality", "value_quality"),
+        choices=(
+            "profitability",
+            "quality",
+            "value_quality",
+            "adaptive_value_investment",
+        ),
         default="profitability",
     )
     parser.add_argument("--csv", required=True)
@@ -403,6 +520,21 @@ def main(argv=None):
     parser.add_argument("--bootstrap-samples", type=int, default=2000)
     parser.add_argument("--bootstrap-block-size", type=int, default=4)
     parser.add_argument(
+        "--calibration-max-observations",
+        type=int,
+        default=12,
+    )
+    parser.add_argument(
+        "--prior-shrinkage",
+        type=float,
+        default=0.75,
+    )
+    parser.add_argument(
+        "--max-component-weight",
+        type=float,
+        default=0.60,
+    )
+    parser.add_argument(
         "--bootstrap-minimum-probability",
         type=float,
         default=0.95,
@@ -415,26 +547,43 @@ def main(argv=None):
             _load_prices(args)
         )
         candidate_name = _candidate_name(args)
-        profitability = operating_profitability_buckets(prices.columns)
+        profitability = (
+            None
+            if args.signal_kind == "adaptive_value_investment"
+            else operating_profitability_buckets(prices.columns)
+        )
         investment = (
             investment_buckets(prices.columns)
-            if args.signal_kind == "quality"
+            if args.signal_kind in {
+                "quality",
+                "adaptive_value_investment",
+            }
             else None
         )
         book_to_market = (
             book_to_market_buckets(prices.columns)
-            if args.signal_kind == "value_quality"
+            if args.signal_kind in {
+                "value_quality",
+                "adaptive_value_investment",
+            }
             else None
         )
-        fundamental_signal = (
-            profitability
-            if investment is None and book_to_market is None
-            else (
-                0.50 * profitability + 0.50 * (6.0 - investment)
-                if investment is not None
-                else 0.50 * profitability + 0.50 * book_to_market
+        if args.signal_kind == "adaptive_value_investment":
+            fundamental_signal = {
+                "value": book_to_market,
+                "conservative_investment": 6.0 - investment,
+            }
+        elif investment is not None:
+            fundamental_signal = (
+                0.50 * profitability
+                + 0.50 * (6.0 - investment)
             )
-        )
+        elif book_to_market is not None:
+            fundamental_signal = (
+                0.50 * profitability + 0.50 * book_to_market
+            )
+        else:
+            fundamental_signal = profitability
         split_path = Path(args.split_manifest).expanduser().resolve()
         split = validate_research_split_run(
             _load_json(split_path),
@@ -456,11 +605,23 @@ def main(argv=None):
         if split["role"] != "research":
             raise ValueError("Signal research manifest role must be research")
 
-        candidate_periods, baseline_periods = _run_periods(
-            prices,
-            fundamental_signal,
-            args,
-        )
+        if args.signal_kind == "adaptive_value_investment":
+            (
+                candidate_periods,
+                baseline_periods,
+                signal_diagnostics,
+            ) = _run_adaptive_periods(
+                prices,
+                fundamental_signal,
+                args,
+            )
+        else:
+            candidate_periods, baseline_periods = _run_periods(
+                prices,
+                fundamental_signal,
+                args,
+            )
+            signal_diagnostics = None
         candidate_rank = cross_sectional_rank_diagnostics(
             candidate_periods
         )
@@ -531,17 +692,23 @@ def main(argv=None):
                 "price_provenance_file": str(provenance_path),
                 "row_count": int(len(prices)),
                 "ticker_count": int(len(prices.columns)),
-                "portfolio_profitability_buckets": {
-                    ticker: int(value)
-                    for ticker, value in profitability.items()
-                },
+                **(
+                    {}
+                    if profitability is None
+                    else {
+                        "portfolio_profitability_buckets": {
+                            ticker: int(value)
+                            for ticker, value in profitability.items()
+                        }
+                    }
+                ),
                 **(
                     {}
                     if investment is None
                     else {
                         "portfolio_investment_buckets": {
-                        ticker: int(value)
-                        for ticker, value in investment.items()
+                            ticker: int(value)
+                            for ticker, value in investment.items()
                         }
                     }
                 ),
@@ -576,6 +743,13 @@ def main(argv=None):
             "paired_bootstrap": paired,
             "paired_holm": paired_holm,
             "paired_gate": paired_gate,
+            **(
+                {}
+                if signal_diagnostics is None
+                else {
+                    "signal_diagnostics": signal_diagnostics,
+                }
+            ),
             "promotion_eligible": promotion_eligible,
         }
         output_path = Path(args.output).expanduser().resolve()

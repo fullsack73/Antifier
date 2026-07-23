@@ -35,6 +35,7 @@ from forecast_signal_research import (
 )
 from portfolio_signals import (
     adaptive_cross_sectional_alpha,
+    adaptive_factor_momentum_scores,
     calibrate_cross_sectional_alpha,
     drawdown_score,
     dual_horizon_momentum_weights,
@@ -462,6 +463,64 @@ def test_profitability_momentum_blends_pit_rank_without_lookahead():
 
     assert scores["HIGH"] > scores["MID"] > scores["LOW"]
     pd.testing.assert_series_equal(scores, repeated)
+
+
+def test_adaptive_factor_momentum_uses_only_completed_pit_rows():
+    dates = pd.date_range("2018-01-02", periods=520, freq="B")
+    x = np.arange(len(dates))
+    tickers = ["A", "B", "C", "D", "E"]
+    prices = pd.DataFrame(
+        {
+            ticker: 100.0 * np.exp(
+                (0.0002 + index * 0.00015) * x
+                + 0.01 * np.sin(x / (8.0 + index))
+            )
+            for index, ticker in enumerate(tickers)
+        },
+        index=dates,
+    )
+    value = pd.DataFrame(
+        np.tile(np.arange(1.0, 6.0), (len(dates), 1)),
+        index=dates,
+        columns=tickers,
+    )
+    investment = pd.DataFrame(
+        np.tile(np.arange(5.0, 0.0, -1.0), (len(dates), 1)),
+        index=dates,
+        columns=tickers,
+    )
+
+    scores, diagnostics = adaptive_factor_momentum_scores(
+        prices.iloc[:480],
+        {
+            "value": value,
+            "conservative_investment": investment,
+        },
+    )
+    mutated_prices = prices.copy()
+    mutated_prices.iloc[480:] *= pd.Series(
+        {"A": 4.0, "B": 3.0, "C": 2.0, "D": 0.5, "E": 0.25}
+    )
+    mutated_value = value.copy()
+    mutated_value.iloc[480:] = mutated_value.iloc[480:].iloc[:, ::-1].to_numpy()
+    repeated, repeated_diagnostics = adaptive_factor_momentum_scores(
+        mutated_prices.iloc[:480],
+        {
+            "value": mutated_value,
+            "conservative_investment": investment,
+        },
+    )
+
+    pd.testing.assert_series_equal(scores, repeated)
+    assert sum(diagnostics["component_weights"].values()) == pytest.approx(1.0)
+    assert max(diagnostics["component_weights"].values()) <= 0.600001
+    assert diagnostics["component_weights"] == pytest.approx(
+        repeated_diagnostics["component_weights"]
+    )
+    assert all(
+        pd.Timestamp(row["forward_end_date"]) <= prices.index[479]
+        for row in diagnostics["calibration_rows"]
+    )
 
 
 def test_factor_residual_momentum_removes_common_factor_and_has_no_lookahead():
