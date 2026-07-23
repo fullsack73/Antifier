@@ -1,4 +1,5 @@
 import importlib.util
+from argparse import Namespace
 from pathlib import Path
 
 
@@ -35,3 +36,17 @@ def test_quality_validation_case_requires_positive_baseline_uplift():
     assert passed["status"] == "passed"
     assert rejected["status"] == "rejected"
     assert len(rejected["reasons"]) == 2
+
+
+def test_value_quality_validation_freezes_four_characteristic_cases():
+    args = Namespace(signal_kind="value_quality")
+    cases = VALIDATION._validation_cases(args)
+
+    assert VALIDATION._candidate_name(args) == "value_quality_momentum"
+    assert [case["id"] for case in cases] == [
+        "low_value",
+        "high_value",
+        "low_profitability",
+        "high_profitability",
+    ]
+    assert all(len(case["tickers"]) == 10 for case in cases)

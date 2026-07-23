@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-value-quality-momentum-validation-2000-2011-v1",
+  "role": "validation",
+  "evaluation_start": "2000-01-04",
+  "evaluation_end": "2011-09-30",
+  "experiment_namespace": "alpha-v11-value-quality-momentum-validation",
+  "objectives": [
+    "value_quality_momentum"
+  ],
+  "settings": {
+    "train_window": 505,
+    "horizon": 63,
+    "rebalance_step": 63,
+    "momentum_lookback": 252,
+    "momentum_skip": 21,
+    "momentum_weight": 0.5,
+    "value_weight": 0.25,
+    "profitability_weight": 0.25,
+    "value_signal": "official_annual_book_to_market_quintile",
+    "profitability_signal": "official_annual_operating_profitability_quintile",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "frozen_candidate_policy": {
+      "source_split_id": "fama-french-25-value-quality-momentum-research-1965-1999-v1",
+      "candidate": "value_quality_momentum",
+      "candidate_specification": "unchanged"
+    },
+    "validation_cases": [
+      {
+        "id": "low_value",
+        "tickers": [
+          "LoBM LoOP",
+          "BM1 OP2",
+          "BM1 OP3",
+          "BM1 OP4",
+          "LoBM HiOP",
+          "BM2 OP1",
+          "BM2 OP2",
+          "BM2 OP3",
+          "BM2 OP4",
+          "BM2 OP5"
+        ]
+      },
+      {
+        "id": "high_value",
+        "tickers": [
+          "BM4 OP1",
+          "BM4 OP2",
+          "BM4 OP3",
+          "BM4 OP4",
+          "BM4 OP5",
+          "HiBM LoOP",
+          "BM5 OP2",
+          "BM5 OP3",
+          "BM5 OP4",
+          "HiBM HiOP"
+        ]
+      },
+      {
+        "id": "low_profitability",
+        "tickers": [
+          "LoBM LoOP",
+          "BM1 OP2",
+          "BM2 OP1",
+          "BM2 OP2",
+          "BM3 OP1",
+          "BM3 OP2",
+          "BM4 OP1",
+          "BM4 OP2",
+          "HiBM LoOP",
+          "BM5 OP2"
+        ]
+      },
+      {
+        "id": "high_profitability",
+        "tickers": [
+          "BM1 OP4",
+          "LoBM HiOP",
+          "BM2 OP4",
+          "BM2 OP5",
+          "BM3 OP4",
+          "BM3 OP5",
+          "BM4 OP4",
+          "BM4 OP5",
+          "BM5 OP4",
+          "HiBM HiOP"
+        ]
+      }
+    ]
+  },
+  "universe_manifest_sha256": "066445f23cb0e94a3664e740b6966da73c7c113d7e56fe10d483d4dcba319de2",
+  "price_file_sha256": "72b56af760b60fc2e29f19f5cf3c59422eddcd00c3b3f43d5dc6b7c8beb732a3",
+  "factor_file_sha256": null,
+  "auxiliary_files": {
+    "frozen_result": "820c76bc261d51d6c3efcb38afa5f3a9d396b9ebcb7a90f71a26f7533f8d0be9"
+  },
+  "locked": true,
+  "manifest_sha256": "1c83c74c1401fde91cacc634cfcecb5edc97e73507482ec94c0a2aa59047b6c7"
+}

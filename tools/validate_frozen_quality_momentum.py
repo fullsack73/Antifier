@@ -27,16 +27,18 @@ from research_profitability_momentum import (  # noqa: E402
     BASELINE,
     MOMENTUM_WEIGHT,
     QUALITY_CANDIDATE,
+    VALUE_QUALITY_CANDIDATE,
     _distribution_diagnostics,
     _paired_gate,
     _run_periods,
+    book_to_market_buckets,
     investment_buckets,
     operating_profitability_buckets,
 )
 from research_split import validate_research_split_run  # noqa: E402
 
 
-VALIDATION_CASES = (
+QUALITY_VALIDATION_CASES = (
     {
         "id": "low_profitability",
         "tickers": (
@@ -70,6 +72,56 @@ VALIDATION_CASES = (
         ),
     },
 )
+VALUE_QUALITY_VALIDATION_CASES = (
+    {
+        "id": "low_value",
+        "tickers": (
+            "LoBM LoOP", "BM1 OP2", "BM1 OP3", "BM1 OP4",
+            "LoBM HiOP", "BM2 OP1", "BM2 OP2", "BM2 OP3",
+            "BM2 OP4", "BM2 OP5",
+        ),
+    },
+    {
+        "id": "high_value",
+        "tickers": (
+            "BM4 OP1", "BM4 OP2", "BM4 OP3", "BM4 OP4",
+            "BM4 OP5", "HiBM LoOP", "BM5 OP2", "BM5 OP3",
+            "BM5 OP4", "HiBM HiOP",
+        ),
+    },
+    {
+        "id": "low_profitability",
+        "tickers": (
+            "LoBM LoOP", "BM1 OP2", "BM2 OP1", "BM2 OP2",
+            "BM3 OP1", "BM3 OP2", "BM4 OP1", "BM4 OP2",
+            "HiBM LoOP", "BM5 OP2",
+        ),
+    },
+    {
+        "id": "high_profitability",
+        "tickers": (
+            "BM1 OP4", "LoBM HiOP", "BM2 OP4", "BM2 OP5",
+            "BM3 OP4", "BM3 OP5", "BM4 OP4", "BM4 OP5",
+            "BM5 OP4", "HiBM HiOP",
+        ),
+    },
+)
+
+
+def _candidate_name(args):
+    return (
+        VALUE_QUALITY_CANDIDATE
+        if args.signal_kind == "value_quality"
+        else QUALITY_CANDIDATE
+    )
+
+
+def _validation_cases(args):
+    return (
+        VALUE_QUALITY_VALIDATION_CASES
+        if args.signal_kind == "value_quality"
+        else QUALITY_VALIDATION_CASES
+    )
 
 
 def _sha256(path):
@@ -81,6 +133,41 @@ def _load_json(path):
 
 
 def _settings(args):
+    candidate = _candidate_name(args)
+    cases = _validation_cases(args)
+    if args.signal_kind == "value_quality":
+        return {
+            "train_window": int(args.train_window),
+            "horizon": int(args.horizon),
+            "rebalance_step": int(args.rebalance_step),
+            "momentum_lookback": 252,
+            "momentum_skip": 21,
+            "momentum_weight": 0.50,
+            "value_weight": 0.25,
+            "profitability_weight": 0.25,
+            "value_signal": "official_annual_book_to_market_quintile",
+            "profitability_signal": (
+                "official_annual_operating_profitability_quintile"
+            ),
+            "baseline": BASELINE,
+            "bootstrap_samples": int(args.bootstrap_samples),
+            "bootstrap_block_size": int(args.bootstrap_block_size),
+            "bootstrap_minimum_probability": float(
+                args.bootstrap_minimum_probability
+            ),
+            "frozen_candidate_policy": {
+                "source_split_id": str(args.frozen_from),
+                "candidate": candidate,
+                "candidate_specification": "unchanged",
+            },
+            "validation_cases": [
+                {
+                    "id": case["id"],
+                    "tickers": list(case["tickers"]),
+                }
+                for case in cases
+            ],
+        }
     return {
         "train_window": int(args.train_window),
         "horizon": int(args.horizon),
@@ -104,7 +191,7 @@ def _settings(args):
         ),
         "frozen_candidate_policy": {
             "source_split_id": str(args.frozen_from),
-            "candidate": QUALITY_CANDIDATE,
+            "candidate": candidate,
             "candidate_specification": "unchanged",
         },
         "validation_cases": [
@@ -112,7 +199,7 @@ def _settings(args):
                 "id": case["id"],
                 "tickers": list(case["tickers"]),
             }
-            for case in VALIDATION_CASES
+            for case in cases
         ],
     }
 
@@ -124,18 +211,29 @@ def _load_frozen_result(args):
         raise ValueError(
             "Frozen result split does not match --frozen-from"
         )
-    if payload.get("candidate", {}).get("name") != QUALITY_CANDIDATE:
+    candidate = _candidate_name(args)
+    if payload.get("candidate", {}).get("name") != candidate:
         raise ValueError("Frozen result candidate does not match")
     if not payload.get("promotion_eligible"):
         raise ValueError("Frozen result is not promotion eligible")
     frozen_settings = payload.get("settings", {})
-    expected = {
-        "momentum_weight": 0.50,
-        "profitability_weight": 0.25,
-        "conservative_investment_weight": 0.25,
-        "momentum_lookback": 252,
-        "momentum_skip": 21,
-    }
+    expected = (
+        {
+            "momentum_weight": 0.50,
+            "profitability_weight": 0.25,
+            "value_weight": 0.25,
+            "momentum_lookback": 252,
+            "momentum_skip": 21,
+        }
+        if args.signal_kind == "value_quality"
+        else {
+            "momentum_weight": 0.50,
+            "profitability_weight": 0.25,
+            "conservative_investment_weight": 0.25,
+            "momentum_lookback": 252,
+            "momentum_skip": 21,
+        }
+    )
     if any(frozen_settings.get(key) != value for key, value in expected.items()):
         raise ValueError("Frozen result candidate specification drifted")
     return payload, path, _sha256(path)
@@ -152,9 +250,10 @@ def _load_prices(args):
     prices = pd.read_csv(path, index_col=0, parse_dates=True)
     if list(provenance.get("tickers") or []) != list(prices.columns):
         raise ValueError("Price provenance ticker order mismatch")
+    cases = _validation_cases(args)
     required = {
         ticker
-        for case in VALIDATION_CASES
+        for case in cases
         for ticker in case["tickers"]
     }
     missing = sorted(required - set(prices.columns))
@@ -165,19 +264,23 @@ def _load_prices(args):
     return prices, provenance, path, provenance_path
 
 
-def _fundamental_signal(tickers):
+def _fundamental_signal(tickers, args):
     profitability = operating_profitability_buckets(tickers)
-    investment = investment_buckets(tickers)
     return (
         0.50 * profitability
-        + 0.50 * (6.0 - investment)
+        + 0.50 * book_to_market_buckets(tickers)
+        if args.signal_kind == "value_quality"
+        else (
+            0.50 * profitability
+            + 0.50 * (6.0 - investment_buckets(tickers))
+        )
     )
 
 
 def _rank_results(prices, args):
     candidate_periods, baseline_periods = _run_periods(
         prices,
-        _fundamental_signal(prices.columns),
+        _fundamental_signal(prices.columns, args),
         args,
     )
     return {
@@ -247,7 +350,7 @@ def _aggregate_gate(result, args):
     paired_gate, paired_holm = _paired_gate(
         paired,
         args.bootstrap_minimum_probability,
-        QUALITY_CANDIDATE,
+        _candidate_name(args),
     )
     reasons = (
         list(candidate_gate["reasons"])
@@ -266,7 +369,11 @@ def _aggregate_gate(result, args):
 
 def _write_report(payload, output_path):
     lines = [
-        "# Frozen Quality-Momentum Validation",
+        (
+            "# Frozen Value-Quality-Momentum Validation"
+            if payload["candidate"] == VALUE_QUALITY_CANDIDATE
+            else "# Frozen Quality-Momentum Validation"
+        ),
         "",
         f"- Split: `{payload['validation_split']}`",
         f"- Frozen from: `{payload['frozen_from']}`",
@@ -330,6 +437,11 @@ def _write_report(payload, output_path):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--signal-kind",
+        choices=("quality", "value_quality"),
+        default="quality",
+    )
     parser.add_argument("--csv", required=True)
     parser.add_argument("--price-provenance", required=True)
     parser.add_argument("--split-manifest", required=True)
@@ -352,6 +464,8 @@ def main(argv=None):
 
     try:
         frozen, frozen_path, frozen_sha = _load_frozen_result(args)
+        candidate = _candidate_name(args)
+        cases = _validation_cases(args)
         prices, provenance, price_path, provenance_path = (
             _load_prices(args)
         )
@@ -360,7 +474,7 @@ def main(argv=None):
             _load_json(split_path),
             split_id=args.validation_split,
             experiment_namespace=args.experiment_namespace,
-            objectives=[QUALITY_CANDIDATE],
+            objectives=[candidate],
             settings=_settings(args),
             evaluation_start=prices.index[args.train_window],
             evaluation_end=prices.index[
@@ -379,7 +493,7 @@ def main(argv=None):
         aggregate_result = _rank_results(prices, args)
         aggregate_gate = _aggregate_gate(aggregate_result, args)
         case_runs = []
-        for case in VALIDATION_CASES:
+        for case in cases:
             case_result = _rank_results(
                 prices.loc[:, list(case["tickers"])],
                 args,
@@ -398,7 +512,7 @@ def main(argv=None):
             for run in case_runs
         )
         validation_passed = bool(
-            passed_case_count == len(VALIDATION_CASES)
+            passed_case_count == len(cases)
             and aggregate_gate["status"] == "passed"
         )
         payload = {
@@ -422,10 +536,10 @@ def main(argv=None):
                 "ticker_count": int(len(prices.columns)),
             },
             "settings": _settings(args),
-            "candidate": QUALITY_CANDIDATE,
+            "candidate": candidate,
             "baseline": BASELINE,
             "passed_case_count": int(passed_case_count),
-            "case_count": int(len(VALIDATION_CASES)),
+            "case_count": int(len(cases)),
             "aggregate_gate": aggregate_gate,
             "case_runs": case_runs,
             "aggregate_rank_diagnostics": {

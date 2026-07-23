@@ -105,6 +105,8 @@
 - 다만 absolute P(IC>0)가 `91.60%`로 95%에 못 미쳐 최종 validation은 탈락입니다. Transformer HPO 또는 blend 재튜닝으로 이 결과에 맞추지 않습니다.
 - 별도 B/M×OP universe의 value-quality-momentum은 raw momentum 대비 paired IC/spread 개선 확률 `98.20%`/`95.75%`로 research gate를 통과했습니다.
 - 새 candidate도 고정 선형 신호이므로 Transformer HPO는 계속 보류하고 untouched validation부터 실행합니다.
+- untouched validation에서 value-quality-momentum 자체 IC/spread는 95% absolute gate를 통과했지만 baseline 대비 paired 확률은 `93.85%`/`94.20%`, 4-case는 `2/4`였습니다.
+- low-value/low-profitability 약점을 validation 결과로 보정하거나 Transformer로 fitting하지 않습니다.
 
 ## 선행조건
 
@@ -130,3 +132,4 @@
 - Quality-momentum research: `docs/reports/260724-0232-01-quality-momentum-research.md`
 - Quality-momentum validation: `docs/reports/260724-0238-01-quality-momentum-validation.md`
 - Value-quality-momentum research: `docs/reports/260724-0245-01-value-quality-momentum-research.md`
+- Value-quality-momentum validation: `docs/reports/260724-0250-01-value-quality-momentum-validation.md`
