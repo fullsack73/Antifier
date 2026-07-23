@@ -41,9 +41,26 @@ def test_quality_mode_parses_french_op_and_investment_quintiles():
     assert investment.tolist() == [1.0, 2.0, 4.0, 1.0, 5.0]
 
 
+def test_value_quality_mode_parses_book_to_market_quintiles():
+    labels = [
+        "LoBM LoOP",
+        "BM1 OP2",
+        "BM3 OP4",
+        "HiBM LoOP",
+        "HiBM HiOP",
+    ]
+
+    book_to_market = RESEARCH.book_to_market_buckets(labels)
+    profitability = RESEARCH.operating_profitability_buckets(labels)
+
+    assert book_to_market.tolist() == [1.0, 1.0, 3.0, 5.0, 5.0]
+    assert profitability.tolist() == [1.0, 2.0, 4.0, 1.0, 5.0]
+
+
 def test_quality_mode_freezes_half_momentum_quarter_op_and_investment():
     profitability = RESEARCH._settings(_args("profitability"))
     quality = RESEARCH._settings(_args("quality"))
+    value_quality = RESEARCH._settings(_args("value_quality"))
 
     assert profitability["momentum_weight"] == 0.50
     assert profitability["profitability_weight"] == 0.50
@@ -51,3 +68,6 @@ def test_quality_mode_freezes_half_momentum_quarter_op_and_investment():
     assert quality["momentum_weight"] == 0.50
     assert quality["profitability_weight"] == 0.25
     assert quality["conservative_investment_weight"] == 0.25
+    assert value_quality["momentum_weight"] == 0.50
+    assert value_quality["profitability_weight"] == 0.25
+    assert value_quality["value_weight"] == 0.25

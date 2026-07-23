@@ -103,6 +103,8 @@
 - 복잡한 Transformer HPO 없이 데이터/feature family 변경으로 uplift를 얻었습니다. frozen 4-case validation 전 architecture와 weight를 변경하지 않습니다.
 - untouched 2000~2011 validation에서도 quality-momentum은 raw momentum 대비 paired IC/spread gate와 4/4 case를 통과했습니다.
 - 다만 absolute P(IC>0)가 `91.60%`로 95%에 못 미쳐 최종 validation은 탈락입니다. Transformer HPO 또는 blend 재튜닝으로 이 결과에 맞추지 않습니다.
+- 별도 B/M×OP universe의 value-quality-momentum은 raw momentum 대비 paired IC/spread 개선 확률 `98.20%`/`95.75%`로 research gate를 통과했습니다.
+- 새 candidate도 고정 선형 신호이므로 Transformer HPO는 계속 보류하고 untouched validation부터 실행합니다.
 
 ## 선행조건
 
@@ -127,3 +129,4 @@
 - Profitability-momentum research: `docs/reports/260724-0226-01-profitability-momentum-research.md`
 - Quality-momentum research: `docs/reports/260724-0232-01-quality-momentum-research.md`
 - Quality-momentum validation: `docs/reports/260724-0238-01-quality-momentum-validation.md`
+- Value-quality-momentum research: `docs/reports/260724-0245-01-value-quality-momentum-research.md`

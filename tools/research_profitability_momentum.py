@@ -33,6 +33,7 @@ from research_split import validate_research_split_run  # noqa: E402
 
 CANDIDATE = "profitability_momentum"
 QUALITY_CANDIDATE = "quality_momentum"
+VALUE_QUALITY_CANDIDATE = "value_quality_momentum"
 BASELINE = "momentum_12_1"
 MOMENTUM_WEIGHT = 0.50
 
@@ -85,12 +86,32 @@ def investment_buckets(tickers):
     return pd.Series(values, dtype=float)
 
 
+def book_to_market_buckets(tickers):
+    """Parse fixed book-to-market quintiles from official French labels."""
+    values = {}
+    for ticker in tickers:
+        label = str(ticker).strip()
+        if "LoBM" in label:
+            bucket = 1
+        elif "HiBM" in label:
+            bucket = 5
+        else:
+            match = re.search(r"\bBM([1-5])(?:\s|$)", label)
+            if match is None:
+                raise ValueError(
+                    f"Cannot parse book-to-market bucket: {label}"
+                )
+            bucket = int(match.group(1))
+        values[label] = float(bucket)
+    return pd.Series(values, dtype=float)
+
+
 def _candidate_name(args):
-    return (
-        QUALITY_CANDIDATE
-        if args.signal_kind == "quality"
-        else CANDIDATE
-    )
+    if args.signal_kind == "quality":
+        return QUALITY_CANDIDATE
+    if args.signal_kind == "value_quality":
+        return VALUE_QUALITY_CANDIDATE
+    return CANDIDATE
 
 
 def _settings(args):
@@ -112,13 +133,19 @@ def _settings(args):
             args.bootstrap_minimum_probability
         ),
     }
-    if args.signal_kind == "quality":
+    if args.signal_kind in {"quality", "value_quality"}:
         settings.pop("profitability_weight")
         settings["profitability_weight"] = 0.25
-        settings["conservative_investment_weight"] = 0.25
-        settings["investment_signal"] = (
-            "inverse_official_annual_investment_quintile"
-        )
+        if args.signal_kind == "quality":
+            settings["conservative_investment_weight"] = 0.25
+            settings["investment_signal"] = (
+                "inverse_official_annual_investment_quintile"
+            )
+        else:
+            settings["value_weight"] = 0.25
+            settings["value_signal"] = (
+                "official_annual_book_to_market_quintile"
+            )
     return settings
 
 
@@ -284,7 +311,11 @@ def _write_report(payload, output_path):
         (
             "# Profitability-Momentum Research"
             if candidate_name == CANDIDATE
-            else "# Quality-Momentum Research"
+            else (
+                "# Quality-Momentum Research"
+                if candidate_name == QUALITY_CANDIDATE
+                else "# Value-Quality-Momentum Research"
+            )
         ),
         "",
         f"- Split: `{payload['research_split']}`",
@@ -358,7 +389,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--signal-kind",
-        choices=("profitability", "quality"),
+        choices=("profitability", "quality", "value_quality"),
         default="profitability",
     )
     parser.add_argument("--csv", required=True)
@@ -390,10 +421,19 @@ def main(argv=None):
             if args.signal_kind == "quality"
             else None
         )
+        book_to_market = (
+            book_to_market_buckets(prices.columns)
+            if args.signal_kind == "value_quality"
+            else None
+        )
         fundamental_signal = (
             profitability
-            if investment is None
-            else 0.50 * profitability + 0.50 * (6.0 - investment)
+            if investment is None and book_to_market is None
+            else (
+                0.50 * profitability + 0.50 * (6.0 - investment)
+                if investment is not None
+                else 0.50 * profitability + 0.50 * book_to_market
+            )
         )
         split_path = Path(args.split_manifest).expanduser().resolve()
         split = validate_research_split_run(
@@ -502,6 +542,16 @@ def main(argv=None):
                         "portfolio_investment_buckets": {
                         ticker: int(value)
                         for ticker, value in investment.items()
+                        }
+                    }
+                ),
+                **(
+                    {}
+                    if book_to_market is None
+                    else {
+                        "portfolio_book_to_market_buckets": {
+                            ticker: int(value)
+                            for ticker, value in book_to_market.items()
                         }
                     }
                 ),
