@@ -105,6 +105,8 @@
 - current lightweight point forecast를 유지하고 completed OOS residual RMSE로 uncertainty만 보정한 후보는 fresh French 17-industry research에서 volatility와 turnover를 낮췄습니다.
 - calibrated 후보 Sharpe는 `0.5100→0.5169`였지만 P(higher Sharpe) `71.05%`, P(higher return) `39.40%`, negative top-bottom spread로 statistical/signal gate를 통과하지 못했습니다.
 - validation을 열지 않고 public default를 변경하지 않습니다. uncertainty calibration hyperparameter와 Transformer capacity를 같은 결과에 맞춰 재탐색하지 않습니다.
+- fresh 35-industry research에서 lightweight forecast magnitude를 제거한 fixed 20% rank tilt도 mean IC `-0.0125`, spread `-0.00034`, Sharpe `0.6533`으로 탈락했습니다.
+- candidate P(higher Sharpe)는 current lightweight/equal-weight 대비 `28.40%`/`28.80%`였습니다. point ordering 자체가 약하므로 rank-view strength나 active share를 같은 split에서 재튜닝하지 않습니다.
 
 ## 금지
 

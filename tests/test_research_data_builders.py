@@ -80,3 +80,44 @@ def test_french_industry_builder_records_selected_source_and_count(
     assert provenance["source_portfolio_policy"] == (
         "synthetic two-portfolio test"
     )
+
+
+def test_french_industry_builder_records_explicit_exclusions(tmp_path):
+    archive_path = tmp_path / "industries.zip"
+    output_path = tmp_path / "prices.csv"
+    payload = "\n".join([
+        "Metadata",
+        "",
+        "Average Value Weighted Returns -- Daily",
+        ",Complete,Partial",
+        "20000103,1.00,-99.99",
+        "20000104,0.25,0.25",
+        "",
+    ])
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("industries.csv", payload)
+
+    status = build_industry_panel([
+        "--archive",
+        str(archive_path),
+        "--start",
+        "2000-01-03",
+        "--end",
+        "2000-01-04",
+        "--output",
+        str(output_path),
+        "--exclude-columns",
+        "Partial",
+    ])
+
+    provenance = json.loads(
+        output_path.with_suffix(".provenance.json").read_text()
+    )
+    assert status == 0
+    assert provenance["source_ticker_count"] == 2
+    assert provenance["ticker_count"] == 1
+    assert provenance["excluded_tickers"] == ["Partial"]
+    assert provenance["exclusion_diagnostics"]["Partial"] == {
+        "missing_row_count": 1,
+        "available_row_count": 1,
+    }

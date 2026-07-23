@@ -116,6 +116,11 @@
 - raw lightweight signal의 mean rank IC는 `0.0223`이지만 top-bottom spread가 `-0.00041`이라 signal gate도 실패했습니다. 후보를 폐기하고 `2000~2011` validation을 열지 않습니다.
 - BL raw view가 backtest `signal_scores`로 전달되지 않아 rank diagnostics가 항상 비던 결함을 수정했습니다. 이는 model weight를 바꾸지 않는 audit fix입니다.
 - OOS uncertainty 방향은 구현 검증됐지만 alpha 품질을 만들지 못했습니다. 같은 split에서 prior weight, origin 수, horizon을 재튜닝하거나 Transformer HPO 근거로 사용하지 않습니다.
+- fresh official French 38-industry source에서 장기 결측인 `Govt`, `Steam`, `Water`를 exact-name provenance로 제외하고 35개 complete portfolio `1981~1999` research panel을 잠갔습니다.
+- existing lightweight point forecast의 magnitude를 버리고 cross-sectional rank만 fixed 20% active-share tilt로 쓰는 후보를 사전 고정했습니다.
+- rank signal은 mean IC `-0.0125`, positive IC rate `43.94%`, top-bottom spread `-0.00034`로 absolute signal gate를 명확히 실패했습니다.
+- rank tilt Sharpe `0.6533`은 current lightweight BL `0.6688`, equal weight `0.6698`, historical BL `0.6993`보다 낮았습니다. P(higher Sharpe)는 current/equal 대비 `28.40%`/`28.80%`였습니다.
+- magnitude 제거로도 실패했으므로 병목은 lightweight point forecast의 cross-sectional ordering입니다. 같은 split에서 forecast horizon, active share, rank transform을 재튜닝하지 않고 `2000+` validation/holdout을 봉인합니다.
 
 ## 선행조건
 
@@ -144,3 +149,4 @@
 - Value-quality-momentum validation: `docs/reports/260724-0250-01-value-quality-momentum-validation.md`
 - Adaptive value-investment research: `docs/reports/260724-0301-01-adaptive-value-investment-momentum-research.md`
 - Lightweight OOS uncertainty research: `docs/reports/260724-0320-01-lightweight-oos-uncertainty-research.md`
+- Lightweight rank-tilt research: `docs/reports/260724-0332-01-lightweight-rank-tilt-research.md`

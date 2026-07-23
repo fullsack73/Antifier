@@ -88,6 +88,15 @@ def main(argv=None):
         "--portfolio-policy",
         help="Portfolio construction policy recorded in provenance",
     )
+    parser.add_argument(
+        "--exclude-columns",
+        nargs="*",
+        default=[],
+        help=(
+            "Explicit source portfolios excluded before completeness checks; "
+            "recorded in provenance"
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -102,6 +111,29 @@ def main(argv=None):
         ]
         if returns.empty:
             raise ValueError("No French industry rows in requested interval")
+        source_columns = list(returns.columns)
+        excluded_columns = list(dict.fromkeys(args.exclude_columns))
+        unknown_exclusions = [
+            column
+            for column in excluded_columns
+            if column not in returns.columns
+        ]
+        if unknown_exclusions:
+            raise ValueError(
+                "Unknown French industry exclusions: "
+                + ", ".join(unknown_exclusions)
+            )
+        exclusion_diagnostics = {
+            column: {
+                "missing_row_count": int(returns[column].isna().sum()),
+                "available_row_count": int(returns[column].notna().sum()),
+            }
+            for column in excluded_columns
+        }
+        if excluded_columns:
+            returns = returns.drop(columns=excluded_columns)
+        if returns.empty:
+            raise ValueError("Explicit exclusions removed every portfolio")
         missing = {
             column: int(returns[column].isna().sum())
             for column in returns.columns
@@ -139,8 +171,15 @@ def main(argv=None):
                     "start_date": prices.index.min().strftime("%Y-%m-%d"),
                     "end_date": prices.index.max().strftime("%Y-%m-%d"),
                     "row_count": int(len(prices)),
+                    "source_ticker_count": int(len(source_columns)),
                     "ticker_count": int(len(prices.columns)),
                     "tickers": list(prices.columns),
+                    "excluded_tickers": excluded_columns,
+                    "exclusion_diagnostics": exclusion_diagnostics,
+                    "exclusion_policy": (
+                        "explicit_source_column_exclusion_before_"
+                        "completeness_check"
+                    ),
                     "basket_manifest_sha256": _basket_digest(
                         prices.columns
                     ),

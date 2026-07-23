@@ -259,6 +259,49 @@ def test_calibrated_lightweight_bl_reports_oos_uncertainty():
     )
 
 
+def test_lightweight_rank_tilt_ignores_future_rows_and_hits_active_share():
+    prices = _synthetic_factor_research_data(
+        rows=580,
+        ticker_count=8,
+    )[0]
+    cutoff = 519
+    weights, diagnostics = (
+        portfolio_backtest._lightweight_rank_tilt_weights(
+            prices.iloc[:cutoff + 1],
+            63,
+            0.25,
+        )
+    )
+    mutated = prices.copy()
+    mutated.iloc[cutoff + 1:] *= np.linspace(
+        1.0,
+        20.0,
+        len(mutated) - cutoff - 1,
+    )[:, None]
+    repeated, repeated_diagnostics = (
+        portfolio_backtest._lightweight_rank_tilt_weights(
+            mutated.iloc[:cutoff + 1],
+            63,
+            0.25,
+        )
+    )
+
+    assert weights == pytest.approx(repeated)
+    assert diagnostics["signal_scores"] == pytest.approx(
+        repeated_diagnostics["signal_scores"]
+    )
+    assert sum(weights.values()) == pytest.approx(1.0)
+    assert max(weights.values()) <= 0.250001
+    equal_weight = 1.0 / len(weights)
+    active_share = 0.5 * sum(
+        abs(weight - equal_weight)
+        for weight in weights.values()
+    )
+    assert active_share == pytest.approx(
+        portfolio_backtest.LIGHTWEIGHT_RANK_TARGET_ACTIVE_SHARE
+    )
+
+
 def test_completed_forecast_targets_respect_training_cutoff():
     prices, factors = _synthetic_factor_research_data(rows=360)
     cutoff = prices.index[299]

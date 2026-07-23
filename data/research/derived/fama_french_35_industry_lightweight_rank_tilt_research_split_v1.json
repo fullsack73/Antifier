@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-35-industry-lightweight-rank-tilt-research-1983-1999-v1",
+  "role": "research",
+  "evaluation_start": "1983-08-29",
+  "evaluation_end": "1999-12-31",
+  "experiment_namespace": "forecast-v6-lightweight-rank-tilt",
+  "objectives": [
+    "lightweight_rank_tilt"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "portfolio_bootstrap_block_size": 21,
+    "signal_bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "lightweight_rank_tilt",
+    "primary_baseline": "lightweight_bl",
+    "portfolio_baselines": [
+      "lightweight_bl",
+      "equal_weight"
+    ],
+    "models": [
+      "equal_weight",
+      "risk_parity",
+      "historical_bl",
+      "lightweight_bl",
+      "lightweight_rank_tilt"
+    ],
+    "construction": {
+      "point_forecast": "unchanged_lightweight_ensemble",
+      "magnitude_policy": "cross_sectional_rank_only",
+      "allocator": "equal_weight_active_share_tilt",
+      "target_active_share": 0.2
+    }
+  },
+  "universe_manifest_sha256": "5bd009e368f260a90d5d7e8eaba29260e5a0745e45dddcc3226d2aec3c50fbe7",
+  "price_file_sha256": "3a45de79351150924a724e3235f5a80081894711cfa6f2aa0fdb97cb6a441642",
+  "factor_file_sha256": "03a069ca107a8ec7f75986fac81060ec7c314fc7d9b04e5ee8ceaef2363785b0",
+  "auxiliary_files": {
+    "price_provenance": "669b2e088b8bcc0478d2ce939de55b4d7fc5511cebae0511e9f8d18b08882de1",
+    "risk_free_provenance": "72c2d2bd2ca1854387a96214a46fb38639afb3559ff1510db38d3b7f31347c49"
+  },
+  "locked": true,
+  "manifest_sha256": "07d8e1cf02a6108563fd302f9df176e1b652a5960625dc3be4d130277ed07723"
+}

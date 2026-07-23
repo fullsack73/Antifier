@@ -84,6 +84,7 @@ from ticker_lists import get_ticker_group
 logger = logging.getLogger(__name__)
 
 TRADING_DAYS_PER_YEAR = 252
+LIGHTWEIGHT_RANK_TARGET_ACTIVE_SHARE = 0.20
 DEFAULT_BACKTEST_MODELS = (
     "equal_weight",
     "min_variance",
@@ -124,6 +125,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "trend_filtered_minimum_variance",
     "trend_filtered_risk_parity",
     "maximum_diversification",
+    "lightweight_rank_tilt",
 )
 
 PROMOTION_BASELINE_MODELS = (
@@ -728,6 +730,51 @@ def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_as
     }
 
 
+def _lightweight_rank_tilt_weights(
+    train_prices,
+    forecast_horizon,
+    max_asset_weight,
+):
+    """Map lightweight forecast ranks to a fixed active-share tilt."""
+    tickers = list(train_prices.columns)
+    forecasts = {}
+    failed = 0
+    for ticker in tickers:
+        prices = train_prices[ticker].dropna()
+        try:
+            period_return = lightweight_ensemble_forecast(
+                prices.values,
+                horizon=forecast_horizon,
+            )
+            forecasts[ticker] = _period_return_to_annual_simple_return(
+                period_return,
+                forecast_horizon,
+            )
+        except (TypeError, ValueError, FloatingPointError):
+            forecasts[ticker] = np.nan
+            failed += 1
+    scores = rank_to_unit_scores(
+        pd.Series(forecasts).reindex(tickers),
+        higher_is_better=True,
+    )
+    weights = signal_tilt_weights(
+        scores,
+        max_asset_weight=max_asset_weight,
+        target_active_share=LIGHTWEIGHT_RANK_TARGET_ACTIVE_SHARE,
+    )
+    return weights.to_dict(), {
+        "failed_forecast_count": int(failed),
+        "avg_forecast_confidence": None,
+        "signal_scores": _finite_series_dict(scores),
+        "forecast_rank_scores": _finite_series_dict(scores),
+        "raw_forecasts": _finite_series_dict(forecasts),
+        "construction_method": "equal_weight_active_share_tilt",
+        "target_active_share": (
+            LIGHTWEIGHT_RANK_TARGET_ACTIVE_SHARE
+        ),
+    }
+
+
 def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate,
                    market_caps=None, point_in_time_features=None,
                    previous_target_weights=None):
@@ -1123,6 +1170,13 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
         mu = _calculate_historical_cagr(train_prices)
         weights = _efficient_frontier_weights(mu, covariance, max_asset_weight, "max_sharpe", risk_free_rate)
         return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
+    if model_name == "lightweight_rank_tilt":
+        return _lightweight_rank_tilt_weights(
+            train_prices,
+            forecast_horizon,
+            max_asset_weight,
+        )
 
     bl_methods = {
         "historical_bl": "historical",
