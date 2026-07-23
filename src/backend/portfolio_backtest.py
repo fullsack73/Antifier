@@ -2134,7 +2134,11 @@ def _build_rebalance_targets_for_data(
                 if allow_cash_reserve
                 else 1.0
             )
-            weights = apply_min_holding_threshold(weights, min_holding_weight)
+            weights = apply_min_holding_threshold(
+                weights,
+                min_holding_weight,
+                max_asset_weight=max_asset_weight,
+            )
             weights = _normalize_weights(
                 weights,
                 train_prices.columns,

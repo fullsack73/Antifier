@@ -851,6 +851,78 @@ def test_optimizer_maps_no_view_to_prior_only_expected_return(monkeypatch):
     assert result["return_confidence"]["AAA"] == pytest.approx(portfolio_optimization.MIN_FORECAST_CONFIDENCE)
 
 
+def test_optimizer_min_holding_output_preserves_asset_cap(monkeypatch):
+    tickers = ["AAA", "BBB", "CCC"]
+    pipeline_result = {
+        "mu": pd.Series(
+            {"AAA": 0.10, "BBB": 0.08, "CCC": 0.06}
+        ),
+        "prior_mu": pd.Series(
+            {"AAA": 0.09, "BBB": 0.07, "CCC": 0.05}
+        ),
+        "S": pd.DataFrame(
+            np.diag([0.04, 0.03, 0.02]),
+            index=tickers,
+            columns=tickers,
+        ),
+        "uncertainties": pd.Series(
+            {"AAA": 0.20, "BBB": 0.20, "CCC": 0.20}
+        ),
+        "no_view_tickers": [],
+        "tickers": tickers,
+        "latest_prices": {"AAA": 100.0, "BBB": 80.0, "CCC": 60.0},
+    }
+
+    class FakeEfficientFrontier:
+        def __init__(self, mu, S, weight_bounds=None):
+            pass
+
+        def add_objective(self, *args, **kwargs):
+            pass
+
+        def max_sharpe(self, risk_free_rate=0.0):
+            pass
+
+        def clean_weights(self):
+            return {"AAA": 0.60, "BBB": 0.36, "CCC": 0.04}
+
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "data_and_forecast_pipeline",
+        lambda *args, **kwargs: pipeline_result,
+    )
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "EfficientFrontier",
+        FakeEfficientFrontier,
+    )
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "get_asset_names",
+        lambda selected: {ticker: ticker for ticker in selected},
+    )
+
+    result = portfolio_optimization.optimize_portfolio(
+        start_date="2024-01-01",
+        end_date="2024-12-31",
+        risk_free_rate=0.02,
+        tickers=tickers,
+        optimization_method="MPT",
+        forecast_method="LIGHTWEIGHT",
+        max_asset_weight=0.60,
+        min_holding_weight=0.05,
+    )
+
+    assert result["weights"] == pytest.approx(
+        {"AAA": 0.60, "BBB": 0.40}
+    )
+    assert sum(result["weights"].values()) == pytest.approx(1.0)
+    assert max(result["weights"].values()) <= 0.600000001
+    assert result["optimizer_controls"][
+        "effective_max_asset_weight"
+    ] == pytest.approx(0.60)
+
+
 def test_optimizer_adds_turnover_penalty_objective_when_current_weights_exist(monkeypatch):
     captured = {"objectives": []}
     pipeline_result = {
@@ -1526,6 +1598,65 @@ def test_min_holding_threshold_drops_small_weights_when_feasible():
 
     assert filtered["CCC"] == pytest.approx(0.0)
     assert filtered["AAA"] + filtered["BBB"] == pytest.approx(1.0)
+
+
+def test_min_holding_threshold_preserves_max_asset_weight():
+    filtered = portfolio_optimization.apply_min_holding_threshold(
+        {"AAA": 0.60, "BBB": 0.36, "CCC": 0.04},
+        min_holding_weight=0.05,
+        max_asset_weight=0.60,
+    )
+
+    assert filtered == pytest.approx(
+        {"AAA": 0.60, "BBB": 0.40, "CCC": 0.0}
+    )
+    assert sum(filtered.values()) == pytest.approx(1.0)
+    assert max(filtered.values()) <= 0.600000001
+
+
+def test_min_holding_threshold_retains_enough_assets_for_cap():
+    filtered = portfolio_optimization.apply_min_holding_threshold(
+        {"AAA": 0.80, "BBB": 0.10, "CCC": 0.10},
+        min_holding_weight=0.15,
+        max_asset_weight=0.60,
+    )
+
+    assert filtered == pytest.approx(
+        {"AAA": 0.60, "BBB": 0.40, "CCC": 0.0}
+    )
+    assert sum(filtered.values()) == pytest.approx(1.0)
+    assert max(filtered.values()) <= 0.600000001
+
+
+def test_backtest_min_holding_target_preserves_asset_cap(monkeypatch):
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_model_weights",
+        lambda *args, **kwargs: (
+            {"AAA": 0.60, "BBB": 0.36, "CCC": 0.04},
+            {"failed_forecast_count": 0},
+        ),
+    )
+
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _synthetic_prices(40),
+        models=("equal_weight",),
+        train_window=20,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+        transaction_cost_bps=0.0,
+        max_asset_weight=0.60,
+        min_holding_weight=0.05,
+        rebalance_band=0.0,
+        max_turnover=1.0,
+    )
+
+    assert result["rebalance_records"]
+    for record in result["rebalance_records"]:
+        assert record["weights"] == pytest.approx(
+            {"AAA": 0.60, "BBB": 0.40, "CCC": 0.0}
+        )
+        assert max(record["weights"].values()) <= 0.600000001
 
 
 def test_backtest_max_turnover_sensitivity_caps_controlled_turnover():

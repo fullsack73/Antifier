@@ -177,6 +177,8 @@
 - +100% synthetic period와 10% 비용에서 기존 gross `90.91%`가 `100%`, cost drag `9.09%p`가 `18.18%p`로 교정됐습니다. Net path와 optimizer weight는 바뀌지 않습니다.
 - Primary metric timeline이 비용 차감 후 첫 value에서 시작해 최초 배치 비용을 CAGR/Sharpe/drawdown에서 누락하던 결함을 수정했습니다. `initial_value`를 metric base로 사용하고 비용을 첫 실제 일수익률과 wealth drawdown에 포함합니다.
 - Flat-price synthetic에서 비용 후 terminal return `-9.09%`인데 CAGR이 `0%`였던 불일치가 제거됐습니다. Early-history mechanical diagnostic의 terminal wealth identity error는 모든 모델 `5.7e-14` 이하였습니다.
+- `min_holding_weight`로 작은 position을 제거한 뒤 단순 재정규화해 solver의 `max_asset_weight`를 위반하던 결함을 수정했습니다. Sparse selection 후 cap-preserving normalization을 적용하고 cap 충족에 필요한 최소 종목 수를 유지합니다.
+- `60/36/4`, minimum 5%, cap 60% 재현에서 기존 결과 `62.5/37.5/0`을 `60/40/0`으로 교정했습니다. Production과 backtest 양쪽에 합계 1/cap 불변식 회귀 테스트를 추가했습니다.
 
 ## 금지
 

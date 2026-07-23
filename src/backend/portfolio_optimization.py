@@ -35,6 +35,7 @@ from forecast_models import (
     no_view_prediction,
 )
 from lightweight_forecast import lightweight_ensemble_forecast
+from portfolio_signals import cap_and_normalize_weights
 
 # Configure logging for this module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -786,8 +787,12 @@ def _performance_for_weights(weights, expected_returns, covariance, risk_free_ra
     return expected_return, volatility, sharpe
 
 
-def apply_min_holding_threshold(weights, min_holding_weight=0.0):
-    """Drop tiny long-only positions and renormalize when the threshold is feasible."""
+def apply_min_holding_threshold(
+    weights,
+    min_holding_weight=0.0,
+    max_asset_weight=None,
+):
+    """Drop tiny positions while preserving a feasible long-only asset cap."""
     threshold = max(0.0, _safe_float(min_holding_weight, 0.0))
     series = (
         pd.Series(weights, dtype=float)
@@ -802,15 +807,71 @@ def apply_min_holding_threshold(weights, min_holding_weight=0.0):
     if total <= 0:
         return {str(ticker): 0.0 for ticker in series.index}
     normalized = series / total
-    if threshold <= 0:
-        return {str(ticker): float(weight) for ticker, weight in normalized.items()}
+    cap = _safe_float(max_asset_weight, np.nan)
+    has_cap = bool(
+        np.isfinite(cap)
+        and cap > 0.0
+        and cap < 1.0
+    )
+    if threshold <= 0.0:
+        if (
+            not has_cap
+            or float(normalized.max()) <= cap + 1e-12
+        ):
+            return {
+                str(ticker): float(weight)
+                for ticker, weight in normalized.items()
+            }
+        projected = cap_and_normalize_weights(
+            normalized,
+            max_asset_weight=cap,
+        )
+        return {
+            str(ticker): float(weight)
+            for ticker, weight in projected.items()
+        }
 
-    filtered = normalized.where(normalized >= threshold, 0.0)
+    if has_cap and threshold > cap + 1e-12:
+        projected = cap_and_normalize_weights(
+            normalized,
+            max_asset_weight=cap,
+        )
+        return {
+            str(ticker): float(weight)
+            for ticker, weight in projected.items()
+        }
+
+    selected = normalized >= threshold
+    if has_cap:
+        minimum_position_count = min(
+            len(normalized),
+            max(1, int(np.ceil((1.0 - 1e-12) / cap))),
+        )
+        if int(selected.sum()) < minimum_position_count:
+            ranked = normalized.sort_values(
+                ascending=False,
+                kind="mergesort",
+            )
+            selected.loc[ranked.index[:minimum_position_count]] = True
+
+    filtered = normalized.loc[selected]
     filtered_total = float(filtered.sum())
     if filtered_total <= 0:
-        return {str(ticker): float(weight) for ticker, weight in normalized.items()}
-    filtered = filtered / filtered_total
-    return {str(ticker): float(weight) for ticker, weight in filtered.items()}
+        projected = cap_and_normalize_weights(
+            normalized,
+            max_asset_weight=cap if has_cap else None,
+        )
+    else:
+        projected = cap_and_normalize_weights(
+            filtered / filtered_total,
+            max_asset_weight=cap if has_cap else None,
+        )
+    result = pd.Series(0.0, index=normalized.index, dtype=float)
+    result.loc[projected.index] = projected
+    return {
+        str(ticker): float(weight)
+        for ticker, weight in result.items()
+    }
 
 
 def _turnover_penalty_objective(weights, current_weights, gamma=0.0):
@@ -2545,10 +2606,21 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             weights = ef.clean_weights()
             solver_objective = "max_sharpe"
 
-        thresholded_weights = apply_min_holding_threshold(weights, min_holding_weight)
+        thresholded_weights = apply_min_holding_threshold(
+            weights,
+            max(
+                1e-4,
+                max(0.0, _safe_float(min_holding_weight, 0.0)),
+            ),
+            max_asset_weight=effective_max_asset_weight,
+        )
         
         # Filter out assets with near-zero weight
-        final_weights = {ticker: weight for ticker, weight in thresholded_weights.items() if weight > 1e-4}
+        final_weights = {
+            ticker: weight
+            for ticker, weight in thresholded_weights.items()
+            if weight > 0.0
+        }
         control_payload = {}
         controls_requested = rebalance_band is not None or max_turnover is not None
         if controls_requested and current_weights:
@@ -2611,6 +2683,16 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 "l2_gamma": float(l2_gamma),
                 "turnover_penalty": float(turnover_penalty),
                 "min_holding_weight": float(max(0.0, _safe_float(min_holding_weight, 0.0))),
+                "requested_max_asset_weight": (
+                    None
+                    if max_asset_weight is None
+                    else float(max_asset_weight)
+                ),
+                "effective_max_asset_weight": (
+                    None
+                    if effective_max_asset_weight is None
+                    else float(effective_max_asset_weight)
+                ),
             },
         }
         result_payload.update(control_payload)
