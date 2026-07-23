@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "split_id": "nasdaq100-quarterly-ttm-predictor-research-2020-2021-v1",
+  "role": "research",
+  "evaluation_start": "2020-01-01",
+  "evaluation_end": "2021-09-30",
+  "experiment_namespace": "pit-factor-v5-quarterly-ttm-predictor-nasdaq100",
+  "objectives": [
+    "factor_residual_nested_ridge"
+  ],
+  "settings": {
+    "horizon": 63,
+    "rebalance_step": 63,
+    "minimum_feature_history": 253,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 12,
+    "minimum_observations": 40,
+    "ridge_penalty": 5.0,
+    "nested_ridge_penalties": [
+      1.0,
+      5.0,
+      20.0,
+      100.0
+    ],
+    "nested_validation_periods": 3,
+    "nominal_uncertainty_coverage": 0.8,
+    "target_factor_policy": "separate_point_in_time_target_factors"
+  },
+  "universe_manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+  "price_file_sha256": "03e97a80a69e58e82b06f7784ea9210fa738fd3069b51d767e52013df299dfbf",
+  "factor_file_sha256": "44565520849f6cf2583faa06999769de29f109a206183c1d05bae0ff6d71c669",
+  "auxiliary_files": {
+    "target_factor_file_sha256": "44565520849f6cf2583faa06999769de29f109a206183c1d05bae0ff6d71c669"
+  },
+  "locked": true,
+  "manifest_sha256": "a82a5fc06f6362a47635333d52434ebf9846d5ed65e0fd561772a614c01f13a9"
+}

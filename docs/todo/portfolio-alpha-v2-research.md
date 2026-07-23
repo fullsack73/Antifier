@@ -80,6 +80,8 @@
 - Nasdaq holdout은 소진됐으며 같은 결과를 사용한 feature/penalty 재탐색을 금지합니다.
 - PIT factor-residual의 centered percentile rank를 직접 학습하는 nested objective도 raw nested보다 IC와 spread가 낮아 폐기했습니다.
 - rank-target minus raw paired P(higher)는 IC `18.75%`, spread `1.75%`였습니다. 같은 DOW 기간에서 tail-weight 변형을 연속 탐색하지 않습니다.
+- quarterly TTM PIT는 filing age를 약 306~309일에서 58~62일로 줄였지만 Nasdaq 2020~2021 research에서 annual predictor보다 IC `-0.0081`, spread `-0.0112` 열위였습니다.
+- realized target을 동일하게 고정한 비교에서도 annual과 quarterly 후보 모두 signal gate를 통과하지 못했습니다. 같은 Nasdaq 기간에서 분기 feature 변형을 연속 탐색하지 않습니다.
 
 ## 참고
 
@@ -89,3 +91,4 @@
 - pooled price-only 결과: `docs/reports/260723-2032-01-pooled-cross-sectional-research.md`
 - 독립 holdout 결과: `docs/reports/260724-0000-01-nasdaq100-frozen-holdout.md`
 - Rank-target 폐기: `docs/reports/260724-0009-01-rank-target-research.md`
+- Quarterly TTM 폐기: `docs/reports/260724-0024-01-quarterly-ttm-research.md`

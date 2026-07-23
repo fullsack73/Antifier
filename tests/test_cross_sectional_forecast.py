@@ -641,6 +641,45 @@ def test_research_cli_requires_matching_factor_provenance(tmp_path):
     assert "--factor-data requires --factor-provenance" in result.stderr
 
 
+def test_research_cli_requires_target_factor_provenance(tmp_path):
+    prices_path = tmp_path / "prices.csv"
+    target_factor_path = tmp_path / "target_factors.csv"
+    output_path = tmp_path / "result.json"
+    prices = _research_prices(rows=300)
+    prices.to_csv(prices_path)
+    _point_in_time_features(prices).to_csv(
+        target_factor_path,
+        index=False,
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "research_cross_sectional_forecasts.py"),
+            "--csv",
+            str(prices_path),
+            "--research-split",
+            "research_a",
+            "--experiment-namespace",
+            "target_factor_a",
+            "--target-factor-data",
+            str(target_factor_path),
+            "--output",
+            str(output_path),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert (
+        "--target-factor-data requires --target-factor-provenance"
+        in result.stderr
+    )
+
+
 def test_promotion_safe_cli_requires_hashed_price_provenance(tmp_path):
     prices_path = tmp_path / "prices.csv"
     manifest_path = tmp_path / "manifest.csv"

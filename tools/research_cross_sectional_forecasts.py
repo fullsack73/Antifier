@@ -71,6 +71,10 @@ def _research_settings(args):
         settings["market_beta_policy"] = (
             "fama_french_market_total_return"
         )
+    if args.target_factor_data:
+        settings["target_factor_policy"] = (
+            "separate_point_in_time_target_factors"
+        )
     return settings
 
 
@@ -137,19 +141,24 @@ def _load_universe(args):
     return manifest, provenance
 
 
-def _load_factor_data(args):
-    if not args.factor_data:
-        if args.factor_provenance:
+def _load_verified_factor_data(
+    factor_data,
+    factor_provenance,
+    data_flag,
+    provenance_flag,
+):
+    if not factor_data:
+        if factor_provenance:
             raise ValueError(
-                "--factor-provenance requires --factor-data"
+                f"{provenance_flag} requires {data_flag}"
             )
         return None, None
-    if not args.factor_provenance:
+    if not factor_provenance:
         raise ValueError(
-            "--factor-data requires --factor-provenance"
+            f"{data_flag} requires {provenance_flag}"
         )
-    factor_path = Path(args.factor_data).expanduser().resolve()
-    provenance_path = Path(args.factor_provenance).expanduser().resolve()
+    factor_path = Path(factor_data).expanduser().resolve()
+    provenance_path = Path(factor_provenance).expanduser().resolve()
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
     actual_digest = _sha256(factor_path)
     expected_digest = str(provenance.get("feature_file_sha256") or "")
@@ -175,6 +184,24 @@ def _load_factor_data(args):
             and provenance.get("promotion_safe", False)
         ),
     }
+
+
+def _load_factor_data(args):
+    return _load_verified_factor_data(
+        args.factor_data,
+        args.factor_provenance,
+        "--factor-data",
+        "--factor-provenance",
+    )
+
+
+def _load_target_factor_data(args):
+    return _load_verified_factor_data(
+        args.target_factor_data,
+        args.target_factor_provenance,
+        "--target-factor-data",
+        "--target-factor-provenance",
+    )
 
 
 def _load_market_factor_data(args):
@@ -256,6 +283,7 @@ def _load_split_manifest(
     universe_provenance,
     price_provenance,
     factor_provenance,
+    target_factor_provenance,
     market_factor_provenance,
 ):
     if not args.split_manifest:
@@ -295,15 +323,30 @@ def _load_split_manifest(
             if factor_provenance is None
             else factor_provenance.get("feature_file_sha256")
         ),
-        auxiliary_files=(
-            {}
-            if market_factor_provenance is None
-            else {
-                "market_factor_file_sha256": (
-                    market_factor_provenance["factor_file_sha256"]
-                )
-            }
-        ),
+        auxiliary_files={
+            **(
+                {}
+                if target_factor_provenance is None
+                else {
+                    "target_factor_file_sha256": (
+                        target_factor_provenance[
+                            "feature_file_sha256"
+                        ]
+                    )
+                }
+            ),
+            **(
+                {}
+                if market_factor_provenance is None
+                else {
+                    "market_factor_file_sha256": (
+                        market_factor_provenance[
+                            "factor_file_sha256"
+                        ]
+                    )
+                }
+            ),
+        },
     )
     return {
         **validated,
@@ -316,6 +359,7 @@ def _validate_data_lineage(
     universe_provenance,
     price_provenance,
     factor_provenance,
+    target_factor_provenance=None,
     market_factor_provenance=None,
 ):
     expected_universe = str(
@@ -334,34 +378,35 @@ def _validate_data_lineage(
             "price provenance universe hash does not match the loaded "
             "universe manifest"
         )
-    if factor_provenance is not None:
+    expected_price = (
+        ""
+        if price_provenance is None
+        else str(
+            price_provenance.get("price_file_sha256") or ""
+        ).strip()
+    )
+    for label, provenance in (
+        ("factor", factor_provenance),
+        ("target factor", target_factor_provenance),
+    ):
+        if provenance is None:
+            continue
         factor_universe = str(
-            factor_provenance.get("universe", {}).get(
-                "manifest_sha256"
-            )
+            provenance.get("universe", {}).get("manifest_sha256")
             or ""
         ).strip()
         if factor_universe != expected_universe:
             issues.append(
-                "factor provenance universe hash does not match the loaded "
-                "universe manifest"
+                f"{label} provenance universe hash does not match the "
+                "loaded universe manifest"
             )
-        expected_price = (
-            ""
-            if price_provenance is None
-            else str(
-                price_provenance.get("price_file_sha256") or ""
-            ).strip()
-        )
         factor_price = str(
-            factor_provenance.get("prices", {}).get(
-                "price_file_sha256"
-            )
+            provenance.get("prices", {}).get("price_file_sha256")
             or ""
         ).strip()
         if factor_price != expected_price:
             issues.append(
-                "factor provenance price hash does not match the loaded "
+                f"{label} provenance price hash does not match the loaded "
                 "price data"
             )
     if issues:
@@ -377,6 +422,11 @@ def _validate_data_lineage(
             None
             if factor_provenance is None
             else factor_provenance.get("feature_file_sha256")
+        ),
+        "target_factor_file_sha256": (
+            None
+            if target_factor_provenance is None
+            else target_factor_provenance.get("feature_file_sha256")
         ),
         "market_factor_file_sha256": (
             None
@@ -548,6 +598,14 @@ def main(argv=None):
         "--factor-provenance",
         help="JSON provenance containing the PIT factor CSV SHA-256",
     )
+    parser.add_argument(
+        "--target-factor-data",
+        help="Optional PIT factor CSV used only for realized targets",
+    )
+    parser.add_argument(
+        "--target-factor-provenance",
+        help="JSON provenance for the realized-target PIT factor CSV",
+    )
     parser.add_argument("--market-factor-data")
     parser.add_argument("--market-factor-provenance")
     parser.add_argument(
@@ -606,6 +664,9 @@ def main(argv=None):
         price_provenance = _load_price_provenance(args)
         prices = _load_prices(args, universe_manifest=universe_manifest)
         factor_data, factor_provenance = _load_factor_data(args)
+        target_factor_data, target_factor_provenance = (
+            _load_target_factor_data(args)
+        )
         market_factor_returns, market_factor_provenance = (
             _load_market_factor_data(args)
         )
@@ -613,6 +674,7 @@ def main(argv=None):
             universe_provenance,
             price_provenance,
             factor_provenance,
+            target_factor_provenance,
             market_factor_provenance,
         )
         split_manifest = _load_split_manifest(
@@ -620,6 +682,7 @@ def main(argv=None):
             universe_provenance,
             price_provenance,
             factor_provenance,
+            target_factor_provenance,
             market_factor_provenance,
         )
         comparison = compare_pooled_objectives(
@@ -635,6 +698,7 @@ def main(argv=None):
             nested_validation_periods=args.nested_validation_periods,
             market_factor_returns=market_factor_returns,
             point_in_time_features=factor_data,
+            target_point_in_time_features=target_factor_data,
             universe_manifest=universe_manifest,
             evaluation_start=args.evaluation_start,
             evaluation_end=args.evaluation_end,
@@ -648,6 +712,10 @@ def main(argv=None):
             and (
                 factor_provenance is None
                 or factor_provenance["promotion_safe"]
+            )
+            and (
+                target_factor_provenance is None
+                or target_factor_provenance["promotion_safe"]
             )
             and (
                 market_factor_provenance is None
@@ -686,6 +754,7 @@ def main(argv=None):
             },
             "universe": universe_provenance,
             "factor_data": factor_provenance,
+            "target_factor_data": target_factor_provenance,
             "market_factor_data": market_factor_provenance,
             "comparison": comparison,
         }

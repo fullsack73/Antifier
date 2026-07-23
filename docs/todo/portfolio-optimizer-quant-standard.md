@@ -68,6 +68,8 @@
 - frozen nested ridge는 Nasdaq holdout에서 IC `0.0260`, spread `-0.0022`였고 fixed 대비 paired improvement 확률도 `60.55%`/`61.35%`에 그쳐 탈락했습니다.
 - 이 실패로 current alpha engine은 quant-standard 승격 조건을 충족하지 못합니다.
 - 후속 rank-target nested ridge도 raw nested보다 IC `-0.0090`, spread `-0.0075` 열위여서 폐기했습니다.
+- quarterly TTM PIT로 filing freshness는 약 5배 개선됐지만 Nasdaq 2020~2021 research에서 annual predictor보다 IC `-0.0081`, spread `-0.0112` 낮아 폐기했습니다.
+- 7개 OOS period로 통계 power도 부족합니다. 같은 기간의 TTM/penalty 재튜닝 대신 새 universe와 feature family가 필요합니다.
 
 ## 금지
 

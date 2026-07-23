@@ -86,6 +86,10 @@
 - 이 holdout 결과로 penalty, grid, 기간을 재튜닝하지 않습니다. 현재 증거는 Transformer hyperparameter 확대보다 새로운 feature/model family와 새 untouched holdout이 필요함을 지지합니다.
 - 새 v4 research namespace에서 cross-sectional percentile-rank target을 직접 학습하는 nested ridge를 사전 잠그고 비교했습니다.
 - rank-target은 raw nested 대비 IC `0.0538<0.0627`, spread `0.0078<0.0153`이었고 paired improvement 확률도 `18.75%`/`1.75%`여서 폐기했습니다.
+- 분기 filing anchor와 YTD 차감으로 quarterly TTM PIT feature 2,170행/123 ticker를 생성했습니다. median feature age는 annual 약 306~309일에서 quarterly 약 58~62일로 감소했습니다.
+- annual/quarterly predictor 비교에서 realized residual target을 같은 quarterly PIT frame으로 고정해 target 변경 혼입을 제거했습니다.
+- Nasdaq 2020~2021 research의 annual predictor는 IC `-0.0424`, spread `-0.0151`, quarterly predictor는 IC `-0.0505`, spread `-0.0263`으로 둘 다 탈락했습니다.
+- 7개 OOS period는 block bootstrap 최소 표본에도 미달합니다. 같은 기간에서 TTM window, 시작일, penalty를 재튜닝하지 않습니다.
 
 ## 선행조건
 
@@ -103,3 +107,4 @@
 - pooled research 결과: `docs/reports/260723-2032-01-pooled-cross-sectional-research.md`
 - Nasdaq locked holdout: `docs/reports/260724-0000-01-nasdaq100-frozen-holdout.md`
 - Rank-target research: `docs/reports/260724-0009-01-rank-target-research.md`
+- Quarterly TTM research: `docs/reports/260724-0024-01-quarterly-ttm-research.md`
