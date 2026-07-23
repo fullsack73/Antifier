@@ -23,6 +23,7 @@ PIT_ALPHA_FEATURES = (
     "liquidity",
 )
 PIT_CASH_ACCRUAL_FEATURES = ("cash_accrual_quality",)
+PIT_SEASONAL_EARNINGS_FEATURES = ("seasonal_earnings_change",)
 FACTOR_NEUTRAL_TARGET_ACTIVE_SHARE = 0.20
 
 

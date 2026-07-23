@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "split_id": "nasdaq100-seasonal-earnings-research-2018-2019-v1",
+  "role": "research",
+  "evaluation_start": "2018-01-03",
+  "evaluation_end": "2019-09-05",
+  "experiment_namespace": "alpha-v24-seasonal-earnings",
+  "objectives": [
+    "seasonal_earnings_momentum"
+  ],
+  "settings": {
+    "train_window": 252,
+    "horizon": 63,
+    "rebalance_step": 21,
+    "momentum_lookback": 252,
+    "momentum_skip": 21,
+    "momentum_weight": 0.5,
+    "seasonal_earnings_weight": 0.5,
+    "seasonal_earnings_definition": "(current_quarter_net_income-prior_year_same_quarter_net_income)/assets",
+    "bootstrap_samples": 4000,
+    "bootstrap_block_size": 3,
+    "bootstrap_minimum_probability": 0.95,
+    "fresh_period": false
+  },
+  "universe_manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+  "price_file_sha256": "e6ae09bdec0950038d3157c947ed8d12949bc087810abacbd6c92dd25906e9ca",
+  "factor_file_sha256": "31e545fb16c83a302ef43e83ab359b60c7dc0b1bfbd82dd89b48d1823e1cf36e",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "ea53cdf4b94462f5a3c1a19f947f10c41d00c6b2dba0113fedd2c29b8365213a"
+}

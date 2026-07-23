@@ -245,6 +245,55 @@ def _quarterly_company_facts(include_future_amendment=False):
     }
 
 
+def _quarterly_company_facts_with_next_year():
+    facts = _quarterly_company_facts()
+    us_gaap = facts["facts"]["us-gaap"]
+    flow_values = {
+        "NetIncomeLoss": 25.0,
+        "Revenues": 250.0,
+        "GrossProfit": 100.0,
+        "NetCashProvidedByUsedInOperatingActivities": 35.0,
+    }
+    for concept, value in flow_values.items():
+        us_gaap[concept]["units"]["USD"].append(
+            _duration_fact(
+                value,
+                "2024-01-01",
+                "2024-03-31",
+                "2024-05-01",
+                "q5",
+                form="10-Q",
+            )
+        )
+    instant_values = {
+        "Assets": 1100.0,
+        "AssetsCurrent": 330.0,
+        "LiabilitiesCurrent": 165.0,
+    }
+    for concept, value in instant_values.items():
+        us_gaap[concept]["units"]["USD"].append(
+            _instant_fact(
+                value,
+                "2024-03-31",
+                "2024-05-01",
+                "q5",
+                form="10-Q",
+            )
+        )
+    facts["facts"]["dei"]["EntityCommonStockSharesOutstanding"][
+        "units"
+    ]["shares"].append(
+        _instant_fact(
+            10.0,
+            "2024-03-31",
+            "2024-05-01",
+            "q5",
+            form="10-Q",
+        )
+    )
+    return facts
+
+
 def test_company_features_use_sec_filing_date_and_filing_date_price():
     prices = pd.Series(
         [9.0, 10.0, 19.0, 20.0],
@@ -437,6 +486,53 @@ def test_quarterly_ttm_features_derive_ytd_and_fourth_quarter_flows():
     assert row["cash_accrual_quality"] == pytest.approx(
         (130.0 - 100.0) / 1000.0
     )
+
+
+def test_seasonal_earnings_change_is_opt_in_and_point_in_time():
+    prices = pd.Series(
+        [10.0] * 5,
+        index=pd.to_datetime(
+            [
+                "2023-05-01",
+                "2023-08-01",
+                "2023-11-01",
+                "2024-02-15",
+                "2024-05-01",
+            ]
+        ),
+    )
+    facts = _quarterly_company_facts_with_next_year()
+
+    core = build_company_quarterly_ttm_features(
+        "EXM",
+        facts,
+        {"sic": "3571"},
+        prices,
+    )
+    extended = build_company_quarterly_ttm_features(
+        "EXM",
+        facts,
+        {"sic": "3571"},
+        prices,
+        include_seasonal_earnings_change=True,
+    )
+
+    assert "seasonal_earnings_change" not in core.columns
+    assert extended.iloc[:4]["seasonal_earnings_change"].isna().all()
+    assert extended.iloc[-1]["seasonal_earnings_change"] == pytest.approx(
+        (25.0 - 10.0) / 1100.0
+    )
+
+
+def test_seasonal_earnings_change_requires_quarterly_feature_set():
+    with pytest.raises(ValueError, match="requires quarterly-ttm"):
+        build_sec_pit_features(
+            [],
+            pd.DataFrame(),
+            object(),
+            filing_frequency="annual",
+            include_seasonal_earnings_change=True,
+        )
 
 
 def test_future_quarterly_amendment_does_not_rewrite_prior_row():

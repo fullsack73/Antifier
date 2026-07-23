@@ -19,6 +19,7 @@ if str(BACKEND) not in sys.path:
 
 from portfolio_alpha_v2 import (  # noqa: E402
     PIT_CASH_ACCRUAL_FEATURES,
+    PIT_SEASONAL_EARNINGS_FEATURES,
     normalize_point_in_time_features,
 )
 from portfolio_backtest import fetch_backtest_price_data  # noqa: E402
@@ -197,7 +198,11 @@ def main(argv=None):
     )
     parser.add_argument(
         "--feature-set",
-        choices=("core", "core-cash-accrual"),
+        choices=(
+            "core",
+            "core-cash-accrual",
+            "core-seasonal-earnings-change",
+        ),
         default="core",
         help="Opt-in feature extension; core preserves existing artifacts",
     )
@@ -208,6 +213,13 @@ def main(argv=None):
         end = pd.Timestamp(args.end)
         if start > end:
             raise ValueError("--start must be on or before --end")
+        if (
+            args.feature_set == "core-seasonal-earnings-change"
+            and args.filing_frequency != "quarterly-ttm"
+        ):
+            raise ValueError(
+                "core-seasonal-earnings-change requires quarterly-ttm filings"
+            )
         manifest, universe_provenance = _load_universe(args)
         tickers = (
             sorted({ticker.strip().upper() for ticker in args.tickers})
@@ -315,6 +327,9 @@ def main(argv=None):
             include_cash_accrual_quality=(
                 args.feature_set == "core-cash-accrual"
             ),
+            include_seasonal_earnings_change=(
+                args.feature_set == "core-seasonal-earnings-change"
+            ),
         )
         if features.empty:
             failure_summary = json.dumps(
@@ -330,7 +345,12 @@ def main(argv=None):
             extra_feature_columns=(
                 PIT_CASH_ACCRUAL_FEATURES
                 if args.feature_set == "core-cash-accrual"
-                else ()
+                else (
+                    PIT_SEASONAL_EARNINGS_FEATURES
+                    if args.feature_set
+                    == "core-seasonal-earnings-change"
+                    else ()
+                )
             ),
         )
         features = features.sort_values(

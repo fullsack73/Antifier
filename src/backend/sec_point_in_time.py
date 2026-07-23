@@ -747,6 +747,28 @@ def _trailing_four_quarters(quarter_history, report_end):
     return float(sum(value for _, value in trailing))
 
 
+def _seasonal_quarter_change(
+    quarter_history,
+    report_end,
+    scale,
+):
+    """Return current-minus-prior-year quarter flow scaled by current assets."""
+    report_end = pd.Timestamp(report_end)
+    current = quarter_history.get(report_end)
+    if current is None or not np.isfinite(float(current)):
+        return np.nan
+    prior = [
+        (abs(int((report_end - pd.Timestamp(date)).days) - 365), value)
+        for date, value in quarter_history.items()
+        if 320 <= int((report_end - pd.Timestamp(date)).days) <= 410
+        and np.isfinite(float(value))
+    ]
+    if not prior:
+        return np.nan
+    _, prior_value = min(prior, key=lambda item: item[0])
+    return _safe_ratio(float(current) - float(prior_value), scale)
+
+
 def _periodic_weighted_shares(company_facts, anchor):
     entries = _anchor_duration_entries(
         company_facts,
@@ -1023,6 +1045,7 @@ def build_company_quarterly_ttm_features(
     end_date=None,
     sector_override=None,
     include_cash_accrual_quality=False,
+    include_seasonal_earnings_change=False,
 ):
     """Build filing-date quarterly TTM features without future filings."""
     ticker = str(ticker).strip().upper()
@@ -1120,6 +1143,11 @@ def build_company_quarterly_ttm_features(
             ),
             assets,
         )
+        seasonal_earnings_change = _seasonal_quarter_change(
+            quarter_history["net_income"],
+            anchor["report_end"],
+            assets,
+        )
         profitability = _safe_ratio(
             trailing["gross_profit"],
             trailing["revenue"],
@@ -1144,6 +1172,8 @@ def build_company_quarterly_ttm_features(
         ]
         if include_cash_accrual_quality:
             row_features.append(cash_accrual_quality)
+        if include_seasonal_earnings_change:
+            row_features.append(seasonal_earnings_change)
         if all(
             not np.isfinite(value)
             for value in row_features
@@ -1166,6 +1196,8 @@ def build_company_quarterly_ttm_features(
         }
         if include_cash_accrual_quality:
             row["cash_accrual_quality"] = cash_accrual_quality
+        if include_seasonal_earnings_change:
+            row["seasonal_earnings_change"] = seasonal_earnings_change
         rows.append(row)
     if not rows:
         feature_columns = [
@@ -1180,6 +1212,8 @@ def build_company_quarterly_ttm_features(
         ]
         if include_cash_accrual_quality:
             feature_columns.append("cash_accrual_quality")
+        if include_seasonal_earnings_change:
+            feature_columns.append("seasonal_earnings_change")
         return pd.DataFrame(
             columns=feature_columns
             + [
@@ -1207,6 +1241,7 @@ def build_sec_pit_features(
     refresh=False,
     filing_frequency="annual",
     include_cash_accrual_quality=False,
+    include_seasonal_earnings_change=False,
 ):
     """Fetch SEC facts and construct a long-form PIT feature dataset."""
     prices = pd.DataFrame(prices).copy()
@@ -1215,6 +1250,15 @@ def build_sec_pit_features(
     if filing_frequency not in {"annual", "quarterly-ttm"}:
         raise ValueError(
             "filing_frequency must be annual or quarterly-ttm"
+        )
+    if include_cash_accrual_quality and include_seasonal_earnings_change:
+        raise ValueError("Extended SEC feature sets are mutually exclusive")
+    if (
+        include_seasonal_earnings_change
+        and filing_frequency != "quarterly-ttm"
+    ):
+        raise ValueError(
+            "seasonal earnings change requires quarterly-ttm filings"
         )
     ticker_map = client.ticker_cik_map(refresh=refresh)
     frames = []
@@ -1293,6 +1337,15 @@ def build_sec_pit_features(
                     include_cash_accrual_quality=(
                         include_cash_accrual_quality
                     ),
+                    **(
+                        {
+                            "include_seasonal_earnings_change": (
+                                include_seasonal_earnings_change
+                            )
+                        }
+                        if filing_frequency == "quarterly-ttm"
+                        else {}
+                    ),
                 )
                 if not frame.empty:
                     ticker_frames.append(frame)
@@ -1357,9 +1410,13 @@ def build_sec_pit_features(
         "feature_policy": {
             "filing_frequency": filing_frequency,
             "feature_set": (
-                "core-cash-accrual"
-                if include_cash_accrual_quality
-                else "core"
+                "core-seasonal-earnings-change"
+                if include_seasonal_earnings_change
+                else (
+                    "core-cash-accrual"
+                    if include_cash_accrual_quality
+                    else "core"
+                )
             ),
             "quality": "operating_cash_flow/assets; net_income/assets fallback",
             "profitability": "gross_profit/revenue; net_margin fallback",
@@ -1378,6 +1435,16 @@ def build_sec_pit_features(
                     )
                 }
                 if include_cash_accrual_quality
+                else {}
+            ),
+            **(
+                {
+                    "seasonal_earnings_change": (
+                        "(current_quarter_net_income-"
+                        "prior_year_same_quarter_net_income)/assets"
+                    )
+                }
+                if include_seasonal_earnings_change
                 else {}
             ),
         },

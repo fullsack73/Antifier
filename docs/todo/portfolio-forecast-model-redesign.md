@@ -141,6 +141,8 @@
 - Raw momentum portfolio는 lightweight 대비 return/Sharpe uplift 확률 `96.35%/95.40%`였지만 absolute/paired signal 및 risk-parity guard를 통과하지 못했습니다. 약한 current model을 확인했다는 이유만으로 불완전한 replacement를 승격하지 않습니다.
 - candidate의 paired P(higher IC/spread)는 `35.75%`/`40.25%`였고 계산시간은 baseline `32.68s`에서 `50.64s`로 증가했습니다. macro/regime interaction도 Transformer HPO 근거를 만들지 못했습니다.
 - 1953+ validation/holdout을 열지 않고 같은 split에서 lookback, threshold, interaction subset을 재튜닝하지 않습니다.
+- local companyfacts의 opt-in seasonal earnings change는 94.43% coverage를 확보했지만 2018-2019 exploratory Nasdaq에서 candidate IC `-0.0376`, spread `-0.0111`로 momentum보다 악화됐습니다.
+- 두 public S&P 500 membership 원본은 과거 구성 누락이 있었고 Yahoo/Stooq는 delisted 가격 표본을 복구하지 못했습니다. delisted-inclusive PIT 가격·identity 없이는 생존 종목만으로 재평가하지 않습니다.
 
 ## 선행조건
 
@@ -177,3 +179,4 @@
 - Low residual-variance momentum research: `docs/reports/260724-0448-01-low-residual-variance-momentum-research.md`
 - Short-term reversal-momentum gauntlet: `docs/reports/260724-0500-01-short-term-reversal-momentum-gauntlet.md`
 - Online reversal Hedge research: `docs/reports/260724-0507-01-online-reversal-hedge-research.md`
+- Seasonal earnings change research: `docs/reports/260724-0705-01-seasonal-earnings-research.md`
