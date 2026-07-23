@@ -22,10 +22,14 @@ PIT_ALPHA_FEATURES = (
     "valuation",
     "liquidity",
 )
+PIT_CASH_ACCRUAL_FEATURES = ("cash_accrual_quality",)
 FACTOR_NEUTRAL_TARGET_ACTIVE_SHARE = 0.20
 
 
-def normalize_point_in_time_features(feature_data):
+def normalize_point_in_time_features(
+    feature_data,
+    extra_feature_columns=(),
+):
     """
     Validate long-form point-in-time features.
 
@@ -34,14 +38,33 @@ def normalize_point_in_time_features(feature_data):
     is the first date on which the row could have been known.
     """
     frame = pd.DataFrame(feature_data).copy()
+    extra_feature_columns = tuple(
+        dict.fromkeys(str(column) for column in extra_feature_columns)
+    )
+    overlap = set(extra_feature_columns).intersection(
+        PIT_REQUIRED_COLUMNS
+    )
+    if overlap:
+        raise ValueError(
+            "Extra point-in-time feature columns overlap core columns: "
+            + ", ".join(sorted(overlap))
+        )
     missing = [column for column in PIT_REQUIRED_COLUMNS if column not in frame.columns]
+    missing.extend(
+        column
+        for column in extra_feature_columns
+        if column not in frame.columns
+    )
     if missing:
         raise ValueError(
             "Point-in-time factor data is missing required columns: "
             + ", ".join(missing)
         )
 
-    frame = frame.loc[:, PIT_REQUIRED_COLUMNS].copy()
+    frame = frame.loc[
+        :,
+        PIT_REQUIRED_COLUMNS + extra_feature_columns,
+    ].copy()
     frame["available_date"] = pd.to_datetime(frame["available_date"], errors="coerce")
     if frame["available_date"].isna().any():
         raise ValueError("Point-in-time factor data contains invalid available_date values")
@@ -52,7 +75,11 @@ def normalize_point_in_time_features(feature_data):
     if missing_labels.any() or (frame["ticker"] == "").any() or (frame["sector"] == "").any():
         raise ValueError("Point-in-time factor data requires non-empty ticker and sector")
 
-    numeric_columns = ("market_cap",) + PIT_ALPHA_FEATURES
+    numeric_columns = (
+        ("market_cap",)
+        + PIT_ALPHA_FEATURES
+        + extra_feature_columns
+    )
     for column in numeric_columns:
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
     frame = frame.replace([np.inf, -np.inf], np.nan)
@@ -67,9 +94,17 @@ def normalize_point_in_time_features(feature_data):
     return frame.sort_values(["available_date", "ticker"]).reset_index(drop=True)
 
 
-def point_in_time_snapshot(feature_data, as_of_date, tickers=None):
+def point_in_time_snapshot(
+    feature_data,
+    as_of_date,
+    tickers=None,
+    extra_feature_columns=(),
+):
     """Return latest row known by ``as_of_date`` for each requested ticker."""
-    frame = normalize_point_in_time_features(feature_data)
+    frame = normalize_point_in_time_features(
+        feature_data,
+        extra_feature_columns=extra_feature_columns,
+    )
     as_of = pd.Timestamp(as_of_date)
     eligible = frame.loc[frame["available_date"] <= as_of].copy()
     if tickers is not None:

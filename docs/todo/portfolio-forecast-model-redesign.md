@@ -121,6 +121,9 @@
 - rank signal은 mean IC `-0.0125`, positive IC rate `43.94%`, top-bottom spread `-0.00034`로 absolute signal gate를 명확히 실패했습니다.
 - rank tilt Sharpe `0.6533`은 current lightweight BL `0.6688`, equal weight `0.6698`, historical BL `0.6993`보다 낮았습니다. P(higher Sharpe)는 current/equal 대비 `28.40%`/`28.80%`였습니다.
 - magnitude 제거로도 실패했으므로 병목은 lightweight point forecast의 cross-sectional ordering입니다. 같은 split에서 forecast horizon, active share, rank transform을 재튜닝하지 않고 `2000+` validation/holdout을 봉인합니다.
+- official French size×accrual benchmark에서 accrual-quality-momentum의 absolute signal은 강했지만 raw momentum 대비 paired spread gate가 실패했습니다.
+- local companyfacts에서 opt-in cash-accrual `(operating_cash_flow-net_income)/assets`를 생성해 fresh Nasdaq 2017 nested ridge에 추가했으나 후보 IC `-0.0451`, spread `-0.00742`로 baseline보다 악화됐습니다.
+- usable OOS period도 6개뿐이어서 statistical gate가 불가능했습니다. 같은 Nasdaq 기간에서 accrual 정의나 ridge 설정을 재튜닝하지 않으며 Transformer HPO 근거로 사용하지 않습니다.
 
 ## 선행조건
 
@@ -150,3 +153,4 @@
 - Adaptive value-investment research: `docs/reports/260724-0301-01-adaptive-value-investment-momentum-research.md`
 - Lightweight OOS uncertainty research: `docs/reports/260724-0320-01-lightweight-oos-uncertainty-research.md`
 - Lightweight rank-tilt research: `docs/reports/260724-0332-01-lightweight-rank-tilt-research.md`
+- Cash-accrual research: `docs/reports/260724-0350-01-cash-accrual-research.md`

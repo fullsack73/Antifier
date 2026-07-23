@@ -7,6 +7,10 @@ from tools.build_fama_french_industry_panel import (
     main as build_industry_panel,
     parse_value_weighted_daily_returns,
 )
+from tools.build_fama_french_monthly_panel import (
+    main as build_monthly_panel,
+    parse_value_weighted_monthly_returns,
+)
 
 
 def test_french_industry_parser_selects_value_weighted_daily_section(
@@ -121,3 +125,70 @@ def test_french_industry_builder_records_explicit_exclusions(tmp_path):
         "missing_row_count": 1,
         "available_row_count": 1,
     }
+
+
+def test_french_monthly_parser_selects_value_weighted_section(tmp_path):
+    archive_path = tmp_path / "monthly.zip"
+    payload = "\n".join([
+        "Metadata",
+        "",
+        "Average Value Weighted Returns -- Monthly",
+        ",SMALL LoAC,SMALL HiAC",
+        "200001,1.00,-0.50",
+        "200002,-99.99,0.25",
+        "",
+        "Average Equal Weighted Returns -- Monthly",
+        ",SMALL LoAC,SMALL HiAC",
+        "200001,9.00,9.00",
+        "",
+    ])
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("monthly.csv", payload)
+
+    result = parse_value_weighted_monthly_returns(archive_path)
+
+    assert list(result.columns) == ["SMALL LoAC", "SMALL HiAC"]
+    assert result.index[0] == pd.Timestamp("2000-01-31")
+    assert result.loc["2000-01-31", "SMALL LoAC"] == 0.01
+    assert result.loc["2000-01-31", "SMALL HiAC"] == -0.005
+    assert pd.isna(result.loc["2000-02-29", "SMALL LoAC"])
+
+
+def test_french_monthly_builder_records_frequency_and_policy(tmp_path):
+    archive_path = tmp_path / "monthly.zip"
+    output_path = tmp_path / "prices.csv"
+    payload = "\n".join([
+        "Metadata",
+        "",
+        "Average Value Weighted Returns -- Monthly",
+        ",SMALL LoAC,SMALL HiAC",
+        "200001,1.00,-0.50",
+        "200002,0.25,0.25",
+        "",
+    ])
+    with zipfile.ZipFile(archive_path, "w") as archive:
+        archive.writestr("monthly.csv", payload)
+
+    status = build_monthly_panel([
+        "--archive",
+        str(archive_path),
+        "--start",
+        "2000-01-01",
+        "--end",
+        "2000-02-29",
+        "--output",
+        str(output_path),
+        "--portfolio-policy",
+        "synthetic size-accrual portfolios",
+    ])
+
+    provenance = json.loads(
+        output_path.with_suffix(".provenance.json").read_text()
+    )
+    assert status == 0
+    assert provenance["frequency"] == "monthly"
+    assert provenance["date_semantics"] == "calendar_month_end"
+    assert provenance["ticker_count"] == 2
+    assert provenance["source_portfolio_policy"] == (
+        "synthetic size-accrual portfolios"
+    )

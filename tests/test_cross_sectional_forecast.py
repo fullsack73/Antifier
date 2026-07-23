@@ -14,6 +14,8 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from cross_sectional_forecast import (  # noqa: E402
+    CASH_ACCRUAL_PIT_FEATURE_COLUMNS,
+    CASH_ACCRUAL_POOLED_FEATURE_COLUMNS,
     FACTOR_POOLED_FEATURE_COLUMNS,
     FUNDAMENTAL_MOMENTUM_PIT_FEATURE_COLUMNS,
     FUNDAMENTAL_MOMENTUM_POOLED_FEATURE_COLUMNS,
@@ -22,6 +24,7 @@ from cross_sectional_forecast import (  # noqa: E402
     compare_pooled_objectives,
     pooled_point_in_time_fundamental_momentum_features,
     pooled_point_in_time_features,
+    pooled_point_in_time_cash_accrual_features,
     pooled_price_features,
     walk_forward_pooled_ridge,
 )
@@ -64,6 +67,15 @@ def _point_in_time_features(prices):
     return pd.DataFrame(rows)
 
 
+def _cash_accrual_point_in_time_features(prices):
+    features = _point_in_time_features(prices)
+    features["cash_accrual_quality"] = (
+        features.groupby("ticker").cumcount() * 0.05
+        + features["ticker"].str.extract(r"(\d+)$")[0].astype(float)
+    )
+    return features
+
+
 def test_pooled_price_features_use_history_through_as_of_only():
     prices = _research_prices(rows=360)
     as_of_prices = prices.iloc[:320]
@@ -76,6 +88,33 @@ def test_pooled_price_features_use_history_through_as_of_only():
     pd.testing.assert_frame_equal(baseline, changed)
     assert list(baseline.columns) == list(POOLED_FEATURE_COLUMNS)
     assert baseline.notna().all().all()
+
+
+def test_cash_accrual_features_ignore_future_filing_rows():
+    prices = _research_prices(rows=420)
+    factors = _cash_accrual_point_in_time_features(prices)
+    as_of = prices.index[360]
+    baseline = pooled_point_in_time_cash_accrual_features(
+        factors,
+        as_of,
+        prices.columns,
+    )
+    changed = factors.copy()
+    changed.loc[
+        changed["available_date"] > as_of,
+        "cash_accrual_quality",
+    ] = 1e12
+
+    result = pooled_point_in_time_cash_accrual_features(
+        changed,
+        as_of,
+        prices.columns,
+    )
+
+    pd.testing.assert_frame_equal(baseline, result)
+    assert list(result.columns) == list(
+        CASH_ACCRUAL_PIT_FEATURE_COLUMNS
+    )
 
 
 def test_rank_signal_block_bootstrap_detects_persistent_signal():
@@ -575,6 +614,29 @@ def test_compact_factor_residual_model_uses_quality_predictors_only():
         "profitability",
         "profitability_missing",
     }
+
+
+def test_cash_accrual_nested_model_adds_opt_in_predictors():
+    prices = _research_prices()
+    result = walk_forward_pooled_ridge(
+        prices,
+        objective="factor_residual_cash_accrual_nested_ridge",
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=4,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        point_in_time_features=(
+            _cash_accrual_point_in_time_features(prices)
+        ),
+    )
+
+    assert result["records"]
+    assert result["settings"]["feature_columns"] == list(
+        CASH_ACCRUAL_POOLED_FEATURE_COLUMNS
+    )
+    assert "cash_accrual_quality" in result["mean_coefficients"]
+    assert "cash_accrual_quality_missing" in result["mean_coefficients"]
 
 
 def test_pooled_objective_comparison_keeps_models_signal_only():

@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-size-accrual-quality-momentum-research-1969-1998-v1",
+  "role": "research",
+  "evaluation_start": "1969-07-31",
+  "evaluation_end": "1998-07-31",
+  "experiment_namespace": "alpha-v13-accrual-quality-momentum",
+  "objectives": [
+    "accrual_quality_momentum"
+  ],
+  "settings": {
+    "train_window": 72,
+    "horizon": 12,
+    "rebalance_step": 12,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "accrual_quality_weight": 0.5,
+    "accrual_signal": "inverse_official_annual_working_capital_accrual_quintile",
+    "accrual_definition": "change_in_operating_working_capital_divided_by_book_equity",
+    "primary_candidate": "accrual_quality_momentum",
+    "diagnostic_signal": "accrual_quality",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 3,
+    "bootstrap_minimum_probability": 0.95
+  },
+  "universe_manifest_sha256": "4aac647f04b04f1bcc0ba89f5872a98051f0acf2d9bd6034bf436726a58a7cbd",
+  "price_file_sha256": "a9d91e6ef12a0d4fb344fc163cff487169595725e83bed01d7b74f8b105eb035",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "0a80b4ea817f9f9bf368acdb70d2bf5046c318f5a1dceabe3a1a78d4bab20293"
+}

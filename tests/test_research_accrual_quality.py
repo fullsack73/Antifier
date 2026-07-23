@@ -1,0 +1,63 @@
+import importlib.util
+from pathlib import Path
+
+import pandas as pd
+
+
+ROOT = Path(__file__).resolve().parents[1]
+TOOL_PATH = ROOT / "tools" / "research_accrual_quality.py"
+SPEC = importlib.util.spec_from_file_location(
+    "research_accrual_quality",
+    TOOL_PATH,
+)
+RESEARCH = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(RESEARCH)
+
+
+def test_accrual_quality_buckets_invert_official_quintiles():
+    labels = [
+        "SMALL LoAC",
+        "ME1 AC2",
+        "ME3 AC3",
+        "ME5 AC4",
+        "BIG HiAC",
+    ]
+
+    result = RESEARCH.accrual_quality_buckets(labels)
+
+    assert result.tolist() == [5.0, 4.0, 3.0, 2.0, 1.0]
+
+
+def test_accrual_research_uses_only_pre_signal_momentum_prices():
+    dates = pd.date_range("2000-01-31", periods=18, freq="ME")
+    prices = pd.DataFrame(
+        {
+            "SMALL LoAC": range(100, 118),
+            "BIG HiAC": range(100, 82, -1),
+        },
+        index=dates,
+        dtype=float,
+    )
+    args = type(
+        "Args",
+        (),
+        {
+            "train_window": 12,
+            "horizon": 1,
+            "rebalance_step": 1,
+            "momentum_lookback": 12,
+            "momentum_skip": 1,
+        },
+    )()
+    accrual = RESEARCH.accrual_quality_buckets(prices.columns)
+
+    baseline = RESEARCH._run_periods(prices, accrual, args)[0]
+    changed = prices.copy()
+    changed.loc[dates[12]:, :] = [
+        [1e9, 1.0] if index % 2 == 0 else [1.0, 1e9]
+        for index in range(len(changed.loc[dates[12]:]))
+    ]
+    changed_result = RESEARCH._run_periods(changed, accrual, args)[0]
+
+    assert baseline[0]["scores"] == changed_result[0]["scores"]
+    assert baseline[0]["as_of_date"] == dates[12].strftime("%Y-%m-%d")

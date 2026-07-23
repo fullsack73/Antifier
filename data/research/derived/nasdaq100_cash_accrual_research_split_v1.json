@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "split_id": "nasdaq100-cash-accrual-research-2017-v1",
+  "role": "research",
+  "evaluation_start": "2017-01-01",
+  "evaluation_end": "2017-09-30",
+  "experiment_namespace": "pit-factor-v7-cash-accrual-nasdaq100",
+  "objectives": [
+    "factor_residual_nested_ridge",
+    "factor_residual_cash_accrual_nested_ridge"
+  ],
+  "settings": {
+    "horizon": 63,
+    "rebalance_step": 21,
+    "minimum_feature_history": 253,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 24,
+    "minimum_observations": 40,
+    "ridge_penalty": 5.0,
+    "nested_ridge_penalties": [
+      1.0,
+      5.0,
+      20.0,
+      100.0
+    ],
+    "nested_validation_periods": 3,
+    "nominal_uncertainty_coverage": 0.8,
+    "target_factor_policy": "separate_point_in_time_target_factors",
+    "cash_accrual_feature_policy": {
+      "definition": "(operating_cash_flow-net_income)/assets",
+      "direction": "higher_is_better",
+      "missing_policy": "cross_sectional_neutral_plus_missing_indicator",
+      "feature_set": "core-cash-accrual"
+    }
+  },
+  "universe_manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+  "price_file_sha256": "e6ae09bdec0950038d3157c947ed8d12949bc087810abacbd6c92dd25906e9ca",
+  "factor_file_sha256": "63ef6784f456ceaf06191ce7ea608f727cc49a10a6c74f026383bdb553bfa22f",
+  "auxiliary_files": {
+    "target_factor_file_sha256": "63ef6784f456ceaf06191ce7ea608f727cc49a10a6c74f026383bdb553bfa22f"
+  },
+  "locked": true,
+  "manifest_sha256": "b516321a62249f3fe8fa80843f983afcf6efe424ecbe262d164b12b8d1acbb44"
+}

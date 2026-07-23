@@ -1,0 +1,2071 @@
+{
+  "source": "local extracted SEC EDGAR companyfacts bulk archive",
+  "availability_policy": "SEC filing date; filed <= signal as-of date",
+  "feature_policy": {
+    "filing_frequency": "quarterly-ttm",
+    "feature_set": "core-cash-accrual",
+    "quality": "operating_cash_flow/assets; net_income/assets fallback",
+    "profitability": "gross_profit/revenue; net_margin fallback",
+    "valuation": "net_income/(filing-date price * shares)",
+    "liquidity": "current_assets/current_liabilities",
+    "market_cap": "filing-date price * reported shares outstanding",
+    "shares_fallback": "annual weighted-average basic/diluted shares when an instant shares-outstanding fact is unavailable",
+    "cash_accrual_quality": "(operating_cash_flow-net_income)/assets; higher means less accrual-dependent earnings"
+  },
+  "tickers_requested": [
+    "AAL",
+    "AAPL",
+    "ADBE",
+    "ADI",
+    "ADP",
+    "ADSK",
+    "AKAM",
+    "ALGN",
+    "ALXN",
+    "AMAT",
+    "AMGN",
+    "AMZN",
+    "ASML",
+    "ATVI",
+    "AVGO",
+    "BIDU",
+    "BIIB",
+    "BKNG",
+    "BMRN",
+    "CA",
+    "CDNS",
+    "CELG",
+    "CERN",
+    "CHKP",
+    "CHTR",
+    "CMCSA",
+    "COST",
+    "CSCO",
+    "CSX",
+    "CTAS",
+    "CTSH",
+    "CTXS",
+    "DISCA",
+    "DISCK",
+    "DISH",
+    "DLTR",
+    "EA",
+    "EBAY",
+    "ESRX",
+    "EXPE",
+    "FAST",
+    "FI",
+    "FOX",
+    "FOXA",
+    "GILD",
+    "GOOG",
+    "GOOGL",
+    "HAS",
+    "HOLX",
+    "HSIC",
+    "IDXX",
+    "ILMN",
+    "INCY",
+    "INTC",
+    "INTU",
+    "ISRG",
+    "JBHT",
+    "JD",
+    "KHC",
+    "KLAC",
+    "LBTYA",
+    "LBTYK",
+    "LRCX",
+    "MAR",
+    "MAT",
+    "MCHP",
+    "MDLZ",
+    "MELI",
+    "META",
+    "MNST",
+    "MSFT",
+    "MU",
+    "MXIM",
+    "MYL",
+    "NCLH",
+    "NFLX",
+    "NLOK",
+    "NTES",
+    "NVDA",
+    "NXPI",
+    "ORLY",
+    "PAYX",
+    "PCAR",
+    "PYPL",
+    "QCOM",
+    "QRTEA",
+    "REGN",
+    "ROST",
+    "SBAC",
+    "SBUX",
+    "SHPG",
+    "SIRI",
+    "SNPS",
+    "STX",
+    "SWKS",
+    "TCOM",
+    "TMUS",
+    "TRIP",
+    "TSCO",
+    "TSLA",
+    "TTWO",
+    "TXN",
+    "ULTA",
+    "VIAB",
+    "VOD",
+    "VRSK",
+    "VRTX",
+    "WBA",
+    "WDAY",
+    "WDC",
+    "WYNN",
+    "XLNX",
+    "XRAY",
+    "YHOO"
+  ],
+  "tickers_completed": [
+    "AAL",
+    "AAPL",
+    "ADBE",
+    "ADI",
+    "ADP",
+    "ADSK",
+    "AKAM",
+    "ALGN",
+    "AMAT",
+    "AMGN",
+    "AMZN",
+    "BIIB",
+    "BKNG",
+    "BMRN",
+    "CDNS",
+    "CHKP",
+    "CHTR",
+    "CMCSA",
+    "COST",
+    "CSCO",
+    "CSX",
+    "CTAS",
+    "CTSH",
+    "DLTR",
+    "EA",
+    "EBAY",
+    "ESRX",
+    "EXPE",
+    "FAST",
+    "GILD",
+    "GOOG",
+    "GOOGL",
+    "HAS",
+    "HSIC",
+    "IDXX",
+    "ILMN",
+    "INCY",
+    "INTC",
+    "INTU",
+    "ISRG",
+    "JBHT",
+    "JD",
+    "KHC",
+    "KLAC",
+    "LRCX",
+    "MAR",
+    "MAT",
+    "MCHP",
+    "MDLZ",
+    "MELI",
+    "META",
+    "MNST",
+    "MSFT",
+    "MU",
+    "NCLH",
+    "NFLX",
+    "NTES",
+    "NVDA",
+    "NXPI",
+    "ORLY",
+    "PAYX",
+    "PCAR",
+    "PYPL",
+    "QCOM",
+    "REGN",
+    "ROST",
+    "SBAC",
+    "SBUX",
+    "SHPG",
+    "SIRI",
+    "SNPS",
+    "STX",
+    "SWKS",
+    "TCOM",
+    "TMUS",
+    "TRIP",
+    "TSCO",
+    "TSLA",
+    "TTWO",
+    "TXN",
+    "ULTA",
+    "VRSK",
+    "VRTX",
+    "WDAY",
+    "WDC",
+    "WYNN",
+    "XRAY"
+  ],
+  "company_metadata": {
+    "AAL": {
+      "cik": 6201,
+      "entity_name": "AMERICAN AIRLINES GROUP INC.",
+      "sic": "4512",
+      "sic_description": "Air Transportation, Scheduled",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 6201,
+          "entity_name": "AMERICAN AIRLINES GROUP INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4512",
+          "sic_description": "Air Transportation, Scheduled",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "AAPL": {
+      "cik": 320193,
+      "entity_name": "Apple Inc.",
+      "sic": "3571",
+      "sic_description": "Electronic Computers",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 320193,
+          "entity_name": "Apple Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3571",
+          "sic_description": "Electronic Computers",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ADBE": {
+      "cik": 796343,
+      "entity_name": "ADOBE INC.",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 796343,
+          "entity_name": "ADOBE INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ADI": {
+      "cik": 6281,
+      "entity_name": "Analog Devices, Inc.",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 6281,
+          "entity_name": "Analog Devices, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ADP": {
+      "cik": 8670,
+      "entity_name": "AUTOMATIC DATA PROCESSING INC",
+      "sic": "7374",
+      "sic_description": "Services-Computer Processing & Data Preparation",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 8670,
+          "entity_name": "AUTOMATIC DATA PROCESSING INC",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7374",
+          "sic_description": "Services-Computer Processing & Data Preparation",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ADSK": {
+      "cik": 769397,
+      "entity_name": "AUTODESK, INC.",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 769397,
+          "entity_name": "AUTODESK, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "AKAM": {
+      "cik": 1086222,
+      "entity_name": "AKAMAI TECHNOLOGIES, INC.",
+      "sic": "7389",
+      "sic_description": "Services-Business Services, NEC",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1086222,
+          "entity_name": "AKAMAI TECHNOLOGIES, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7389",
+          "sic_description": "Services-Business Services, NEC",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ALGN": {
+      "cik": 1097149,
+      "entity_name": "ALIGN TECHNOLOGY,\u00a0INC.",
+      "sic": "3842",
+      "sic_description": "Orthopedic, Prosthetic & Surgical Appliances & Supplies",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1097149,
+          "entity_name": "ALIGN TECHNOLOGY,\u00a0INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3842",
+          "sic_description": "Orthopedic, Prosthetic & Surgical Appliances & Supplies",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "AMAT": {
+      "cik": 6951,
+      "entity_name": "APPLIED MATERIALS INC /DE",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 6951,
+          "entity_name": "APPLIED MATERIALS INC /DE",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "AMGN": {
+      "cik": 318154,
+      "entity_name": "Amgen Inc.",
+      "sic": "2836",
+      "sic_description": "Biological Products, (No Diagnostic Substances)",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 318154,
+          "entity_name": "Amgen Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2836",
+          "sic_description": "Biological Products, (No Diagnostic Substances)",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "AMZN": {
+      "cik": 1018724,
+      "entity_name": "AMAZON COM INC",
+      "sic": "5961",
+      "sic_description": "Retail-Catalog & Mail-Order Houses",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1018724,
+          "entity_name": "AMAZON COM INC",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5961",
+          "sic_description": "Retail-Catalog & Mail-Order Houses",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "BIIB": {
+      "cik": 875045,
+      "entity_name": "BIOGEN INC.",
+      "sic": "2836",
+      "sic_description": "Biological Products, (No Diagnostic Substances)",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 875045,
+          "entity_name": "BIOGEN INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2836",
+          "sic_description": "Biological Products, (No Diagnostic Substances)",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "BKNG": {
+      "cik": 1075531,
+      "entity_name": "Booking Holdings Inc.",
+      "sic": "4700",
+      "sic_description": "Transportation Services",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1075531,
+          "entity_name": "Booking Holdings Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4700",
+          "sic_description": "Transportation Services",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "BMRN": {
+      "cik": 1048477,
+      "entity_name": "BioMarin Pharmaceutical Inc",
+      "sic": "2834",
+      "sic_description": "Pharmaceutical Preparations",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1048477,
+          "entity_name": "BioMarin Pharmaceutical Inc",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2834",
+          "sic_description": "Pharmaceutical Preparations",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "CDNS": {
+      "cik": 813672,
+      "entity_name": "CADENCE DESIGN SYSTEMS, INC.",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 813672,
+          "entity_name": "CADENCE DESIGN SYSTEMS, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "CHKP": {
+      "cik": 1015922,
+      "entity_name": "CHECK POINT SOFTWARE TECHNOLOGIES LTD.",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 3,
+      "identities": [
+        {
+          "cik": 1015922,
+          "entity_name": "CHECK POINT SOFTWARE TECHNOLOGIES LTD.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 3
+        }
+      ],
+      "identity_failures": []
+    },
+    "CHTR": {
+      "cik": 1091667,
+      "entity_name": "Charter Communications, Inc.",
+      "sic": "4841",
+      "sic_description": "Cable & Other Pay Television Services",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1091667,
+          "entity_name": "Charter Communications, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4841",
+          "sic_description": "Cable & Other Pay Television Services",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "CMCSA": {
+      "cik": 1166691,
+      "entity_name": "Comcast Corporation",
+      "sic": "4841",
+      "sic_description": "Cable & Other Pay Television Services",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1166691,
+          "entity_name": "Comcast Corporation",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4841",
+          "sic_description": "Cable & Other Pay Television Services",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "COST": {
+      "cik": 909832,
+      "entity_name": "COSTCO WHOLESALE CORP /NEW",
+      "sic": "5331",
+      "sic_description": "Retail-Variety Stores",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 909832,
+          "entity_name": "COSTCO WHOLESALE CORP /NEW",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5331",
+          "sic_description": "Retail-Variety Stores",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "CSCO": {
+      "cik": 858877,
+      "entity_name": "CISCO SYSTEMS, INC.",
+      "sic": "3576",
+      "sic_description": "Computer Communications Equipment",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 858877,
+          "entity_name": "CISCO SYSTEMS, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3576",
+          "sic_description": "Computer Communications Equipment",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "CSX": {
+      "cik": 277948,
+      "entity_name": "CSX CORPORATION",
+      "sic": "4011",
+      "sic_description": "Railroads, Line-Haul Operating",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 277948,
+          "entity_name": "CSX CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4011",
+          "sic_description": "Railroads, Line-Haul Operating",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "CTAS": {
+      "cik": 723254,
+      "entity_name": "Cintas Corporation",
+      "sic": "2320",
+      "sic_description": "Men's & Boys' Furnishgs, Work Clothg, & Allied Garments",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 723254,
+          "entity_name": "Cintas Corporation",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2320",
+          "sic_description": "Men's & Boys' Furnishgs, Work Clothg, & Allied Garments",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "CTSH": {
+      "cik": 1058290,
+      "entity_name": "COGNIZANT TECHNOLOGY SOLUTIONS CORPORATION",
+      "sic": "7371",
+      "sic_description": "Services-Computer Programming Services",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1058290,
+          "entity_name": "COGNIZANT TECHNOLOGY SOLUTIONS CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7371",
+          "sic_description": "Services-Computer Programming Services",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "DLTR": {
+      "cik": 935703,
+      "entity_name": "DOLLAR TREE, INC.",
+      "sic": "5331",
+      "sic_description": "Retail-Variety Stores",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 935703,
+          "entity_name": "DOLLAR TREE, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5331",
+          "sic_description": "Retail-Variety Stores",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "EA": {
+      "cik": 712515,
+      "entity_name": "ELECTRONIC ARTS INC.",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 712515,
+          "entity_name": "ELECTRONIC ARTS INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "EBAY": {
+      "cik": 1065088,
+      "entity_name": "eBay Inc.",
+      "sic": "7389",
+      "sic_description": "Services-Business Services, NEC",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1065088,
+          "entity_name": "eBay Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7389",
+          "sic_description": "Services-Business Services, NEC",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ESRX": {
+      "cik": 1532063,
+      "entity_name": "Express Scripts Holding Co.",
+      "sic": "5912",
+      "sic_description": "Retail-Drug Stores and Proprietary Stores",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1532063,
+          "entity_name": "Express Scripts Holding Co.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5912",
+          "sic_description": "Retail-Drug Stores and Proprietary Stores",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "EXPE": {
+      "cik": 1324424,
+      "entity_name": "EXPEDIA GROUP, INC.",
+      "sic": "4700",
+      "sic_description": "Transportation Services",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1324424,
+          "entity_name": "EXPEDIA GROUP, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4700",
+          "sic_description": "Transportation Services",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "FAST": {
+      "cik": 815556,
+      "entity_name": "FASTENAL CO",
+      "sic": "5200",
+      "sic_description": "Retail-Building Materials, Hardware, Garden Supply",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 815556,
+          "entity_name": "FASTENAL CO",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5200",
+          "sic_description": "Retail-Building Materials, Hardware, Garden Supply",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "GILD": {
+      "cik": 882095,
+      "entity_name": "GILEAD SCIENCES, INC.",
+      "sic": "2836",
+      "sic_description": "Biological Products, (No Diagnostic Substances)",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 882095,
+          "entity_name": "GILEAD SCIENCES, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2836",
+          "sic_description": "Biological Products, (No Diagnostic Substances)",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "GOOG": {
+      "cik": 1652044,
+      "entity_name": "ALPHABET INC.",
+      "sic": "7370",
+      "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+      "row_count": 8,
+      "identities": [
+        {
+          "cik": 1652044,
+          "entity_name": "ALPHABET INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7370",
+          "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+          "row_count": 8
+        }
+      ],
+      "identity_failures": []
+    },
+    "GOOGL": {
+      "cik": 1652044,
+      "entity_name": "ALPHABET INC.",
+      "sic": "7370",
+      "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+      "row_count": 8,
+      "identities": [
+        {
+          "cik": 1652044,
+          "entity_name": "ALPHABET INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7370",
+          "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+          "row_count": 8
+        }
+      ],
+      "identity_failures": []
+    },
+    "HAS": {
+      "cik": 46080,
+      "entity_name": "HASBRO, INC.",
+      "sic": "3944",
+      "sic_description": "Games, Toys & Children's Vehicles (No Dolls & Bicycles)",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 46080,
+          "entity_name": "HASBRO, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3944",
+          "sic_description": "Games, Toys & Children's Vehicles (No Dolls & Bicycles)",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "HSIC": {
+      "cik": 1000228,
+      "entity_name": "HENRY SCHEIN, INC.",
+      "sic": "5047",
+      "sic_description": "Wholesale-Medical, Dental & Hospital Equipment & Supplies",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1000228,
+          "entity_name": "HENRY SCHEIN, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Wholesale",
+          "sic": "5047",
+          "sic_description": "Wholesale-Medical, Dental & Hospital Equipment & Supplies",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "IDXX": {
+      "cik": 874716,
+      "entity_name": "IDEXX LABORATORIES INC /DE",
+      "sic": "2835",
+      "sic_description": "In Vitro & In Vivo Diagnostic Substances",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 874716,
+          "entity_name": "IDEXX LABORATORIES INC /DE",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2835",
+          "sic_description": "In Vitro & In Vivo Diagnostic Substances",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ILMN": {
+      "cik": 1110803,
+      "entity_name": "Illumina, Inc.",
+      "sic": "3826",
+      "sic_description": "Laboratory Analytical Instruments",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1110803,
+          "entity_name": "Illumina, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3826",
+          "sic_description": "Laboratory Analytical Instruments",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "INCY": {
+      "cik": 879169,
+      "entity_name": "INCYTE CORPORATION",
+      "sic": "8731",
+      "sic_description": "Services-Commercial Physical & Biological Research",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 879169,
+          "entity_name": "INCYTE CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "8731",
+          "sic_description": "Services-Commercial Physical & Biological Research",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "INTC": {
+      "cik": 50863,
+      "entity_name": "INTEL CORP",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 50863,
+          "entity_name": "INTEL CORP",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "INTU": {
+      "cik": 896878,
+      "entity_name": "INTUIT INC.",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 896878,
+          "entity_name": "INTUIT INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ISRG": {
+      "cik": 1035267,
+      "entity_name": "Intuitive Surgical, Inc.",
+      "sic": "3842",
+      "sic_description": "Orthopedic, Prosthetic & Surgical Appliances & Supplies",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1035267,
+          "entity_name": "Intuitive Surgical, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3842",
+          "sic_description": "Orthopedic, Prosthetic & Surgical Appliances & Supplies",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "JBHT": {
+      "cik": 728535,
+      "entity_name": "J.B. HUNT TRANSPORT SERVICES, INC.",
+      "sic": "4213",
+      "sic_description": "Trucking (No Local)",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 728535,
+          "entity_name": "J.B. HUNT TRANSPORT SERVICES, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4213",
+          "sic_description": "Trucking (No Local)",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "JD": {
+      "cik": 1549802,
+      "entity_name": "JD.com, Inc.",
+      "sic": "5990",
+      "sic_description": "Retail-Retail Stores, NEC",
+      "row_count": 3,
+      "identities": [
+        {
+          "cik": 1549802,
+          "entity_name": "JD.com, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5990",
+          "sic_description": "Retail-Retail Stores, NEC",
+          "row_count": 3
+        }
+      ],
+      "identity_failures": []
+    },
+    "KHC": {
+      "cik": 1637459,
+      "entity_name": "Kraft Heinz Co",
+      "sic": "2030",
+      "sic_description": "Canned, Frozen & Preservd Fruit, Veg & Food Specialties",
+      "row_count": 9,
+      "identities": [
+        {
+          "cik": 1637459,
+          "entity_name": "Kraft Heinz Co",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2030",
+          "sic_description": "Canned, Frozen & Preservd Fruit, Veg & Food Specialties",
+          "row_count": 9
+        }
+      ],
+      "identity_failures": []
+    },
+    "KLAC": {
+      "cik": 319201,
+      "entity_name": "KLA CORPORATION",
+      "sic": "3827",
+      "sic_description": "Optical Instruments & Lenses",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 319201,
+          "entity_name": "KLA CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3827",
+          "sic_description": "Optical Instruments & Lenses",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "LRCX": {
+      "cik": 707549,
+      "entity_name": "LAM RESEARCH CORPORATION",
+      "sic": "3559",
+      "sic_description": "Special Industry Machinery, NEC",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 707549,
+          "entity_name": "LAM RESEARCH CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3559",
+          "sic_description": "Special Industry Machinery, NEC",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "MAR": {
+      "cik": 1048286,
+      "entity_name": "MARRIOTT INTERNATIONAL INC /MD/",
+      "sic": "7011",
+      "sic_description": "Hotels & Motels",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1048286,
+          "entity_name": "MARRIOTT INTERNATIONAL INC /MD/",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7011",
+          "sic_description": "Hotels & Motels",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "MAT": {
+      "cik": 63276,
+      "entity_name": "MATTEL INC /DE/",
+      "sic": "3942",
+      "sic_description": "Dolls & Stuffed Toys",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 63276,
+          "entity_name": "MATTEL INC /DE/",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3942",
+          "sic_description": "Dolls & Stuffed Toys",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "MCHP": {
+      "cik": 827054,
+      "entity_name": "Microchip Technology Incorporated",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 827054,
+          "entity_name": "Microchip Technology Incorporated",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "MDLZ": {
+      "cik": 1103982,
+      "entity_name": "Mondelez International, Inc.",
+      "sic": "2000",
+      "sic_description": "Food and Kindred Products",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1103982,
+          "entity_name": "Mondelez International, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2000",
+          "sic_description": "Food and Kindred Products",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "MELI": {
+      "cik": 1099590,
+      "entity_name": "MercadoLibre, Inc.",
+      "sic": "7389",
+      "sic_description": "Services-Business Services, NEC",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1099590,
+          "entity_name": "MercadoLibre, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7389",
+          "sic_description": "Services-Business Services, NEC",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "META": {
+      "cik": 1326801,
+      "entity_name": "Meta Platforms, Inc.",
+      "sic": "7370",
+      "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1326801,
+          "entity_name": "Meta Platforms, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7370",
+          "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "MNST": {
+      "cik": 865752,
+      "entity_name": "Monster Beverage Corp",
+      "sic": "2086",
+      "sic_description": "Bottled & Canned Soft Drinks & Carbonated Waters",
+      "row_count": 2,
+      "identities": [
+        {
+          "cik": 865752,
+          "entity_name": "Monster Beverage Corp",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2086",
+          "sic_description": "Bottled & Canned Soft Drinks & Carbonated Waters",
+          "row_count": 2
+        }
+      ],
+      "identity_failures": []
+    },
+    "MSFT": {
+      "cik": 789019,
+      "entity_name": "MICROSOFT CORPORATION",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 789019,
+          "entity_name": "MICROSOFT CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "MU": {
+      "cik": 723125,
+      "entity_name": "Micron Technology, Inc.",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 13,
+      "identities": [
+        {
+          "cik": 723125,
+          "entity_name": "Micron Technology, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 13
+        }
+      ],
+      "identity_failures": []
+    },
+    "NCLH": {
+      "cik": 1513761,
+      "entity_name": "NORWEGIAN CRUISE LINE HOLDINGS LTD.",
+      "sic": "4400",
+      "sic_description": "Water Transportation",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1513761,
+          "entity_name": "NORWEGIAN CRUISE LINE HOLDINGS LTD.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4400",
+          "sic_description": "Water Transportation",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "NFLX": {
+      "cik": 1065280,
+      "entity_name": "NETFLIX INC",
+      "sic": "7841",
+      "sic_description": "Services-Video Tape Rental",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1065280,
+          "entity_name": "NETFLIX INC",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7841",
+          "sic_description": "Services-Video Tape Rental",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "NTES": {
+      "cik": 1110646,
+      "entity_name": "NETEASE, INC.",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 3,
+      "identities": [
+        {
+          "cik": 1110646,
+          "entity_name": "NETEASE, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 3
+        }
+      ],
+      "identity_failures": []
+    },
+    "NVDA": {
+      "cik": 1045810,
+      "entity_name": "NVIDIA CORP",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1045810,
+          "entity_name": "NVIDIA CORP",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "NXPI": {
+      "cik": 1413447,
+      "entity_name": "NXP Semiconductors N.V.",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 3,
+      "identities": [
+        {
+          "cik": 1413447,
+          "entity_name": "NXP Semiconductors N.V.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 3
+        }
+      ],
+      "identity_failures": []
+    },
+    "ORLY": {
+      "cik": 898173,
+      "entity_name": "O Reilly Automotive Inc",
+      "sic": "5531",
+      "sic_description": "Retail-Auto & Home Supply Stores",
+      "row_count": 13,
+      "identities": [
+        {
+          "cik": 898173,
+          "entity_name": "O Reilly Automotive Inc",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5531",
+          "sic_description": "Retail-Auto & Home Supply Stores",
+          "row_count": 13
+        }
+      ],
+      "identity_failures": []
+    },
+    "PAYX": {
+      "cik": 723531,
+      "entity_name": "Paychex, Inc.",
+      "sic": "8700",
+      "sic_description": "Services-Engineering, Accounting, Research, Management",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 723531,
+          "entity_name": "Paychex, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "8700",
+          "sic_description": "Services-Engineering, Accounting, Research, Management",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "PCAR": {
+      "cik": 75362,
+      "entity_name": "PACCAR Inc",
+      "sic": "3711",
+      "sic_description": "Motor Vehicles & Passenger Car Bodies",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 75362,
+          "entity_name": "PACCAR Inc",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3711",
+          "sic_description": "Motor Vehicles & Passenger Car Bodies",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "PYPL": {
+      "cik": 1633917,
+      "entity_name": "PayPal Holdings, Inc.",
+      "sic": "7389",
+      "sic_description": "Services-Business Services, NEC",
+      "row_count": 10,
+      "identities": [
+        {
+          "cik": 1633917,
+          "entity_name": "PayPal Holdings, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7389",
+          "sic_description": "Services-Business Services, NEC",
+          "row_count": 10
+        }
+      ],
+      "identity_failures": []
+    },
+    "QCOM": {
+      "cik": 804328,
+      "entity_name": "QUALCOMM INC/DE",
+      "sic": "3663",
+      "sic_description": "Radio & Tv Broadcasting & Communications Equipment",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 804328,
+          "entity_name": "QUALCOMM INC/DE",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3663",
+          "sic_description": "Radio & Tv Broadcasting & Communications Equipment",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "REGN": {
+      "cik": 872589,
+      "entity_name": "REGENERON PHARMACEUTICALS, INC.",
+      "sic": "2834",
+      "sic_description": "Pharmaceutical Preparations",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 872589,
+          "entity_name": "REGENERON PHARMACEUTICALS, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2834",
+          "sic_description": "Pharmaceutical Preparations",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ROST": {
+      "cik": 745732,
+      "entity_name": "Ross Stores, Inc.",
+      "sic": "5651",
+      "sic_description": "Retail-Family Clothing Stores",
+      "row_count": 13,
+      "identities": [
+        {
+          "cik": 745732,
+          "entity_name": "Ross Stores, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5651",
+          "sic_description": "Retail-Family Clothing Stores",
+          "row_count": 13
+        }
+      ],
+      "identity_failures": []
+    },
+    "SBAC": {
+      "cik": 1034054,
+      "entity_name": "SBA COMMUNICATIONS CORP",
+      "sic": "6798",
+      "sic_description": "Real Estate Investment Trusts",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1034054,
+          "entity_name": "SBA COMMUNICATIONS CORP",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": "6798",
+          "sic_description": "Real Estate Investment Trusts",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "SBUX": {
+      "cik": 829224,
+      "entity_name": "Starbucks Corporation",
+      "sic": "5810",
+      "sic_description": "Retail-Eating & Drinking Places",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 829224,
+          "entity_name": "Starbucks Corporation",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5810",
+          "sic_description": "Retail-Eating & Drinking Places",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "SHPG": {
+      "cik": 936402,
+      "entity_name": "Shire plc",
+      "sic": "2834",
+      "sic_description": "Pharmaceutical Preparations",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 936402,
+          "entity_name": "Shire plc",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2834",
+          "sic_description": "Pharmaceutical Preparations",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "SIRI": {
+      "cik": 908937,
+      "entity_name": "SIRIUS XM HOLDINGS INC.",
+      "sic": "4832",
+      "sic_description": "Radio Broadcasting Stations",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 908937,
+          "entity_name": "SIRIUS XM HOLDINGS INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4832",
+          "sic_description": "Radio Broadcasting Stations",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "SNPS": {
+      "cik": 883241,
+      "entity_name": "SYNOPSYS INC",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 883241,
+          "entity_name": "SYNOPSYS INC",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "STX": {
+      "cik": 1137789,
+      "entity_name": "Seagate Technology Holdings plc",
+      "sic": "3572",
+      "sic_description": "Computer Storage Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1137789,
+          "entity_name": "Seagate Technology Holdings plc",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3572",
+          "sic_description": "Computer Storage Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "SWKS": {
+      "cik": 4127,
+      "entity_name": "SKYWORKS SOLUTIONS, INC.",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 4127,
+          "entity_name": "SKYWORKS SOLUTIONS, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "TCOM": {
+      "cik": 1269238,
+      "entity_name": "Trip.com Group Limited",
+      "sic": "7389",
+      "sic_description": "Services-Business Services, NEC",
+      "row_count": 3,
+      "identities": [
+        {
+          "cik": 1269238,
+          "entity_name": "Trip.com Group Limited",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7389",
+          "sic_description": "Services-Business Services, NEC",
+          "row_count": 3
+        }
+      ],
+      "identity_failures": []
+    },
+    "TMUS": {
+      "cik": 1283699,
+      "entity_name": "T-Mobile US, Inc.",
+      "sic": "4812",
+      "sic_description": "Radiotelephone Communications",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1283699,
+          "entity_name": "T-Mobile US, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": "4812",
+          "sic_description": "Radiotelephone Communications",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "TRIP": {
+      "cik": 1526520,
+      "entity_name": "TRIPADVISOR, INC.",
+      "sic": "7370",
+      "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1526520,
+          "entity_name": "TRIPADVISOR, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7370",
+          "sic_description": "Services-Computer Programming, Data Processing, Etc.",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "TSCO": {
+      "cik": 916365,
+      "entity_name": "TRACTOR SUPPLY CO /DE/",
+      "sic": "5200",
+      "sic_description": "Retail-Building Materials, Hardware, Garden Supply",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 916365,
+          "entity_name": "TRACTOR SUPPLY CO /DE/",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5200",
+          "sic_description": "Retail-Building Materials, Hardware, Garden Supply",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "TSLA": {
+      "cik": 1318605,
+      "entity_name": "Tesla,\u00a0Inc.",
+      "sic": "3711",
+      "sic_description": "Motor Vehicles & Passenger Car Bodies",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1318605,
+          "entity_name": "Tesla,\u00a0Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3711",
+          "sic_description": "Motor Vehicles & Passenger Car Bodies",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "TTWO": {
+      "cik": 946581,
+      "entity_name": "Take-Two Interactive Software, Inc.",
+      "sic": "7372",
+      "sic_description": "Services-Prepackaged Software",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 946581,
+          "entity_name": "Take-Two Interactive Software, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7372",
+          "sic_description": "Services-Prepackaged Software",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "TXN": {
+      "cik": 97476,
+      "entity_name": "TEXAS INSTRUMENTS INCORPORATED",
+      "sic": "3674",
+      "sic_description": "Semiconductors & Related Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 97476,
+          "entity_name": "TEXAS INSTRUMENTS INCORPORATED",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3674",
+          "sic_description": "Semiconductors & Related Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "ULTA": {
+      "cik": 1403568,
+      "entity_name": "ULTA BEAUTY, INC.",
+      "sic": "5990",
+      "sic_description": "Retail-Retail Stores, NEC",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1403568,
+          "entity_name": "ULTA BEAUTY, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": "5990",
+          "sic_description": "Retail-Retail Stores, NEC",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "VRSK": {
+      "cik": 1442145,
+      "entity_name": "Verisk Analytics, Inc.",
+      "sic": "7374",
+      "sic_description": "Services-Computer Processing & Data Preparation",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1442145,
+          "entity_name": "Verisk Analytics, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7374",
+          "sic_description": "Services-Computer Processing & Data Preparation",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "VRTX": {
+      "cik": 875320,
+      "entity_name": "VERTEX PHARMACEUTICALS INC / MA",
+      "sic": "2834",
+      "sic_description": "Pharmaceutical Preparations",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 875320,
+          "entity_name": "VERTEX PHARMACEUTICALS INC / MA",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "2834",
+          "sic_description": "Pharmaceutical Preparations",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "WDAY": {
+      "cik": 1327811,
+      "entity_name": "WORKDAY, INC.",
+      "sic": "7374",
+      "sic_description": "Services-Computer Processing & Data Preparation",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1327811,
+          "entity_name": "WORKDAY, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7374",
+          "sic_description": "Services-Computer Processing & Data Preparation",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "WDC": {
+      "cik": 106040,
+      "entity_name": "WESTERN DIGITAL CORPORATION",
+      "sic": "3572",
+      "sic_description": "Computer Storage Devices",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 106040,
+          "entity_name": "WESTERN DIGITAL CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3572",
+          "sic_description": "Computer Storage Devices",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "WYNN": {
+      "cik": 1174922,
+      "entity_name": "WYNN RESORTS LTD",
+      "sic": "7011",
+      "sic_description": "Hotels & Motels",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 1174922,
+          "entity_name": "WYNN RESORTS LTD",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": "7011",
+          "sic_description": "Hotels & Motels",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    },
+    "XRAY": {
+      "cik": 818479,
+      "entity_name": "DENTSPLY SIRONA Inc.",
+      "sic": "3843",
+      "sic_description": "Dental Equipment & Supplies",
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 818479,
+          "entity_name": "DENTSPLY SIRONA Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": "3843",
+          "sic_description": "Dental Equipment & Supplies",
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    }
+  },
+  "failures": {
+    "ALXN": "no_usable_annual_filing_features",
+    "ASML": "no_usable_annual_filing_features",
+    "ATVI": "no_usable_annual_filing_features",
+    "AVGO": "no_usable_annual_filing_features",
+    "BIDU": "no_usable_annual_filing_features",
+    "CA": "no_usable_annual_filing_features",
+    "CELG": "no_usable_annual_filing_features",
+    "CERN": "no_usable_annual_filing_features",
+    "CTXS": "no_usable_annual_filing_features",
+    "DISCA": "no_usable_annual_filing_features",
+    "DISCK": "no_usable_annual_filing_features",
+    "DISH": "no_usable_annual_filing_features",
+    "FI": "no_usable_annual_filing_features",
+    "FOX": "no_usable_annual_filing_features",
+    "FOXA": "no_usable_annual_filing_features",
+    "HOLX": "no_usable_annual_filing_features",
+    "LBTYA": "no_usable_annual_filing_features",
+    "LBTYK": "no_usable_annual_filing_features",
+    "MXIM": "no_usable_annual_filing_features",
+    "MYL": "no_usable_annual_filing_features",
+    "NLOK": "no_usable_annual_filing_features",
+    "QRTEA": "no_usable_annual_filing_features",
+    "VIAB": "no_usable_annual_filing_features",
+    "VOD": "no_usable_annual_filing_features",
+    "WBA": "no_usable_annual_filing_features",
+    "XLNX": "no_usable_annual_filing_features",
+    "YHOO": "no_usable_annual_filing_features"
+  },
+  "retrieved_at": "2026-07-23T18:47:16.067264+00:00",
+  "official_endpoints": {
+    "ticker_mapping": "https://www.sec.gov/files/company_tickers.json",
+    "company_facts": "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json",
+    "submissions": "https://data.sec.gov/submissions/CIK{cik:010d}.json"
+  },
+  "requested_start": "2015-01-01",
+  "requested_end": "2017-12-31",
+  "row_count": 979,
+  "feature_file": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_sec_pit_cash_accrual_quarterly_ttm_2015_2017.csv",
+  "feature_file_sha256": "63ef6784f456ceaf06191ce7ea608f727cc49a10a6c74f026383bdb553bfa22f",
+  "universe": {
+    "source": "https://en.wikipedia.org/w/index.php?title=List_of_NASDAQ-100_companies&oldid=1365378481",
+    "retrieved_at": "2026-07-23T14:46:37.989979+00:00",
+    "universe_policy": "current Nasdaq-100 snapshot reverse-reconstructed with dated component changes",
+    "survivorship_policy": "historical_constituents",
+    "source_quality": "secondary public history; pinned revision, table schema, forward reconstruction, and snapshot size checked",
+    "source_license": "CC BY-SA 4.0",
+    "source_attribution": "Wikipedia contributors, List of NASDAQ-100 companies",
+    "raw_source_file": "/Applications/react/my-app/portfolio-project/data/research/raw/nasdaq100/nasdaq100_components_oldid_1365378481.html",
+    "raw_source_sha256": "6d88f2344e3c2cc998af5f2712c282d6d5d6a9f4a48fc3bc3f6f50952fb25331",
+    "manifest_file": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_membership_events_2016_2025.csv",
+    "manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+    "event_count": 271,
+    "ticker_count": 179,
+    "start_date": "2016-12-31",
+    "end_date": "2025-12-31",
+    "start_snapshot_count": 104,
+    "end_snapshot_count": 101,
+    "promotion_note": "Membership is point-in-time for the declared interval; price and issuer identity coverage must pass separate gates.",
+    "promotion_safe": true
+  },
+  "ingestion_mode": "local_official_companyfacts_archive",
+  "companyfacts_directory": "/Applications/react/my-app/portfolio-project/companyfacts",
+  "submissions_directory": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions",
+  "ticker_cik_map_sha256": null,
+  "security_master": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_security_master.csv",
+    "sha256": "689f580cc315a080200550b5dfa55d5b64a8d521d88251274c5560a3b1c52a79",
+    "provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_security_master.provenance.json",
+    "provenance_file_sha256": "d0e617d15af9d7dd60cf02d6bece7e21ee5f7baaf44e9fbcbe2fa5618c227841",
+    "promotion_safe": true,
+    "identity_policy": "dated ticker-to-CIK intervals; no overlapping issuer identities",
+    "sector_policy": "security-master sector override when present; otherwise SEC submissions SIC"
+  },
+  "prices": {
+    "source": "Yahoo Finance adjusted price history",
+    "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_prices_2015_2021.csv",
+    "price_file_sha256": "e6ae09bdec0950038d3157c947ed8d12949bc087810abacbd6c92dd25906e9ca",
+    "provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_prices_2015_2021.provenance.json",
+    "provenance_file_sha256": "8bf4c3145764ebd73905ebb9260f634a3fe7d365f378ccfa6b69787a61ad75df",
+    "missing_tickers": [
+      "ALXN",
+      "ANSS",
+      "ATVI",
+      "CA",
+      "CELG",
+      "CERN",
+      "CTXS",
+      "DISCA",
+      "DISCK",
+      "DISH",
+      "FI",
+      "HOLX",
+      "MXIM",
+      "MYL",
+      "NLOK",
+      "QRTEA",
+      "SGEN",
+      "SPLK",
+      "VIAB",
+      "WBA",
+      "XLNX",
+      "YHOO"
+    ],
+    "price_aliases": null,
+    "promotion_safe": true
+  },
+  "promotion_safe": true,
+  "user_agent_declared": false
+}

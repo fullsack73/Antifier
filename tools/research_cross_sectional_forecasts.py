@@ -91,6 +91,17 @@ def _research_settings(args):
                 FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS
             ),
         }
+    if "factor_residual_cash_accrual_nested_ridge" in args.objectives:
+        settings["cash_accrual_feature_policy"] = {
+            "definition": (
+                "(operating_cash_flow-net_income)/assets"
+            ),
+            "direction": "higher_is_better",
+            "missing_policy": (
+                "cross_sectional_neutral_plus_missing_indicator"
+            ),
+            "feature_set": "core-cash-accrual",
+        }
     return settings
 
 
@@ -669,6 +680,7 @@ def main(argv=None):
             "factor_residual_rank_nested_ridge",
             "factor_residual_market_nested_ridge",
             "factor_residual_fundamental_momentum_nested_ridge",
+            "factor_residual_cash_accrual_nested_ridge",
             "factor_residual_quality_ridge",
         }
         if factor_objectives.intersection(args.objectives) and not (

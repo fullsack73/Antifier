@@ -117,6 +117,11 @@
 - prior `momentum/value/conservative-investment=50/25/25`, prior shrinkage 75%, component cap 60%, 최대 12 completed observations를 결과 전에 고정했습니다.
 - adaptive 후보 자체 IC `0.0698`, spread `0.01177`은 absolute gate를 통과했지만 raw momentum 대비 ΔIC `0.00705`, Δspread `0.00346`에 그쳤습니다.
 - paired P(higher IC/spread)는 `64.00%`/`87.40%`, Holm-adjusted p-value는 `0.3600`이라 폐기합니다. 같은 split에서 shrinkage, cap, prior, history를 재튜닝하지 않습니다.
+- official French 25 size×accrual의 fresh 1969~1998 research에서 inverse-accrual 50%와 12-1 momentum 50% 후보는 absolute IC `0.2044`, spread `0.04339`로 자체 gate를 통과했습니다.
+- 그러나 raw momentum 대비 paired P(higher IC/spread)는 `95.50%`/`84.75%`, Holm-adjusted p-value는 `0.1525`여서 French blend를 폐기합니다. working-capital accrual benchmark와 SEC cash-accrual을 동일 feature로 해석하지 않습니다.
+- SEC quarterly TTM에 opt-in `(operating_cash_flow-net_income)/assets`와 missing indicator를 추가하고 core schema를 보존했습니다.
+- fresh Nasdaq-100 2017 split은 canonical membership 시작일 때문에 usable OOS period가 6개뿐이었고, cash-accrual nested 후보 IC `-0.0451`, spread `-0.00742`로 baseline IC `-0.0298`, spread `0.00737`보다 나빴습니다.
+- exact cash-accrual feature/model을 폐기하고 2018+ 소진 구간에서 정의, penalty, missing policy를 재튜닝하지 않습니다.
 
 ## 참고
 
@@ -137,3 +142,4 @@
 - Value-quality-momentum freeze: `docs/reports/260724-0245-01-value-quality-momentum-research.md`
 - Value-quality-momentum validation: `docs/reports/260724-0250-01-value-quality-momentum-validation.md`
 - Adaptive value-investment-momentum 폐기: `docs/reports/260724-0301-01-adaptive-value-investment-momentum-research.md`
+- Cash-accrual 폐기: `docs/reports/260724-0350-01-cash-accrual-research.md`

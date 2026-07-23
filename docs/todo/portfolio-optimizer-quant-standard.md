@@ -107,6 +107,9 @@
 - validation을 열지 않고 public default를 변경하지 않습니다. uncertainty calibration hyperparameter와 Transformer capacity를 같은 결과에 맞춰 재탐색하지 않습니다.
 - fresh 35-industry research에서 lightweight forecast magnitude를 제거한 fixed 20% rank tilt도 mean IC `-0.0125`, spread `-0.00034`, Sharpe `0.6533`으로 탈락했습니다.
 - candidate P(higher Sharpe)는 current lightweight/equal-weight 대비 `28.40%`/`28.80%`였습니다. point ordering 자체가 약하므로 rank-view strength나 active share를 같은 split에서 재튜닝하지 않습니다.
+- official French 25 size×accrual에서 fixed 50/50 accrual-quality-momentum은 absolute gate를 통과했지만 raw momentum 대비 paired spread probability `84.75%`, Holm-adjusted p-value `0.1525`로 탈락했습니다.
+- local companyfacts 기반 SEC cash-accrual `(operating_cash_flow-net_income)/assets`를 opt-in PIT feature로 구현했지만 fresh Nasdaq 2017 nested candidate IC `-0.0451`, spread `-0.00742`로 baseline보다 악화됐습니다.
+- usable OOS period가 6개뿐이라 bootstrap도 불가능했습니다. production optimizer/default alpha는 변경하지 않고 exact cash-accrual candidate를 폐기합니다.
 
 ## 금지
 

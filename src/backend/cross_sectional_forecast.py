@@ -18,6 +18,7 @@ from forecast_signal_research import (
 from portfolio_statistics import holm_bonferroni
 from portfolio_alpha_v2 import (
     PIT_ALPHA_FEATURES,
+    PIT_CASH_ACCRUAL_FEATURES,
     factor_residual_forward_returns,
     normalize_point_in_time_features,
     point_in_time_snapshot,
@@ -69,6 +70,21 @@ QUALITY_POOLED_FEATURE_COLUMNS = (
     "profitability",
     "profitability_missing",
 )
+CASH_ACCRUAL_MISSING_FEATURE_COLUMNS = tuple(
+    f"{column}_missing" for column in PIT_CASH_ACCRUAL_FEATURES
+)
+CASH_ACCRUAL_EXTENSION_FEATURE_COLUMNS = (
+    PIT_CASH_ACCRUAL_FEATURES
+    + CASH_ACCRUAL_MISSING_FEATURE_COLUMNS
+)
+CASH_ACCRUAL_PIT_FEATURE_COLUMNS = (
+    FACTOR_PIT_FEATURE_COLUMNS
+    + CASH_ACCRUAL_EXTENSION_FEATURE_COLUMNS
+)
+CASH_ACCRUAL_POOLED_FEATURE_COLUMNS = (
+    POOLED_FEATURE_COLUMNS
+    + CASH_ACCRUAL_PIT_FEATURE_COLUMNS
+)
 DEFAULT_NESTED_RIDGE_PENALTIES = (1.0, 5.0, 20.0, 100.0)
 FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS = 300
 HIST_GRADIENT_BOOSTING_SETTINGS = {
@@ -87,12 +103,14 @@ FACTOR_FULL_OBJECTIVES = {
     "factor_residual_rank_nested_ridge",
     "factor_residual_market_nested_ridge",
     "factor_residual_fundamental_momentum_nested_ridge",
+    "factor_residual_cash_accrual_nested_ridge",
 }
 NESTED_RIDGE_OBJECTIVES = {
     "factor_residual_nested_ridge",
     "factor_residual_rank_nested_ridge",
     "factor_residual_market_nested_ridge",
     "factor_residual_fundamental_momentum_nested_ridge",
+    "factor_residual_cash_accrual_nested_ridge",
 }
 RANK_TARGET_OBJECTIVES = {
     "listwise_rank_ridge",
@@ -108,6 +126,7 @@ POOLED_OBJECTIVES = (
     "factor_residual_market_nested_ridge",
     "factor_residual_fundamental_momentum_nested_ridge",
     "factor_residual_quality_ridge",
+    "factor_residual_cash_accrual_nested_ridge",
     "pairwise_ridge",
     "listwise_rank_ridge",
     "relative_hist_gradient_boosting",
@@ -204,6 +223,31 @@ def pooled_point_in_time_features(
         features[column] = _cross_sectional_standardize(raw).fillna(0.0)
         features[f"{column}_missing"] = raw.isna().astype(float)
     return features
+
+
+def pooled_point_in_time_cash_accrual_features(
+    point_in_time_features,
+    as_of_date,
+    tickers,
+):
+    """Add PIT-safe cash-accrual quality without changing core contracts."""
+    ticker_order = [str(ticker).strip().upper() for ticker in tickers]
+    features = pooled_point_in_time_features(
+        point_in_time_features,
+        as_of_date,
+        ticker_order,
+    )
+    snapshot = point_in_time_snapshot(
+        point_in_time_features,
+        as_of_date,
+        tickers=ticker_order,
+        extra_feature_columns=PIT_CASH_ACCRUAL_FEATURES,
+    ).reindex(ticker_order)
+    for column in PIT_CASH_ACCRUAL_FEATURES:
+        raw = pd.to_numeric(snapshot[column], errors="coerce")
+        features[column] = _cross_sectional_standardize(raw).fillna(0.0)
+        features[f"{column}_missing"] = raw.isna().astype(float)
+    return features.loc[:, CASH_ACCRUAL_PIT_FEATURE_COLUMNS]
 
 
 def pooled_point_in_time_fundamental_momentum_features(
@@ -312,6 +356,7 @@ def _objective_target_kind(objective):
         "factor_residual_rank_nested_ridge",
         "factor_residual_market_nested_ridge",
         "factor_residual_fundamental_momentum_nested_ridge",
+        "factor_residual_cash_accrual_nested_ridge",
         "factor_residual_quality_ridge",
     }:
         return "factor_residual"
@@ -326,6 +371,12 @@ def _fit_pooled_ridge(
     feature_columns,
 ):
     frame = pd.DataFrame(training_rows)
+    required_columns = {"target", *feature_columns}
+    if frame.empty or not required_columns.issubset(frame.columns):
+        raise ValueError(
+            "Insufficient pooled training observations: "
+            f"0 < {int(minimum_observations)}"
+        )
     valid = (
         frame["target"].notna()
         & frame[list(feature_columns)].notna().all(axis=1)
@@ -403,6 +454,12 @@ def _fit_pooled_hist_gradient_boosting(
 ):
     """Fit a fixed compact nonlinear model with equal signal-date weight."""
     frame = pd.DataFrame(training_rows)
+    required_columns = {"target", *feature_columns}
+    if frame.empty or not required_columns.issubset(frame.columns):
+        raise ValueError(
+            "Insufficient pooled training observations: "
+            f"0 < {int(minimum_observations)}"
+        )
     valid = (
         frame["target"].notna()
         & frame[list(feature_columns)].notna().all(axis=1)
@@ -672,6 +729,8 @@ def walk_forward_pooled_ridge(
         feature_columns = (
             FUNDAMENTAL_MOMENTUM_POOLED_FEATURE_COLUMNS
         )
+    elif objective == "factor_residual_cash_accrual_nested_ridge":
+        feature_columns = CASH_ACCRUAL_POOLED_FEATURE_COLUMNS
     elif objective in FACTOR_FULL_OBJECTIVES:
         feature_columns = FACTOR_POOLED_FEATURE_COLUMNS
     elif objective == "factor_residual_quality_ridge":
@@ -733,6 +792,13 @@ def walk_forward_pooled_ridge(
                 )
                 if objective
                 == "factor_residual_fundamental_momentum_nested_ridge"
+                else pooled_point_in_time_cash_accrual_features(
+                    point_in_time_features,
+                    prices.index[position],
+                    active_tickers,
+                )
+                if objective
+                == "factor_residual_cash_accrual_nested_ridge"
                 else pooled_point_in_time_features(
                     point_in_time_features,
                     prices.index[position],
@@ -1207,6 +1273,10 @@ def compare_pooled_objectives(
         ),
         (
             "factor_residual_fundamental_momentum_nested_ridge",
+            "factor_residual_nested_ridge",
+        ),
+        (
+            "factor_residual_cash_accrual_nested_ridge",
             "factor_residual_nested_ridge",
         ),
     )

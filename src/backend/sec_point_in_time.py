@@ -842,6 +842,7 @@ def build_company_pit_features(
     start_date=None,
     end_date=None,
     sector_override=None,
+    include_cash_accrual_quality=False,
 ):
     """Build annual filing-date features for one company without future facts."""
     ticker = str(ticker).strip().upper()
@@ -939,6 +940,15 @@ def build_company_pit_features(
             else net_income
         )
         quality = _safe_ratio(quality_numerator, assets)
+        cash_accrual_quality = _safe_ratio(
+            (
+                operating_cash_flow - net_income
+                if operating_cash_flow is not None
+                and net_income is not None
+                else None
+            ),
+            assets,
+        )
         profitability = _safe_ratio(
             values["gross_profit"],
             values["revenue"],
@@ -955,34 +965,40 @@ def build_company_pit_features(
         )
         if market_cap is None or market_cap <= 0:
             continue
-        rows.append(
-            {
-                "available_date": available_date,
-                "ticker": ticker,
-                "sector": sector,
-                "market_cap": market_cap,
-                "quality": quality,
-                "profitability": profitability,
-                "valuation": valuation,
-                "liquidity": liquidity,
-                "filing_accession": anchor["accn"],
-                "filing_form": anchor["form"],
-                "report_end": anchor["report_end"],
-                "filing_price": filing_price,
-                "shares_outstanding": shares,
-            }
-        )
+        row = {
+            "available_date": available_date,
+            "ticker": ticker,
+            "sector": sector,
+            "market_cap": market_cap,
+            "quality": quality,
+            "profitability": profitability,
+            "valuation": valuation,
+            "liquidity": liquidity,
+            "filing_accession": anchor["accn"],
+            "filing_form": anchor["form"],
+            "report_end": anchor["report_end"],
+            "filing_price": filing_price,
+            "shares_outstanding": shares,
+        }
+        if include_cash_accrual_quality:
+            row["cash_accrual_quality"] = cash_accrual_quality
+        rows.append(row)
     if not rows:
+        feature_columns = [
+            "available_date",
+            "ticker",
+            "sector",
+            "market_cap",
+            "quality",
+            "profitability",
+            "valuation",
+            "liquidity",
+        ]
+        if include_cash_accrual_quality:
+            feature_columns.append("cash_accrual_quality")
         return pd.DataFrame(
-            columns=[
-                "available_date",
-                "ticker",
-                "sector",
-                "market_cap",
-                "quality",
-                "profitability",
-                "valuation",
-                "liquidity",
+            columns=feature_columns
+            + [
                 "filing_accession",
                 "filing_form",
                 "report_end",
@@ -1006,6 +1022,7 @@ def build_company_quarterly_ttm_features(
     start_date=None,
     end_date=None,
     sector_override=None,
+    include_cash_accrual_quality=False,
 ):
     """Build filing-date quarterly TTM features without future filings."""
     ticker = str(ticker).strip().upper()
@@ -1094,6 +1111,15 @@ def build_company_quarterly_ttm_features(
             else net_income
         )
         quality = _safe_ratio(quality_numerator, assets)
+        cash_accrual_quality = _safe_ratio(
+            (
+                trailing["operating_cash_flow"] - net_income
+                if trailing["operating_cash_flow"] is not None
+                and net_income is not None
+                else None
+            ),
+            assets,
+        )
         profitability = _safe_ratio(
             trailing["gross_profit"],
             trailing["revenue"],
@@ -1110,17 +1136,20 @@ def build_company_quarterly_ttm_features(
         )
         if market_cap is None or market_cap <= 0:
             continue
+        row_features = [
+            quality,
+            profitability,
+            valuation,
+            liquidity,
+        ]
+        if include_cash_accrual_quality:
+            row_features.append(cash_accrual_quality)
         if all(
             not np.isfinite(value)
-            for value in (
-                quality,
-                profitability,
-                valuation,
-                liquidity,
-            )
+            for value in row_features
         ):
             continue
-        rows.append({
+        row = {
             "available_date": available_date,
             "ticker": ticker,
             "sector": sector,
@@ -1134,18 +1163,26 @@ def build_company_quarterly_ttm_features(
             "report_end": anchor["report_end"],
             "filing_price": filing_price,
             "shares_outstanding": shares,
-        })
+        }
+        if include_cash_accrual_quality:
+            row["cash_accrual_quality"] = cash_accrual_quality
+        rows.append(row)
     if not rows:
+        feature_columns = [
+            "available_date",
+            "ticker",
+            "sector",
+            "market_cap",
+            "quality",
+            "profitability",
+            "valuation",
+            "liquidity",
+        ]
+        if include_cash_accrual_quality:
+            feature_columns.append("cash_accrual_quality")
         return pd.DataFrame(
-            columns=[
-                "available_date",
-                "ticker",
-                "sector",
-                "market_cap",
-                "quality",
-                "profitability",
-                "valuation",
-                "liquidity",
+            columns=feature_columns
+            + [
                 "filing_accession",
                 "filing_form",
                 "report_end",
@@ -1169,6 +1206,7 @@ def build_sec_pit_features(
     end_date=None,
     refresh=False,
     filing_frequency="annual",
+    include_cash_accrual_quality=False,
 ):
     """Fetch SEC facts and construct a long-form PIT feature dataset."""
     prices = pd.DataFrame(prices).copy()
@@ -1252,6 +1290,9 @@ def build_sec_pit_features(
                     start_date=bounded_start,
                     end_date=bounded_end,
                     sector_override=identity.get("sector"),
+                    include_cash_accrual_quality=(
+                        include_cash_accrual_quality
+                    ),
                 )
                 if not frame.empty:
                     ticker_frames.append(frame)
@@ -1315,6 +1356,11 @@ def build_sec_pit_features(
         "availability_policy": "SEC filing date; filed <= signal as-of date",
         "feature_policy": {
             "filing_frequency": filing_frequency,
+            "feature_set": (
+                "core-cash-accrual"
+                if include_cash_accrual_quality
+                else "core"
+            ),
             "quality": "operating_cash_flow/assets; net_income/assets fallback",
             "profitability": "gross_profit/revenue; net_margin fallback",
             "valuation": "net_income/(filing-date price * shares)",
@@ -1323,6 +1369,16 @@ def build_sec_pit_features(
             "shares_fallback": (
                 "annual weighted-average basic/diluted shares when an "
                 "instant shares-outstanding fact is unavailable"
+            ),
+            **(
+                {
+                    "cash_accrual_quality": (
+                        "(operating_cash_flow-net_income)/assets; "
+                        "higher means less accrual-dependent earnings"
+                    )
+                }
+                if include_cash_accrual_quality
+                else {}
             ),
         },
         "tickers_requested": [

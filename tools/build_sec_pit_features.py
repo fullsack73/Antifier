@@ -17,7 +17,10 @@ BACKEND = ROOT / "src" / "backend"
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
-from portfolio_alpha_v2 import normalize_point_in_time_features  # noqa: E402
+from portfolio_alpha_v2 import (  # noqa: E402
+    PIT_CASH_ACCRUAL_FEATURES,
+    normalize_point_in_time_features,
+)
 from portfolio_backtest import fetch_backtest_price_data  # noqa: E402
 from sec_point_in_time import (  # noqa: E402
     SEC_COMPANY_FACTS_URL,
@@ -192,6 +195,12 @@ def main(argv=None):
         choices=("annual", "quarterly-ttm"),
         default="annual",
     )
+    parser.add_argument(
+        "--feature-set",
+        choices=("core", "core-cash-accrual"),
+        default="core",
+        help="Opt-in feature extension; core preserves existing artifacts",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -303,6 +312,9 @@ def main(argv=None):
             end_date=end,
             refresh=args.refresh,
             filing_frequency=args.filing_frequency,
+            include_cash_accrual_quality=(
+                args.feature_set == "core-cash-accrual"
+            ),
         )
         if features.empty:
             failure_summary = json.dumps(
@@ -313,7 +325,14 @@ def main(argv=None):
                 "SEC produced no usable PIT feature rows: "
                 + failure_summary
             )
-        normalize_point_in_time_features(features)
+        normalize_point_in_time_features(
+            features,
+            extra_feature_columns=(
+                PIT_CASH_ACCRUAL_FEATURES
+                if args.feature_set == "core-cash-accrual"
+                else ()
+            ),
+        )
         features = features.sort_values(
             ["available_date", "ticker"]
         ).reset_index(drop=True)

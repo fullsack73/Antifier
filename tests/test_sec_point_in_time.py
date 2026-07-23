@@ -258,6 +258,7 @@ def test_company_features_use_sec_filing_date_and_filing_date_price():
         _company_facts(),
         {"sic": "3571"},
         prices,
+        include_cash_accrual_quality=True,
     )
 
     assert list(result["available_date"]) == [
@@ -272,6 +273,33 @@ def test_company_features_use_sec_filing_date_and_filing_date_price():
     assert first["profitability"] == pytest.approx(400.0 / 1000.0)
     assert first["valuation"] == pytest.approx(100.0 / 1000.0)
     assert first["liquidity"] == pytest.approx(2.0)
+    assert first["cash_accrual_quality"] == pytest.approx(
+        (180.0 - 100.0) / 2000.0
+    )
+
+
+def test_cash_accrual_feature_is_opt_in():
+    prices = pd.Series(
+        [10.0, 20.0],
+        index=pd.to_datetime(["2023-02-10", "2024-02-09"]),
+    )
+
+    core = build_company_pit_features(
+        "EXM",
+        _company_facts(),
+        {"sic": "3571"},
+        prices,
+    )
+    extended = build_company_pit_features(
+        "EXM",
+        _company_facts(),
+        {"sic": "3571"},
+        prices,
+        include_cash_accrual_quality=True,
+    )
+
+    assert "cash_accrual_quality" not in core.columns
+    assert "cash_accrual_quality" in extended.columns
 
 
 def test_future_amendment_does_not_rewrite_earlier_filing_row():
@@ -285,6 +313,7 @@ def test_future_amendment_does_not_rewrite_earlier_filing_row():
         {"sic": "3571"},
         prices,
         end_date="2023-12-31",
+        include_cash_accrual_quality=True,
     )
     amended = build_company_pit_features(
         "EXM",
@@ -292,6 +321,7 @@ def test_future_amendment_does_not_rewrite_earlier_filing_row():
         {"sic": "3571"},
         prices,
         end_date="2023-12-31",
+        include_cash_accrual_quality=True,
     )
 
     pd.testing.assert_frame_equal(baseline, amended)
@@ -392,6 +422,7 @@ def test_quarterly_ttm_features_derive_ytd_and_fourth_quarter_flows():
         _quarterly_company_facts(),
         {"sic": "3571"},
         prices,
+        include_cash_accrual_quality=True,
     )
 
     assert len(result) == 4
@@ -403,6 +434,9 @@ def test_quarterly_ttm_features_derive_ytd_and_fourth_quarter_flows():
     assert row["profitability"] == pytest.approx(0.40)
     assert row["valuation"] == pytest.approx(1.0)
     assert row["liquidity"] == pytest.approx(2.0)
+    assert row["cash_accrual_quality"] == pytest.approx(
+        (130.0 - 100.0) / 1000.0
+    )
 
 
 def test_future_quarterly_amendment_does_not_rewrite_prior_row():
@@ -424,6 +458,7 @@ def test_future_quarterly_amendment_does_not_rewrite_prior_row():
         {"sic": "3571"},
         prices,
         end_date="2024-03-01",
+        include_cash_accrual_quality=True,
     )
     amended = build_company_quarterly_ttm_features(
         "EXM",
@@ -431,6 +466,7 @@ def test_future_quarterly_amendment_does_not_rewrite_prior_row():
         {"sic": "3571"},
         prices,
         end_date="2024-03-01",
+        include_cash_accrual_quality=True,
     )
 
     pd.testing.assert_frame_equal(baseline, amended)
