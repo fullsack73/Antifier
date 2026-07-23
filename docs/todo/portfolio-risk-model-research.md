@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: minvar/momentum blend도 실패하고 plain Ledoit minimum variance가 strongest baseline
+- 현재 상태: plain Ledoit minimum variance는 강하지만 default-promotion statistical gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -103,6 +103,15 @@
 - Plain minimum variance volatility/Sharpe `11.95%/0.6829`가 blend `12.70%/0.6325`, momentum `13.67%/0.5878`보다 강했습니다.
 - Blend의 P(higher Sharpe)는 minvar 대비 `6.45%`, momentum 대비 `94.10%`였고 six-hypothesis Holm gate를 통과하지 못했습니다.
 - Blend를 폐기하고 plain Ledoit minimum variance를 current default 대비 fresh promotion research candidate로 검증합니다.
+
+## 2026-07-24 plain minimum-variance promotion research
+
+- Official French 10-industry `2000~2011` fresh split에서 long-only Ledoit-Wolf minimum variance를 current `lightweight_bl`, risk parity, equal weight, historical BL과 비교했습니다.
+- Candidate volatility/Sharpe `17.34%/0.3254`는 lightweight `20.00%/0.1834`, risk parity `18.65%/0.2551`보다 우수했고 deterministic gate를 통과했습니다.
+- Lightweight 대비 P(lower volatility/higher Sharpe)는 `100%/97.95%`로 통과했습니다.
+- Risk parity 대비 P(lower volatility/higher Sharpe)는 `100%/91.50%`였고 higher-Sharpe Holm-adjusted p-value `0.0850`으로 statistical gate를 통과하지 못했습니다.
+- Default allocator를 변경하지 않습니다. 동일 split에서 train window, cap, covariance estimator를 재튜닝하지 않고 validation/holdout을 봉인합니다.
+- 보고서: `docs/reports/260724-0612-01-plain-minvar-promotion-research.md`
 
 ## 2026-07-24 RMT research
 

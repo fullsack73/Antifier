@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: minvar/momentum blend가 탈락하고 plain Ledoit minimum variance promotion research 대기
+- 현재 상태: plain Ledoit minimum variance도 default-promotion statistical gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -148,6 +148,10 @@
 - Plain minimum variance Sharpe `0.6829`가 blend `0.6325`와 momentum `0.5878`보다 높았고, blend의 P(higher Sharpe)는 minvar 대비 `6.45%`, momentum 대비 `94.10%`였습니다.
 - Alpha sleeve가 risk baseline을 개선하지 못했으므로 blend를 폐기하고 같은 split에서 weight를 재튜닝하지 않습니다.
 - 다음 단계는 복잡한 새 모델이 아니라 plain Ledoit-Wolf minimum variance를 fresh period에서 current lightweight/default 및 risk-parity guard와 비교하는 promotion research입니다.
+- Plain Ledoit-Wolf minimum variance를 fresh official French 10-industry `2000~2011`에서 current lightweight/default 및 risk parity와 비교했습니다.
+- Candidate는 lightweight 대비 volatility `20.00%→17.34%`, Sharpe `0.1834→0.3254`; risk parity 대비 volatility `18.65%→17.34%`, Sharpe `0.2551→0.3254`로 deterministic gate를 통과했습니다.
+- Paired P(lower volatility/higher Sharpe)는 lightweight 대비 `100%/97.95%`, risk parity 대비 `100%/91.50%`였습니다.
+- Risk parity 대비 Sharpe 우위가 사전 고정 95%와 Holm gate를 통과하지 못해 default로 승격하지 않습니다. 같은 split에서 cap/window/covariance를 재튜닝하지 않고 validation/holdout을 봉인합니다.
 
 ## 금지
 

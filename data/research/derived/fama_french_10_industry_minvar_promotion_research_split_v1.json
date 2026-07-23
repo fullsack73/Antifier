@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-10-industry-minvar-promotion-research-2000-2011-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2011-12-30",
+  "experiment_namespace": "allocator-v1-minvar-default-industry-portfolios",
+  "objectives": [
+    "min_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "min_variance",
+    "statistical_baselines": [
+      "lightweight_bl",
+      "risk_parity"
+    ],
+    "guard_baselines": [
+      "equal_weight",
+      "historical_bl"
+    ],
+    "models": [
+      "equal_weight",
+      "historical_bl",
+      "lightweight_bl",
+      "risk_parity",
+      "min_variance"
+    ],
+    "candidate_policy": {
+      "objective": "long_only_minimum_variance",
+      "covariance": "ledoit_wolf_constant_variance",
+      "expected_returns": "unused",
+      "forecast_model": "unused"
+    }
+  },
+  "universe_manifest_sha256": "d13db6e67d7cb1466efec514c8f808fd37a39f16a57af004185d6f596954a03e",
+  "price_file_sha256": "0ca2789db3f9b525fb02406b29145a77b997c79418539f0e5c83a699d315f969",
+  "factor_file_sha256": "ec66ea8c568369a6dc14cad574a143897af95c0b0cea9bd5fd15e23a9fb70cbc",
+  "auxiliary_files": {
+    "price_provenance": "4cccbe0626a100edfcc96b18cbb00576778e3b5cc7dd0d08c4a84bf0f2303c8e",
+    "risk_free_provenance": "eea30f7e1bb9825a72503f18ca1d0587ced327dcce5199e2b19f5ca58a5048ab"
+  },
+  "locked": true,
+  "manifest_sha256": "89b49879eb8fea21798fa5d63739b4a802c93e9b5136799340c7e2c5b1457d4b"
+}
