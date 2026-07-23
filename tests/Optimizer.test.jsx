@@ -34,6 +34,8 @@ const translations = {
   "optimizer.return": "Expected Return",
   "optimizer.risk": "Risk (Std. Dev)",
   "optimizer.sharpeRatio": "Sharpe Ratio",
+  "optimizer.metricUnavailable": "Unavailable",
+  "optimizer.performanceUnavailable": "Performance metrics are unavailable because retained holdings fall outside the modeled universe. Review unmodeled weights before acting.",
   "optimizer.weights": "Weights",
   "optimizer.cancel": "Cancel",
   "optimizer.cancelled": "Optimization cancelled",
@@ -187,6 +189,48 @@ describe("Optimizer job lifecycle", () => {
     })
     expect(screen.getByText("10.00%")).toBeInTheDocument()
     expect(screen.getByText("AAPL")).toBeInTheDocument()
+  })
+
+  it("renders unavailable metrics for retained unmodeled holdings", async () => {
+    vi.stubGlobal("EventSource", MockEventSource)
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        request_id: "job-unmodeled",
+        portfolio_id: "job-unmodeled",
+        status: "completed",
+        progress: 100,
+        message: "Optimization complete",
+        result: {
+          ...portfolioResult,
+          weights: { AAPL: 0.3, OLD: 0.7 },
+          return: null,
+          risk: null,
+          sharpe_ratio: null,
+          performance_status: "unavailable_unmodeled_exposure",
+          performance_coverage: 0.3,
+          unmodeled_weights: { OLD: 0.7 },
+        },
+      }),
+    }))
+    window.localStorage.setItem(OPTIMIZER_JOB_STORAGE_KEY, JSON.stringify({
+      requestId: "job-unmodeled",
+      portfolioId: "job-unmodeled",
+      status: "running",
+      startedAt: "2026-07-09T00:00:00Z",
+      updatedAt: "2026-07-09T00:00:00Z",
+    }))
+
+    render(<Optimizer />)
+
+    await waitFor(() => {
+      expect(screen.getByText(
+        "Performance metrics are unavailable because retained holdings fall outside the modeled universe. Review unmodeled weights before acting.",
+      )).toBeInTheDocument()
+    })
+    expect(screen.getAllByText("Unavailable")).toHaveLength(3)
+    expect(screen.getByText("OLD")).toBeInTheDocument()
   })
 
   it("sends a cancel request for the restored running job", async () => {

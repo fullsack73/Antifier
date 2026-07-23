@@ -328,6 +328,8 @@
     "return": "Expected Return",
     "risk": "Risk (Std. Dev)",
     "sharpeRatio": "Sharpe Ratio",
+    "metricUnavailable": "Unavailable",
+    "performanceUnavailable": "Performance metrics are unavailable because retained holdings fall outside the modeled universe. Review unmodeled weights before acting.",
     "investmentAllocation": "Investment Allocation",
     "investmentBudget": "Investment Budget",
     "enterBudget": "Enter budget amount",

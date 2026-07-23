@@ -652,6 +652,20 @@ const Optimizer = () => {
     : riskTolerance
       ? t("optimizer.riskConstraintSummary", "{{value}}% risk ceiling", { value: riskTolerance })
       : t("optimizer.noCustomConstraint", "No custom constraint")
+  const unavailableMetric = t("optimizer.metricUnavailable", "Unavailable")
+  const formatPercentMetric = (value) => (
+    typeof value === "number" && Number.isFinite(value)
+      ? `${(value * 100).toFixed(2)}%`
+      : unavailableMetric
+  )
+  const formatRatioMetric = (value) => (
+    typeof value === "number" && Number.isFinite(value)
+      ? value.toFixed(2)
+      : unavailableMetric
+  )
+  const performanceUnavailable = (
+    optimizedPortfolio?.performance_status === "unavailable_unmodeled_exposure"
+  )
 
   return (
     <div className="optimizer-container">
@@ -1103,21 +1117,30 @@ const Optimizer = () => {
               </button>
             </div>
 
+            {performanceUnavailable && (
+              <div className="error-banner" role="alert">
+                {t(
+                  "optimizer.performanceUnavailable",
+                  "Performance metrics are unavailable because retained holdings fall outside the modeled universe. Review unmodeled weights before acting.",
+                )}
+              </div>
+            )}
+
             <div className="optimizer-result-summary">
               <div className="optimizer-result-primary">
                 <span>{t("optimizer.return")}</span>
-                <strong>{(optimizedPortfolio.return * 100).toFixed(2)}%</strong>
+                <strong>{formatPercentMetric(optimizedPortfolio.return)}</strong>
                 <p>{t("optimizer.returnContext", "Modeled expected return for the optimized mix.")}</p>
               </div>
               <dl className="optimizer-result-secondary">
                 <div>
                   <dt>{t("optimizer.risk")}</dt>
-                  <dd>{(optimizedPortfolio.risk * 100).toFixed(2)}%</dd>
+                  <dd>{formatPercentMetric(optimizedPortfolio.risk)}</dd>
                   <small>{t("optimizer.riskContext", "Modeled standard deviation")}</small>
                 </div>
                 <div>
                   <dt>{t("optimizer.sharpeRatio")}</dt>
-                  <dd>{optimizedPortfolio.sharpe_ratio.toFixed(2)}</dd>
+                  <dd>{formatRatioMetric(optimizedPortfolio.sharpe_ratio)}</dd>
                   <small>{t("optimizer.sharpeContext", "Return per unit of modeled risk")}</small>
                 </div>
               </dl>

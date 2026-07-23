@@ -955,8 +955,48 @@ def test_optimizer_min_holding_output_preserves_asset_cap(monkeypatch):
     assert controlled["risky_exposure"] == pytest.approx(0.60)
     assert controlled["cash_weight"] == pytest.approx(0.40)
     assert controlled["controlled_cash_weight"] == pytest.approx(0.40)
+    assert controlled["performance_coverage"] == pytest.approx(1.0)
+    assert controlled["performance_status"] == "complete"
+    assert controlled["unmodeled_weights"] == {}
     assert controlled["return"] == pytest.approx(expected_return)
     assert controlled["risk"] == pytest.approx(expected_risk)
+
+    unmodeled = portfolio_optimization.optimize_portfolio(
+        start_date="2024-01-01",
+        end_date="2024-12-31",
+        risk_free_rate=0.02,
+        tickers=tickers,
+        optimization_method="MPT",
+        forecast_method="LIGHTWEIGHT",
+        max_asset_weight=0.60,
+        min_holding_weight=0.05,
+        current_weights={
+            "AAA": 0.10,
+            "BBB": 0.10,
+            "OLD": 0.80,
+        },
+        rebalance_band=0.0,
+        max_turnover=0.20,
+    )
+
+    assert unmodeled["weights"] == pytest.approx(
+        {"AAA": 0.1625, "BBB": 0.1375, "OLD": 0.70}
+    )
+    assert unmodeled["risky_exposure"] == pytest.approx(1.0)
+    assert unmodeled["cash_weight"] == pytest.approx(0.0)
+    assert unmodeled["modeled_risky_exposure"] == pytest.approx(0.30)
+    assert unmodeled["unmodeled_risky_exposure"] == pytest.approx(0.70)
+    assert unmodeled["unmodeled_weights"] == pytest.approx(
+        {"OLD": 0.70}
+    )
+    assert unmodeled["performance_coverage"] == pytest.approx(0.30)
+    assert unmodeled["performance_status"] == (
+        "unavailable_unmodeled_exposure"
+    )
+    assert unmodeled["return"] is None
+    assert unmodeled["risk"] is None
+    assert unmodeled["sharpe_ratio"] is None
+    assert unmodeled["performance_warning"]
 
 
 def test_optimizer_adds_turnover_penalty_objective_when_current_weights_exist(monkeypatch):

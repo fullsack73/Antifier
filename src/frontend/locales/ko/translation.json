@@ -328,6 +328,8 @@
     "return": "예상 수익률",
     "risk": "위험 (표준 편차)",
     "sharpeRatio": "샤프 비율",
+    "metricUnavailable": "계산 불가",
+    "performanceUnavailable": "모델 대상 밖의 기존 보유가 남아 성과 지표를 계산할 수 없습니다. 실행 전 미모델 가중치를 확인하세요.",
     "investmentAllocation": "투자 배분",
     "investmentBudget": "투자 예산",
     "enterBudget": "예산 금액 입력",

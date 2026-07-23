@@ -2678,18 +2678,46 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 "controlled_cash_weight": controlled_cash_weight,
             }
 
-        performance = _performance_for_weights(
-            final_weights,
-            mu,
-            S,
-            risk_free_rate,
-            preserve_cash_exposure=True,
-        )
         risky_exposure = min(
             1.0,
             max(0.0, float(sum(final_weights.values()))),
         )
         cash_weight = max(0.0, 1.0 - risky_exposure)
+        modeled_tickers = set(mu.index)
+        unmodeled_weights = {
+            str(ticker): float(weight)
+            for ticker, weight in final_weights.items()
+            if ticker not in modeled_tickers and weight > 1e-10
+        }
+        unmodeled_risky_exposure = float(
+            sum(unmodeled_weights.values())
+        )
+        modeled_risky_exposure = max(
+            0.0,
+            risky_exposure - unmodeled_risky_exposure,
+        )
+        performance_coverage = max(
+            0.0,
+            min(1.0, 1.0 - unmodeled_risky_exposure),
+        )
+        if unmodeled_risky_exposure > 1e-8:
+            performance = (None, None, None)
+            performance_status = "unavailable_unmodeled_exposure"
+            performance_warning = (
+                "Return, risk, and Sharpe are unavailable because "
+                "post-control holdings remain outside the modeled "
+                "expected-return/covariance universe."
+            )
+        else:
+            performance = _performance_for_weights(
+                final_weights,
+                mu,
+                S,
+                risk_free_rate,
+                preserve_cash_exposure=True,
+            )
+            performance_status = "complete"
+            performance_warning = None
         
         # Filter prices
         final_prices = {t: latest_prices.get(t, 0.0) for t in final_tickers}
@@ -2701,6 +2729,12 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "sharpe_ratio": performance[2],
             "risky_exposure": risky_exposure,
             "cash_weight": cash_weight,
+            "modeled_risky_exposure": modeled_risky_exposure,
+            "unmodeled_risky_exposure": unmodeled_risky_exposure,
+            "unmodeled_weights": unmodeled_weights,
+            "performance_coverage": performance_coverage,
+            "performance_status": performance_status,
+            "performance_warning": performance_warning,
             "prices": final_prices,
             "asset_names": get_asset_names(final_weights.keys()),
             "price_currency": price_currency,
