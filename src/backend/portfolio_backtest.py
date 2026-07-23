@@ -50,6 +50,7 @@ from portfolio_risk_models import (
     hierarchical_risk_parity_weights,
     maximum_diversification_weights,
     minimum_cvar_weights,
+    nested_clustered_minimum_variance_weights,
     nested_blended_minimum_variance_weights,
     online_allocator_ensemble_weights,
     resampled_minimum_variance_weights,
@@ -125,6 +126,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "robust_min_variance",
     "equal_risk_contribution",
     "hierarchical_risk_parity",
+    "nested_clustered_minimum_variance",
     "regime_minimum_variance",
     "minimum_cvar",
     "cross_validated_min_variance",
@@ -1099,6 +1101,19 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
         weights, risk_diagnostics = hierarchical_risk_parity_weights(
             train_prices,
             max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "nested_clustered_minimum_variance":
+        weights, risk_diagnostics = (
+            nested_clustered_minimum_variance_weights(
+                train_prices,
+                max_asset_weight=max_asset_weight,
+            )
         )
         return weights.to_dict(), {
             "failed_forecast_count": 0,

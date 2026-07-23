@@ -25,6 +25,7 @@ from portfolio_risk_models import (  # noqa: E402
     hierarchical_risk_parity_weights,
     maximum_diversification_weights,
     minimum_cvar_weights,
+    nested_clustered_minimum_variance_weights,
     nested_blended_minimum_variance_weights,
     online_allocator_ensemble_weights,
     random_matrix_denoised_covariance,
@@ -97,6 +98,7 @@ def test_robust_covariance_is_psd_and_reports_conditioning():
         hierarchical_risk_parity_weights,
         regime_minimum_variance_weights,
         minimum_cvar_weights,
+        nested_clustered_minimum_variance_weights,
         cross_validated_minimum_variance_weights,
         forecast_ensemble_minimum_variance_weights,
         stability_regularized_minimum_variance_weights,
@@ -154,6 +156,72 @@ def test_random_matrix_covariance_is_psd_and_denoises_noise():
         == 20
     )
     assert diagnostics["variance_source"] == "ledoit_wolf_diagonal"
+
+
+def test_nested_clustered_minimum_variance_uses_training_clusters():
+    rng = np.random.default_rng(13)
+    dates = pd.date_range("2010-01-04", periods=620, freq="B")
+    returns = {}
+    expected_groups = []
+    for group_index in range(3):
+        factor = rng.normal(0.0002, 0.009, len(dates))
+        members = []
+        for asset_index in range(4):
+            ticker = f"G{group_index}A{asset_index}"
+            members.append(ticker)
+            returns[ticker] = (
+                factor
+                + rng.normal(0.0, 0.0015, len(dates))
+            )
+        expected_groups.append(set(members))
+    prices = pd.DataFrame(
+        {
+            ticker: 100.0 * np.exp(np.cumsum(values))
+            for ticker, values in returns.items()
+        },
+        index=dates,
+    )
+
+    weights, diagnostics = nested_clustered_minimum_variance_weights(
+        prices,
+        max_asset_weight=0.20,
+    )
+
+    observed_groups = {
+        frozenset(members)
+        for members in diagnostics["clusters"].values()
+    }
+    assert diagnostics["fallback"] is False
+    assert diagnostics["cluster_count"] == 3
+    assert observed_groups == {
+        frozenset(group) for group in expected_groups
+    }
+    assert diagnostics["optimizer_success"] is True
+    assert weights.sum() == pytest.approx(1.0)
+    assert weights.min() >= 0.0
+    assert weights.max() <= 0.200001
+
+
+def test_backtest_runs_nested_clustered_minimum_variance_model():
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _correlated_prices(),
+        models=("nested_clustered_minimum_variance",),
+        train_window=252,
+        rebalance_frequency=63,
+        forecast_horizon=63,
+        max_asset_weight=0.25,
+    )
+
+    summary = result["summary_by_model"][
+        "nested_clustered_minimum_variance"
+    ]
+    assert summary["rebalance_count"] > 0
+    assert summary["annual_volatility"] > 0.0
+    assert all(
+        record["risk_model"]["method"]
+        == "nested_clustered_minimum_variance"
+        for record in result["rebalance_records"]
+    )
 
 
 def test_volatility_targeted_allocator_holds_cash_in_elevated_risk():

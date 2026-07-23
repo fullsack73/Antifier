@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: plain Ledoit minimum variance는 강하지만 default-promotion statistical gate에서 탈락
+- 현재 상태: NCO도 plain Ledoit minimum variance의 Sharpe를 개선하지 못해 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -112,6 +112,19 @@
 - Risk parity 대비 P(lower volatility/higher Sharpe)는 `100%/91.50%`였고 higher-Sharpe Holm-adjusted p-value `0.0850`으로 statistical gate를 통과하지 못했습니다.
 - Default allocator를 변경하지 않습니다. 동일 split에서 train window, cap, covariance estimator를 재튜닝하지 않고 validation/holdout을 봉인합니다.
 - 보고서: `docs/reports/260724-0612-01-plain-minvar-promotion-research.md`
+
+## 2026-07-24 nested clustered optimization research
+
+- Nested Clustered Optimization을 research-only allocator로 추가했습니다.
+- Training-only Ledoit-Wolf correlation distance에 average linkage를 적용하고, cluster 수는 `2..min(10,n-1)` 중 silhouette가 최대인 값을 선택합니다.
+- 각 cluster 내부와 cluster portfolio 간에 long-only minimum variance를 순차 적용한 뒤 동일 asset cap과 execution control을 적용합니다.
+- Official French 38-industry source의 장기 결측 8개를 exact-name으로 제외한 30개 portfolio `1929~1969` fresh research split을 SHA로 잠갔습니다.
+- NCO volatility/Sharpe `11.76%/0.5671`은 minvar `11.83%/0.5933`보다 volatility만 미세하게 낮았습니다.
+- Minvar 대비 P(lower volatility/higher Sharpe)는 `86.65%/13.90%`, risk parity 대비 `100%/85.00%`, lightweight 대비 `100%/84.55%`였습니다.
+- 176회 전부 optimizer는 성공했지만 silhouette가 항상 2개 cluster를 골랐고 종종 단일 산업을 분리했습니다. 평균 pre-cap max weight `49.05%`, cap projection L1 distance `67.54%`로 hierarchy가 execution cap과 강하게 충돌했습니다.
+- Deterministic 및 six-hypothesis Holm gate에서 탈락했습니다. Linkage, cluster-count range, covariance estimator를 같은 split에서 재튜닝하지 않습니다.
+- Validation/holdout은 열지 않고 default allocator를 유지합니다.
+- 보고서: `docs/reports/260724-0623-01-nco-minvar-research.md`
 
 ## 2026-07-24 RMT research
 

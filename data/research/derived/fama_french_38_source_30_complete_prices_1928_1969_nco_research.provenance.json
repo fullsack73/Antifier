@@ -1,0 +1,130 @@
+{
+  "source": "Kenneth R. French Data Library",
+  "source_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/38_Industry_Portfolios_daily_CSV.zip",
+  "source_section": "Average Value Weighted Returns -- Daily",
+  "source_portfolio_policy": "30 complete SIC industry portfolios from the 38-industry source; annual reconstitution; exact-name exclusions fixed before research",
+  "return_weighting": "value_weighted",
+  "retrieved_at": "2026-07-23T21:18:43.497443+00:00",
+  "raw_archive": "/Applications/react/my-app/portfolio-project/data/research/raw/market_factors/38_Industry_Portfolios_daily_CSV.zip",
+  "raw_archive_sha256": "371ddb136831202354dc9fd3ef147255fd0049dd9dccfacc531790d5854b2900",
+  "start_date": "1928-01-03",
+  "end_date": "1969-12-31",
+  "row_count": 11579,
+  "source_ticker_count": 38,
+  "ticker_count": 30,
+  "selected_source_tickers": [
+    "Mines",
+    "Oil",
+    "Stone",
+    "Cnstr",
+    "Food",
+    "Smoke",
+    "Txtls",
+    "Apprl",
+    "Chair",
+    "Paper",
+    "Print",
+    "Chems",
+    "Ptrlm",
+    "Rubbr",
+    "Lethr",
+    "Glass",
+    "Metal",
+    "MtlPr",
+    "Machn",
+    "Elctr",
+    "Cars",
+    "Instr",
+    "Manuf",
+    "Trans",
+    "Phone",
+    "Utils",
+    "Whlsl",
+    "Rtail",
+    "Money",
+    "Srvc"
+  ],
+  "tickers": [
+    "Mines",
+    "Oil",
+    "Stone",
+    "Cnstr",
+    "Food",
+    "Smoke",
+    "Txtls",
+    "Apprl",
+    "Chair",
+    "Paper",
+    "Print",
+    "Chems",
+    "Ptrlm",
+    "Rubbr",
+    "Lethr",
+    "Glass",
+    "Metal",
+    "MtlPr",
+    "Machn",
+    "Elctr",
+    "Cars",
+    "Instr",
+    "Manuf",
+    "Trans",
+    "Phone",
+    "Utils",
+    "Whlsl",
+    "Rtail",
+    "Money",
+    "Srvc"
+  ],
+  "ticker_label_policy": "source_labels",
+  "excluded_tickers": [
+    "Agric",
+    "Wood",
+    "TV",
+    "Garbg",
+    "Steam",
+    "Water",
+    "Govt",
+    "Other"
+  ],
+  "exclusion_diagnostics": {
+    "Agric": {
+      "missing_row_count": 424,
+      "available_row_count": 11155
+    },
+    "Wood": {
+      "missing_row_count": 1,
+      "available_row_count": 11578
+    },
+    "TV": {
+      "missing_row_count": 14,
+      "available_row_count": 11565
+    },
+    "Garbg": {
+      "missing_row_count": 11579,
+      "available_row_count": 0
+    },
+    "Steam": {
+      "missing_row_count": 11579,
+      "available_row_count": 0
+    },
+    "Water": {
+      "missing_row_count": 11579,
+      "available_row_count": 0
+    },
+    "Govt": {
+      "missing_row_count": 8955,
+      "available_row_count": 2624
+    },
+    "Other": {
+      "missing_row_count": 1664,
+      "available_row_count": 9915
+    }
+  },
+  "exclusion_policy": "explicit_source_column_exclusion_before_completeness_check",
+  "basket_manifest_sha256": "9ee25d4cebfcb91d51f59cf07bf4c9170496fe70d7720a28c434c73e10095677",
+  "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_38_source_30_complete_prices_1928_1969_nco_research.csv",
+  "price_file_sha256": "d0a516e27d6f2a19c6e34f5d959a12564610973f52b22c478b9b4297af217ebb",
+  "survivorship_policy": "source portfolios include eligible NYSE, AMEX, and NASDAQ firms through time",
+  "promotion_safe": true
+}

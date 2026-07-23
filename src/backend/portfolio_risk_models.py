@@ -3,8 +3,11 @@
 import numpy as np
 import pandas as pd
 from pypfopt import EfficientCVaR, EfficientFrontier, HRPOpt, risk_models
+from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.optimize import minimize
+from scipy.spatial.distance import squareform
 from sklearn.covariance import LedoitWolf
+from sklearn.metrics import silhouette_score
 
 from portfolio_signals import (
     SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
@@ -1846,6 +1849,163 @@ def hierarchical_risk_parity_weights(
         "method": "hierarchical_risk_parity",
         "optimizer_success": success,
         "cluster_linkage": linkage,
+    }
+
+
+def nested_clustered_minimum_variance_weights(
+    price_data,
+    max_asset_weight=0.20,
+):
+    """Apply minimum variance within and across correlation clusters."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    returns = _returns(prices).dropna(how="any")
+    tickers = list(prices.columns)
+    asset_count = len(tickers)
+    if asset_count < 4:
+        covariance = risk_models.CovarianceShrinkage(
+            prices
+        ).ledoit_wolf()
+        weights, success = _minimum_variance_from_covariance(
+            covariance,
+            tickers,
+            max_asset_weight,
+        )
+        return weights, {
+            "method": "nested_clustered_minimum_variance",
+            "fallback": True,
+            "fallback_reason": "fewer_than_four_assets",
+            "cluster_count": 1,
+            "clusters": {"1": tickers},
+            "silhouette_scores": {},
+            "optimizer_success": bool(success),
+            "covariance": covariance_diagnostics(covariance),
+        }
+
+    covariance = risk_models.CovarianceShrinkage(
+        prices
+    ).ledoit_wolf()
+    covariance = covariance.reindex(index=tickers, columns=tickers)
+    correlation = _covariance_correlation(covariance)
+    distance = np.sqrt(
+        np.clip((1.0 - correlation.to_numpy(dtype=float)) / 2.0, 0.0, 1.0)
+    )
+    np.fill_diagonal(distance, 0.0)
+    hierarchy = linkage(
+        squareform(distance, checks=False),
+        method="average",
+        optimal_ordering=True,
+    )
+
+    maximum_clusters = min(10, asset_count - 1)
+    candidates = {}
+    silhouette_scores = {}
+    for cluster_count in range(2, maximum_clusters + 1):
+        labels = fcluster(
+            hierarchy,
+            t=cluster_count,
+            criterion="maxclust",
+        )
+        realized_cluster_count = len(np.unique(labels))
+        if realized_cluster_count < 2 or realized_cluster_count >= asset_count:
+            continue
+        score = float(
+            silhouette_score(
+                distance,
+                labels,
+                metric="precomputed",
+            )
+        )
+        candidates[cluster_count] = labels
+        silhouette_scores[str(cluster_count)] = score
+    if not candidates:
+        weights, success = _minimum_variance_from_covariance(
+            covariance,
+            tickers,
+            max_asset_weight,
+        )
+        return weights, {
+            "method": "nested_clustered_minimum_variance",
+            "fallback": True,
+            "fallback_reason": "no_valid_silhouette_partition",
+            "cluster_count": 1,
+            "clusters": {"1": tickers},
+            "silhouette_scores": silhouette_scores,
+            "optimizer_success": bool(success),
+            "covariance": covariance_diagnostics(covariance),
+        }
+
+    selected_cluster_count = min(
+        candidates,
+        key=lambda count: (
+            -silhouette_scores[str(count)],
+            count,
+        ),
+    )
+    selected_labels = candidates[selected_cluster_count]
+    cluster_ids = sorted(np.unique(selected_labels))
+    clusters = {
+        int(cluster_id): [
+            ticker
+            for ticker, label in zip(tickers, selected_labels)
+            if label == cluster_id
+        ]
+        for cluster_id in cluster_ids
+    }
+
+    intra_cluster = pd.DataFrame(
+        0.0,
+        index=tickers,
+        columns=cluster_ids,
+    )
+    intra_success = {}
+    for cluster_id, members in clusters.items():
+        local_weights, success = _minimum_variance_from_covariance(
+            covariance.loc[members, members],
+            members,
+            1.0,
+        )
+        intra_cluster.loc[members, cluster_id] = local_weights
+        intra_success[str(cluster_id)] = bool(success)
+
+    cluster_covariance = (
+        intra_cluster.T @ covariance @ intra_cluster
+    )
+    inter_weights, inter_success = _minimum_variance_from_covariance(
+        cluster_covariance,
+        cluster_ids,
+        1.0,
+    )
+    raw = intra_cluster.mul(inter_weights, axis=1).sum(axis=1)
+    weights = cap_and_normalize_weights(
+        raw,
+        max_asset_weight=max_asset_weight,
+    )
+    return weights, {
+        "method": "nested_clustered_minimum_variance",
+        "fallback": False,
+        "correlation_estimator": "ledoit_wolf_constant_variance",
+        "linkage_method": "average",
+        "cluster_selection": (
+            "maximum_training_silhouette_2_to_min_10_n_minus_1"
+        ),
+        "cluster_count": int(len(cluster_ids)),
+        "requested_cluster_count": int(selected_cluster_count),
+        "clusters": {
+            str(cluster_id): members
+            for cluster_id, members in clusters.items()
+        },
+        "silhouette_scores": silhouette_scores,
+        "intra_cluster_optimizer_success": intra_success,
+        "inter_cluster_optimizer_success": bool(inter_success),
+        "optimizer_success": bool(
+            inter_success and all(intra_success.values())
+        ),
+        "pre_cap_maximum_weight": float(raw.max()),
+        "cap_projection_l1_distance": float(
+            (weights - raw).abs().sum()
+        ),
+        "covariance": covariance_diagnostics(covariance),
+        "training_observation_count": int(len(returns)),
     }
 
 

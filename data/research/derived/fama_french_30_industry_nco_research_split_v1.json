@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-38-source-30-complete-nco-research-1929-1969-v1",
+  "role": "research",
+  "evaluation_start": "1929-09-14",
+  "evaluation_end": "1969-12-31",
+  "experiment_namespace": "allocator-v2-nested-clustered-minvar-industry-portfolios",
+  "objectives": [
+    "nested_clustered_minimum_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "nested_clustered_minimum_variance",
+    "statistical_baselines": [
+      "min_variance",
+      "risk_parity",
+      "lightweight_bl"
+    ],
+    "guard_baselines": [
+      "equal_weight",
+      "historical_bl"
+    ],
+    "models": [
+      "equal_weight",
+      "historical_bl",
+      "min_variance",
+      "risk_parity",
+      "lightweight_bl",
+      "nested_clustered_minimum_variance"
+    ],
+    "candidate_policy": {
+      "objective": "long_only_nested_clustered_minimum_variance",
+      "covariance": "ledoit_wolf_constant_variance",
+      "clustering": "average_linkage_correlation_distance",
+      "cluster_selection": "maximum_training_silhouette_2_to_min_10_n_minus_1",
+      "intra_cluster_allocator": "minimum_variance",
+      "inter_cluster_allocator": "minimum_variance",
+      "expected_returns": "unused",
+      "forecast_model": "unused"
+    }
+  },
+  "universe_manifest_sha256": "9ee25d4cebfcb91d51f59cf07bf4c9170496fe70d7720a28c434c73e10095677",
+  "price_file_sha256": "d0a516e27d6f2a19c6e34f5d959a12564610973f52b22c478b9b4297af217ebb",
+  "factor_file_sha256": "7fe1b1f5d52314ff0e97629f302485da27059b03931b8a1258b735c0db757c44",
+  "auxiliary_files": {
+    "price_provenance": "79159a00a146bb095dc472ade22140d90c3833630a487ec322727c710ec5f102",
+    "risk_free_provenance": "6fbfec307f853f65e66624a763c13c2faf32de98ba8678ce5da56cc8720756d3"
+  },
+  "locked": true,
+  "manifest_sha256": "0f8a7fc8bb1fe79db976f3b990651788fc8b1339b1c908dd98e8019e9a0362ae"
+}

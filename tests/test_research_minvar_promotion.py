@@ -60,3 +60,76 @@ def test_minvar_promotion_gate_rejects_risk_parity_failure():
 
     assert gate["status"] == "rejected"
     assert gate["reasons"]
+
+
+def test_generic_gate_supports_nested_clustered_candidate():
+    summary = _summary()
+    summary["nested_clustered_minimum_variance"] = {
+        "annual_volatility": 0.08,
+        "sharpe": 0.90,
+        "max_drawdown": -0.18,
+        "avg_controlled_turnover": 0.14,
+    }
+
+    gate = research_minvar_promotion._deterministic_gate(
+        summary,
+        candidate_name="nested_clustered_minimum_variance",
+        statistical_baselines=(
+            "min_variance",
+            "risk_parity",
+            "lightweight_bl",
+        ),
+        guard_baselines=("equal_weight", "historical_bl"),
+    )
+
+    assert gate["status"] == "passed"
+    assert gate["reasons"] == []
+
+
+def test_candidate_risk_diagnostics_summarizes_clusters():
+    result = {
+        "rebalance_records": [
+            {
+                "model": "nested_clustered_minimum_variance",
+                "risk_model": {
+                    "cluster_count": 3,
+                    "requested_cluster_count": 3,
+                    "silhouette_scores": {"3": 0.61},
+                    "optimizer_success": True,
+                    "fallback": False,
+                    "pre_cap_maximum_weight": 0.24,
+                    "cap_projection_l1_distance": 0.08,
+                    "clusters": {"1": ["A", "B"]},
+                },
+            },
+            {
+                "model": "nested_clustered_minimum_variance",
+                "risk_model": {
+                    "cluster_count": 4,
+                    "requested_cluster_count": 4,
+                    "silhouette_scores": {"4": 0.57},
+                    "optimizer_success": True,
+                    "fallback": False,
+                    "pre_cap_maximum_weight": 0.22,
+                    "cap_projection_l1_distance": 0.04,
+                    "clusters": {"1": ["A"], "2": ["B"]},
+                },
+            },
+        ]
+    }
+
+    diagnostics = (
+        research_minvar_promotion._candidate_risk_diagnostics(
+            result,
+            "nested_clustered_minimum_variance",
+        )
+    )
+
+    assert diagnostics["cluster_count_distribution"] == {
+        "3": 1,
+        "4": 1,
+    }
+    assert diagnostics["mean_cluster_count"] == 3.5
+    assert diagnostics["mean_selected_silhouette"] == 0.59
+    assert diagnostics["optimizer_success_rate"] == 1.0
+    assert diagnostics["fallback_rate"] == 0.0

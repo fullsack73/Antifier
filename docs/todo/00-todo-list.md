@@ -4,5 +4,5 @@
 
 - `portfolio-alpha-v2-research.md`: momentum signal recovered on long history, but fixed risk/momentum construction failed component gates.
 - `portfolio-forecast-model-redesign.md`: lightweight remains weak, but raw momentum is not robust enough to replace it.
-- `portfolio-risk-model-research.md`: plain Ledoit minimum variance is strong, but default-promotion statistics failed.
-- `portfolio-optimizer-quant-standard.md`: default allocator unchanged; next candidate needs a new independent family/split.
+- `portfolio-risk-model-research.md`: NCO lowered volatility slightly but weakened minvar Sharpe; default unchanged.
+- `portfolio-optimizer-quant-standard.md`: minvar and NCO promotion gates failed; next candidate needs a new independent family/split.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate plain Ledoit-Wolf minimum variance as a default candidate."""
+"""Evaluate a risk-only allocator as a default candidate."""
 
 import argparse
 import json
@@ -43,9 +43,37 @@ MODELS = (
     *STATISTICAL_BASELINES,
     CANDIDATE,
 )
+CANDIDATE_POLICIES = {
+    "min_variance": {
+        "objective": "long_only_minimum_variance",
+        "covariance": "ledoit_wolf_constant_variance",
+        "expected_returns": "unused",
+        "forecast_model": "unused",
+    },
+    "nested_clustered_minimum_variance": {
+        "objective": (
+            "long_only_nested_clustered_minimum_variance"
+        ),
+        "covariance": "ledoit_wolf_constant_variance",
+        "clustering": "average_linkage_correlation_distance",
+        "cluster_selection": (
+            "maximum_training_silhouette_2_to_min_10_n_minus_1"
+        ),
+        "intra_cluster_allocator": "minimum_variance",
+        "inter_cluster_allocator": "minimum_variance",
+        "expected_returns": "unused",
+        "forecast_model": "unused",
+    },
+}
 
 
-def _settings(args):
+def _settings(
+    args,
+    candidate=CANDIDATE,
+    statistical_baselines=STATISTICAL_BASELINES,
+    guard_baselines=GUARD_BASELINES,
+    models=MODELS,
+):
     return {
         "train_window": int(args.train_window),
         "rebalance_frequency": int(args.rebalance_frequency),
@@ -59,25 +87,25 @@ def _settings(args):
         "bootstrap_minimum_probability": float(
             args.bootstrap_minimum_probability
         ),
-        "candidate": CANDIDATE,
-        "statistical_baselines": list(STATISTICAL_BASELINES),
-        "guard_baselines": list(GUARD_BASELINES),
-        "models": list(MODELS),
-        "candidate_policy": {
-            "objective": "long_only_minimum_variance",
-            "covariance": "ledoit_wolf_constant_variance",
-            "expected_returns": "unused",
-            "forecast_model": "unused",
-        },
+        "candidate": candidate,
+        "statistical_baselines": list(statistical_baselines),
+        "guard_baselines": list(guard_baselines),
+        "models": list(models),
+        "candidate_policy": CANDIDATE_POLICIES[candidate],
     }
 
 
-def _deterministic_gate(summary):
-    candidate = summary[CANDIDATE]
+def _deterministic_gate(
+    summary,
+    candidate_name=CANDIDATE,
+    statistical_baselines=STATISTICAL_BASELINES,
+    guard_baselines=GUARD_BASELINES,
+):
+    candidate = summary[candidate_name]
     reasons = []
     for baseline in (
-        *STATISTICAL_BASELINES,
-        *GUARD_BASELINES,
+        *statistical_baselines,
+        *guard_baselines,
     ):
         comparison = summary[baseline]
         if (
@@ -109,12 +137,14 @@ def _statistical_gate(
     result,
     risk_free,
     args,
+    candidate=CANDIDATE,
+    statistical_baselines=STATISTICAL_BASELINES,
 ):
     paired = {}
     hypotheses = {}
-    for index, baseline in enumerate(STATISTICAL_BASELINES):
+    for index, baseline in enumerate(statistical_baselines):
         comparison = paired_block_bootstrap(
-            result["daily_returns_by_model"][CANDIDATE],
+            result["daily_returns_by_model"][candidate],
             result["daily_returns_by_model"][baseline],
             risk_free_rate=result["settings"]["risk_free_rate"],
             block_size=args.bootstrap_block_size,
@@ -161,10 +191,21 @@ def _statistical_gate(
     }
 
 
-def _write_report(payload, output_path):
+def _write_report(
+    payload,
+    output_path,
+    models=MODELS,
+    statistical_baselines=STATISTICAL_BASELINES,
+):
     summary = payload["result"]["summary_by_model"]
+    candidate = payload["settings"]["candidate"]
+    title = (
+        "Plain Minimum-Variance Promotion Research"
+        if candidate == "min_variance"
+        else "Nested Clustered Minimum-Variance Promotion Research"
+    )
     lines = [
-        "# Plain Minimum-Variance Promotion Research",
+        f"# {title}",
         "",
         f"- Split: `{payload['research_split']}`",
         f"- Namespace: `{payload['experiment_namespace']}`",
@@ -176,7 +217,7 @@ def _write_report(payload, output_path):
         "| Model | CAGR | Volatility | Sharpe | Max DD | Turnover |",
         "|---|---:|---:|---:|---:|---:|",
     ]
-    for model in MODELS:
+    for model in models:
         metrics = summary[model]
         lines.append(
             "| {model} | {cagr} | {volatility} | {sharpe} | "
@@ -189,7 +230,7 @@ def _write_report(payload, output_path):
                 turnover=_fmt(metrics["avg_controlled_turnover"]),
             )
         )
-    for baseline in STATISTICAL_BASELINES:
+    for baseline in statistical_baselines:
         probability = payload["paired_bootstrap"][baseline].get(
             "probability",
             {},
@@ -208,9 +249,9 @@ def _write_report(payload, output_path):
         "## Guardrail",
         "",
         "- Candidate uses no return forecast or expected-return model.",
-        "- Equal weight and historical BL are deterministic guards.",
+        "- Configured guard baselines are deterministic checks.",
         "- Validation remains sealed unless deterministic and "
-        "four-hypothesis Holm gates pass.",
+        f"{2 * len(statistical_baselines)}-hypothesis Holm gates pass.",
     ])
     report_path = Path(output_path).with_suffix(".md")
     report_path.write_text(
@@ -218,6 +259,89 @@ def _write_report(payload, output_path):
         encoding="utf-8",
     )
     return report_path
+
+
+def _candidate_risk_diagnostics(result, candidate):
+    diagnostics = [
+        record["risk_model"]
+        for record in result.get("rebalance_records", [])
+        if (
+            record.get("model") == candidate
+            and isinstance(record.get("risk_model"), dict)
+        )
+    ]
+    if not diagnostics:
+        return None
+    cluster_counts = [
+        int(item["cluster_count"])
+        for item in diagnostics
+        if item.get("cluster_count") is not None
+    ]
+    selected_silhouettes = []
+    for item in diagnostics:
+        scores = item.get("silhouette_scores", {})
+        requested = item.get(
+            "requested_cluster_count",
+            item.get("cluster_count"),
+        )
+        score = scores.get(str(requested))
+        if score is not None:
+            selected_silhouettes.append(float(score))
+    distribution = {
+        str(cluster_count): int(cluster_counts.count(cluster_count))
+        for cluster_count in sorted(set(cluster_counts))
+    }
+    optimizer_success = [
+        bool(item.get("optimizer_success"))
+        for item in diagnostics
+    ]
+    fallback = [
+        bool(item.get("fallback"))
+        for item in diagnostics
+    ]
+    cap_distances = [
+        float(item["cap_projection_l1_distance"])
+        for item in diagnostics
+        if item.get("cap_projection_l1_distance") is not None
+    ]
+    pre_cap_maxima = [
+        float(item["pre_cap_maximum_weight"])
+        for item in diagnostics
+        if item.get("pre_cap_maximum_weight") is not None
+    ]
+    return {
+        "rebalance_count": int(len(diagnostics)),
+        "cluster_count_distribution": distribution,
+        "mean_cluster_count": (
+            None
+            if not cluster_counts
+            else float(sum(cluster_counts) / len(cluster_counts))
+        ),
+        "mean_selected_silhouette": (
+            None
+            if not selected_silhouettes
+            else float(
+                sum(selected_silhouettes)
+                / len(selected_silhouettes)
+            )
+        ),
+        "optimizer_success_rate": float(
+            sum(optimizer_success) / len(optimizer_success)
+        ),
+        "fallback_rate": float(sum(fallback) / len(fallback)),
+        "mean_pre_cap_maximum_weight": (
+            None
+            if not pre_cap_maxima
+            else float(sum(pre_cap_maxima) / len(pre_cap_maxima))
+        ),
+        "mean_cap_projection_l1_distance": (
+            None
+            if not cap_distances
+            else float(sum(cap_distances) / len(cap_distances))
+        ),
+        "first_clusters": diagnostics[0].get("clusters"),
+        "last_clusters": diagnostics[-1].get("clusters"),
+    }
 
 
 def main(argv=None):
@@ -229,6 +353,21 @@ def main(argv=None):
     parser.add_argument("--research-split", required=True)
     parser.add_argument("--experiment-namespace", required=True)
     parser.add_argument("--split-manifest", required=True)
+    parser.add_argument(
+        "--candidate",
+        choices=tuple(CANDIDATE_POLICIES),
+        default=CANDIDATE,
+    )
+    parser.add_argument(
+        "--statistical-baselines",
+        nargs="+",
+        default=list(STATISTICAL_BASELINES),
+    )
+    parser.add_argument(
+        "--guard-baselines",
+        nargs="+",
+        default=list(GUARD_BASELINES),
+    )
     parser.add_argument("--train-window", type=int, default=504)
     parser.add_argument("--rebalance-frequency", type=int, default=63)
     parser.add_argument("--forecast-horizon", type=int, default=63)
@@ -251,6 +390,20 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     try:
+        candidate = args.candidate
+        statistical_baselines = tuple(args.statistical_baselines)
+        guard_baselines = tuple(args.guard_baselines)
+        if candidate in (*statistical_baselines, *guard_baselines):
+            raise ValueError("Candidate cannot also be a baseline")
+        if len(set((*statistical_baselines, *guard_baselines))) != (
+            len(statistical_baselines) + len(guard_baselines)
+        ):
+            raise ValueError("Baseline model names must be unique")
+        models = (
+            *guard_baselines,
+            *statistical_baselines,
+            candidate,
+        )
         prices, price_path, price_provenance_path, price_provenance = (
             _load_prices(args)
         )
@@ -260,13 +413,19 @@ def main(argv=None):
             risk_free_provenance_path,
             risk_free_provenance,
         ) = _load_risk_free(args, prices)
-        settings = _settings(args)
+        settings = _settings(
+            args,
+            candidate=candidate,
+            statistical_baselines=statistical_baselines,
+            guard_baselines=guard_baselines,
+            models=models,
+        )
         split_path = Path(args.split_manifest).expanduser().resolve()
         split = validate_research_split_run(
             _load_json(split_path),
             split_id=args.research_split,
             experiment_namespace=args.experiment_namespace,
-            objectives=[CANDIDATE],
+            objectives=[candidate],
             settings=settings,
             evaluation_start=prices.index[args.train_window],
             evaluation_end=prices.index[-1],
@@ -291,7 +450,7 @@ def main(argv=None):
 
         result = run_portfolio_model_backtest(
             prices,
-            models=MODELS,
+            models=models,
             train_window=args.train_window,
             rebalance_frequency=args.rebalance_frequency,
             forecast_horizon=args.forecast_horizon,
@@ -303,12 +462,17 @@ def main(argv=None):
             risk_free_daily_returns=risk_free,
         )
         deterministic = _deterministic_gate(
-            result["summary_by_model"]
+            result["summary_by_model"],
+            candidate_name=candidate,
+            statistical_baselines=statistical_baselines,
+            guard_baselines=guard_baselines,
         )
         paired, holm, statistical = _statistical_gate(
             result,
             risk_free,
             args,
+            candidate=candidate,
+            statistical_baselines=statistical_baselines,
         )
         reasons = (
             list(deterministic["reasons"])
@@ -323,6 +487,10 @@ def main(argv=None):
         promotion_eligible = bool(
             split["promotion_safe"]
             and promotion_gate["status"] == "passed"
+        )
+        candidate_risk_diagnostics = _candidate_risk_diagnostics(
+            result,
+            candidate,
         )
         result_for_output = {
             key: value
@@ -358,6 +526,9 @@ def main(argv=None):
             "holm_gate": holm,
             "promotion_gate": promotion_gate,
             "promotion_eligible": promotion_eligible,
+            "candidate_risk_diagnostics": (
+                candidate_risk_diagnostics
+            ),
             "result": result_for_output,
         }
         output_path = Path(args.output).expanduser().resolve()
@@ -366,7 +537,12 @@ def main(argv=None):
             json.dumps(payload, indent=2),
             encoding="utf-8",
         )
-        report_path = _write_report(payload, output_path)
+        report_path = _write_report(
+            payload,
+            output_path,
+            models=models,
+            statistical_baselines=statistical_baselines,
+        )
     except Exception as exc:
         parser.exit(2, f"error: {exc}\n")
 
