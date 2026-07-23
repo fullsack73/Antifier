@@ -54,6 +54,8 @@ RISK_RESEARCH_MODELS = (
     "trend_filtered_risk_parity",
     "maximum_diversification",
     "online_allocator_ensemble",
+    "historical_bl",
+    "hac_historical_bl",
 )
 RISK_CANDIDATES = (
     "robust_min_variance",
@@ -75,6 +77,7 @@ RISK_CANDIDATES = (
     "trend_filtered_risk_parity",
     "maximum_diversification",
     "online_allocator_ensemble",
+    "hac_historical_bl",
 )
 RESERVED_SPLITS = {
     "validation",
@@ -161,6 +164,17 @@ def _research_settings(args):
             **ONLINE_ALLOCATOR_ENSEMBLE_POLICY,
             "experts": list(
                 ONLINE_ALLOCATOR_ENSEMBLE_POLICY["experts"]
+            ),
+        }
+    if "hac_historical_bl" in args.candidates:
+        settings["hac_historical_policy"] = {
+            "point_estimate": "historical_cagr",
+            "uncertainty": (
+                "annualized_newey_west_hac_mean_standard_error"
+            ),
+            "lag_rule": "floor(4*(T/100)^(2/9))",
+            "black_litterman": (
+                "same_prior_covariance_and_constraints_as_historical_bl"
             ),
         }
     return settings
@@ -330,6 +344,9 @@ def _risk_gate(summary, candidate_name):
             "online_allocator_ensemble",
         }
         else (
+            "historical_bl"
+            if candidate_name == "hac_historical_bl"
+            else (
             "min_variance"
             if candidate_name in {
                 "robust_min_variance",
@@ -346,6 +363,7 @@ def _risk_gate(summary, candidate_name):
                 "trend_filtered_minimum_variance",
             }
             else "risk_parity"
+            )
         )
     )
     baseline = summary[baseline_name]
@@ -552,6 +570,11 @@ def main(argv=None):
                 "min_variance",
                 "risk_parity",
                 "momentum_6m",
+                *(
+                    ("historical_bl",)
+                    if "hac_historical_bl" in candidates
+                    else ()
+                ),
                 *candidates,
             )
         ))

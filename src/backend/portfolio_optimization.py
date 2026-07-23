@@ -408,6 +408,122 @@ def _james_stein_expected_returns(data):
     return annualized, diagnostics
 
 
+def _historical_returns_with_hac_uncertainty(data):
+    """Estimate historical views with Newey-West mean uncertainty.
+
+    The point estimate remains the historical CAGR. Only its annualized
+    standard error changes, using a data-length Newey-West lag rule and rows
+    supplied by the caller.
+    """
+    prices = (
+        pd.DataFrame(data)
+        .apply(pd.to_numeric, errors="coerce")
+        .replace([np.inf, -np.inf], np.nan)
+    )
+    tickers = list(prices.columns)
+    views = _calculate_historical_cagr(prices).reindex(tickers)
+    uncertainties = {}
+    ticker_diagnostics = {}
+    for ticker in tickers:
+        returns = (
+            prices[ticker]
+            .pct_change(fill_method=None)
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+            .to_numpy(dtype=float)
+        )
+        observation_count = int(len(returns))
+        if observation_count < 2:
+            uncertainties[ticker] = MAX_FORECAST_UNCERTAINTY
+            ticker_diagnostics[ticker] = {
+                "observation_count": observation_count,
+                "lag_count": 0,
+                "annual_standard_error": (
+                    MAX_FORECAST_UNCERTAINTY
+                ),
+                "fallback_reason": "insufficient_returns",
+            }
+            continue
+
+        centered = returns - float(np.mean(returns))
+        lag_count = min(
+            observation_count - 1,
+            max(
+                0,
+                int(
+                    np.floor(
+                        4.0
+                        * (observation_count / 100.0) ** (2.0 / 9.0)
+                    )
+                ),
+            ),
+        )
+        long_run_variance = float(
+            np.dot(centered, centered) / observation_count
+        )
+        for lag in range(1, lag_count + 1):
+            autocovariance = float(
+                np.dot(centered[lag:], centered[:-lag])
+                / observation_count
+            )
+            bartlett_weight = 1.0 - lag / (lag_count + 1.0)
+            long_run_variance += (
+                2.0 * bartlett_weight * autocovariance
+            )
+        long_run_variance = max(0.0, long_run_variance)
+        annual_standard_error = float(
+            np.sqrt(long_run_variance / observation_count)
+            * TRADING_DAYS_PER_YEAR
+        )
+        annual_standard_error = float(
+            np.clip(
+                annual_standard_error,
+                1e-4,
+                MAX_FORECAST_UNCERTAINTY,
+            )
+        )
+        uncertainties[ticker] = annual_standard_error
+        ticker_diagnostics[ticker] = {
+            "observation_count": observation_count,
+            "lag_count": int(lag_count),
+            "annual_standard_error": annual_standard_error,
+            "annual_naive_standard_error": float(
+                np.std(returns, ddof=1)
+                / np.sqrt(observation_count)
+                * TRADING_DAYS_PER_YEAR
+            ),
+        }
+
+    uncertainty_series = pd.Series(
+        uncertainties,
+        index=tickers,
+        dtype=float,
+    )
+    finite = uncertainty_series.replace(
+        [np.inf, -np.inf],
+        np.nan,
+    ).dropna()
+    diagnostics = {
+        "estimator": "newey_west_hac_mean_standard_error",
+        "lag_rule": "floor(4*(T/100)^(2/9))",
+        "ticker_diagnostics": ticker_diagnostics,
+        "median_annual_standard_error": (
+            None if finite.empty else float(finite.median())
+        ),
+        "minimum_annual_standard_error": (
+            None if finite.empty else float(finite.min())
+        ),
+        "maximum_annual_standard_error": (
+            None if finite.empty else float(finite.max())
+        ),
+    }
+    return (
+        views,
+        _normalize_uncertainty_series(uncertainty_series, tickers),
+        diagnostics,
+    )
+
+
 def _align_price_history_without_lookahead(data):
     """Align assets on their common observable history without backward fill."""
     aligned = (

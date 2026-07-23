@@ -355,6 +355,102 @@ def test_james_stein_bl_is_opt_in_and_reports_estimator_diagnostics():
     )
 
 
+def test_hac_historical_uncertainty_uses_only_training_rows():
+    prices = _synthetic_factor_research_data(
+        rows=580,
+        ticker_count=8,
+    )[0]
+    cutoff = 503
+    changed = prices.copy()
+    changed.iloc[cutoff + 1:] *= np.linspace(
+        1.0,
+        50.0,
+        len(changed) - cutoff - 1,
+    )[:, None]
+
+    views, uncertainties, diagnostics = (
+        portfolio_optimization
+        ._historical_returns_with_hac_uncertainty(
+            prices.iloc[:cutoff + 1]
+        )
+    )
+    repeated_views, repeated_uncertainties, repeated_diagnostics = (
+        portfolio_optimization
+        ._historical_returns_with_hac_uncertainty(
+            changed.iloc[:cutoff + 1]
+        )
+    )
+
+    pd.testing.assert_series_equal(views, repeated_views)
+    pd.testing.assert_series_equal(
+        uncertainties,
+        repeated_uncertainties,
+    )
+    assert diagnostics == repeated_diagnostics
+    assert uncertainties.between(1e-4, 5.0).all()
+
+
+def test_hac_uncertainty_reflects_positive_return_autocorrelation():
+    rng = np.random.default_rng(123)
+    innovations = rng.normal(0.0, 0.008, 600)
+    returns = np.zeros_like(innovations)
+    for index in range(1, len(returns)):
+        returns[index] = 0.75 * returns[index - 1] + innovations[index]
+    dates = pd.date_range("2018-01-02", periods=len(returns), freq="B")
+    prices = pd.DataFrame(
+        {"AAA": 100.0 * np.cumprod(1.0 + returns)},
+        index=dates,
+    )
+
+    _, uncertainties, diagnostics = (
+        portfolio_optimization
+        ._historical_returns_with_hac_uncertainty(prices)
+    )
+
+    ticker = diagnostics["ticker_diagnostics"]["AAA"]
+    assert ticker["lag_count"] > 0
+    assert ticker["annual_standard_error"] > (
+        ticker["annual_naive_standard_error"]
+    )
+    assert uncertainties["AAA"] == pytest.approx(
+        ticker["annual_standard_error"]
+    )
+
+
+def test_hac_historical_bl_is_research_only_and_auditable():
+    prices = _synthetic_factor_research_data(
+        rows=520,
+        ticker_count=8,
+    )[0]
+
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("historical_bl", "hac_historical_bl"),
+        train_window=504,
+        rebalance_frequency=8,
+        forecast_horizon=8,
+        max_asset_weight=0.25,
+    )
+
+    assert "hac_historical_bl" in (
+        portfolio_backtest.SUPPORTED_BACKTEST_MODELS
+    )
+    assert "hac_historical_bl" not in (
+        portfolio_backtest.DEFAULT_BACKTEST_MODELS
+    )
+    records = [
+        record
+        for record in result["rebalance_records"]
+        if record["model"] == "hac_historical_bl"
+    ]
+    assert records
+    assert all(
+        record["uncertainty_estimator"]["estimator"]
+        == "newey_west_hac_mean_standard_error"
+        for record in records
+    )
+
+
 def test_lightweight_rank_tilt_ignores_future_rows_and_hits_active_share():
     prices = _synthetic_factor_research_data(
         rows=580,

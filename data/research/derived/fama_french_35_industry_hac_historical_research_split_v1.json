@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-35-industry-hac-historical-research-2000-2014-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2014-12-31",
+  "experiment_namespace": "mean-v2-hac-historical-industry-portfolios",
+  "objectives": [
+    "hac_historical_bl"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "hac_historical_policy": {
+      "point_estimate": "historical_cagr",
+      "uncertainty": "annualized_newey_west_hac_mean_standard_error",
+      "lag_rule": "floor(4*(T/100)^(2/9))",
+      "black_litterman": "same_prior_covariance_and_constraints_as_historical_bl"
+    }
+  },
+  "universe_manifest_sha256": "5bd009e368f260a90d5d7e8eaba29260e5a0745e45dddcc3226d2aec3c50fbe7",
+  "price_file_sha256": "b72fa49895c39a487b4b82f33119b094ddbff1acfb45df8d9a84e4497b62c9db",
+  "factor_file_sha256": "7f91725315aaaa0372f89fd12d516f6922381e348e1979f0c1293e6000cd1dcb",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "2ff3ef91b91be33442e0deddaeca5d3caae89bd5ee30956528812fea1642e20b"
+}
