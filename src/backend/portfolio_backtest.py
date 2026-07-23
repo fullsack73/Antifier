@@ -47,6 +47,7 @@ from portfolio_risk_models import (
     nested_blended_minimum_variance_weights,
     resampled_minimum_variance_weights,
     regime_minimum_variance_weights,
+    random_matrix_minimum_variance_weights,
     robust_minimum_variance_weights,
     scenario_robust_minimum_variance_weights,
     stability_regularized_minimum_variance_weights,
@@ -108,6 +109,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "resampled_min_variance",
     "scenario_robust_min_variance",
     "volatility_targeted_min_variance",
+    "random_matrix_minimum_variance",
     "risk_managed_momentum",
 )
 
@@ -811,6 +813,19 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             "target_cash_weight": risk_diagnostics[
                 "target_cash_weight"
             ],
+        }
+
+    if model_name == "random_matrix_minimum_variance":
+        weights, risk_diagnostics = (
+            random_matrix_minimum_variance_weights(
+                train_prices,
+                max_asset_weight=max_asset_weight,
+            )
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
         }
 
     if model_name == "equal_risk_contribution":

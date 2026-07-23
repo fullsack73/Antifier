@@ -162,6 +162,105 @@ def robust_minimum_variance_weights(
     return weights, diagnostics
 
 
+def random_matrix_denoised_covariance(price_data):
+    """Denoise sample correlation eigenvalues with Marchenko-Pastur."""
+    prices = _clean_prices(price_data)
+    tickers = list(prices.columns)
+    returns = _returns(prices).dropna(how="any")
+    asset_count = len(tickers)
+    minimum_rows = max(60, asset_count + 2)
+    if len(returns) < minimum_rows:
+        raise ValueError(
+            "RMT covariance requires at least "
+            f"{minimum_rows} complete return rows"
+        )
+
+    standardized = (
+        returns - returns.mean(axis=0)
+    ) / returns.std(axis=0, ddof=0).replace(0.0, np.nan)
+    standardized = standardized.dropna(axis=1, how="any")
+    if list(standardized.columns) != tickers:
+        raise ValueError("RMT covariance requires non-constant assets")
+
+    sample_correlation = (
+        standardized.cov(ddof=0).to_numpy(dtype=float)
+    )
+    sample_correlation = (
+        sample_correlation + sample_correlation.T
+    ) / 2.0
+    eigenvalues, eigenvectors = np.linalg.eigh(sample_correlation)
+    concentration_ratio = float(asset_count / len(standardized))
+    noise_upper_bound = float(
+        (1.0 + np.sqrt(concentration_ratio)) ** 2
+    )
+    noise_mask = eigenvalues <= noise_upper_bound
+    denoised_eigenvalues = eigenvalues.copy()
+    if noise_mask.any():
+        denoised_eigenvalues[noise_mask] = float(
+            eigenvalues[noise_mask].mean()
+        )
+    denoised_correlation = (
+        eigenvectors
+        @ np.diag(denoised_eigenvalues)
+        @ eigenvectors.T
+    )
+    diagonal = np.sqrt(
+        np.clip(np.diag(denoised_correlation), 1e-12, None)
+    )
+    denoised_correlation = denoised_correlation / np.outer(
+        diagonal,
+        diagonal,
+    )
+    np.fill_diagonal(denoised_correlation, 1.0)
+
+    ledoit_daily = LedoitWolf().fit(
+        returns.to_numpy(dtype=float)
+    ).covariance_
+    annual_volatility = np.sqrt(
+        np.clip(np.diag(ledoit_daily), 0.0, None)
+        * TRADING_DAYS_PER_YEAR
+    )
+    covariance = pd.DataFrame(
+        denoised_correlation
+        * np.outer(annual_volatility, annual_volatility),
+        index=tickers,
+        columns=tickers,
+    )
+    covariance = risk_models.fix_nonpositive_semidefinite(
+        covariance,
+        fix_method="spectral",
+    )
+    return covariance, {
+        "method": "marchenko_pastur_correlation_denoising",
+        "observation_count": int(len(standardized)),
+        "asset_count": int(asset_count),
+        "concentration_ratio": concentration_ratio,
+        "noise_eigenvalue_upper_bound": noise_upper_bound,
+        "noise_eigenvalue_count": int(noise_mask.sum()),
+        "signal_eigenvalue_count": int((~noise_mask).sum()),
+        "variance_source": "ledoit_wolf_diagonal",
+        "covariance": covariance_diagnostics(covariance),
+    }
+
+
+def random_matrix_minimum_variance_weights(
+    price_data,
+    max_asset_weight=0.20,
+):
+    """Long-only minimum variance with RMT-denoised correlations."""
+    prices = _clean_prices(price_data)
+    covariance, diagnostics = random_matrix_denoised_covariance(
+        prices
+    )
+    weights, optimizer_success = _minimum_variance_from_covariance(
+        covariance,
+        prices.columns,
+        max_asset_weight,
+    )
+    diagnostics["optimizer_success"] = bool(optimizer_success)
+    return weights, diagnostics
+
+
 def _minimum_variance_from_covariance(
     covariance,
     tickers,

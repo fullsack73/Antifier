@@ -98,6 +98,11 @@ def main(argv=None):
     parser.add_argument("--end", required=True)
     parser.add_argument("--raw-dir", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--reuse-raw",
+        action="store_true",
+        help="Read existing raw files without downloading replacements",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -105,14 +110,23 @@ def main(argv=None):
         end = pd.Timestamp(args.end)
         if start > end:
             raise ValueError("--start must be on or before --end")
-        fred_payload = _download(FRED_DGS3MO_URL)
-        french_payload = _download(FRENCH_DAILY_FACTORS_URL)
         raw_dir = Path(args.raw_dir).expanduser().resolve()
         raw_dir.mkdir(parents=True, exist_ok=True)
         fred_path = raw_dir / "fred_dgs3mo.csv"
         french_path = raw_dir / "fama_french_daily_factors.zip"
-        fred_path.write_bytes(fred_payload)
-        french_path.write_bytes(french_payload)
+        if args.reuse_raw:
+            if not fred_path.exists() or not french_path.exists():
+                raise ValueError(
+                    "--reuse-raw requires fred_dgs3mo.csv and "
+                    "fama_french_daily_factors.zip"
+                )
+            fred_payload = fred_path.read_bytes()
+            french_payload = french_path.read_bytes()
+        else:
+            fred_payload = _download(FRED_DGS3MO_URL)
+            french_payload = _download(FRENCH_DAILY_FACTORS_URL)
+            fred_path.write_bytes(fred_payload)
+            french_path.write_bytes(french_payload)
 
         factors = _parse_french(french_payload).loc[start:end]
         yields = _parse_fred(fred_payload)

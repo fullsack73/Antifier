@@ -25,6 +25,8 @@ from portfolio_risk_models import (  # noqa: E402
     hierarchical_risk_parity_weights,
     minimum_cvar_weights,
     nested_blended_minimum_variance_weights,
+    random_matrix_denoised_covariance,
+    random_matrix_minimum_variance_weights,
     regime_minimum_variance_weights,
     regime_conditioned_covariance,
     resampled_minimum_variance_weights,
@@ -97,6 +99,7 @@ def test_robust_covariance_is_psd_and_reports_conditioning():
         nested_blended_minimum_variance_weights,
         resampled_minimum_variance_weights,
         scenario_robust_minimum_variance_weights,
+        random_matrix_minimum_variance_weights,
     ),
 )
 def test_robust_risk_allocators_are_long_only_capped(allocator):
@@ -125,6 +128,28 @@ def test_scenario_robust_allocator_reduces_training_worst_case_risk():
         <= diagnostics["baseline_worst_case_annual_volatility"] + 1e-8
     )
     assert weights.sum() == pytest.approx(1.0)
+
+
+def test_random_matrix_covariance_is_psd_and_denoises_noise():
+    prices = _correlated_prices(rows=620, asset_count=20)
+
+    covariance, diagnostics = random_matrix_denoised_covariance(
+        prices
+    )
+
+    assert covariance.shape == (20, 20)
+    assert np.linalg.eigvalsh(covariance.values).min() >= -1e-10
+    assert diagnostics["method"] == (
+        "marchenko_pastur_correlation_denoising"
+    )
+    assert diagnostics["noise_eigenvalue_count"] > 0
+    assert diagnostics["signal_eigenvalue_count"] > 0
+    assert (
+        diagnostics["noise_eigenvalue_count"]
+        + diagnostics["signal_eigenvalue_count"]
+        == 20
+    )
+    assert diagnostics["variance_source"] == "ledoit_wolf_diagonal"
 
 
 def test_volatility_targeted_allocator_holds_cash_in_elevated_risk():
@@ -188,6 +213,7 @@ def test_backtest_runs_robust_risk_allocator_family():
             "resampled_min_variance",
             "scenario_robust_min_variance",
             "volatility_targeted_min_variance",
+            "random_matrix_minimum_variance",
         ),
         train_window=252,
         rebalance_frequency=63,
@@ -207,6 +233,7 @@ def test_backtest_runs_robust_risk_allocator_family():
         "resampled_min_variance",
         "scenario_robust_min_variance",
         "volatility_targeted_min_variance",
+        "random_matrix_minimum_variance",
     }
     assert all(
         record["risk_model"]

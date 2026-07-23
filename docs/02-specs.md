@@ -137,12 +137,14 @@ Backend-only research tool:
   - Fama/French `Mkt-RF + RF` daily return을 외부 market beta history로 사용하는 residual-target 후보를 지원합니다. 외부 factor가 내부 equal-weight market beta보다 낫다는 가정은 별도 paired gate로 검증합니다.
   - uncertainty는 이전 evaluation prediction 중 현재 signal date 전에 outcome이 완료된 residual만 사용해 순차적으로 계산합니다. 최종 보고서는 fit count, elapsed time, prediction throughput, peak Python memory를 함께 기록합니다.
   - risk allocator research는 기존 Ledoit-Wolf minimum variance와 별도로 Ledoit-Wolf 50%, Oracle Approximating 30%, 180일 exponential covariance 20% blend, exact equal-risk-contribution, hierarchical risk parity, regime-conditioned covariance, historical minimum-CVaR를 비교할 수 있습니다.
+  - research-only `random_matrix_minimum_variance`는 sample correlation의 Marchenko-Pastur noise band eigenvalue를 평균화하고 Ledoit-Wolf diagonal variance로 재조합합니다. RMT threshold, variance source, noise/signal eigenvalue 수를 diagnostics와 locked split에 기록합니다.
   - `nested_blended_min_variance`는 Ledoit-Wolf minimum-variance와 inverse-volatility weight 사이 shrinkage를 완료된 252/63 inner OOS realized variance만으로 선택합니다. `train_window < 315`이면 research CLI가 실행을 거부합니다.
   - risk allocator research도 price SHA, ordered basket hash, 모든 실행 설정과 candidate family를 split manifest로 잠급니다. 낮은 변동성만으로 승격하지 않고 closest baseline 대비 Sharpe, drawdown, turnover와 paired block bootstrap를 함께 통과해야 합니다.
   - cross-validated covariance 후보는 outer rebalance의 train window 안에서만 252일 inner train/63일 validation walk-forward를 수행하고 realized portfolio variance로 estimator를 선택합니다. 이 후보도 research-only이며 높은 turnover 또는 Sharpe 저하 시 승격하지 않습니다.
   - covariance forecast ensemble은 완료된 inner OOS window에서 relative Frobenius error, correlation RMSE, equal/inverse-vol portfolio log-variance calibration error를 측정합니다. estimator를 hard-select하지 않고 inverse-loss weight를 50% equal-weight prior로 shrink해 결합합니다.
   - covariance stress 진단은 PSD를 보존하는 correlation-to-one shock와 volatility shock에서 portfolio volatility amplification, effective asset count, maximum weight를 기록합니다.
   - covariance ensemble research는 최소 252일 inner train과 63일 completed validation을 확보하도록 outer `train_window >= 315`를 요구합니다. inner fold가 없는 fallback 결과를 후보 성능으로 승격하지 않습니다.
+  - `tools/build_fama_french_industry_panel.py`는 공식 French 49-industry daily archive의 value-weighted section만 decimal return으로 파싱하고 누적 price index, 원본/파생 SHA, ordered industry basket hash를 생성합니다.
   - robust covariance는 spectral PSD repair와 eigenvalue condition/effective-rank 진단을 기록합니다. long-only asset cap은 capped simplex projection으로 합계 1과 cap을 동시에 만족해야 합니다.
   - risk candidate는 research split에서 equal weight를 통과한 뒤 단일 specification을 freeze합니다. 4-case validation에서는 가장 가까운 Ledoit-Wolf minimum-variance baseline보다 volatility, Sharpe, max drawdown을 모두 개선해야 하며 탈락 후보를 같은 validation 결과에 맞춰 재튜닝하지 않습니다.
   - portfolio risk metric은 annual volatility와 Sharpe 외에 downside deviation, Sortino, Calmar, Omega, daily 95% VaR/CVaR를 함께 기록합니다.

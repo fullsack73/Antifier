@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-49-industry-rmt-research-2000-2010-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2010-12-31",
+  "experiment_namespace": "risk-v7-rmt-industry-portfolios",
+  "objectives": [
+    "random_matrix_minimum_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "random_matrix_policy": {
+      "correlation": "marchenko_pastur_noise_eigenvalue_mean",
+      "variance": "ledoit_wolf_diagonal"
+    }
+  },
+  "universe_manifest_sha256": "cad36f71a324c4cf9a24bde8f184f792bc2c499b6be218b9de1ec943848b4ad9",
+  "price_file_sha256": "9e8875af17998c1812971ee0b989c90b6509749af8e10523a11f676743b88f85",
+  "factor_file_sha256": "dcf6dbcb7c906457c9d46b0c09ffe84d30db0fe282068b902cceb78be2066b19",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "75c6132c828a86ebe696b31051c41d2dbf33e728f2a1432f2d1e489139c196f5"
+}

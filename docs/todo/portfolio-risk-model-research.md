@@ -88,3 +88,12 @@
 
 - 결과 보고서: `docs/reports/260723-2040-01-risk-allocator-research.md`
 - cash/volatility-target 보고서: `docs/reports/260724-0039-01-risk-cash-volatility-target.md`
+- RMT denoising 보고서: `docs/reports/260724-0121-01-rmt-covariance-research.md`
+
+## 2026-07-24 RMT research
+
+- 공식 Kenneth French 49-industry value-weighted daily portfolio를 survivorship-safe fresh research source로 사용했습니다.
+- 1998~2010 가격 index 3,271행과 historical FRED risk-free를 source/hash lock하고 2000~2010만 평가했습니다.
+- Marchenko-Pastur threshold로 매 rebalance에서 49개 중 46~47개 correlation eigenvalue를 noise로 분류해 평균화하고 Ledoit-Wolf variance diagonal과 재조합했습니다.
+- RMT 후보는 Ledoit-Wolf minimum variance보다 volatility `15.22%→15.33%`, Sharpe `0.4227→0.3882`, drawdown `-43.55%→-43.70%`로 모두 열위였습니다.
+- paired P(lower volatility/higher Sharpe)는 `3.15%`/`21.0%`여서 폐기합니다. 같은 2000~2010 구간에서 threshold 또는 blend를 재튜닝하지 않습니다.

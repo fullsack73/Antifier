@@ -44,6 +44,7 @@ RISK_RESEARCH_MODELS = (
     "resampled_min_variance",
     "scenario_robust_min_variance",
     "volatility_targeted_min_variance",
+    "random_matrix_minimum_variance",
     "risk_managed_momentum",
 )
 RISK_CANDIDATES = (
@@ -59,6 +60,7 @@ RISK_CANDIDATES = (
     "resampled_min_variance",
     "scenario_robust_min_variance",
     "volatility_targeted_min_variance",
+    "random_matrix_minimum_variance",
     "risk_managed_momentum",
 )
 RESERVED_SPLITS = {
@@ -90,6 +92,11 @@ def _research_settings(args):
     }
     if args.risk_free_data:
         settings["risk_free_policy"] = "fred_dgs3mo_daily_equivalent"
+    if "random_matrix_minimum_variance" in args.candidates:
+        settings["random_matrix_policy"] = {
+            "correlation": "marchenko_pastur_noise_eigenvalue_mean",
+            "variance": "ledoit_wolf_diagonal",
+        }
     return settings
 
 
@@ -229,6 +236,7 @@ def _risk_gate(summary, candidate_name):
                 "resampled_min_variance",
                 "scenario_robust_min_variance",
                 "volatility_targeted_min_variance",
+                "random_matrix_minimum_variance",
             }
             else "risk_parity"
         )

@@ -79,6 +79,7 @@
 - baseline 개별 gate가 candidate 승격으로 오인되지 않도록 candidate-specific paired gate를 promotion 판정에 강제했습니다.
 - 최소 거래일 미달 ticker는 제외하되 성공/오류 응답에 관측 수, 커버리지, 관측일과 단계별 제외 사유를 노출해 조용한 universe 축소를 차단했습니다.
 - fresh Nasdaq 2018~2019 research의 1년 fundamental-momentum 후보도 baseline 대비 paired IC/spread gate에서 탈락해 default alpha는 변경하지 않습니다.
+- 공식 French 49-industry 2000~2010 research의 RMT covariance 후보도 Ledoit-Wolf 대비 volatility/Sharpe/drawdown이 모두 악화되어 default risk model을 변경하지 않습니다.
 
 ## 금지
 
