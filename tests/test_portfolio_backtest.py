@@ -1360,6 +1360,22 @@ def test_turnover_band_skips_small_trades():
     assert controlled["BBB"] == pytest.approx(500.0)
 
 
+def test_turnover_band_preserves_target_cash_exposure():
+    controlled, diagnostics = portfolio_optimization.apply_trade_controls(
+        {"AAA": 400.0, "BBB": 300.0, "CCC": 300.0},
+        {"AAA": 430.0, "BBB": 285.0, "CCC": 285.0},
+        portfolio_value=1000.0,
+        rebalance_band=0.02,
+        max_turnover=None,
+    )
+
+    assert controlled.sum() == pytest.approx(1000.0)
+    assert diagnostics["desired_net_trade_value"] == pytest.approx(0.0)
+    assert diagnostics["post_control_net_trade_value"] == pytest.approx(0.0)
+    assert diagnostics["band_reintroduced_trade_count"] == 2
+    assert diagnostics["skipped_trade_count"] == 0
+
+
 def test_max_turnover_scales_trades_to_cap():
     controlled, diagnostics = portfolio_optimization.apply_trade_controls(
         {"AAA": 500.0, "BBB": 500.0},

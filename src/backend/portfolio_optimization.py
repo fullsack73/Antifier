@@ -847,6 +847,31 @@ def apply_trade_controls(current_values, target_values, portfolio_value=None,
     skipped_mask = (controlled_deltas.abs() > 1e-10) & (controlled_deltas.abs() < threshold)
     controlled_deltas.loc[skipped_mask] = 0.0
 
+    # A per-asset band can otherwise keep only one side of a self-financing
+    # rebalance. Reintroduce the minimum skipped opposite-side trades needed
+    # to preserve the target's intended risky/cash exposure.
+    desired_net_trade = float(target.sum() - current.sum())
+    band_net_trade = float(controlled_deltas.sum())
+    net_trade_gap = desired_net_trade - band_net_trade
+    reintroduced_mask = pd.Series(False, index=index, dtype=bool)
+    if net_trade_gap > 1e-10:
+        remaining_buys = (deltas - controlled_deltas).clip(lower=0.0)
+        available = float(remaining_buys.sum())
+        if available > 0:
+            addition = remaining_buys * min(1.0, net_trade_gap / available)
+            controlled_deltas += addition
+            reintroduced_mask |= addition > 1e-10
+    elif net_trade_gap < -1e-10:
+        remaining_sells = (controlled_deltas - deltas).clip(lower=0.0)
+        available = float(remaining_sells.sum())
+        if available > 0:
+            addition = remaining_sells * min(
+                1.0,
+                -net_trade_gap / available,
+            )
+            controlled_deltas -= addition
+            reintroduced_mask |= addition > 1e-10
+
     cap_hit = False
     turnover_cap = None
     if max_turnover is not None:
@@ -858,7 +883,7 @@ def apply_trade_controls(current_values, target_values, portfolio_value=None,
             controlled_deltas *= scale
             cap_hit = True
 
-    # If skipped sells leave too much buying demand, shrink buys to available cash.
+    # Defensive guard for malformed targets or a constrained net purchase.
     available_cash = max(0.0, portfolio_value - float(current.sum()))
     net_buy_value = float(controlled_deltas.sum())
     cash_balance_adjusted = False
@@ -883,7 +908,15 @@ def apply_trade_controls(current_values, target_values, portfolio_value=None,
         "controlled_trade_value": controlled_trade_value,
         "turnover": float(turnover),
         "controlled_turnover": float(controlled_turnover),
-        "skipped_trade_count": int(skipped_mask.sum()),
+        "skipped_trade_count": int(
+            (
+                (deltas.abs() > 1e-10)
+                & (controlled_deltas.abs() <= 1e-10)
+            ).sum()
+        ),
+        "band_reintroduced_trade_count": int(reintroduced_mask.sum()),
+        "desired_net_trade_value": float(desired_net_trade),
+        "post_control_net_trade_value": float(controlled_deltas.sum()),
         "turnover_cap_hit": bool(cap_hit),
         "cash_balance_adjusted": bool(cash_balance_adjusted),
     }

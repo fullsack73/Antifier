@@ -1,0 +1,167 @@
+{
+  "source": "Kenneth R. French Data Library",
+  "source_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/49_Industry_Portfolios_daily_CSV.zip",
+  "source_section": "Average Value Weighted Returns -- Daily",
+  "source_portfolio_policy": "36 complete SIC industry portfolios selected before results; 13 exact source labels excluded for any missing row in 1926-1969",
+  "return_weighting": "value_weighted",
+  "retrieved_at": "2026-07-23T22:12:13.252772+00:00",
+  "raw_archive": "/Applications/react/my-app/portfolio-project/data/research/raw/market_factors/49_Industry_Portfolios_daily_CSV.zip",
+  "raw_archive_sha256": "e214c54a41f058c03ed4a4e582b2126e04120d2a84bc19c023bd2a4251f77097",
+  "start_date": "1926-07-01",
+  "end_date": "1969-12-31",
+  "row_count": 12030,
+  "source_ticker_count": 49,
+  "ticker_count": 36,
+  "selected_source_tickers": [
+    "Agric",
+    "Food",
+    "Beer",
+    "Smoke",
+    "Fun",
+    "Hshld",
+    "Clths",
+    "Drugs",
+    "Chems",
+    "Txtls",
+    "BldMt",
+    "Cnstr",
+    "Steel",
+    "Mach",
+    "ElcEq",
+    "Autos",
+    "Aero",
+    "Ships",
+    "Mines",
+    "Coal",
+    "Oil",
+    "Util",
+    "Telcm",
+    "BusSv",
+    "Hardw",
+    "Chips",
+    "Boxes",
+    "Trans",
+    "Whlsl",
+    "Rtail",
+    "Meals",
+    "Banks",
+    "Insur",
+    "RlEst",
+    "Fin",
+    "Other"
+  ],
+  "tickers": [
+    "Agric",
+    "Food",
+    "Beer",
+    "Smoke",
+    "Fun",
+    "Hshld",
+    "Clths",
+    "Drugs",
+    "Chems",
+    "Txtls",
+    "BldMt",
+    "Cnstr",
+    "Steel",
+    "Mach",
+    "ElcEq",
+    "Autos",
+    "Aero",
+    "Ships",
+    "Mines",
+    "Coal",
+    "Oil",
+    "Util",
+    "Telcm",
+    "BusSv",
+    "Hardw",
+    "Chips",
+    "Boxes",
+    "Trans",
+    "Whlsl",
+    "Rtail",
+    "Meals",
+    "Banks",
+    "Insur",
+    "RlEst",
+    "Fin",
+    "Other"
+  ],
+  "ticker_label_policy": "source_labels",
+  "excluded_tickers": [
+    "Hlth",
+    "Softw",
+    "Soda",
+    "FabPr",
+    "Guns",
+    "Gold",
+    "Rubbr",
+    "Paper",
+    "PerSv",
+    "Toys",
+    "Books",
+    "MedEq",
+    "LabEq"
+  ],
+  "exclusion_diagnostics": {
+    "Hlth": {
+      "missing_row_count": 11903,
+      "available_row_count": 127
+    },
+    "Softw": {
+      "missing_row_count": 10924,
+      "available_row_count": 1106
+    },
+    "Soda": {
+      "missing_row_count": 10420,
+      "available_row_count": 1610
+    },
+    "FabPr": {
+      "missing_row_count": 10420,
+      "available_row_count": 1610
+    },
+    "Guns": {
+      "missing_row_count": 10420,
+      "available_row_count": 1610
+    },
+    "Gold": {
+      "missing_row_count": 10420,
+      "available_row_count": 1610
+    },
+    "Rubbr": {
+      "missing_row_count": 1495,
+      "available_row_count": 10535
+    },
+    "Paper": {
+      "missing_row_count": 927,
+      "available_row_count": 11103
+    },
+    "PerSv": {
+      "missing_row_count": 315,
+      "available_row_count": 11715
+    },
+    "Toys": {
+      "missing_row_count": 2,
+      "available_row_count": 12028
+    },
+    "Books": {
+      "missing_row_count": 1,
+      "available_row_count": 12029
+    },
+    "MedEq": {
+      "missing_row_count": 1,
+      "available_row_count": 12029
+    },
+    "LabEq": {
+      "missing_row_count": 1,
+      "available_row_count": 12029
+    }
+  },
+  "exclusion_policy": "explicit_source_column_exclusion_before_completeness_check",
+  "basket_manifest_sha256": "63ef4ec9e6da8342077bfc029016229ca9213e5e8f30c303d2993a54c58b8746",
+  "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_36_source_49_complete_prices_1926_1969_minvar_replication.csv",
+  "price_file_sha256": "7ac586319c551e29dd7f8c2d3b9ad8fbe6423cd635b085f12753163e7bd9b5c0",
+  "survivorship_policy": "source portfolios include eligible NYSE, AMEX, and NASDAQ firms through time",
+  "promotion_safe": true
+}

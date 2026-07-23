@@ -222,3 +222,10 @@
 - rolling 504일 outer window마다 completed inner fold가 3개뿐이었고 평균 posterior는 equal/min-var/risk-parity/momentum `21.96%/26.26%/18.24%/33.53%`였습니다.
 - 같은 split에서 outer window, expert set, loss, learning rate를 재튜닝하지 않고 1970+ validation/holdout을 봉인합니다.
 - 보고서: `docs/reports/260724-0424-01-online-allocator-ensemble-research.md`
+
+## 2026-07-24 plain minvar independent replication
+
+- Unchanged plain minvar early-history replication은 risk parity 대비 P(higher Sharpe) `98.05%`였지만 lightweight 대비 `86.70%`로 탈락했습니다.
+- Replication에서 rebalance-band cash leak를 발견해 execution control을 수정했습니다.
+- 이미 결과를 본 split을 post-fix promotion에 재사용하지 않습니다.
+- 보고서: `docs/reports/260724-0716-01-rebalance-band-cash-leak.md`

@@ -169,6 +169,8 @@
 - Official French 12-industry `2000~2011` locked research에서 candidate는 minvar 대비 volatility `17.11%→17.09%`, Sharpe `0.3265→0.3272`, drawdown `-42.77%→-42.62%`로 deterministic gate를 통과했습니다.
 - 그러나 minvar 대비 P(higher Sharpe)는 `60.25%`, Holm-adjusted p-value `0.3975`였습니다. 평균 controlled turnover도 `11.44%→11.71%`로 감소하지 않았습니다.
 - 35% exact constraint는 첫 배치 제외 47회 중 1회(`2.13%`)만 binding했습니다. 같은 split에서 limit를 10%/20%로 낮춰 재튜닝하지 않고 validation/holdout을 봉인합니다.
+- Unchanged plain minvar의 independent early 49-industry replication은 deterministic gate와 risk-parity gate를 통과했지만 lightweight 대비 P(higher Sharpe) `86.70%`로 95% gate에서 탈락했습니다.
+- 이 복제에서 absolute 2% band가 diversified target의 매수/매도를 비대칭 제거해 평균 현금을 최대 `14.55%` 누적시키는 execution bug를 발견했습니다. Target net trade 보존으로 수정 후 fully-invested 모델 현금은 `0.021%` 이하였습니다.
 
 ## 금지
 
