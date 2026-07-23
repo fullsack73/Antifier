@@ -39,6 +39,7 @@ GAUNTLET_MODELS = (
     "historical_bl",
     "momentum_bl",
     "signal_stack_bl",
+    "adaptive_signal_tilt",
     "historical_mpt",
     "lightweight_bl",
     "arima_transformer_rank_bl",
@@ -46,7 +47,7 @@ GAUNTLET_MODELS = (
 )
 CANDIDATE_GAUNTLET_MODELS = tuple(
     model for model in GAUNTLET_MODELS
-    if model != "transformer_rank_bl"
+    if model not in ("arima_transformer_rank_bl", "transformer_rank_bl")
 )
 
 GAUNTLET_BASKETS = {
@@ -77,7 +78,14 @@ GAUNTLET_REGIMES = {
     "crash": ("2018-01-01", "2020-12-31"),
     "inflation_rate_shock": ("2020-01-01", "2023-12-31"),
     "sideways": ("2014-01-01", "2016-12-31"),
+    "locked_holdout_2024_2025": ("2022-01-01", "2025-12-31"),
 }
+STANDARD_GAUNTLET_REGIMES = (
+    "bull",
+    "crash",
+    "inflation_rate_shock",
+    "sideways",
+)
 
 GAUNTLET_REBALANCE_BANDS = (0.02, 0.03, 0.05)
 GAUNTLET_MAX_TURNOVERS = (0.20, 0.35, 0.50)
@@ -86,6 +94,10 @@ CANDIDATE_GAUNTLET_SCENARIOS = (
     ("tech", "crash"),
     ("defensive", "inflation_rate_shock"),
     ("mixed_etf", "sideways"),
+)
+HOLDOUT_GAUNTLET_SCENARIOS = tuple(
+    (basket_name, "locked_holdout_2024_2025")
+    for basket_name, _ in CANDIDATE_GAUNTLET_SCENARIOS
 )
 
 
@@ -194,11 +206,15 @@ def _gauntlet_cases(preset, max_cases=None):
         scenario_names = CANDIDATE_GAUNTLET_SCENARIOS
         bands = (0.02,)
         turnovers = (0.35,)
+    elif preset == "holdout":
+        scenario_names = HOLDOUT_GAUNTLET_SCENARIOS
+        bands = (0.02,)
+        turnovers = (0.35,)
     else:
         scenario_names = tuple(
             (basket_name, regime_name)
             for basket_name in GAUNTLET_BASKETS
-            for regime_name in GAUNTLET_REGIMES
+            for regime_name in STANDARD_GAUNTLET_REGIMES
         )
         bands = GAUNTLET_REBALANCE_BANDS
         turnovers = GAUNTLET_MAX_TURNOVERS
@@ -228,6 +244,14 @@ def _gauntlet_cases(preset, max_cases=None):
     return cases
 
 
+def _evaluation_split(preset):
+    if preset == "smoke":
+        return "research"
+    if preset == "holdout":
+        return "locked_holdout"
+    return "validation"
+
+
 def _case_key(case):
     return json.dumps(
         [
@@ -243,6 +267,7 @@ def _case_key(case):
 def _checkpoint_signature(args, models):
     return {
         "preset": args.gauntlet_preset,
+        "evaluation_split": _evaluation_split(args.gauntlet_preset),
         "models": list(models),
         "train_window": int(args.train_window),
         "rebalance_frequency": int(args.rebalance_frequency),
@@ -308,6 +333,7 @@ def _build_gauntlet_payload(args, models, cases, runs):
     )
     payload = {
         "preset": args.gauntlet_preset,
+        "evaluation_split": _evaluation_split(args.gauntlet_preset),
         "models": list(models),
         "case_count": len(cases),
         "completed_count": len(completed_runs),
@@ -324,6 +350,7 @@ def _build_gauntlet_payload(args, models, cases, runs):
             "target_generation": "once_per_basket_regime",
             "execution_sensitivity_reuses_targets": True,
             "forecast_cache_namespace": args.forecast_cache_namespace,
+            "evaluation_split": _evaluation_split(args.gauntlet_preset),
         },
         "forecast_cache": forecast_rank_cache_stats(),
         "promotion_gauntlet": primary_decision,
@@ -336,7 +363,7 @@ def _build_gauntlet_payload(args, models, cases, runs):
 def _run_gauntlet(args, checkpoint_path):
     default_models = (
         CANDIDATE_GAUNTLET_MODELS
-        if args.gauntlet_preset == "candidate"
+        if args.gauntlet_preset in ("candidate", "holdout")
         else GAUNTLET_MODELS
     )
     models = tuple(args.models or default_models)
@@ -459,6 +486,7 @@ def _write_gauntlet_report(payload, output_path):
         "# Portfolio Performance Gauntlet",
         "",
         f"- Preset: `{payload['preset']}`",
+        f"- Evaluation split: `{payload['evaluation_split']}`",
         f"- Completed: {payload['completed_count']} / {payload['case_count']}",
         f"- Candidate: `{decision['candidate_model']}`",
         f"- Status: `{decision['status']}`",
@@ -487,6 +515,30 @@ def _write_gauntlet_report(payload, output_path):
                 turnover=_fmt(case.get("max_turnover")),
                 survived="yes" if case.get("survived") else "no",
                 reason=str(first_reason).replace("|", "\\|"),
+            )
+        )
+    lines.extend([
+        "",
+        "## Alpha diagnostics",
+        "",
+        "| Basket | Regime | Rank IC | Positive IC | Top-bottom | Active share | Signal retention | Cost drag |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
+    ])
+    candidate_name = decision.get("candidate_model")
+    for run in payload.get("runs", []):
+        result = run.get("result", {})
+        metrics = result.get("summary_by_model", {}).get(candidate_name, {})
+        case = run.get("case", {})
+        lines.append(
+            "| {basket} | {regime} | {rank_ic} | {positive_ic} | {spread} | {active} | {retention} | {cost_drag} |".format(
+                basket=case.get("basket") or "",
+                regime=case.get("regime") or "",
+                rank_ic=_fmt(metrics.get("avg_signal_rank_ic")),
+                positive_ic=_fmt(metrics.get("positive_signal_rank_ic_rate")),
+                spread=_fmt(metrics.get("avg_top_bottom_spread")),
+                active=_fmt(metrics.get("avg_active_share")),
+                retention=_fmt(metrics.get("avg_execution_signal_retention")),
+                cost_drag=_fmt(metrics.get("transaction_cost_return_drag")),
             )
         )
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -519,10 +571,10 @@ def main(argv=None):
     parser.add_argument("--output", default=None, help="JSON output path")
     parser.add_argument(
         "--gauntlet-preset",
-        choices=("standard", "candidate", "smoke"),
+        choices=("standard", "candidate", "holdout", "smoke"),
         help=(
             "Run a repeatable gauntlet; candidate uses four representative scenarios "
-            "and quarterly rebalancing by default"
+            "and holdout reserves 2024-2025 for one final evaluation"
         ),
     )
     parser.add_argument("--max-cases", type=int, default=None, help="Limit gauntlet cases for smoke/debug runs")
@@ -532,7 +584,7 @@ def main(argv=None):
     )
     parser.add_argument(
         "--forecast-cache-namespace",
-        default="default",
+        default=None,
         help="Experiment namespace that prevents forecast reuse across incompatible model configurations",
     )
     parser.add_argument(
@@ -551,7 +603,10 @@ def main(argv=None):
     )
     args = parser.parse_args(argv)
     if args.rebalance_frequency is None:
-        args.rebalance_frequency = 63 if args.gauntlet_preset == "candidate" else 21
+        args.rebalance_frequency = 63 if args.gauntlet_preset in ("candidate", "holdout") else 21
+    if args.forecast_cache_namespace is None:
+        split = _evaluation_split(args.gauntlet_preset) if args.gauntlet_preset else "research"
+        args.forecast_cache_namespace = f"adaptive-signal-v1-{split}"
 
     try:
         if args.gauntlet_preset:

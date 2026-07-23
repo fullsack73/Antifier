@@ -23,11 +23,15 @@ from forecast_models import (
     no_view_prediction,
 )
 from portfolio_signals import (
+    adaptive_cross_sectional_alpha,
+    calibrate_cross_sectional_alpha,
     drawdown_score,
     market_cap_weight,
     momentum_6m,
     momentum_12_1,
     risk_parity,
+    short_term_reversal_score,
+    signal_tilt_weights,
     signal_stack_bl_views,
     volatility_score,
 )
@@ -247,6 +251,57 @@ def test_six_month_momentum_low_vol_and_drawdown_scores_rank_cross_sectionally()
     assert dd_scores["CALM"] > dd_scores["VOL"]
 
 
+def test_short_term_reversal_prefers_recent_relative_loser():
+    dates = pd.date_range("2024-01-02", periods=30, freq="B")
+    prices = pd.DataFrame(
+        {
+            "LOSER": np.linspace(100.0, 80.0, len(dates)),
+            "FLAT": np.full(len(dates), 100.0),
+            "WINNER": np.linspace(100.0, 120.0, len(dates)),
+        },
+        index=dates,
+    )
+
+    scores = short_term_reversal_score(prices)
+
+    assert scores["LOSER"] > scores["FLAT"] > scores["WINNER"]
+
+
+def test_adaptive_alpha_calibration_uses_completed_training_windows_only():
+    prices = _synthetic_prices(360)
+
+    calibration = calibrate_cross_sectional_alpha(
+        prices,
+        horizon=21,
+        max_observations=4,
+    )
+    scores, diagnostics = adaptive_cross_sectional_alpha(prices, horizon=21)
+
+    assert calibration["rows"]
+    assert len(calibration["rows"]) <= 4
+    assert all(
+        pd.Timestamp(row["as_of_date"]) < pd.Timestamp(row["forward_end_date"])
+        <= prices.index[-1]
+        for row in calibration["rows"]
+    )
+    assert sum(calibration["weights"].values()) == pytest.approx(1.0)
+    assert diagnostics["coverage_rate"] == pytest.approx(1.0)
+    assert scores.notna().all()
+
+
+def test_signal_tilt_weights_target_explicit_active_share():
+    weights = signal_tilt_weights(
+        {"LOW": -1.0, "MID": 0.0, "HIGH": 1.0},
+        max_asset_weight=0.80,
+        target_active_share=0.20,
+    )
+    equal = pd.Series(1 / 3, index=weights.index)
+
+    assert weights.sum() == pytest.approx(1.0)
+    assert weights["HIGH"] > weights["MID"] > weights["LOW"]
+    assert 0.15 <= 0.5 * float((weights - equal).abs().sum()) <= 0.200001
+
+
 def test_market_cap_weight_uses_caps_when_available_and_empty_when_not():
     weights = market_cap_weight({"AAA": 100.0, "BBB": 300.0}, tickers=["AAA", "BBB"], max_asset_weight=0.80)
     missing = market_cap_weight({}, tickers=["AAA", "BBB"], max_asset_weight=0.80)
@@ -379,6 +434,7 @@ def test_synthetic_backtest_runs_all_model_families(monkeypatch):
         "settings",
         "models",
         "summary_by_model",
+        "alpha_diagnostics",
         "rebalance_records",
         "promotion_decision",
         "warnings",
@@ -389,6 +445,67 @@ def test_synthetic_backtest_runs_all_model_families(monkeypatch):
     assert "controlled_turnover" in result["summary_by_model"]["equal_weight"]
     assert "skipped_trade_count" in result["summary_by_model"]["equal_weight"]
     assert "turnover_cap_hit_count" in result["summary_by_model"]["equal_weight"]
+
+
+def test_adaptive_signal_backtest_records_signal_construction_and_execution_layers():
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _synthetic_prices(360),
+        models=("adaptive_signal_tilt",),
+        train_window=280,
+        rebalance_frequency=21,
+        forecast_horizon=21,
+        transaction_cost_bps=10,
+        max_asset_weight=0.80,
+        rebalance_band=0.0,
+        max_turnover=1.0,
+    )
+    metrics = result["summary_by_model"]["adaptive_signal_tilt"]
+    records = result["rebalance_records"]
+
+    assert records
+    assert metrics["signal_rank_ic_count"] > 0
+    assert metrics["avg_active_share"] > 0.0
+    assert metrics["avg_signal_weight_rank_correlation"] > 0.0
+    assert metrics["gross_cumulative_return"] >= metrics["net_cumulative_return"]
+    assert set(result["alpha_diagnostics"]["adaptive_signal_tilt"]) == {
+        "signal",
+        "construction",
+        "execution",
+    }
+    assert all(record["signal_scores"] for record in records)
+    assert all(record["realized_forward_returns"] for record in records)
+    assert all(record["alpha_component_weights"] for record in records)
+    assert all(record["train_end_date"] < record["rebalance_date"] for record in records)
+
+
+def test_adaptive_signal_model_never_receives_rebalance_or_future_prices(monkeypatch):
+    seen_train_end_dates = []
+    original = portfolio_backtest.adaptive_cross_sectional_alpha
+
+    def capture_training_window(train_prices, horizon=63):
+        seen_train_end_dates.append(train_prices.index[-1])
+        return original(train_prices, horizon=horizon)
+
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "adaptive_cross_sectional_alpha",
+        capture_training_window,
+    )
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _synthetic_prices(340),
+        models=("adaptive_signal_tilt",),
+        train_window=280,
+        rebalance_frequency=21,
+        forecast_horizon=21,
+        max_asset_weight=0.80,
+    )
+
+    rebalance_dates = [
+        pd.Timestamp(record["rebalance_date"])
+        for record in result["rebalance_records"]
+    ]
+    assert len(seen_train_end_dates) == len(rebalance_dates)
+    assert all(train_end < rebalance for train_end, rebalance in zip(seen_train_end_dates, rebalance_dates))
 
 
 def test_synthetic_backtest_runs_risk_parity_and_momentum_bl():
@@ -631,6 +748,7 @@ def test_backtest_cli_gauntlet_smoke_writes_json_and_report(tmp_path):
             "historical_bl",
             "momentum_bl",
             "signal_stack_bl",
+            "adaptive_signal_tilt",
             "--train-window",
             "126",
             "--rebalance-frequency",
@@ -653,10 +771,12 @@ def test_backtest_cli_gauntlet_smoke_writes_json_and_report(tmp_path):
     assert payload["completed_count"] == 1
     assert payload["promotion_gauntlet"]["usable_count"] == 1
     assert payload["settings"]["execution_sensitivity_reuses_targets"] is True
+    assert payload["evaluation_split"] == "research"
     assert payload["runs"][0]["result"]["settings"]["reused_rebalance_targets"] is True
     assert Path(payload["checkpoint_path"]).exists()
     assert (tmp_path / "portfolio_gauntlet_forecasts.sqlite3").exists()
     assert output_path.with_suffix(".md").exists()
+    assert "## Alpha diagnostics" in output_path.with_suffix(".md").read_text()
 
 
 def test_backtest_cli_candidate_preset_checkpoints_and_resumes(tmp_path):
@@ -695,6 +815,7 @@ def test_backtest_cli_candidate_preset_checkpoints_and_resumes(tmp_path):
     assert first.returncode == 0, first.stderr
     payload = json.loads(output_path.read_text())
     assert payload["preset"] == "candidate"
+    assert payload["evaluation_split"] == "validation"
     assert payload["completed_count"] == 4
     assert {
         (run["case"]["basket_key"], run["case"]["regime"])
@@ -718,3 +839,24 @@ def test_backtest_cli_candidate_preset_checkpoints_and_resumes(tmp_path):
     )
     assert resumed.returncode == 0, resumed.stderr
     assert len(checkpoint_path.read_text().splitlines()) == len(first_checkpoint_lines)
+
+
+def test_holdout_preset_is_isolated_from_validation_cases():
+    import importlib.util
+
+    module_path = ROOT / "tools" / "backtest_portfolio_models.py"
+    spec = importlib.util.spec_from_file_location("backtest_portfolio_models_tool", module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    validation_cases = module._gauntlet_cases("candidate")
+    holdout_cases = module._gauntlet_cases("holdout")
+    standard_cases = module._gauntlet_cases("standard")
+
+    assert len(validation_cases) == 4
+    assert len(holdout_cases) == 4
+    assert all(case["regime"] == "locked_holdout_2024_2025" for case in holdout_cases)
+    assert all(case["start"] == "2022-01-01" for case in holdout_cases)
+    assert all(case["regime"] != "locked_holdout_2024_2025" for case in standard_cases)
+    assert module._evaluation_split("candidate") == "validation"
+    assert module._evaluation_split("holdout") == "locked_holdout"

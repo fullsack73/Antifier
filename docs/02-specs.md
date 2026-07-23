@@ -93,11 +93,14 @@
 
 Backend-only research tool:
 
-- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_6m`, `low_volatility`, `market_cap_weight`, `momentum_12_1`, `momentum_bl`, `signal_stack_bl`, `arima_transformer_rank_bl`, `transformer_rank_bl`이 포함됩니다. 요약에는 `controlled_turnover`, `skipped_trade_count`, `turnover_cap_hit_count`, `market_cap_available_count`가 포함됩니다.
-  - `--gauntlet-preset candidate`는 bull/crash/inflation-rate-shock/sideways를 대표하는 4개 basket/regime을 기본 63거래일 리밸런싱으로 빠르게 선별하며, 기본 ML 후보는 `arima_transformer_rank_bl`입니다.
+- `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `alpha_diagnostics`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_6m`, `low_volatility`, `market_cap_weight`, `momentum_12_1`, `momentum_bl`, `signal_stack_bl`, `adaptive_signal_tilt`, `arima_transformer_rank_bl`, `transformer_rank_bl`이 포함됩니다.
+  - `adaptive_signal_tilt`은 12-1/6개월 momentum, 1개월 reversal, low-volatility, drawdown rank를 training window 내부의 완료된 forward-relative-return 구간으로 IC calibration하고 equal-weight 주변의 명시적 active-share tilt로 변환합니다. calibration과 target 생성은 rebalance date 이전 가격만 사용합니다.
+  - `alpha_diagnostics`는 signal의 rank IC/top-minus-bottom/horizon decay/persistence/coverage, construction의 signal-weight rank correlation/active share/BL view retention/concentration/예측 변동성, execution의 raw-controlled turnover/weight loss/비용 전후 수익을 분리합니다.
+  - `--gauntlet-preset candidate`는 bull/crash/inflation-rate-shock/sideways를 대표하는 4개 validation basket/regime을 기본 63거래일 리밸런싱으로 빠르게 선별하며, 기본 후보는 `adaptive_signal_tilt`입니다.
   - `--gauntlet-preset standard`는 SP500 sample, DOW, tech, defensive, mixed ETF-like basket을 4개 regime과 rebalance band 2/3/5%, max turnover 20/35/50% sensitivity로 실행합니다.
+  - `--gauntlet-preset holdout`은 validation을 통과한 단일 후보만 2024-2025 locked holdout에서 최종 1회 평가하기 위한 별도 split/namespace를 사용합니다. validation 탈락 후보에는 실행하지 않습니다.
   - 각 basket/regime의 forecast와 pre-control target weight는 한 번만 만들고 9개 거래 제약 조합에서 재사용합니다. ML prediction은 가격 window digest, 모델 방식, horizon, cache schema/experiment namespace를 key로 SQLite에 즉시 저장합니다.
-  - ML rank candidate는 rebalance별 forward cross-sectional Spearman rank IC를 기록하고 summary에 평균/중앙값/양의 IC 비율/관측 수를 포함합니다.
+  - signal candidate는 rebalance별 forward cross-sectional Spearman rank IC와 top-minus-bottom spread를 기록하고, positive rank IC와 positive spread가 없는 후보는 성과와 별개로 승격시키지 않습니다.
   - 각 완료 case는 JSONL checkpoint에 append하며 `--resume`으로 완료 case와 persistent forecast를 재사용합니다. 모델 설정이 달라지는 실험은 `--forecast-cache-namespace`를 분리해야 합니다.
   - 최종 JSON과 Markdown summary는 `logs/` 아래에 저장하며 public API나 UI는 추가하지 않습니다.
 

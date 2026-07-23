@@ -8,9 +8,18 @@ TRADING_DAYS_PER_YEAR = 252
 MOMENTUM_SKIP_DAYS = 21
 MOMENTUM_LOOKBACK_DAYS = 252
 SIX_MONTH_MOMENTUM_LOOKBACK_DAYS = 126
+SHORT_TERM_REVERSAL_DAYS = 21
 MOMENTUM_VIEW_UNCERTAINTY = 0.20
 SIGNAL_STACK_VIEW_UNCERTAINTY = 0.40
 FORECAST_RANK_VIEW_UNCERTAINTY = 0.50
+ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE = 0.20
+ADAPTIVE_ALPHA_FALLBACK_WEIGHTS = {
+    "momentum_12_1": 0.30,
+    "momentum_6m": 0.20,
+    "reversal_1m": 0.15,
+    "low_volatility": 0.20,
+    "drawdown": 0.15,
+}
 
 
 def _clean_price_frame(price_data):
@@ -123,6 +132,18 @@ def momentum_6m(price_data, lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS):
     return momentum_rank(price_data, lookback=lookback, skip=0)
 
 
+def short_term_reversal_score(price_data, lookback=SHORT_TERM_REVERSAL_DAYS):
+    """One-month reversal rank, where recent relative losers rank higher."""
+    data = _clean_price_frame(price_data)
+    lookback = max(2, int(lookback))
+    if data.empty or len(data) < lookback:
+        return pd.Series(np.nan, index=data.columns)
+
+    start_prices = data.iloc[-lookback].replace(0.0, np.nan)
+    recent_return = (data.iloc[-1] / start_prices - 1.0).replace([np.inf, -np.inf], np.nan)
+    return rank_to_unit_scores(recent_return, higher_is_better=False).reindex(data.columns)
+
+
 def volatility_score(price_data, lookback=MOMENTUM_LOOKBACK_DAYS):
     """Low-volatility rank score in [-1, 1], where lower trailing vol is better."""
     data = _clean_price_frame(price_data)
@@ -143,6 +164,167 @@ def drawdown_score(price_data, lookback=MOMENTUM_LOOKBACK_DAYS):
     drawdowns = window / window.cummax() - 1.0
     max_drawdowns = drawdowns.min().replace([np.inf, -np.inf], np.nan)
     return rank_to_unit_scores(max_drawdowns.reindex(data.columns), higher_is_better=True)
+
+
+def cross_sectional_alpha_components(price_data):
+    """Price-only weak alpha components, each oriented so higher is better."""
+    data = _clean_price_frame(price_data)
+    return {
+        "momentum_12_1": momentum_12_1(data),
+        "momentum_6m": momentum_6m(data),
+        "reversal_1m": short_term_reversal_score(data),
+        "low_volatility": volatility_score(data),
+        "drawdown": drawdown_score(data),
+    }
+
+
+def _finite_spearman(left, right):
+    left = pd.Series(left, dtype=float).replace([np.inf, -np.inf], np.nan)
+    right = pd.Series(right, dtype=float).reindex(left.index).replace([np.inf, -np.inf], np.nan)
+    valid = left.notna() & right.notna()
+    if int(valid.sum()) < 2 or left[valid].nunique() < 2 or right[valid].nunique() < 2:
+        return None
+    value = left[valid].corr(right[valid], method="spearman")
+    return None if pd.isna(value) or not np.isfinite(value) else float(value)
+
+
+def calibrate_cross_sectional_alpha(
+    price_data,
+    horizon=63,
+    max_observations=8,
+    minimum_history=63,
+):
+    """
+    Estimate component reliability from completed forward windows inside training data.
+
+    Feature snapshots use prices through their as-of date. Their forward relative
+    returns end before the final training date, so live target generation never sees
+    the backtest evaluation period.
+    """
+    data = _clean_price_frame(price_data)
+    horizon = max(1, int(horizon))
+    minimum_history = max(42, int(minimum_history))
+    latest_signal_position = len(data) - horizon - 1
+    if latest_signal_position < minimum_history - 1:
+        positions = []
+    else:
+        positions = list(range(minimum_history - 1, latest_signal_position + 1, horizon))
+        positions = positions[-max(1, int(max_observations)):]
+
+    component_ics = {name: [] for name in ADAPTIVE_ALPHA_FALLBACK_WEIGHTS}
+    calibration_rows = []
+    for position in positions:
+        history = data.iloc[:position + 1]
+        forward_returns = (
+            data.iloc[position + horizon].reindex(data.columns)
+            / data.iloc[position].reindex(data.columns)
+            - 1.0
+        ).replace([np.inf, -np.inf], np.nan)
+        relative_returns = forward_returns - float(forward_returns.median(skipna=True))
+        row_ics = {}
+        for name, scores in cross_sectional_alpha_components(history).items():
+            rank_ic = _finite_spearman(scores, relative_returns)
+            row_ics[name] = rank_ic
+            if rank_ic is not None:
+                component_ics[name].append(rank_ic)
+        calibration_rows.append({
+            "as_of_date": data.index[position].strftime("%Y-%m-%d"),
+            "forward_end_date": data.index[position + horizon].strftime("%Y-%m-%d"),
+            "component_rank_ic": row_ics,
+        })
+
+    component_summary = {}
+    raw_weights = {}
+    for name, values in component_ics.items():
+        count = len(values)
+        mean_ic = None if not values else float(np.mean(values))
+        median_ic = None if not values else float(np.median(values))
+        positive_rate = None if not values else float(np.mean(np.asarray(values) > 0.0))
+        reliability = float(count / (count + 3.0))
+        raw_weight = 0.0 if mean_ic is None else max(0.0, mean_ic) * reliability
+        raw_weights[name] = raw_weight
+        component_summary[name] = {
+            "mean_rank_ic": mean_ic,
+            "median_rank_ic": median_ic,
+            "positive_rank_ic_rate": positive_rate,
+            "observation_count": int(count),
+            "reliability": reliability,
+        }
+
+    positive_total = float(sum(raw_weights.values()))
+    if positive_total > 0:
+        weights = {name: float(value / positive_total) for name, value in raw_weights.items()}
+        source = "rolling_positive_ic"
+    else:
+        weights = dict(ADAPTIVE_ALPHA_FALLBACK_WEIGHTS)
+        source = "conservative_fallback"
+
+    return {
+        "horizon": horizon,
+        "source": source,
+        "weights": weights,
+        "components": component_summary,
+        "rows": calibration_rows,
+    }
+
+
+def adaptive_cross_sectional_alpha(price_data, horizon=63):
+    """Combine weak signals with trailing IC calibration and return diagnostics."""
+    data = _clean_price_frame(price_data)
+    components = cross_sectional_alpha_components(data)
+    calibration = calibrate_cross_sectional_alpha(data, horizon=horizon)
+    weights = calibration["weights"]
+    tickers = list(data.columns)
+
+    weighted_sum = pd.Series(0.0, index=tickers, dtype=float)
+    available_weight = pd.Series(0.0, index=tickers, dtype=float)
+    for name, scores in components.items():
+        weight = max(0.0, float(weights.get(name, 0.0)))
+        aligned = pd.Series(scores, dtype=float).reindex(tickers)
+        valid = aligned.notna()
+        weighted_sum.loc[valid] += aligned.loc[valid] * weight
+        available_weight.loc[valid] += weight
+
+    raw_score = weighted_sum / available_weight.replace(0.0, np.nan)
+    scores = rank_to_unit_scores(raw_score, higher_is_better=True).reindex(tickers)
+    coverage = int(scores.notna().sum())
+    return scores, {
+        "component_scores": {
+            name: {
+                ticker: float(value)
+                for ticker, value in pd.Series(component).dropna().items()
+            }
+            for name, component in components.items()
+        },
+        "component_weights": {name: float(weight) for name, weight in weights.items()},
+        "calibration": calibration,
+        "coverage_count": coverage,
+        "coverage_rate": float(coverage / len(tickers)) if tickers else 0.0,
+    }
+
+
+def signal_tilt_weights(
+    signal_scores,
+    max_asset_weight=0.2,
+    target_active_share=ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
+):
+    """Map cross-sectional scores to a transparent long-only equal-weight tilt."""
+    scores = pd.Series(signal_scores, dtype=float).replace([np.inf, -np.inf], np.nan)
+    if scores.empty:
+        return scores
+
+    base = pd.Series(1.0 / len(scores), index=scores.index, dtype=float)
+    score_mean = scores.mean(skipna=True)
+    score_mean = 0.0 if pd.isna(score_mean) else float(score_mean)
+    centered = scores.fillna(score_mean)
+    centered = centered - float(centered.mean())
+    absolute_total = float(centered.abs().sum())
+    if absolute_total <= 0:
+        return cap_and_normalize_weights(base, max_asset_weight=max_asset_weight)
+
+    desired_l1 = 2.0 * min(0.49, max(0.0, float(target_active_share)))
+    tilted = (base + centered / absolute_total * desired_l1).clip(lower=0.0)
+    return cap_and_normalize_weights(tilted, max_asset_weight=max_asset_weight)
 
 
 def momentum_tilt_weights(price_data, lookback=MOMENTUM_LOOKBACK_DAYS, skip=MOMENTUM_SKIP_DAYS,

@@ -34,16 +34,19 @@ from portfolio_optimization import (
     get_stock_data,
 )
 from portfolio_signals import (
+    ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
     FORECAST_RANK_VIEW_UNCERTAINTY,
     MOMENTUM_VIEW_UNCERTAINTY,
     SIGNAL_STACK_VIEW_UNCERTAINTY,
     SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
+    adaptive_cross_sectional_alpha,
     low_volatility_tilt,
     market_cap_weight,
     momentum_bl_views,
     momentum_tilt_weights,
     rank_to_unit_scores,
     risk_parity,
+    signal_tilt_weights,
     signal_stack_bl_views,
 )
 from ticker_lists import get_ticker_group
@@ -63,6 +66,7 @@ DEFAULT_BACKTEST_MODELS = (
     "historical_bl",
     "momentum_bl",
     "signal_stack_bl",
+    "adaptive_signal_tilt",
     "historical_mpt",
     "lightweight_bl",
     "arima_transformer_rank_bl",
@@ -82,6 +86,7 @@ PROMOTION_BASELINE_MODELS = (
 )
 
 PROMOTION_CANDIDATE_MODELS = (
+    "adaptive_signal_tilt",
     "arima_transformer_rank_bl",
     "transformer_rank_bl",
     "arima_transformer_bl",
@@ -276,6 +281,56 @@ def _normalize_weights(weights, tickers):
     return {ticker: weight / total for ticker, weight in cleaned.items()}
 
 
+def _finite_series_dict(values):
+    series = pd.Series(values, dtype=float).replace([np.inf, -np.inf], np.nan).dropna()
+    return {str(key): float(value) for key, value in series.items()}
+
+
+def _safe_rank_correlation(left, right):
+    left = pd.Series(left, dtype=float).replace([np.inf, -np.inf], np.nan)
+    right = pd.Series(right, dtype=float).reindex(left.index).replace([np.inf, -np.inf], np.nan)
+    valid = left.notna() & right.notna()
+    if int(valid.sum()) < 2 or left[valid].nunique() < 2 or right[valid].nunique() < 2:
+        return None
+    value = left[valid].corr(right[valid], method="spearman")
+    return None if pd.isna(value) or not np.isfinite(value) else float(value)
+
+
+def _top_bottom_spread(signal_scores, realized_returns):
+    scores = pd.Series(signal_scores, dtype=float).replace([np.inf, -np.inf], np.nan)
+    realized = pd.Series(realized_returns, dtype=float).reindex(scores.index)
+    valid = scores.notna() & realized.replace([np.inf, -np.inf], np.nan).notna()
+    count = int(valid.sum())
+    if count < 2 or scores[valid].nunique() < 2:
+        return None
+    tail_count = max(1, count // 3)
+    ordered = scores[valid].sort_values()
+    bottom = ordered.index[:tail_count]
+    top = ordered.index[-tail_count:]
+    return float(realized.loc[top].mean() - realized.loc[bottom].mean())
+
+
+def _weight_diagnostics(weights, signal_scores, covariance):
+    weights = pd.Series(weights, dtype=float)
+    if weights.empty:
+        return {}
+    equal = pd.Series(1.0 / len(weights), index=weights.index, dtype=float)
+    l1_distance = float((weights - equal).abs().sum())
+    diagnostics = {
+        "equal_weight_l1_distance": l1_distance,
+        "active_share": float(0.5 * l1_distance),
+        "concentration_hhi": float((weights ** 2).sum()),
+        "signal_weight_rank_correlation": _safe_rank_correlation(signal_scores, weights),
+    }
+    try:
+        aligned_covariance = pd.DataFrame(covariance).reindex(index=weights.index, columns=weights.index)
+        variance = float(weights.values @ aligned_covariance.values @ weights.values)
+        diagnostics["predicted_annual_volatility"] = float(np.sqrt(max(0.0, variance)))
+    except Exception:
+        diagnostics["predicted_annual_volatility"] = None
+    return diagnostics
+
+
 def _safe_covariance(train_prices):
     try:
         return risk_models.CovarianceShrinkage(train_prices).ledoit_wolf()
@@ -424,6 +479,9 @@ def _forecast_rank_views(train_prices, method, forecast_horizon):
             ticker: float(score)
             for ticker, score in scores.dropna().items()
         },
+        "signal_scores": _finite_series_dict(scores),
+        "raw_forecasts": _finite_series_dict(forecasts),
+        "forecast_uncertainties": _finite_series_dict(uncertainty_series),
     }
 
 
@@ -523,7 +581,8 @@ def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_as
     except Exception as exc:
         logger.warning("Backtest BL prior failed, using historical CAGR prior: %s", exc)
 
-    no_view_mask = views.isna()
+    raw_views = pd.Series(views, dtype=float).reindex(tickers)
+    no_view_mask = raw_views.isna()
     views = _normalize_expected_return_series(views)
     views.loc[no_view_mask] = prior.reindex(views.index).loc[no_view_mask].fillna(0.0)
     uncertainties.loc[no_view_mask] = MAX_FORECAST_UNCERTAINTY
@@ -552,9 +611,23 @@ def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_as
     weights = _efficient_frontier_weights(mu, covariance, max_asset_weight, "max_sharpe", risk_free_rate)
     finite_confidence = confidence.replace([np.inf, -np.inf], np.nan).dropna()
     avg_confidence = None if finite_confidence.empty else float(finite_confidence.mean())
+    raw_shift = (raw_views - prior).abs().replace([np.inf, -np.inf], np.nan).dropna()
+    adjusted_shift = (adjusted_views - prior).abs().replace([np.inf, -np.inf], np.nan).dropna()
+    raw_shift_mean = None if raw_shift.empty else float(raw_shift.mean())
+    adjusted_shift_mean = None if adjusted_shift.empty else float(adjusted_shift.mean())
+    view_retention = (
+        None
+        if raw_shift_mean is None or raw_shift_mean <= 0 or adjusted_shift_mean is None
+        else float(adjusted_shift_mean / raw_shift_mean)
+    )
     return weights, {
         "failed_forecast_count": int(failed),
         "avg_forecast_confidence": avg_confidence,
+        "prior_returns": _finite_series_dict(prior),
+        "raw_views": _finite_series_dict(raw_views),
+        "adjusted_views": _finite_series_dict(adjusted_views),
+        "posterior_returns": _finite_series_dict(mu),
+        "view_signal_retention": view_retention,
         **forecast_diagnostics,
     }
 
@@ -619,6 +692,41 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             max_asset_weight=max_asset_weight,
         ).to_dict()
         return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
+    if model_name == "adaptive_signal_tilt":
+        scores, alpha_diagnostics = adaptive_cross_sectional_alpha(
+            train_prices,
+            horizon=forecast_horizon,
+        )
+        weights = signal_tilt_weights(
+            scores,
+            max_asset_weight=max_asset_weight,
+            target_active_share=ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
+        )
+        coverage_count = int(alpha_diagnostics.get("coverage_count", 0))
+        calibration = alpha_diagnostics.get("calibration", {})
+        calibrated_ics = [
+            component.get("mean_rank_ic")
+            for component in calibration.get("components", {}).values()
+            if component.get("mean_rank_ic") is not None
+        ]
+        calibrated_confidence = (
+            None
+            if not calibrated_ics
+            else float(np.clip(max(0.0, np.mean(calibrated_ics)), 0.0, 1.0))
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": max(0, len(tickers) - coverage_count),
+            "avg_forecast_confidence": calibrated_confidence,
+            "signal_scores": _finite_series_dict(scores),
+            "alpha_component_scores": alpha_diagnostics.get("component_scores", {}),
+            "alpha_component_weights": alpha_diagnostics.get("component_weights", {}),
+            "alpha_calibration": calibration,
+            "signal_coverage_count": coverage_count,
+            "signal_coverage_rate": alpha_diagnostics.get("coverage_rate", 0.0),
+            "construction_method": "equal_weight_active_share_tilt",
+            "target_active_share": ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
+        }
 
     if model_name == "historical_mpt":
         mu = _calculate_historical_cagr(train_prices)
@@ -734,6 +842,20 @@ def _promotion_decision(summary_by_model):
         reasons.append("Turnover is too high versus historical BL.")
     if candidate.get("failed_forecast_count", 0) > 0:
         reasons.append(f"{candidate_name} produced no-view forecasts.")
+    if candidate.get("signal_rank_ic_count", 0) <= 0:
+        reasons.append("Cross-sectional signal rank IC is unavailable.")
+    elif candidate.get("avg_signal_rank_ic") is None or candidate["avg_signal_rank_ic"] <= 0.0:
+        reasons.append("Average cross-sectional signal rank IC is not positive.")
+    if (
+        candidate.get("positive_signal_rank_ic_rate") is None
+        or candidate["positive_signal_rank_ic_rate"] < 0.50
+    ):
+        reasons.append("Positive signal rank IC rate is below 50%.")
+    if (
+        candidate.get("avg_top_bottom_spread") is None
+        or candidate["avg_top_bottom_spread"] <= 0.0
+    ):
+        reasons.append("Average top-minus-bottom spread is not positive.")
 
     if reasons:
         return {
@@ -778,6 +900,20 @@ def _candidate_survives_case(summary_by_model, candidate_name=None):
             reasons.append(f"Turnover is too high versus {name}.")
     if candidate.get("failed_forecast_count", 0) > 0:
         reasons.append(f"{candidate_name} produced no-view forecasts.")
+    if candidate.get("signal_rank_ic_count", 0) <= 0:
+        reasons.append("Cross-sectional signal rank IC is unavailable.")
+    elif candidate.get("avg_signal_rank_ic") is None or candidate["avg_signal_rank_ic"] <= 0.0:
+        reasons.append("Average cross-sectional signal rank IC is not positive.")
+    if (
+        candidate.get("positive_signal_rank_ic_rate") is None
+        or candidate["positive_signal_rank_ic_rate"] < 0.50
+    ):
+        reasons.append("Positive signal rank IC rate is below 50%.")
+    if (
+        candidate.get("avg_top_bottom_spread") is None
+        or candidate["avg_top_bottom_spread"] <= 0.0
+    ):
+        reasons.append("Average top-minus-bottom spread is not positive.")
     return not reasons, reasons
 
 
@@ -910,6 +1046,7 @@ def _build_rebalance_targets_for_data(
             continue
 
         model_targets = {}
+        diagnostic_covariance = _safe_covariance(train_prices)
         for model in models:
             weights, diagnostics = _model_weights(
                 model,
@@ -921,6 +1058,17 @@ def _build_rebalance_targets_for_data(
             )
             weights = apply_min_holding_threshold(weights, min_holding_weight)
             weights = _normalize_weights(weights, train_prices.columns)
+            signal_scores = diagnostics.get(
+                "signal_scores",
+                diagnostics.get("forecast_rank_scores", {}),
+            )
+            diagnostics.update(
+                _weight_diagnostics(weights, signal_scores, diagnostic_covariance)
+            )
+            diagnostics["target_weights"] = {
+                ticker: float(weight)
+                for ticker, weight in weights.items()
+            }
             model_targets[model] = {
                 "weights": {ticker: float(weight) for ticker, weight in weights.items()},
                 "diagnostics": dict(diagnostics),
@@ -1058,6 +1206,21 @@ def run_portfolio_model_backtest(
             "failed_forecast_count": 0,
             "forecast_confidences": [],
             "forecast_rank_ics": [],
+            "top_bottom_spreads": [],
+            "signal_weight_rank_correlations": [],
+            "signal_persistence": [],
+            "active_shares": [],
+            "controlled_active_shares": [],
+            "execution_signal_retention": [],
+            "execution_weight_l1": [],
+            "concentrations": [],
+            "predicted_volatilities": [],
+            "signal_coverage_rates": [],
+            "view_signal_retentions": [],
+            "gross_period_returns": [],
+            "net_period_returns": [],
+            "horizon_rank_ics": {},
+            "previous_signal_scores": None,
             "market_cap_available_count": 0,
         }
         for model in models
@@ -1121,34 +1284,99 @@ def run_portfolio_model_backtest(
             state["market_cap_available_count"] += int(bool(diagnostics.get("market_caps_available")))
             if diagnostics.get("avg_forecast_confidence") is not None:
                 state["forecast_confidences"].append(float(diagnostics["avg_forecast_confidence"]))
-            forecast_rank_scores = pd.Series(
-                diagnostics.get("forecast_rank_scores", {}),
+            signal_scores = pd.Series(
+                diagnostics.get(
+                    "signal_scores",
+                    diagnostics.get("forecast_rank_scores", {}),
+                ),
                 dtype=float,
             ).reindex(train_prices.columns)
             realized_period_returns = (
                 period_prices.iloc[-1].reindex(train_prices.columns) / current_prices - 1.0
+            ).replace([np.inf, -np.inf], np.nan)
+            signal_rank_ic = _safe_rank_correlation(signal_scores, realized_period_returns)
+            if signal_rank_ic is not None:
+                state["forecast_rank_ics"].append(signal_rank_ic)
+            top_bottom_spread = _top_bottom_spread(signal_scores, realized_period_returns)
+            if top_bottom_spread is not None:
+                state["top_bottom_spreads"].append(top_bottom_spread)
+
+            signal_weight_rank_correlation = _safe_rank_correlation(signal_scores, weights)
+            if signal_weight_rank_correlation is not None:
+                state["signal_weight_rank_correlations"].append(signal_weight_rank_correlation)
+            signal_persistence = _safe_rank_correlation(
+                state["previous_signal_scores"],
+                signal_scores,
+            ) if state["previous_signal_scores"] is not None else None
+            if signal_persistence is not None:
+                state["signal_persistence"].append(signal_persistence)
+            if signal_scores.notna().any():
+                state["previous_signal_scores"] = signal_scores.copy()
+
+            horizon_rank_ic = {}
+            for diagnostic_horizon in sorted({21, int(forecast_horizon)}):
+                horizon_end = rebalance_index + max(1, diagnostic_horizon)
+                if horizon_end >= len(data):
+                    continue
+                horizon_returns = (
+                    data.iloc[horizon_end].reindex(train_prices.columns) / current_prices - 1.0
+                ).replace([np.inf, -np.inf], np.nan)
+                rank_ic = _safe_rank_correlation(signal_scores, horizon_returns)
+                if rank_ic is not None:
+                    horizon_key = str(int(diagnostic_horizon))
+                    horizon_rank_ic[horizon_key] = rank_ic
+                    state["horizon_rank_ics"].setdefault(horizon_key, []).append(rank_ic)
+
+            equal_weights = pd.Series(
+                1.0 / len(train_prices.columns),
+                index=train_prices.columns,
+                dtype=float,
             )
-            valid_rank_mask = (
-                forecast_rank_scores.notna()
-                & realized_period_returns.replace([np.inf, -np.inf], np.nan).notna()
+            pre_control_weights = pd.Series(weights, dtype=float).reindex(train_prices.columns).fillna(0.0)
+            controlled_weights = (
+                controlled_target_values / portfolio_value
+            ).reindex(train_prices.columns).fillna(0.0)
+            controlled_weight_total = float(controlled_weights.sum())
+            controlled_signal_weights = (
+                controlled_weights / controlled_weight_total
+                if controlled_weight_total > 0
+                else controlled_weights
             )
-            forecast_rank_ic = None
-            if (
-                int(valid_rank_mask.sum()) >= 2
-                and forecast_rank_scores[valid_rank_mask].nunique() >= 2
-                and realized_period_returns[valid_rank_mask].nunique() >= 2
+            active_share = float(0.5 * (pre_control_weights - equal_weights).abs().sum())
+            controlled_active_share = float(
+                0.5 * (controlled_signal_weights - equal_weights).abs().sum()
+            )
+            execution_signal_retention = (
+                None
+                if active_share <= 1e-12
+                else float(controlled_active_share / active_share)
+            )
+            execution_weight_l1 = float(
+                (pre_control_weights - controlled_signal_weights).abs().sum()
+            )
+            state["active_shares"].append(active_share)
+            state["controlled_active_shares"].append(controlled_active_share)
+            state["execution_weight_l1"].append(execution_weight_l1)
+            if execution_signal_retention is not None:
+                state["execution_signal_retention"].append(execution_signal_retention)
+            for key, state_key in (
+                ("concentration_hhi", "concentrations"),
+                ("predicted_annual_volatility", "predicted_volatilities"),
+                ("signal_coverage_rate", "signal_coverage_rates"),
+                ("view_signal_retention", "view_signal_retentions"),
             ):
-                rank_ic_value = forecast_rank_scores[valid_rank_mask].corr(
-                    realized_period_returns[valid_rank_mask],
-                    method="spearman",
-                )
-                if pd.notna(rank_ic_value) and np.isfinite(rank_ic_value):
-                    forecast_rank_ic = float(rank_ic_value)
-                    state["forecast_rank_ics"].append(forecast_rank_ic)
+                value = diagnostics.get(key)
+                if value is not None and np.isfinite(_to_float(value, np.nan)):
+                    state[state_key].append(float(value))
 
             daily_values = period_prices.mul(state["shares"], axis=1).sum(axis=1) + state["cash"]
             for date, value in daily_values.items():
                 state["values"][date.strftime("%Y-%m-%d")] = float(value)
+            end_value = float(daily_values.iloc[-1]) if not daily_values.empty else investable_value
+            net_period_return = float(end_value / portfolio_value - 1.0)
+            gross_period_return = float((end_value + cost) / portfolio_value - 1.0)
+            state["net_period_returns"].append(net_period_return)
+            state["gross_period_returns"].append(gross_period_return)
 
             rebalance_records.append({
                 "model": model,
@@ -1158,11 +1386,7 @@ def run_portfolio_model_backtest(
                 "period_end_date": data.index[next_index].strftime("%Y-%m-%d"),
                 "weights": {ticker: float(weight) for ticker, weight in weights.items()},
                 "pre_control_weights": {ticker: float(weight) for ticker, weight in weights.items()},
-                "controlled_weights": {
-                    ticker: float(value / portfolio_value)
-                    for ticker, value in controlled_target_values.items()
-                    if portfolio_value > 0 and value > 1e-10
-                },
+                "controlled_weights": _finite_series_dict(controlled_weights),
                 "rebalance_controls": controls,
                 "turnover": float(turnover),
                 "controlled_turnover": float(controlled_turnover),
@@ -1173,7 +1397,37 @@ def run_portfolio_model_backtest(
                 "portfolio_value_after_cost": float(investable_value),
                 "failed_forecast_count": int(diagnostics.get("failed_forecast_count", 0)),
                 "avg_forecast_confidence": diagnostics.get("avg_forecast_confidence"),
-                "forecast_rank_ic": forecast_rank_ic,
+                "signal_scores": _finite_series_dict(signal_scores),
+                "raw_forecasts": diagnostics.get("raw_forecasts", {}),
+                "forecast_uncertainties": diagnostics.get("forecast_uncertainties", {}),
+                "alpha_component_scores": diagnostics.get("alpha_component_scores", {}),
+                "alpha_component_weights": diagnostics.get("alpha_component_weights", {}),
+                "alpha_calibration": diagnostics.get("alpha_calibration"),
+                "realized_forward_returns": _finite_series_dict(realized_period_returns),
+                "signal_rank_ic": signal_rank_ic,
+                "forecast_rank_ic": signal_rank_ic,
+                "top_bottom_spread": top_bottom_spread,
+                "top_bottom_direction_hit": (
+                    None if top_bottom_spread is None else bool(top_bottom_spread > 0.0)
+                ),
+                "horizon_rank_ic": horizon_rank_ic,
+                "signal_persistence": signal_persistence,
+                "signal_weight_rank_correlation": signal_weight_rank_correlation,
+                "equal_weight_l1_distance": float(2.0 * active_share),
+                "active_share": active_share,
+                "controlled_active_share": controlled_active_share,
+                "execution_signal_retention": execution_signal_retention,
+                "execution_weight_l1": execution_weight_l1,
+                "concentration_hhi": diagnostics.get("concentration_hhi"),
+                "predicted_annual_volatility": diagnostics.get("predicted_annual_volatility"),
+                "prior_returns": diagnostics.get("prior_returns", {}),
+                "raw_views": diagnostics.get("raw_views", {}),
+                "adjusted_views": diagnostics.get("adjusted_views", {}),
+                "posterior_returns": diagnostics.get("posterior_returns", {}),
+                "view_signal_retention": diagnostics.get("view_signal_retention"),
+                "gross_period_return": gross_period_return,
+                "net_period_return": net_period_return,
+                "transaction_cost_return_drag": float(gross_period_return - net_period_return),
                 "market_caps_available": diagnostics.get("market_caps_available"),
             })
 
@@ -1188,6 +1442,41 @@ def run_portfolio_model_backtest(
             if not state["forecast_confidences"]
             else float(np.mean(state["forecast_confidences"]))
         )
+        mean_rank_ic = (
+            None
+            if not state["forecast_rank_ics"]
+            else float(np.mean(state["forecast_rank_ics"]))
+        )
+        median_rank_ic = (
+            None
+            if not state["forecast_rank_ics"]
+            else float(np.median(state["forecast_rank_ics"]))
+        )
+        positive_rank_ic_rate = (
+            None
+            if not state["forecast_rank_ics"]
+            else float(np.mean(np.asarray(state["forecast_rank_ics"]) > 0.0))
+        )
+        gross_cumulative_return = (
+            0.0
+            if not state["gross_period_returns"]
+            else float(np.prod(1.0 + np.asarray(state["gross_period_returns"])) - 1.0)
+        )
+        net_cumulative_return = (
+            0.0
+            if not state["net_period_returns"]
+            else float(np.prod(1.0 + np.asarray(state["net_period_returns"])) - 1.0)
+        )
+        horizon_rank_ic = {
+            horizon: {
+                "mean": float(np.mean(values)),
+                "median": float(np.median(values)),
+                "positive_rate": float(np.mean(np.asarray(values) > 0.0)),
+                "count": int(len(values)),
+            }
+            for horizon, values in state["horizon_rank_ics"].items()
+            if values
+        }
         metrics.update({
             "turnover": total_turnover,
             "avg_turnover": float(total_turnover / rebalance_count) if rebalance_count else 0.0,
@@ -1199,25 +1488,114 @@ def run_portfolio_model_backtest(
             "rebalance_count": int(rebalance_count),
             "failed_forecast_count": int(state["failed_forecast_count"]),
             "avg_forecast_confidence": avg_confidence,
-            "avg_forecast_rank_ic": (
-                None
-                if not state["forecast_rank_ics"]
-                else float(np.mean(state["forecast_rank_ics"]))
-            ),
-            "median_forecast_rank_ic": (
-                None
-                if not state["forecast_rank_ics"]
-                else float(np.median(state["forecast_rank_ics"]))
-            ),
-            "positive_forecast_rank_ic_rate": (
-                None
-                if not state["forecast_rank_ics"]
-                else float(np.mean(np.asarray(state["forecast_rank_ics"]) > 0.0))
-            ),
+            "avg_signal_rank_ic": mean_rank_ic,
+            "median_signal_rank_ic": median_rank_ic,
+            "positive_signal_rank_ic_rate": positive_rank_ic_rate,
+            "signal_rank_ic_count": int(len(state["forecast_rank_ics"])),
+            "avg_forecast_rank_ic": mean_rank_ic,
+            "median_forecast_rank_ic": median_rank_ic,
+            "positive_forecast_rank_ic_rate": positive_rank_ic_rate,
             "forecast_rank_ic_count": int(len(state["forecast_rank_ics"])),
+            "avg_top_bottom_spread": (
+                None if not state["top_bottom_spreads"] else float(np.mean(state["top_bottom_spreads"]))
+            ),
+            "top_bottom_direction_hit_rate": (
+                None
+                if not state["top_bottom_spreads"]
+                else float(np.mean(np.asarray(state["top_bottom_spreads"]) > 0.0))
+            ),
+            "avg_signal_weight_rank_correlation": (
+                None
+                if not state["signal_weight_rank_correlations"]
+                else float(np.mean(state["signal_weight_rank_correlations"]))
+            ),
+            "avg_signal_persistence": (
+                None if not state["signal_persistence"] else float(np.mean(state["signal_persistence"]))
+            ),
+            "horizon_rank_ic": horizon_rank_ic,
+            "avg_active_share": (
+                None if not state["active_shares"] else float(np.mean(state["active_shares"]))
+            ),
+            "avg_controlled_active_share": (
+                None
+                if not state["controlled_active_shares"]
+                else float(np.mean(state["controlled_active_shares"]))
+            ),
+            "avg_execution_signal_retention": (
+                None
+                if not state["execution_signal_retention"]
+                else float(np.mean(state["execution_signal_retention"]))
+            ),
+            "avg_execution_weight_l1": (
+                None
+                if not state["execution_weight_l1"]
+                else float(np.mean(state["execution_weight_l1"]))
+            ),
+            "avg_concentration_hhi": (
+                None if not state["concentrations"] else float(np.mean(state["concentrations"]))
+            ),
+            "avg_predicted_annual_volatility": (
+                None
+                if not state["predicted_volatilities"]
+                else float(np.mean(state["predicted_volatilities"]))
+            ),
+            "avg_signal_coverage_rate": (
+                None
+                if not state["signal_coverage_rates"]
+                else float(np.mean(state["signal_coverage_rates"]))
+            ),
+            "avg_view_signal_retention": (
+                None
+                if not state["view_signal_retentions"]
+                else float(np.mean(state["view_signal_retentions"]))
+            ),
+            "gross_cumulative_return": gross_cumulative_return,
+            "net_cumulative_return": net_cumulative_return,
+            "transaction_cost_return_drag": float(
+                gross_cumulative_return - net_cumulative_return
+            ),
             "market_cap_available_count": int(state["market_cap_available_count"]),
         })
         summary_by_model[model] = metrics
+
+    alpha_diagnostics = {
+        model: {
+            "signal": {
+                "mean_rank_ic": metrics.get("avg_signal_rank_ic"),
+                "median_rank_ic": metrics.get("median_signal_rank_ic"),
+                "positive_rank_ic_rate": metrics.get("positive_signal_rank_ic_rate"),
+                "top_bottom_spread": metrics.get("avg_top_bottom_spread"),
+                "top_bottom_direction_hit_rate": metrics.get("top_bottom_direction_hit_rate"),
+                "horizon_rank_ic": metrics.get("horizon_rank_ic"),
+                "persistence": metrics.get("avg_signal_persistence"),
+                "coverage_rate": metrics.get("avg_signal_coverage_rate"),
+            },
+            "construction": {
+                "signal_weight_rank_correlation": metrics.get(
+                    "avg_signal_weight_rank_correlation"
+                ),
+                "active_share": metrics.get("avg_active_share"),
+                "view_signal_retention": metrics.get("avg_view_signal_retention"),
+                "concentration_hhi": metrics.get("avg_concentration_hhi"),
+                "predicted_annual_volatility": metrics.get(
+                    "avg_predicted_annual_volatility"
+                ),
+            },
+            "execution": {
+                "raw_turnover": metrics.get("turnover"),
+                "controlled_turnover": metrics.get("controlled_turnover"),
+                "controlled_active_share": metrics.get("avg_controlled_active_share"),
+                "signal_retention": metrics.get("avg_execution_signal_retention"),
+                "weight_l1_loss": metrics.get("avg_execution_weight_l1"),
+                "gross_cumulative_return": metrics.get("gross_cumulative_return"),
+                "net_cumulative_return": metrics.get("net_cumulative_return"),
+                "transaction_cost_return_drag": metrics.get(
+                    "transaction_cost_return_drag"
+                ),
+            },
+        }
+        for model, metrics in summary_by_model.items()
+    }
 
     return {
         "settings": {
@@ -1238,6 +1616,7 @@ def run_portfolio_model_backtest(
         },
         "models": list(models),
         "summary_by_model": summary_by_model,
+        "alpha_diagnostics": alpha_diagnostics,
         "rebalance_records": rebalance_records,
         "promotion_decision": _promotion_decision(summary_by_model),
         "warnings": warnings,
