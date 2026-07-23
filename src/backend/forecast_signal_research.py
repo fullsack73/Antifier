@@ -209,29 +209,7 @@ def empirical_oos_uncertainty(
 
 def cross_sectional_rank_diagnostics(periods):
     """Aggregate period-level rank IC, top-bottom spread, and coverage."""
-    rows = []
-    for period in periods or []:
-        scores = pd.Series(period.get("scores", {}), dtype=float)
-        realized = pd.Series(
-            period.get("realized_returns", {}),
-            dtype=float,
-        ).reindex(scores.index)
-        valid = scores.notna() & realized.notna()
-        if int(valid.sum()) < 2:
-            continue
-        rank_ic = scores.loc[valid].corr(realized.loc[valid], method="spearman")
-        order = scores.loc[valid].sort_values()
-        bucket_size = max(1, int(np.ceil(len(order) * 0.20)))
-        bottom = order.index[:bucket_size]
-        top = order.index[-bucket_size:]
-        rows.append({
-            "rank_ic": None if pd.isna(rank_ic) else float(rank_ic),
-            "top_bottom_spread": float(
-                realized.loc[top].mean() - realized.loc[bottom].mean()
-            ),
-            "coverage_rate": float(valid.sum() / len(scores)) if len(scores) else 0.0,
-        })
-
+    rows = _cross_sectional_rank_rows(periods)
     rank_ics = [row["rank_ic"] for row in rows if row["rank_ic"] is not None]
     spreads = [row["top_bottom_spread"] for row in rows]
     return {
@@ -253,13 +231,115 @@ def cross_sectional_rank_diagnostics(periods):
     }
 
 
+def _cross_sectional_rank_rows(periods):
+    rows = []
+    for period in periods or []:
+        scores = pd.Series(period.get("scores", {}), dtype=float)
+        realized = pd.Series(
+            period.get("realized_returns", {}),
+            dtype=float,
+        ).reindex(scores.index)
+        valid = scores.notna() & realized.notna()
+        if int(valid.sum()) < 2:
+            continue
+        valid_scores = scores.loc[valid]
+        valid_realized = realized.loc[valid]
+        rank_ic = (
+            None
+            if valid_scores.nunique() < 2 or valid_realized.nunique() < 2
+            else valid_scores.corr(valid_realized, method="spearman")
+        )
+        order = scores.loc[valid].sort_values()
+        bucket_size = max(1, int(np.ceil(len(order) * 0.20)))
+        bottom = order.index[:bucket_size]
+        top = order.index[-bucket_size:]
+        rows.append({
+            "rank_ic": (
+                None
+                if rank_ic is None or pd.isna(rank_ic)
+                else float(rank_ic)
+            ),
+            "top_bottom_spread": float(
+                realized.loc[top].mean() - realized.loc[bottom].mean()
+            ),
+            "coverage_rate": float(valid.sum() / len(scores)) if len(scores) else 0.0,
+        })
+    return rows
+
+
+def rank_signal_block_bootstrap(
+    periods,
+    block_size=4,
+    samples=2000,
+    seed=42,
+):
+    """Circular block bootstrap for dependent cross-sectional signal periods."""
+    rows = _cross_sectional_rank_rows(periods)
+    frame = pd.DataFrame(rows).dropna(
+        subset=["rank_ic", "top_bottom_spread"]
+    )
+    observation_count = len(frame)
+    block_size = max(2, min(int(block_size), max(2, observation_count)))
+    samples = max(100, int(samples))
+    if observation_count < block_size * 2:
+        return {
+            "status": "insufficient_data",
+            "observation_count": int(observation_count),
+            "block_size": int(block_size),
+            "samples": int(samples),
+        }
+
+    values = frame[["rank_ic", "top_bottom_spread"]].to_numpy(dtype=float)
+    rng = np.random.default_rng(int(seed))
+    block_count = int(np.ceil(observation_count / block_size))
+    offsets = np.arange(block_size)
+    means = np.empty((samples, 2), dtype=float)
+    for sample in range(samples):
+        starts = rng.integers(0, observation_count, size=block_count)
+        indices = (
+            starts[:, None] + offsets[None, :]
+        ).reshape(-1)[:observation_count] % observation_count
+        means[sample] = values[indices].mean(axis=0)
+
+    def interval(column):
+        return {
+            "lower_95": float(np.quantile(column, 0.025)),
+            "median": float(np.quantile(column, 0.50)),
+            "upper_95": float(np.quantile(column, 0.975)),
+        }
+
+    return {
+        "status": "ok",
+        "observation_count": int(observation_count),
+        "block_size": int(block_size),
+        "samples": int(samples),
+        "seed": int(seed),
+        "observed": {
+            "mean_rank_ic": float(values[:, 0].mean()),
+            "mean_top_bottom_spread": float(values[:, 1].mean()),
+        },
+        "probability": {
+            "positive_mean_rank_ic": float(np.mean(means[:, 0] > 0.0)),
+            "positive_mean_top_bottom_spread": float(
+                np.mean(means[:, 1] > 0.0)
+            ),
+        },
+        "interval": {
+            "mean_rank_ic": interval(means[:, 0]),
+            "mean_top_bottom_spread": interval(means[:, 1]),
+        },
+    }
+
+
 def signal_only_gate(
     rank_diagnostics,
     distribution_diagnostics,
+    rank_bootstrap=None,
     minimum_periods=8,
     minimum_coverage=0.80,
     maximum_saturation_rate=0.10,
     maximum_tie_rate=0.25,
+    minimum_bootstrap_probability=0.95,
 ):
     """Reject weak forecast signals before portfolio construction."""
     reasons = []
@@ -294,7 +374,35 @@ def signal_only_gate(
     tie_rate = distribution_diagnostics.get("tie_rate")
     if tie_rate is not None and tie_rate > float(maximum_tie_rate):
         reasons.append("Forecast tie rate is too high.")
+    if rank_bootstrap is not None:
+        if rank_bootstrap.get("status") != "ok":
+            reasons.append(
+                "Insufficient data for dependent-period signal bootstrap."
+            )
+        else:
+            probability = rank_bootstrap["probability"]
+            if (
+                probability["positive_mean_rank_ic"]
+                < float(minimum_bootstrap_probability)
+            ):
+                reasons.append(
+                    "Positive mean rank-IC bootstrap probability is below "
+                    f"{float(minimum_bootstrap_probability):.0%}."
+                )
+            if (
+                probability["positive_mean_top_bottom_spread"]
+                < float(minimum_bootstrap_probability)
+            ):
+                reasons.append(
+                    "Positive mean top-minus-bottom bootstrap probability "
+                    f"is below {float(minimum_bootstrap_probability):.0%}."
+                )
     return {
         "status": "passed" if not reasons else "rejected",
         "reasons": reasons,
+        "minimum_bootstrap_probability": (
+            None
+            if rank_bootstrap is None
+            else float(minimum_bootstrap_probability)
+        ),
     }

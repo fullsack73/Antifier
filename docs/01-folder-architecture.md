@@ -59,6 +59,11 @@ src/backend/
 ├─ portfolio_signals.py              # risk parity, momentum rank, adaptive cross-sectional alpha helper
 ├─ portfolio_alpha_v2.py             # point-in-time factor 계약, factor-residual target, regularized alpha
 ├─ forecast_signal_research.py        # forecast 분포/OOS uncertainty/signal-only gate 진단
+├─ cross_sectional_forecast.py        # pooled ridge/pairwise/listwise walk-forward research
+├─ portfolio_risk_models.py           # OOS covariance ensemble/stress, robust/nested covariance, ERC, HRP, CVaR
+├─ portfolio_statistics.py            # paired block bootstrap와 multiple-testing gate
+├─ sec_point_in_time.py               # SEC filing-date 기준 PIT 재무 factor 생성
+├─ universe_manifest.py               # 날짜별 universe membership와 생존편향 정책 검증
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
@@ -146,6 +151,11 @@ tools/
 ├─ backtest_portfolio_models.py
 ├─ compare_forecast_models.py
 ├─ diagnose_forecast_signals.py       # persistent forecast cache 포화/tie/coverage 진단
+├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
+├─ build_sec_pit_features.py          # SEC 공시일 기준 PIT factor/provenance 생성
+├─ build_ticker_cik_map.py             # 제한된 ticker 집합의 Yahoo SEC metadata 기반 CIK map
+├─ research_risk_allocators.py        # research-only risk allocator 비교
+├─ validate_risk_allocator_candidate.py # frozen risk candidate 4-case validation
 └─ tune_transformer_hpo.py
 ```
 

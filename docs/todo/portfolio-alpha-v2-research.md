@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: v2 코드 기반 완료, 실제 PIT dataset/research universe 확보와 objective 비교 대기
+- 현재 상태: 실제 로컬 SEC PIT dataset과 objective 진단 완료, factor 후보 탈락 및 promotion-safe universe/sector metadata 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -48,9 +48,19 @@
 - synthetic no-lookahead/미래 fundamental 격리 회귀 테스트를 추가했습니다.
 - 실제 PIT dataset과 validation 비중복 research universe가 없어 pairwise/listwise 비교와 candidate validation은 실행하지 않았습니다.
 - locked holdout은 계속 잠금 상태입니다.
+- validation과 겹치지 않는 2005-2013 sector ETF research split에서 price-only pooled objective 4개를 비교했지만 모두 signal-only gate에서 탈락했습니다.
+- PIT quality/value/liquidity 또는 macro/regime feature 없이 price-only alpha를 복잡한 Transformer로 확대하지 않습니다.
+- 사용자가 제공한 로컬 SEC companyfacts archive에서 2009-2025 filing-date PIT row 449개, 29 ticker를 생성했습니다. 외부 SEC bulk 다운로드는 사용하지 않았습니다.
+- `factor_residual_ridge`가 quality/profitability/valuation/liquidity와 missing indicator를 실제 predictor로 사용하도록 연결했고 미래 filing 변경 불변 테스트를 추가했습니다.
+- 2008-2025 static-DOW 진단에서 price relative ridge는 mean rank IC `0.0539`, positive IC `57.63%`, top-minus-bottom `0.0165`였지만 4개 동시 objective의 Holm-adjusted p-value가 `0.1340`이어서 승격하지 않았습니다.
+- 동일 factor-residual target의 price-only baseline은 rank IC `0.0015`, PIT 재무 결합 모델은 `-0.0046`으로 둘 다 탈락했습니다.
+- feature별 진단에서 profitability와 quality의 raw rank IC는 각각 `0.0478`, `0.0254`였지만 16-feature Holm 보정 후 유의한 feature는 없었습니다. 이를 근거로 시험한 compact quality ridge도 rank IC `-0.0476`으로 탈락했습니다.
+- 로컬 companyfacts에는 SIC/submissions metadata가 없어 sector가 전부 `Unknown`입니다. 현재 residual target은 beta/size만 제거하므로 sector-neutral 성능을 주장하지 않습니다.
+- 현재 DOW 정적 ticker 표본은 survivorship-safe하지 않아 모든 결과의 `promotion_eligible`은 false입니다.
 
 ## 참고
 
 - v1 완료 보고서: `docs/reports/260723-1824-01-portfolio-alpha-redesign.md`
 - v1 validation 결과: `logs/portfolio_gauntlet_candidate_adaptive_20260723.json`
 - v2 기반 보고서: `docs/reports/260723-1921-01-portfolio-alpha-v2-foundation.md`
+- pooled price-only 결과: `docs/reports/260723-2032-01-pooled-cross-sectional-research.md`

@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
-- 현재 상태: output/cache/signal-only 진단 기반 완료, 별도 research split과 joint target/model 비교 대기
+- 현재 상태: PIT joint target/model 진단 완료, 통계·survivorship gate 미통과로 candidate freeze 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -57,6 +57,19 @@
 - 기존 validation 결과는 failure diagnosis에만 사용했고 replacement model parameter tuning은 하지 않았습니다.
 - 별도 research universe가 없어 absolute/relative/residual/pairwise/listwise 비교와 OOS uncertainty calibration은 실행하지 않았습니다.
 - candidate validation과 locked holdout은 계속 보류합니다.
+- 2005-2013 sector ETF 9종, 2,264일 research-only split에서 63일 horizon pooled objective를 비교했습니다.
+- absolute/relative ridge의 mean rank IC는 `-0.0848`, pairwise는 `-0.0652`, listwise는 `-0.0232`였습니다.
+- 4개 objective 모두 mean top-minus-bottom spread가 음수였고 signal-only gate에서 탈락했습니다.
+- pooled 학습은 objective별 23회 fit, 207 prediction을 약 `1.20~1.40초`, peak Python memory 약 `1.88~2.10 MiB`로 처리해 ticker별 Transformer보다 계산비용은 크게 낮았습니다.
+- price-only pooled linear/ranking 결과가 음수이므로 같은 feature에서 Transformer hyperparameter만 늘리는 작업은 보류합니다.
+- 다음 후보는 PIT quality/value/liquidity와 macro/regime feature를 포함한 뒤 research 내부에서 compact joint model과 regularized baseline을 비교해야 합니다.
+- SEC filing-date PIT fundamental loader와 날짜별 universe manifest contract를 추가했습니다. future amendment와 future constituent가 과거 signal row에 들어가지 않는 회귀 테스트를 통과했습니다.
+- 실제 SEC 수집은 연락처가 포함된 `SEC_USER_AGENT`와 historical constituent source가 준비되면 실행합니다.
+- 사용자가 제공한 로컬 SEC companyfacts archive로 2009-2025 PIT feature 449개를 생성했고, 재무 feature를 pooled predictor에 실제 연결했습니다.
+- 같은 factor-residual target에서 price-only와 PIT joint model을 직접 비교했으나 mean rank IC가 각각 `0.0015`, `-0.0046`으로 둘 다 실패했습니다.
+- price-only relative ridge는 59개 OOS period에서 mean rank IC `0.0539`, top-minus-bottom `0.0165`와 개별 95% block-bootstrap gate를 통과했습니다.
+- 그러나 compact quality 후보까지 포함한 4개 동시 objective의 Holm-adjusted p-value는 `0.1340`이었고 static current-DOW universe도 survivorship-safe하지 않아 후보를 freeze하지 않았습니다.
+- 현 단계에서는 Transformer hyperparameter 조정보다 historical constituent membership, sector metadata, immutable research split 확보가 먼저입니다.
 
 ## 선행조건
 
@@ -71,3 +84,4 @@
 - 연계 TODO: `docs/todo/portfolio-alpha-v2-research.md`
 - todo-list 한 줄 요약: redesign ARIMA/Transformer forecast targets, calibration, and training efficiency before reusing them as portfolio alpha features.
 - 기반 보고서: `docs/reports/260723-1932-01-forecast-signal-diagnostics.md`
+- pooled research 결과: `docs/reports/260723-2032-01-pooled-cross-sectional-research.md`

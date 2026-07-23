@@ -1,5 +1,7 @@
 # Live Baseline Gauntlet Run
 
+> 2026-07-23 correction: 이 보고서의 `market_cap_weight`는 현재 market cap을 과거 rebalance에 사용해 point-in-time 조건을 위반했습니다. 해당 모델의 68 wins와 평균 성과는 무효입니다. current-cap 모델을 제외한 정정 180-case 결과는 `docs/reports/260723-2121-01-optimizer-engine-audit.md`를 사용합니다.
+
 ## Summary
 
 Ran the live portfolio gauntlet against yfinance data on 2026-07-10.

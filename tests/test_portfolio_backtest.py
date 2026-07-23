@@ -235,6 +235,9 @@ def test_optimizer_maps_no_view_to_prior_only_expected_return(monkeypatch):
         def max_sharpe(self, risk_free_rate=0.0):
             pass
 
+        def efficient_return(self, target_return):
+            pass
+
         def clean_weights(self):
             return {"AAA": 0.5, "BBB": 0.5}
 
@@ -286,6 +289,9 @@ def test_optimizer_adds_turnover_penalty_objective_when_current_weights_exist(mo
         def max_sharpe(self, risk_free_rate=0.0):
             pass
 
+        def efficient_return(self, target_return):
+            pass
+
         def clean_weights(self):
             return {"AAA": 0.5, "BBB": 0.5}
 
@@ -314,6 +320,9 @@ def test_optimizer_adds_turnover_penalty_objective_when_current_weights_exist(mo
     assert penalty_objectives
     assert penalty_objectives[0]["current_weights"].tolist() == pytest.approx([0.8, 0.2])
     assert result["optimizer_controls"]["turnover_penalty"] == pytest.approx(0.15)
+    assert result["optimizer_controls"]["solver_objective"] == (
+        "regularized_max_sharpe_grid"
+    )
 
 
 def test_turnover_and_transaction_cost_math():
@@ -790,6 +799,7 @@ def test_synthetic_backtest_runs_new_baselines_and_gauntlet_aggregate():
         forecast_horizon=5,
         transaction_cost_bps=10,
         market_caps={"AAA": 3_000_000, "BBB": 2_000_000, "CCC": 1_000_000},
+        market_caps_as_of_date="2024-01-02",
     )
     aggregate = portfolio_backtest.aggregate_gauntlet_promotion([
         {"case": {"basket": "synthetic", "regime": "bull"}, "result": result}
@@ -799,6 +809,59 @@ def test_synthetic_backtest_runs_new_baselines_and_gauntlet_aggregate():
     assert result["summary_by_model"]["low_volatility"]["rebalance_count"] > 0
     assert result["summary_by_model"]["market_cap_weight"]["market_cap_available_count"] > 0
     assert aggregate["usable_count"] == 1
+
+
+def test_static_market_caps_without_as_of_are_not_used_in_backtest():
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        _synthetic_prices(180),
+        models=("market_cap_weight",),
+        train_window=126,
+        rebalance_frequency=21,
+        market_caps={
+            "AAA": 10_000_000,
+            "BBB": 1_000_000,
+            "CCC": 100_000,
+        },
+        max_asset_weight=0.80,
+    )
+
+    assert (
+        result["summary_by_model"]["market_cap_weight"][
+            "market_cap_available_count"
+        ]
+        == 0
+    )
+    assert all(
+        record["market_caps_as_of_date"] is None
+        for record in result["rebalance_records"]
+    )
+
+
+def test_point_in_time_market_caps_never_use_future_snapshot():
+    prices = _synthetic_prices(220)
+    cap_dates = [prices.index[100], prices.index[170]]
+    point_in_time_caps = pd.DataFrame(
+        [
+            {"AAA": 9_000_000, "BBB": 2_000_000, "CCC": 1_000_000},
+            {"AAA": 1_000_000, "BBB": 9_000_000, "CCC": 2_000_000},
+        ],
+        index=cap_dates,
+    )
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("market_cap_weight",),
+        train_window=126,
+        rebalance_frequency=21,
+        point_in_time_market_caps=point_in_time_caps,
+        max_asset_weight=0.80,
+    )
+
+    for record in result["rebalance_records"]:
+        rebalance_date = pd.Timestamp(record["rebalance_date"])
+        used_as_of = pd.Timestamp(record["market_caps_as_of_date"])
+        assert used_as_of <= rebalance_date
+        if rebalance_date < cap_dates[1]:
+            assert used_as_of == cap_dates[0]
 
 
 def test_forecast_rank_views_reuse_same_train_window_predictions(monkeypatch):

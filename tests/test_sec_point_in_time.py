@@ -1,0 +1,286 @@
+import json
+import sys
+import subprocess
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BACKEND = ROOT / "src" / "backend"
+if str(BACKEND) not in sys.path:
+    sys.path.insert(0, str(BACKEND))
+
+from sec_point_in_time import (  # noqa: E402
+    SecCompanyFactsDirectoryClient,
+    SecEdgarClient,
+    build_company_pit_features,
+    extract_cik_from_filing_metadata,
+    normalize_ticker_cik_map,
+    parse_ticker_cik_map,
+)
+
+
+def _duration_fact(value, start, end, filed, accession, form="10-K"):
+    return {
+        "start": start,
+        "end": end,
+        "val": value,
+        "accn": accession,
+        "fy": int(end[:4]),
+        "fp": "FY",
+        "form": form,
+        "filed": filed,
+    }
+
+
+def _instant_fact(value, end, filed, accession, form="10-K"):
+    return {
+        "end": end,
+        "val": value,
+        "accn": accession,
+        "fy": int(end[:4]),
+        "fp": "FY",
+        "form": form,
+        "filed": filed,
+    }
+
+
+def _company_facts(include_future_amendment=False):
+    years = [
+        ("2022-01-01", "2022-12-31", "2023-02-10", "a1"),
+        ("2023-01-01", "2023-12-31", "2024-02-09", "a2"),
+    ]
+
+    def durations(values):
+        return [
+            _duration_fact(value, start, end, filed, accession)
+            for value, (start, end, filed, accession) in zip(values, years)
+        ]
+
+    def instants(values):
+        return [
+            _instant_fact(value, end, filed, accession)
+            for value, (_, end, filed, accession) in zip(values, years)
+        ]
+
+    net_income = durations([100.0, 150.0])
+    if include_future_amendment:
+        net_income.append(
+            _duration_fact(
+                999.0,
+                "2022-01-01",
+                "2022-12-31",
+                "2024-04-01",
+                "a1-amended",
+                form="10-K/A",
+            )
+        )
+    return {
+        "entityName": "Example Corp",
+        "facts": {
+            "us-gaap": {
+                "NetIncomeLoss": {"units": {"USD": net_income}},
+                "Revenues": {"units": {"USD": durations([1000.0, 1200.0])}},
+                "GrossProfit": {"units": {"USD": durations([400.0, 500.0])}},
+                "NetCashProvidedByUsedInOperatingActivities": {
+                    "units": {"USD": durations([180.0, 220.0])}
+                },
+                "Assets": {"units": {"USD": instants([2000.0, 2300.0])}},
+                "AssetsCurrent": {
+                    "units": {"USD": instants([600.0, 700.0])}
+                },
+                "LiabilitiesCurrent": {
+                    "units": {"USD": instants([300.0, 350.0])}
+                },
+            },
+            "dei": {
+                "EntityCommonStockSharesOutstanding": {
+                    "units": {"shares": instants([100.0, 110.0])}
+                }
+            },
+        },
+    }
+
+
+def test_company_features_use_sec_filing_date_and_filing_date_price():
+    prices = pd.Series(
+        [9.0, 10.0, 19.0, 20.0],
+        index=pd.to_datetime(
+            ["2023-02-09", "2023-02-10", "2024-02-08", "2024-02-09"]
+        ),
+    )
+
+    result = build_company_pit_features(
+        "exm",
+        _company_facts(),
+        {"sic": "3571"},
+        prices,
+    )
+
+    assert list(result["available_date"]) == [
+        pd.Timestamp("2023-02-10"),
+        pd.Timestamp("2024-02-09"),
+    ]
+    first = result.iloc[0]
+    assert first["ticker"] == "EXM"
+    assert first["sector"] == "Manufacturing"
+    assert first["market_cap"] == pytest.approx(1000.0)
+    assert first["quality"] == pytest.approx(180.0 / 2000.0)
+    assert first["profitability"] == pytest.approx(400.0 / 1000.0)
+    assert first["valuation"] == pytest.approx(100.0 / 1000.0)
+    assert first["liquidity"] == pytest.approx(2.0)
+
+
+def test_future_amendment_does_not_rewrite_earlier_filing_row():
+    prices = pd.Series(
+        [10.0, 20.0, 22.0],
+        index=pd.to_datetime(["2023-02-10", "2024-02-09", "2024-04-01"]),
+    )
+    baseline = build_company_pit_features(
+        "EXM",
+        _company_facts(),
+        {"sic": "3571"},
+        prices,
+        end_date="2023-12-31",
+    )
+    amended = build_company_pit_features(
+        "EXM",
+        _company_facts(include_future_amendment=True),
+        {"sic": "3571"},
+        prices,
+        end_date="2023-12-31",
+    )
+
+    pd.testing.assert_frame_equal(baseline, amended)
+    assert amended.iloc[0]["valuation"] == pytest.approx(0.10)
+
+
+def test_sec_client_requires_declared_contact_and_does_not_pin_host(tmp_path):
+    with pytest.raises(ValueError, match="email address or project URL"):
+        SecEdgarClient("Antifier", cache_dir=tmp_path)
+
+    client = SecEdgarClient(
+        "Antifier research https://github.com/example/antifier",
+        cache_dir=tmp_path,
+    )
+    assert "Host" not in client.session.headers
+    assert "Antifier research" in client.session.headers["User-Agent"]
+
+
+def test_parse_ticker_cik_map_ignores_invalid_rows():
+    payload = {
+        "0": {"ticker": "aapl", "cik_str": 320193},
+        "1": {"ticker": "", "cik_str": 1},
+        "2": {"ticker": "bad", "cik_str": "not-a-number"},
+    }
+
+    assert parse_ticker_cik_map(payload) == {"AAPL": 320193}
+
+
+def test_sec_builder_cli_requires_declared_user_agent(tmp_path):
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "build_sec_pit_features.py"),
+            "--tickers",
+            "AAPL",
+            "--start",
+            "2020-01-01",
+            "--end",
+            "2020-12-31",
+            "--output",
+            str(tmp_path / "features.csv"),
+        ],
+        cwd=ROOT,
+        env={"PATH": str(Path(sys.executable).parent)},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "SEC_USER_AGENT" in result.stderr
+
+
+def test_local_companyfacts_client_reads_official_archive_layout(tmp_path):
+    companyfacts_dir = tmp_path / "companyfacts"
+    companyfacts_dir.mkdir()
+    payload = _company_facts()
+    payload["cik"] = 123
+    (companyfacts_dir / "CIK0000000123.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+    client = SecCompanyFactsDirectoryClient(
+        companyfacts_dir,
+        {"exm": 123},
+    )
+
+    assert client.ticker_cik_map() == {"EXM": 123}
+    assert client.company_facts(123)["entityName"] == "Example Corp"
+    assert client.submissions(123) == {}
+    assert "bulk archive" in client.source_description
+
+
+def test_local_companyfacts_client_reads_optional_submissions_directory(
+    tmp_path,
+):
+    companyfacts_dir = tmp_path / "companyfacts"
+    submissions_dir = tmp_path / "submissions"
+    companyfacts_dir.mkdir()
+    submissions_dir.mkdir()
+    payload = _company_facts()
+    payload["cik"] = 123
+    (companyfacts_dir / "CIK0000000123.json").write_text(
+        json.dumps(payload),
+        encoding="utf-8",
+    )
+    (submissions_dir / "CIK0000000123.json").write_text(
+        json.dumps({
+            "cik": 123,
+            "sic": "3571",
+            "sicDescription": "Electronic Computers",
+        }),
+        encoding="utf-8",
+    )
+
+    client = SecCompanyFactsDirectoryClient(
+        companyfacts_dir,
+        {"EXM": 123},
+        submissions_dir=submissions_dir,
+    )
+
+    assert client.submissions(123)["sic"] == "3571"
+    assert client.submissions(999) == {}
+
+
+def test_normalize_ticker_cik_map_rejects_ambiguous_ticker():
+    with pytest.raises(ValueError, match="multiple CIKs"):
+        normalize_ticker_cik_map(
+            [
+                {"ticker": "ABC", "cik": 1},
+                {"ticker": "abc", "cik": 2},
+            ]
+        )
+
+
+def test_extract_cik_from_yahoo_filing_metadata():
+    filings = [
+        {
+            "edgarUrl": (
+                "https://finance.yahoo.com/sec-filing/"
+                "AAPL/0001140361-26-023149_320193"
+            ),
+            "exhibits": {
+                "SD": (
+                    "https://cdn.yahoofinance.com/prod/sec-filings/"
+                    "0001140361/example.htm"
+                )
+            },
+        }
+    ]
+
+    assert extract_cik_from_filing_metadata(filings) == 320193
+    assert extract_cik_from_filing_metadata([]) is None

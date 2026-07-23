@@ -295,6 +295,47 @@ def _calculate_historical_cagr(data):
     return _normalize_expected_return_series(pd.Series(cagr_series))
 
 
+def _align_price_history_without_lookahead(data):
+    """Align assets on their common observable history without backward fill."""
+    aligned = (
+        pd.DataFrame(data)
+        .sort_index()
+        .replace([0.0, np.inf, -np.inf], np.nan)
+    )
+    aligned = aligned.dropna(axis=1, how="all")
+    if aligned.empty:
+        return aligned
+    first_valid_dates = [
+        aligned[ticker].first_valid_index()
+        for ticker in aligned.columns
+        if aligned[ticker].first_valid_index() is not None
+    ]
+    if not first_valid_dates:
+        return aligned.iloc[0:0]
+    common_start = max(first_valid_dates)
+    aligned = aligned.loc[aligned.index >= common_start].ffill()
+    return aligned.dropna(axis=1, how="any")
+
+
+def _latest_market_caps_are_point_in_time_compatible(
+    end_date,
+    reference_date=None,
+    tolerance_days=14,
+):
+    """Latest market caps are valid only for a near-live optimization date."""
+    try:
+        end = pd.Timestamp(end_date).tz_localize(None).normalize()
+        reference = (
+            pd.Timestamp.utcnow().tz_localize(None).normalize()
+            if reference_date is None
+            else pd.Timestamp(reference_date).tz_localize(None).normalize()
+        )
+    except Exception:
+        return False
+    distance = (reference - end).days
+    return bool(-1 <= distance <= max(0, int(tolerance_days)))
+
+
 def _series_to_float_dict(series):
     """Return a JSON-friendly float dictionary from a pandas Series-like object."""
     return {str(k): float(v) for k, v in pd.Series(series).items() if np.isfinite(v)}
@@ -329,6 +370,36 @@ def _weights_from_values(values, denominator):
         for ticker, value in pd.Series(values, dtype=float).items()
         if np.isfinite(value) and value > 1e-10
     }
+
+
+def _performance_for_weights(weights, expected_returns, covariance, risk_free_rate):
+    """Calculate metrics for the weights actually returned to the caller."""
+    mu = pd.Series(expected_returns, dtype=float)
+    weight_series = (
+        pd.Series(weights, dtype=float)
+        .reindex(mu.index)
+        .fillna(0.0)
+    )
+    total = float(weight_series.sum())
+    if total > 0:
+        weight_series = weight_series / total
+    matrix = pd.DataFrame(covariance).reindex(
+        index=mu.index,
+        columns=mu.index,
+    )
+    expected_return = float(weight_series @ mu)
+    variance = float(
+        weight_series.values @ matrix.values @ weight_series.values
+    )
+    volatility = float(np.sqrt(max(0.0, variance)))
+    sharpe = (
+        None
+        if volatility <= 1e-12
+        else float(
+            (expected_return - float(risk_free_rate)) / volatility
+        )
+    )
+    return expected_return, volatility, sharpe
 
 
 def apply_min_holding_threshold(weights, min_holding_weight=0.0):
@@ -593,7 +664,6 @@ def _fetch_usd_conversion_factor(currency, start_date, end_date, target_index):
             .reindex(aligned_index)
             .sort_index()
             .ffill()
-            .bfill()
             .reindex(target_dates)
         )
 
@@ -607,7 +677,7 @@ def _fetch_usd_conversion_factor(currency, start_date, end_date, target_index):
             factor_values = unit_multiplier / aligned_fx_close
 
         factor = pd.Series(factor_values.to_numpy(dtype=float), index=target_index)
-        return factor.replace([np.inf, -np.inf], np.nan).ffill().bfill()
+        return factor.replace([np.inf, -np.inf], np.nan).ffill()
     except Exception as e:
         logger.warning(f"Failed to fetch FX data for {currency} via {fx_ticker}: {e}")
         return None
@@ -1501,14 +1571,16 @@ def data_and_forecast_pipeline(
                     period_return = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon)
                     val = _period_return_to_annual_simple_return(period_return, forecast_horizon)
                 else:
-                    val = 0.05
+                    val = None
+                    no_view_tickers.append(ticker)
                 forecasts[ticker] = val
                 uncertainties_dict[ticker] = DEFAULT_FORECAST_UNCERTAINTY
             except Exception:
-                forecasts[ticker] = 0.05
-                uncertainties_dict[ticker] = DEFAULT_FORECAST_UNCERTAINTY
+                forecasts[ticker] = None
+                uncertainties_dict[ticker] = MAX_FORECAST_UNCERTAINTY
+                no_view_tickers.append(ticker)
         
-        mu_forecast = pd.Series(forecasts).fillna(0.0)
+        mu_forecast = pd.Series(forecasts)
         uncertainties = pd.Series(uncertainties_dict).fillna(DEFAULT_FORECAST_UNCERTAINTY)
         
     elif forecast_method in ["DEEP_LEARNING", "Ensemble", "ARIMA_TRANSFORMER", "ARIMA + Transformer"]:
@@ -1555,14 +1627,19 @@ def data_and_forecast_pipeline(
                 period_return = lightweight_ensemble_forecast(valid_prices, horizon=forecast_horizon)
                 val = _period_return_to_annual_simple_return(period_return, forecast_horizon)
             else:
-                val = 0.05
+                val = None
+                no_view_tickers.append(ticker)
             forecasts[ticker] = val
             uncertainties_dict[ticker] = DEFAULT_FORECAST_UNCERTAINTY
-        mu_forecast = pd.Series(forecasts).fillna(0.0)
+        mu_forecast = pd.Series(forecasts)
         uncertainties = pd.Series(uncertainties_dict).fillna(DEFAULT_FORECAST_UNCERTAINTY)
 
     # DEBUG: Check Forecasts
     if mu_forecast is not None:
+         mu_forecast = pd.to_numeric(
+             pd.Series(mu_forecast),
+             errors="coerce",
+         )
          logger.info(f"DEBUG: Forecast stats: Min={mu_forecast.min()}, Max={mu_forecast.max()}")
          if np.isinf(mu_forecast).any() or (mu_forecast.abs() > 1e6).any():
              logger.error("DEBUG: mu_forecast contains INF or huge values!")
@@ -1575,11 +1652,9 @@ def data_and_forecast_pipeline(
     # DEBUG: Check aligned data before covariance
     logger.info(f"DEBUG: aligned_data shape: {aligned_data.shape}")
     
-    # 1. Replace 0.0 with NaN (Price of 0 causes Division by Zero in returns)
-    aligned_data = aligned_data.replace(0.0, np.nan)
-    
-    # 2. Fill gaps (Forward fill then Backward fill)
-    aligned_data = aligned_data.ffill().bfill()
+    # Align on the latest first-observable date and forward-fill only. Backward
+    # fill would copy a future listing price into the pre-listing period.
+    aligned_data = _align_price_history_without_lookahead(aligned_data)
     
     # 3. Check for specific bad values
     if np.isinf(aligned_data.values).any():
@@ -1649,7 +1724,7 @@ def data_and_forecast_pipeline(
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
                        target_return=None, risk_tolerance=None, portfolio_id=None,
                        persist_result=False, load_if_available=False, progress_callback=None,
-                       l2_gamma=0.05, max_asset_weight=0.2,
+                       l2_gamma=0.0, max_asset_weight=0.2,
                        forecast_method="LIGHTWEIGHT", optimization_method="BL",
                        forecast_horizon=63, min_history=504, bl_tau=0.05,
                        current_weights=None, rebalance_band=None, max_turnover=None,
@@ -1754,18 +1829,33 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     source_currencies = pipeline_result.get("source_currencies", {})
 
     # 3. Apply Optimization Logic (BL or MPT)
+    market_prior_source = "not_applicable"
     _raise_if_cancelled(cancel_event)
     if optimization_method in ["BL", "Black-Litterman"]:
         logger.info("Applying Black-Litterman Optimization")
+        market_prior_source = "historical_return_fallback"
         try:
-            # Market Caps
-            mcaps = get_market_caps(list(raw_mu.index))
+            # Latest market caps are not point-in-time data for historical runs.
+            market_caps_compatible = (
+                _latest_market_caps_are_point_in_time_compatible(end_date)
+            )
+            mcaps = (
+                get_market_caps(list(raw_mu.index))
+                if market_caps_compatible
+                else {}
+            )
+            if not market_caps_compatible:
+                logger.warning(
+                    "Skipping latest market caps for historical end date %s.",
+                    end_date,
+                )
             
             # Delta from Market
             delta = get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate)
             
             if mcaps:
                 logger.info("Applying Black-Litterman with Market Prior")
+                market_prior_source = "latest_market_caps"
                 market_prior = black_litterman.market_implied_prior_returns(mcaps, delta, S, risk_free_rate=risk_free_rate)
                 prior_mu = (
                     _normalize_expected_return_series(market_prior)
@@ -1823,12 +1913,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 asset_count,
             )
 
-        ef = EfficientFrontier(mu, S, weight_bounds=(0, effective_max_asset_weight))
-
-        # Add L2 regularization
-        if l2_gamma > 0:
-            ef.add_objective(objective_functions.L2_reg, gamma=l2_gamma)
+        l2_gamma = max(0.0, _safe_float(l2_gamma, 0.0))
         turnover_penalty = max(0.0, _safe_float(turnover_penalty, 0.0))
+        current_weight_vector = None
         if turnover_penalty > 0 and current_weights:
             current_weight_vector = _sanitize_value_series(
                 current_weights,
@@ -1837,26 +1924,95 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             current_total = float(current_weight_vector.sum())
             if current_total > 0:
                 current_weight_vector = current_weight_vector / current_total
+            else:
+                current_weight_vector = None
             if cp is None:
                 logger.warning("Skipping turnover penalty because cvxpy is unavailable.")
-            else:
-                ef.add_objective(
+                current_weight_vector = None
+
+        def build_frontier():
+            frontier = EfficientFrontier(
+                mu,
+                S,
+                weight_bounds=(0, effective_max_asset_weight),
+            )
+            if l2_gamma > 0:
+                frontier.add_objective(
+                    objective_functions.L2_reg,
+                    gamma=l2_gamma,
+                )
+            if current_weight_vector is not None:
+                frontier.add_objective(
                     _turnover_penalty_objective,
                     current_weights=current_weight_vector.reindex(mu.index).fillna(0.0).values,
                     gamma=turnover_penalty,
                 )
+            return frontier
 
         # Set optimization objective
         _raise_if_cancelled(cancel_event)
-        if target_return:
+        solver_objective = None
+        ef = build_frontier()
+        if target_return is not None:
             ef.efficient_return(target_return)
-        elif risk_tolerance:
+            weights = ef.clean_weights()
+            solver_objective = "efficient_return"
+        elif risk_tolerance is not None:
             ef.efficient_risk(risk_tolerance)
+            weights = ef.clean_weights()
+            solver_objective = "efficient_risk"
+        elif l2_gamma > 0 or current_weight_vector is not None:
+            minimum_target = max(
+                float(risk_free_rate) + 1e-6,
+                float(pd.Series(mu).min()),
+            )
+            maximum_target = float(pd.Series(mu).max())
+            best = None
+            if maximum_target > minimum_target:
+                for candidate_target in np.linspace(
+                    minimum_target,
+                    maximum_target,
+                    24,
+                ):
+                    _raise_if_cancelled(cancel_event)
+                    candidate_frontier = build_frontier()
+                    try:
+                        candidate_frontier.efficient_return(
+                            float(candidate_target)
+                        )
+                        candidate_weights = (
+                            candidate_frontier.clean_weights()
+                        )
+                        candidate_performance = _performance_for_weights(
+                            candidate_weights,
+                            mu,
+                            S,
+                            risk_free_rate,
+                        )
+                    except (OptimizationError, ValueError):
+                        continue
+                    candidate_sharpe = candidate_performance[2]
+                    if candidate_sharpe is not None and (
+                        best is None or candidate_sharpe > best[0]
+                    ):
+                        best = (
+                            candidate_sharpe,
+                            candidate_weights,
+                            candidate_frontier,
+                        )
+            if best is None:
+                ef = build_frontier()
+                ef.min_volatility()
+                weights = ef.clean_weights()
+                solver_objective = "regularized_min_volatility_fallback"
+            else:
+                _, weights, ef = best
+                solver_objective = "regularized_max_sharpe_grid"
         else:
             ef.max_sharpe(risk_free_rate=risk_free_rate)
+            weights = ef.clean_weights()
+            solver_objective = "max_sharpe"
 
-        # Get optimized weights
-        weights = ef.clean_weights()
         thresholded_weights = apply_min_holding_threshold(weights, min_holding_weight)
         
         # Filter out assets with near-zero weight
@@ -1889,9 +2045,12 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 "controlled_weights": controlled_weights,
             }
 
-        # Get performance metrics
-        performance = ef.portfolio_performance(risk_free_rate=risk_free_rate)
-        # performance: (return, volatility, sharpe)
+        performance = _performance_for_weights(
+            final_weights,
+            mu,
+            S,
+            risk_free_rate,
+        )
         
         # Filter prices
         final_prices = {t: latest_prices.get(t, 0.0) for t in final_tickers}
@@ -1913,7 +2072,10 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "return_confidence": _series_to_float_dict(confidence),
             "no_view_tickers": no_view_tickers,
             "failed_forecast_count": len(no_view_tickers),
+            "market_prior_source": market_prior_source,
             "optimizer_controls": {
+                "solver_objective": solver_objective,
+                "l2_gamma": float(l2_gamma),
                 "turnover_penalty": float(turnover_penalty),
                 "min_holding_weight": float(max(0.0, _safe_float(min_holding_weight, 0.0))),
             },

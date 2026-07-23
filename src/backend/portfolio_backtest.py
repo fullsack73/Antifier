@@ -38,6 +38,17 @@ from portfolio_alpha_v2 import (
     factor_neutral_cross_sectional_alpha,
 )
 from forecast_signal_research import prediction_distribution_diagnostics
+from portfolio_risk_models import (
+    cross_validated_minimum_variance_weights,
+    equal_risk_contribution_weights,
+    forecast_ensemble_minimum_variance_weights,
+    hierarchical_risk_parity_weights,
+    minimum_cvar_weights,
+    resampled_minimum_variance_weights,
+    regime_minimum_variance_weights,
+    robust_minimum_variance_weights,
+    stability_regularized_minimum_variance_weights,
+)
 from portfolio_signals import (
     ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
     FORECAST_RANK_VIEW_UNCERTAINTY,
@@ -51,6 +62,7 @@ from portfolio_signals import (
     momentum_tilt_weights,
     rank_to_unit_scores,
     risk_parity,
+    risk_managed_momentum_weights,
     signal_tilt_weights,
     signal_stack_bl_views,
 )
@@ -81,6 +93,16 @@ DEFAULT_BACKTEST_MODELS = (
 )
 SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "factor_neutral_alpha_tilt",
+    "robust_min_variance",
+    "equal_risk_contribution",
+    "hierarchical_risk_parity",
+    "regime_minimum_variance",
+    "minimum_cvar",
+    "cross_validated_min_variance",
+    "forecast_ensemble_min_variance",
+    "stability_regularized_min_variance",
+    "resampled_min_variance",
+    "risk_managed_momentum",
 )
 
 PROMOTION_BASELINE_MODELS = (
@@ -649,7 +671,8 @@ def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_as
 
 
 def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate,
-                   market_caps=None, point_in_time_features=None):
+                   market_caps=None, point_in_time_features=None,
+                   previous_target_weights=None):
     tickers = list(train_prices.columns)
     if model_name == "equal_weight":
         return _equal_weights(tickers), {"failed_forecast_count": 0, "avg_forecast_confidence": None}
@@ -669,6 +692,110 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
         weights = risk_parity(train_prices, max_asset_weight=max_asset_weight).to_dict()
         return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
 
+    if model_name == "robust_min_variance":
+        weights, risk_diagnostics = robust_minimum_variance_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "cross_validated_min_variance":
+        weights, risk_diagnostics = cross_validated_minimum_variance_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "forecast_ensemble_min_variance":
+        weights, risk_diagnostics = (
+            forecast_ensemble_minimum_variance_weights(
+                train_prices,
+                max_asset_weight=max_asset_weight,
+            )
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "stability_regularized_min_variance":
+        weights, risk_diagnostics = (
+            stability_regularized_minimum_variance_weights(
+                train_prices,
+                previous_weights=previous_target_weights,
+                max_asset_weight=max_asset_weight,
+            )
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "resampled_min_variance":
+        weights, risk_diagnostics = resampled_minimum_variance_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "equal_risk_contribution":
+        weights, risk_diagnostics = equal_risk_contribution_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "hierarchical_risk_parity":
+        weights, risk_diagnostics = hierarchical_risk_parity_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "regime_minimum_variance":
+        weights, risk_diagnostics = regime_minimum_variance_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "minimum_cvar":
+        weights, risk_diagnostics = minimum_cvar_weights(
+            train_prices,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
     if model_name == "momentum_6m":
         weights = momentum_tilt_weights(
             train_prices,
@@ -677,6 +804,29 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             max_asset_weight=max_asset_weight,
         ).to_dict()
         return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
+    if model_name == "risk_managed_momentum":
+        scores = rank_to_unit_scores(
+            (
+                train_prices.iloc[-1]
+                / train_prices.iloc[
+                    -min(SIX_MONTH_MOMENTUM_LOOKBACK_DAYS, len(train_prices))
+                ]
+                - 1.0
+            ),
+            higher_is_better=True,
+        )
+        weights = risk_managed_momentum_weights(
+            train_prices,
+            momentum_lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
+            max_asset_weight=max_asset_weight,
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "signal_scores": _finite_series_dict(scores),
+            "construction_method": "inverse_volatility_scaled_6m_momentum",
+        }
 
     if model_name == "low_volatility":
         weights = low_volatility_tilt(train_prices, max_asset_weight=max_asset_weight).to_dict()
@@ -829,13 +979,23 @@ def calculate_turnover_and_cost(current_values, target_weights, portfolio_value,
 
 
 def _portfolio_metrics(value_timeline, risk_free_rate):
+    empty_metrics = {
+        "cagr": 0.0,
+        "annual_volatility": 0.0,
+        "annual_downside_deviation": 0.0,
+        "sharpe": None,
+        "sortino": None,
+        "calmar": None,
+        "omega": None,
+        "daily_var_95": None,
+        "daily_cvar_95": None,
+        "max_drawdown": 0.0,
+        "final_value": 0.0,
+    }
     series = pd.Series(value_timeline, dtype=float).sort_index()
     if len(series) < 2:
         return {
-            "cagr": 0.0,
-            "annual_volatility": 0.0,
-            "sharpe": None,
-            "max_drawdown": 0.0,
+            **empty_metrics,
             "final_value": float(series.iloc[-1]) if len(series) else 0.0,
         }
 
@@ -845,11 +1005,56 @@ def _portfolio_metrics(value_timeline, risk_free_rate):
     annual_vol = float(returns.std(ddof=0) * np.sqrt(TRADING_DAYS_PER_YEAR)) if len(returns) else 0.0
     sharpe = None if annual_vol <= 0 else float((cagr - risk_free_rate) / annual_vol)
     drawdown = series / series.cummax() - 1
+    max_drawdown = float(drawdown.min())
+    daily_risk_free = (
+        (1.0 + float(risk_free_rate)) ** (1.0 / TRADING_DAYS_PER_YEAR) - 1.0
+        if float(risk_free_rate) > -1.0
+        else 0.0
+    )
+    excess_returns = returns - daily_risk_free
+    downside = excess_returns.clip(upper=0.0)
+    downside_deviation = float(
+        np.sqrt(np.mean(np.square(downside)))
+        * np.sqrt(TRADING_DAYS_PER_YEAR)
+    ) if len(downside) else 0.0
+    sortino = (
+        None
+        if downside_deviation <= 0
+        else float((cagr - risk_free_rate) / downside_deviation)
+    )
+    calmar = (
+        None
+        if abs(max_drawdown) <= 1e-12
+        else float(cagr / abs(max_drawdown))
+    )
+    positive_excess = float(excess_returns.clip(lower=0.0).sum())
+    negative_excess = abs(float(excess_returns.clip(upper=0.0).sum()))
+    omega = (
+        None
+        if negative_excess <= 1e-12
+        else float(positive_excess / negative_excess)
+    )
+    var_threshold = float(returns.quantile(0.05)) if len(returns) else np.nan
+    tail_returns = returns.loc[returns <= var_threshold]
     return {
         "cagr": float(cagr),
         "annual_volatility": annual_vol,
+        "annual_downside_deviation": downside_deviation,
         "sharpe": sharpe,
-        "max_drawdown": float(drawdown.min()),
+        "sortino": sortino,
+        "calmar": calmar,
+        "omega": omega,
+        "daily_var_95": (
+            None
+            if not np.isfinite(var_threshold)
+            else float(max(0.0, -var_threshold))
+        ),
+        "daily_cvar_95": (
+            None
+            if tail_returns.empty
+            else float(max(0.0, -tail_returns.mean()))
+        ),
+        "max_drawdown": max_drawdown,
         "final_value": float(series.iloc[-1]),
     }
 
@@ -1060,6 +1265,8 @@ def _rebalance_target_signature(
     market_caps,
     risk_free_rate,
     point_in_time_features,
+    market_caps_as_of_date,
+    point_in_time_market_caps,
 ):
     market_caps = {} if market_caps is None else dict(market_caps)
     price_hashes = pd.util.hash_pandas_object(data, index=True).values
@@ -1071,7 +1278,27 @@ def _rebalance_target_signature(
             index=True,
         ).values
         factor_digest = hashlib.blake2b(
-            factor_hashes.tobytes(),
+            factor_hashes.tobytes()
+            + json.dumps(
+                [str(column) for column in factor_frame.columns],
+                separators=(",", ":"),
+            ).encode("utf-8"),
+            digest_size=16,
+        ).hexdigest()
+    market_cap_digest = None
+    if point_in_time_market_caps is not None:
+        market_cap_frame = pd.DataFrame(point_in_time_market_caps).copy()
+        market_cap_frame.index = pd.to_datetime(market_cap_frame.index)
+        market_cap_hashes = pd.util.hash_pandas_object(
+            market_cap_frame.sort_index(),
+            index=True,
+        ).values
+        market_cap_digest = hashlib.blake2b(
+            market_cap_hashes.tobytes()
+            + json.dumps(
+                [str(column) for column in market_cap_frame.columns],
+                separators=(",", ":"),
+            ).encode("utf-8"),
             digest_size=16,
         ).hexdigest()
     return {
@@ -1090,9 +1317,53 @@ def _rebalance_target_signature(
             ticker: _to_float(market_caps.get(ticker), 0.0)
             for ticker in data.columns
         },
+        "market_caps_as_of_date": (
+            None
+            if market_caps_as_of_date is None
+            else pd.Timestamp(market_caps_as_of_date).strftime("%Y-%m-%d")
+        ),
+        "point_in_time_market_cap_digest": market_cap_digest,
         "risk_free_rate": float(risk_free_rate),
         "point_in_time_factor_digest": factor_digest,
     }
+
+
+def _market_caps_available_at(
+    tickers,
+    current_date,
+    market_caps=None,
+    market_caps_as_of_date=None,
+    point_in_time_market_caps=None,
+):
+    """Resolve only market-cap observations known by the rebalance date."""
+    tickers = list(tickers)
+    current_date = pd.Timestamp(current_date).tz_localize(None)
+    if point_in_time_market_caps is not None:
+        frame = pd.DataFrame(point_in_time_market_caps).copy()
+        frame.index = pd.to_datetime(frame.index).tz_localize(None)
+        frame = frame.sort_index()
+        available = frame.loc[frame.index <= current_date]
+        if not available.empty:
+            row = (
+                available.reindex(columns=tickers)
+                .ffill()
+                .iloc[-1]
+                .replace([np.inf, -np.inf], np.nan)
+                .dropna()
+            )
+            return row.to_dict(), available.index[-1].strftime("%Y-%m-%d")
+
+    if market_caps and market_caps_as_of_date is not None:
+        as_of = pd.Timestamp(market_caps_as_of_date).tz_localize(None)
+        if as_of <= current_date:
+            values = (
+                pd.Series(market_caps, dtype=float)
+                .reindex(tickers)
+                .replace([np.inf, -np.inf], np.nan)
+                .dropna()
+            )
+            return values.to_dict(), as_of.strftime("%Y-%m-%d")
+    return {}, None
 
 
 def _build_rebalance_targets_for_data(
@@ -1106,9 +1377,12 @@ def _build_rebalance_targets_for_data(
     market_caps,
     risk_free_rate,
     point_in_time_features,
+    market_caps_as_of_date,
+    point_in_time_market_caps,
 ):
     records = []
     warnings = []
+    previous_target_weights = {}
     for rebalance_index in range(train_window, len(data) - 1, rebalance_frequency):
         current_date = data.index[rebalance_index]
         next_index = min(rebalance_index + rebalance_frequency, len(data) - 1)
@@ -1120,6 +1394,15 @@ def _build_rebalance_targets_for_data(
 
         model_targets = {}
         diagnostic_covariance = _safe_covariance(train_prices)
+        available_market_caps, market_caps_used_as_of = (
+            _market_caps_available_at(
+                train_prices.columns,
+                current_date,
+                market_caps=market_caps,
+                market_caps_as_of_date=market_caps_as_of_date,
+                point_in_time_market_caps=point_in_time_market_caps,
+            )
+        )
         for model in models:
             weights, diagnostics = _model_weights(
                 model,
@@ -1127,8 +1410,9 @@ def _build_rebalance_targets_for_data(
                 forecast_horizon,
                 max_asset_weight,
                 risk_free_rate,
-                market_caps=market_caps,
+                market_caps=available_market_caps,
                 point_in_time_features=point_in_time_features,
+                previous_target_weights=previous_target_weights.get(model),
             )
             weights = apply_min_holding_threshold(weights, min_holding_weight)
             weights = _normalize_weights(weights, train_prices.columns)
@@ -1139,6 +1423,10 @@ def _build_rebalance_targets_for_data(
             diagnostics.update(
                 _weight_diagnostics(weights, signal_scores, diagnostic_covariance)
             )
+            if model == "market_cap_weight":
+                diagnostics["market_caps_as_of_date"] = (
+                    market_caps_used_as_of
+                )
             diagnostics["target_weights"] = {
                 ticker: float(weight)
                 for ticker, weight in weights.items()
@@ -1147,6 +1435,7 @@ def _build_rebalance_targets_for_data(
                 "weights": {ticker: float(weight) for ticker, weight in weights.items()},
                 "diagnostics": dict(diagnostics),
             }
+            previous_target_weights[model] = dict(weights)
 
         records.append({
             "rebalance_date": current_date.strftime("%Y-%m-%d"),
@@ -1168,6 +1457,8 @@ def _build_rebalance_targets_for_data(
             market_caps,
             risk_free_rate,
             point_in_time_features,
+            market_caps_as_of_date,
+            point_in_time_market_caps,
         ),
         "records": records,
         "warnings": warnings,
@@ -1188,6 +1479,8 @@ def build_rebalance_targets(
     market_caps=None,
     risk_free_rate=0.02,
     point_in_time_features=None,
+    market_caps_as_of_date=None,
+    point_in_time_market_caps=None,
 ):
     """Precompute model targets once so execution sensitivities can replay them cheaply."""
     train_window = int(train_window)
@@ -1210,6 +1503,8 @@ def build_rebalance_targets(
         market_caps,
         risk_free_rate,
         point_in_time_features,
+        market_caps_as_of_date,
+        point_in_time_market_caps,
     )
 
 
@@ -1231,6 +1526,9 @@ def run_portfolio_model_backtest(
     initial_value=10000.0,
     rebalance_targets=None,
     point_in_time_features=None,
+    include_daily_returns=False,
+    market_caps_as_of_date=None,
+    point_in_time_market_caps=None,
 ):
     train_window = int(train_window)
     rebalance_frequency = max(1, int(rebalance_frequency))
@@ -1252,6 +1550,8 @@ def run_portfolio_model_backtest(
         market_caps,
         risk_free_rate,
         point_in_time_features,
+        market_caps_as_of_date,
+        point_in_time_market_caps,
     )
     reused_rebalance_targets = rebalance_targets is not None
     if rebalance_targets is None:
@@ -1266,6 +1566,8 @@ def run_portfolio_model_backtest(
             market_caps,
             risk_free_rate,
             point_in_time_features,
+            market_caps_as_of_date,
+            point_in_time_market_caps,
         )
     elif rebalance_targets.get("signature") != expected_target_signature:
         raise ValueError("rebalance_targets do not match the requested backtest data or model settings")
@@ -1295,6 +1597,10 @@ def run_portfolio_model_backtest(
             "execution_weight_l1": [],
             "concentrations": [],
             "predicted_volatilities": [],
+            "execution_predicted_volatilities": [],
+            "realized_period_volatilities": [],
+            "risk_forecast_errors": [],
+            "risk_forecast_ratios": [],
             "signal_coverage_rates": [],
             "view_signal_retentions": [],
             "gross_period_returns": [],
@@ -1317,6 +1623,7 @@ def run_portfolio_model_backtest(
         period_prices = data.iloc[rebalance_index:next_index + 1].reindex(columns=train_prices.columns).ffill()
         if train_prices.empty or current_prices.dropna().empty:
             continue
+        diagnostic_covariance = _safe_covariance(train_prices)
         target_record = target_records.get(current_date_key)
         if target_record is None:
             raise ValueError(f"rebalance_targets are missing {current_date_key}")
@@ -1450,6 +1757,57 @@ def run_portfolio_model_backtest(
                     state[state_key].append(float(value))
 
             daily_values = period_prices.mul(state["shares"], axis=1).sum(axis=1) + state["cash"]
+            execution_variance = float(
+                controlled_signal_weights.values
+                @ diagnostic_covariance.reindex(
+                    index=train_prices.columns,
+                    columns=train_prices.columns,
+                ).values
+                @ controlled_signal_weights.values
+            )
+            execution_predicted_volatility = float(
+                np.sqrt(max(0.0, execution_variance))
+            )
+            realized_daily_returns = (
+                daily_values.pct_change()
+                .replace([np.inf, -np.inf], np.nan)
+                .dropna()
+            )
+            realized_period_volatility = (
+                None
+                if realized_daily_returns.empty
+                else float(
+                    realized_daily_returns.std(ddof=0)
+                    * np.sqrt(TRADING_DAYS_PER_YEAR)
+                )
+            )
+            risk_forecast_error = (
+                None
+                if realized_period_volatility is None
+                else float(
+                    realized_period_volatility
+                    - execution_predicted_volatility
+                )
+            )
+            risk_forecast_ratio = (
+                None
+                if realized_period_volatility is None
+                or execution_predicted_volatility <= 1e-12
+                else float(
+                    realized_period_volatility
+                    / execution_predicted_volatility
+                )
+            )
+            state["execution_predicted_volatilities"].append(
+                execution_predicted_volatility
+            )
+            if realized_period_volatility is not None:
+                state["realized_period_volatilities"].append(
+                    realized_period_volatility
+                )
+                state["risk_forecast_errors"].append(risk_forecast_error)
+            if risk_forecast_ratio is not None:
+                state["risk_forecast_ratios"].append(risk_forecast_ratio)
             for date, value in daily_values.items():
                 state["values"][date.strftime("%Y-%m-%d")] = float(value)
             end_value = float(daily_values.iloc[-1]) if not daily_values.empty else investable_value
@@ -1503,6 +1861,14 @@ def run_portfolio_model_backtest(
                 "execution_weight_l1": execution_weight_l1,
                 "concentration_hhi": diagnostics.get("concentration_hhi"),
                 "predicted_annual_volatility": diagnostics.get("predicted_annual_volatility"),
+                "execution_predicted_annual_volatility": (
+                    execution_predicted_volatility
+                ),
+                "realized_period_annual_volatility": (
+                    realized_period_volatility
+                ),
+                "risk_forecast_error": risk_forecast_error,
+                "risk_forecast_ratio": risk_forecast_ratio,
                 "prior_returns": diagnostics.get("prior_returns", {}),
                 "raw_views": diagnostics.get("raw_views", {}),
                 "adjusted_views": diagnostics.get("adjusted_views", {}),
@@ -1512,6 +1878,10 @@ def run_portfolio_model_backtest(
                 "net_period_return": net_period_return,
                 "transaction_cost_return_drag": float(gross_period_return - net_period_return),
                 "market_caps_available": diagnostics.get("market_caps_available"),
+                "market_caps_as_of_date": diagnostics.get(
+                    "market_caps_as_of_date"
+                ),
+                "risk_model": diagnostics.get("risk_model"),
             })
 
     summary_by_model = {}
@@ -1622,6 +1992,33 @@ def run_portfolio_model_backtest(
                 if not state["predicted_volatilities"]
                 else float(np.mean(state["predicted_volatilities"]))
             ),
+            "avg_execution_predicted_annual_volatility": (
+                None
+                if not state["execution_predicted_volatilities"]
+                else float(
+                    np.mean(state["execution_predicted_volatilities"])
+                )
+            ),
+            "avg_realized_period_annual_volatility": (
+                None
+                if not state["realized_period_volatilities"]
+                else float(np.mean(state["realized_period_volatilities"]))
+            ),
+            "risk_forecast_bias": (
+                None
+                if not state["risk_forecast_errors"]
+                else float(np.mean(state["risk_forecast_errors"]))
+            ),
+            "risk_forecast_mae": (
+                None
+                if not state["risk_forecast_errors"]
+                else float(np.mean(np.abs(state["risk_forecast_errors"])))
+            ),
+            "avg_risk_forecast_ratio": (
+                None
+                if not state["risk_forecast_ratios"]
+                else float(np.mean(state["risk_forecast_ratios"]))
+            ),
             "avg_signal_coverage_rate": (
                 None
                 if not state["signal_coverage_rates"]
@@ -1680,7 +2077,7 @@ def run_portfolio_model_backtest(
         for model, metrics in summary_by_model.items()
     }
 
-    return {
+    result = {
         "settings": {
             "start_date": data.index[0].strftime("%Y-%m-%d"),
             "end_date": data.index[-1].strftime("%Y-%m-%d"),
@@ -1704,3 +2101,19 @@ def run_portfolio_model_backtest(
         "promotion_decision": _promotion_decision(summary_by_model),
         "warnings": warnings,
     }
+    if include_daily_returns:
+        result["daily_returns_by_model"] = {
+            model: {
+                str(date): float(value)
+                for date, value in (
+                    pd.Series(state["values"], dtype=float)
+                    .sort_index()
+                    .pct_change()
+                    .replace([np.inf, -np.inf], np.nan)
+                    .dropna()
+                    .items()
+                )
+            }
+            for model, state in states.items()
+        }
+    return result

@@ -107,7 +107,10 @@ def _cross_sectional_zscore(values, clip=3.0):
 
 def _market_betas(price_history):
     prices = pd.DataFrame(price_history).apply(pd.to_numeric, errors="coerce")
-    returns = prices.pct_change().replace([np.inf, -np.inf], np.nan)
+    returns = prices.pct_change(fill_method=None).replace(
+        [np.inf, -np.inf],
+        np.nan,
+    )
     market = returns.mean(axis=1, skipna=True)
     market_variance = float(market.var(ddof=0))
     if not np.isfinite(market_variance) or market_variance <= 1e-12:
@@ -128,6 +131,7 @@ def factor_residual_forward_returns(forward_returns, price_history, snapshot):
         pd.to_numeric(snapshot["market_cap"], errors="coerce").reindex(returns.index)
     )
     sectors = snapshot["sector"].reindex(returns.index)
+    sector_count = int(sectors.dropna().nunique())
     sector_dummies = pd.get_dummies(sectors, prefix="sector", dtype=float)
     if len(sector_dummies.columns) > 1:
         sector_dummies = sector_dummies.iloc[:, 1:]
@@ -144,6 +148,8 @@ def factor_residual_forward_returns(forward_returns, price_history, snapshot):
         return residuals, {
             "observation_count": int(valid.sum()),
             "factor_count": int(design.shape[1]),
+            "sector_count": sector_count,
+            "sector_dummy_count": int(len(sector_dummies.columns)),
             "r_squared": None,
         }
 
@@ -166,6 +172,8 @@ def factor_residual_forward_returns(forward_returns, price_history, snapshot):
     return residuals, {
         "observation_count": int(valid.sum()),
         "factor_count": int(design.shape[1]),
+        "sector_count": sector_count,
+        "sector_dummy_count": int(len(sector_dummies.columns)),
         "r_squared": r_squared,
     }
 

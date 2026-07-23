@@ -121,6 +121,29 @@ def test_benchmark_converts_non_usd_prices_to_usd(monkeypatch):
     assert result["summary"]["portfolio"]["initial_value"] == pytest.approx(1000.0)
 
 
+def test_fx_alignment_does_not_backfill_future_rate(monkeypatch):
+    target_dates = pd.date_range("2024-01-02", periods=4, freq="B")
+    fx_data = pd.DataFrame(
+        {"Close": [1300.0, 1310.0]},
+        index=target_dates[2:],
+    )
+    monkeypatch.setattr(
+        portfolio_optimization.yf,
+        "download",
+        lambda *args, **kwargs: fx_data,
+    )
+
+    factor = portfolio_optimization._fetch_usd_conversion_factor(
+        "KRW",
+        "2024-01-02",
+        "2024-01-08",
+        target_dates,
+    )
+
+    assert factor.iloc[:2].isna().all()
+    assert factor.iloc[2] == pytest.approx(1.0 / 1300.0)
+
+
 def test_lightweight_pipeline_normalizes_period_return_to_annual_simple_return(monkeypatch):
     dates = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"])
     prices = pd.DataFrame(
@@ -157,6 +180,67 @@ def test_lightweight_pipeline_normalizes_period_return_to_annual_simple_return(m
     expected = np.expm1(np.log1p(0.21) * (252 / 63))
     assert result["mu"]["AAPL"] == pytest.approx(expected)
     assert result["mu"]["MSFT"] == pytest.approx(expected)
+
+
+def test_lightweight_failure_becomes_prior_only_no_view(monkeypatch):
+    dates = pd.date_range("2020-01-02", periods=260, freq="B")
+    prices = pd.DataFrame(
+        {
+            "AAPL": np.linspace(100.0, 120.0, len(dates)),
+            "MSFT": np.linspace(200.0, 230.0, len(dates)),
+        },
+        index=dates,
+    )
+
+    class FakeCovarianceShrinkage:
+        def __init__(self, data):
+            self.data = data
+
+        def ledoit_wolf(self):
+            tickers = list(self.data.columns)
+            return pd.DataFrame(
+                np.eye(len(tickers)),
+                index=tickers,
+                columns=tickers,
+            )
+
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "get_stock_data",
+        lambda *args, **kwargs: prices,
+    )
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "lightweight_ensemble_forecast",
+        MagicMock(side_effect=RuntimeError("forced failure")),
+    )
+    monkeypatch.setattr(
+        portfolio_optimization.risk_models,
+        "CovarianceShrinkage",
+        FakeCovarianceShrinkage,
+    )
+    portfolio_optimization.get_cache().clear()
+
+    result = portfolio_optimization.data_and_forecast_pipeline(
+        start_date="2020-01-02",
+        end_date="2020-12-31",
+        ticker_group=None,
+        tickers=["AAPL", "MSFT"],
+        forecast_method="LIGHTWEIGHT",
+        forecast_horizon=63,
+        min_history=0,
+    )
+
+    assert set(result["no_view_tickers"]) == {"AAPL", "MSFT"}
+    assert result["mu"].to_dict() == pytest.approx(
+        result["prior_mu"].to_dict()
+    )
+    assert all(
+        value == pytest.approx(
+            portfolio_optimization.MAX_FORECAST_UNCERTAINTY
+        )
+        for value in result["uncertainties"]
+    )
 
 
 def test_ml_pipeline_converts_annual_log_return_to_annual_simple_return(monkeypatch):
@@ -302,6 +386,11 @@ def test_black_litterman_uses_confidence_adjusted_views_and_omega(monkeypatch):
 
     monkeypatch.setattr(portfolio_optimization, "data_and_forecast_pipeline", lambda *args, **kwargs: pipeline_result)
     monkeypatch.setattr(portfolio_optimization, "get_market_caps", lambda tickers: {"AAPL": 1e12, "MSFT": 1e12})
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "_latest_market_caps_are_point_in_time_compatible",
+        lambda end_date: True,
+    )
     monkeypatch.setattr(portfolio_optimization, "get_market_implied_risk_aversion_cached", lambda *args, **kwargs: 2.5)
     monkeypatch.setattr(portfolio_optimization.black_litterman, "market_implied_prior_returns", lambda *args, **kwargs: market_prior)
     monkeypatch.setattr(portfolio_optimization, "BlackLittermanModel", FakeBlackLittermanModel)
@@ -324,6 +413,101 @@ def test_black_litterman_uses_confidence_adjusted_views_and_omega(monkeypatch):
     assert captured["optimizer_mu"]["AAPL"] == pytest.approx(0.24)
     assert result["prior_expected_returns"]["AAPL"] == pytest.approx(0.08)
     assert result["return_confidence"]["AAPL"] == pytest.approx(0.5)
+
+
+def test_price_alignment_does_not_backfill_pre_listing_history():
+    dates = pd.date_range("2020-01-01", periods=6, freq="B")
+    prices = pd.DataFrame(
+        {
+            "OLD": [10.0, 11.0, 12.0, 13.0, 14.0, 15.0],
+            "NEW": [np.nan, np.nan, np.nan, 20.0, 21.0, 22.0],
+        },
+        index=dates,
+    )
+
+    aligned = portfolio_optimization._align_price_history_without_lookahead(
+        prices
+    )
+
+    assert aligned.index[0] == dates[3]
+    assert list(aligned["NEW"]) == [20.0, 21.0, 22.0]
+    assert len(aligned) == 3
+
+
+def test_historical_run_does_not_fetch_latest_market_caps(monkeypatch):
+    pipeline_result = {
+        "mu": pd.Series({"AAPL": 0.10, "MSFT": 0.08}),
+        "prior_mu": pd.Series({"AAPL": 0.08, "MSFT": 0.07}),
+        "S": pd.DataFrame(
+            [[0.04, 0.005], [0.005, 0.02]],
+            index=["AAPL", "MSFT"],
+            columns=["AAPL", "MSFT"],
+        ),
+        "uncertainties": pd.Series({"AAPL": 0.10, "MSFT": 0.10}),
+        "tickers": ["AAPL", "MSFT"],
+        "latest_prices": {"AAPL": 150.0, "MSFT": 200.0},
+    }
+    market_caps = MagicMock(return_value={"AAPL": 1e12, "MSFT": 1e12})
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "data_and_forecast_pipeline",
+        lambda *args, **kwargs: pipeline_result,
+    )
+    monkeypatch.setattr(portfolio_optimization, "get_market_caps", market_caps)
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "get_asset_names",
+        lambda tickers: {ticker: ticker for ticker in tickers},
+    )
+
+    result = portfolio_optimization.optimize_portfolio(
+        start_date="2018-01-01",
+        end_date="2020-12-31",
+        risk_free_rate=0.02,
+        tickers=["AAPL", "MSFT"],
+        optimization_method="BL",
+        forecast_method="HISTORICAL",
+        max_asset_weight=1.0,
+    )
+
+    assert "error" not in result
+    assert market_caps.call_count == 0
+    assert result["market_prior_source"] == "historical_return_fallback"
+
+
+def test_latest_market_cap_compatibility_is_date_bounded():
+    assert portfolio_optimization._latest_market_caps_are_point_in_time_compatible(
+        "2026-07-20",
+        reference_date="2026-07-23",
+    )
+    assert not portfolio_optimization._latest_market_caps_are_point_in_time_compatible(
+        "2024-12-31",
+        reference_date="2026-07-23",
+    )
+
+
+def test_reported_performance_uses_returned_weights():
+    mu = pd.Series({"A": 0.10, "B": 0.04})
+    covariance = pd.DataFrame(
+        [[0.04, 0.0], [0.0, 0.01]],
+        index=mu.index,
+        columns=mu.index,
+    )
+
+    expected_return, volatility, sharpe = (
+        portfolio_optimization._performance_for_weights(
+            {"A": 0.25, "B": 0.75},
+            mu,
+            covariance,
+            risk_free_rate=0.02,
+        )
+    )
+
+    assert expected_return == pytest.approx(0.055)
+    assert volatility == pytest.approx(
+        np.sqrt(0.25 ** 2 * 0.04 + 0.75 ** 2 * 0.01)
+    )
+    assert sharpe == pytest.approx((expected_return - 0.02) / volatility)
 
 
 def test_regression_endpoint_returns_error_status_for_empty_market_data():

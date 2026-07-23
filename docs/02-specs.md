@@ -112,6 +112,32 @@ Backend-only research tool:
   - `forecast_signal_research.py`의 empirical uncertainty calibration은 동일 단위의 완료된 OOS prediction/realized return 최소 20개를 요구합니다. in-sample training RMSE를 OOS-calibrated uncertainty로 표시하지 않습니다.
   - research target builder는 명시한 training cutoff 안에서 forward horizon이 완료된 row만 만들며 `absolute`, cross-sectional median-adjusted `relative`, PIT beta/sector/size `factor_residual` target을 지원합니다.
   - forecast 후보는 portfolio construction 전에 signal-only gate에서 OOS rank IC, positive IC rate, top-minus-bottom spread, coverage, saturation, tie 기준을 통과해야 합니다.
+  - `tools/research_cross_sectional_forecasts.py`는 validation/holdout 이름을 거부하고 research split에서만 pooled `absolute_ridge`, `relative_ridge`, `pairwise_ridge`, `listwise_rank_ridge`, 선택적 `factor_residual_price_ridge`, 전체 재무 predictor를 결합한 `factor_residual_ridge`, compact `factor_residual_quality_ridge`를 비교합니다.
+  - PIT 재무 predictor는 signal date까지 알려진 최신 filing만 사용합니다. quality, profitability, valuation, liquidity를 cross-sectional winsorized z-score로 만들고 결측은 중립값 0과 별도 missing indicator로 표현합니다.
+  - factor CSV 사용 시 SHA-256을 포함한 `--factor-provenance`가 필수이며 불일치 파일을 거부합니다.
+  - signal-only gate는 시점 의존성을 보존한 circular block bootstrap에서 mean rank IC와 mean top-minus-bottom spread가 양수일 확률을 각각 95% 이상 요구합니다. 동시 비교 objective는 Holm-Bonferroni로 보정합니다.
+  - 선택적 universe manifest는 `effective_date`, `ticker`, `in_universe` event 열을 요구합니다. 각 signal date에는 그 날짜까지 발생한 마지막 membership event만 적용하고 미래 편입 종목은 cross-sectional 표준화, target, prediction에서 제외합니다.
+  - universe provenance는 `source`, `retrieved_at`, `universe_policy`, `survivorship_policy`를 요구합니다. promotion-safe 실행은 `historical_constituents`, `point_in_time_membership`, `survivorship_safe` 정책만 허용합니다.
+  - `tools/build_sec_pit_features.py`는 SEC companyfacts/submissions API 또는 사용자가 제공한 로컬 공식 companyfacts archive의 공시일을 `available_date`로 사용해 quality, profitability, valuation, liquidity, filing-date market cap을 생성합니다. 이후 제출된 정정 공시는 이전 signal date row를 덮어쓰지 않습니다.
+  - 로컬 archive 모드는 선택적 `--submissions-dir`의 `CIK##########.json` 파일에서 SIC를 읽습니다. 이를 제공하지 않으면 sector는 `Unknown`이며 sector-neutral 성능을 주장하거나 후보를 승격할 수 없습니다.
+  - SEC 수집은 연락처 email 또는 project URL을 포함한 `SEC_USER_AGENT`를 요구하고, 캐시와 최소 0.10초 요청 간격을 적용합니다. 결과 CSV와 provenance JSON에는 endpoint, 수집 시각, 실패 ticker, universe 정책, SHA-256을 기록합니다.
+  - pooled candidate는 ticker별 모델을 반복 학습하지 않고 date × ticker observation을 한 모델로 학습합니다. 각 evaluation date의 training set은 그 날짜까지 forward horizon이 완료된 target만 포함합니다.
+  - uncertainty는 이전 evaluation prediction 중 현재 signal date 전에 outcome이 완료된 residual만 사용해 순차적으로 계산합니다. 최종 보고서는 fit count, elapsed time, prediction throughput, peak Python memory를 함께 기록합니다.
+  - risk allocator research는 기존 Ledoit-Wolf minimum variance와 별도로 Ledoit-Wolf 50%, Oracle Approximating 30%, 180일 exponential covariance 20% blend, exact equal-risk-contribution, hierarchical risk parity, regime-conditioned covariance, historical minimum-CVaR를 비교할 수 있습니다.
+  - cross-validated covariance 후보는 outer rebalance의 train window 안에서만 252일 inner train/63일 validation walk-forward를 수행하고 realized portfolio variance로 estimator를 선택합니다. 이 후보도 research-only이며 높은 turnover 또는 Sharpe 저하 시 승격하지 않습니다.
+  - covariance forecast ensemble은 완료된 inner OOS window에서 relative Frobenius error, correlation RMSE, equal/inverse-vol portfolio log-variance calibration error를 측정합니다. estimator를 hard-select하지 않고 inverse-loss weight를 50% equal-weight prior로 shrink해 결합합니다.
+  - covariance stress 진단은 PSD를 보존하는 correlation-to-one shock와 volatility shock에서 portfolio volatility amplification, effective asset count, maximum weight를 기록합니다.
+  - covariance ensemble research는 최소 252일 inner train과 63일 completed validation을 확보하도록 outer `train_window >= 315`를 요구합니다. inner fold가 없는 fallback 결과를 후보 성능으로 승격하지 않습니다.
+  - robust covariance는 spectral PSD repair와 eigenvalue condition/effective-rank 진단을 기록합니다. long-only asset cap은 capped simplex projection으로 합계 1과 cap을 동시에 만족해야 합니다.
+  - risk candidate는 research split에서 equal weight를 통과한 뒤 단일 specification을 freeze합니다. 4-case validation에서는 가장 가까운 Ledoit-Wolf minimum-variance baseline보다 volatility, Sharpe, max drawdown을 모두 개선해야 하며 탈락 후보를 같은 validation 결과에 맞춰 재튜닝하지 않습니다.
+  - portfolio risk metric은 annual volatility와 Sharpe 외에 downside deviation, Sortino, Calmar, Omega, daily 95% VaR/CVaR를 함께 기록합니다.
+  - predicted/realized period volatility, forecast bias/MAE/ratio를 OOS로 기록하고 paired circular block bootstrap의 volatility/Sharpe improvement probability가 각각 95% 이상이어야 합니다.
+  - 여러 candidate를 같은 research split에서 비교하면 Holm-Bonferroni correction으로 family-wise error를 제어합니다.
+  - historical price/FX alignment는 forward-fill만 허용하며 미래 첫 관측값을 leading missing period에 backward-fill하지 않습니다.
+  - forecast 실패는 임의 양의 expected return을 주입하지 않고 explicit no-view와 maximum uncertainty로 prior-only 처리합니다.
+  - historical backtest에서 static market cap은 as-of date가 없으면 사용하지 않습니다. historical market-cap 모델은 date-indexed point-in-time snapshot만 사용합니다.
+  - max-Sharpe에 L2/turnover penalty가 있으면 변환된 단일 max-Sharpe 문제에 objective를 직접 붙이지 않고 convex efficient-return target grid를 비교합니다.
+  - optimizer 응답의 return/risk/Sharpe는 threshold와 turnover control 이후 실제 반환 weight 기준으로 계산합니다.
 
 API 변경 규칙:
 

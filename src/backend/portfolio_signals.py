@@ -58,23 +58,38 @@ def cap_and_normalize_weights(weights, max_asset_weight=None):
     if len(series) * cap < 1:
         cap = min(1.0, (1.0 / len(series)) + 1e-9)
 
-    capped = series.copy()
-    for _ in range(len(capped) + 2):
-        over = capped > cap
+    capped = pd.Series(0.0, index=series.index, dtype=float)
+    free = list(series.index)
+    remaining = 1.0
+    while free:
+        free_values = series.loc[free].clip(lower=0.0)
+        free_total = float(free_values.sum())
+        allocation = (
+            pd.Series(remaining / len(free), index=free, dtype=float)
+            if free_total <= 0
+            else free_values / free_total * remaining
+        )
+        over = allocation > cap
         if not bool(over.any()):
+            capped.loc[free] = allocation
+            remaining = 0.0
             break
-        excess = float((capped[over] - cap).sum())
-        capped.loc[over] = cap
-        under = ~over
-        under_sum = float(capped[under].sum())
-        if under_sum <= 0 or excess <= 0:
-            break
-        capped.loc[under] += capped.loc[under] / under_sum * excess
+        capped.loc[allocation.index[over]] = cap
+        remaining -= cap * int(over.sum())
+        free = list(allocation.index[~over])
 
-    total = float(capped.sum())
-    if total <= 0:
-        return pd.Series(1.0 / len(capped), index=capped.index)
-    return capped / total
+    residual = 1.0 - float(capped.sum())
+    if abs(residual) > 1e-12:
+        room = (cap - capped).clip(lower=0.0)
+        if residual > 0 and float(room.sum()) > 0:
+            capped += room / float(room.sum()) * residual
+        elif residual < 0:
+            positive = capped > 0
+            capped.loc[positive] += (
+                capped.loc[positive] / float(capped.loc[positive].sum())
+                * residual
+            )
+    return capped.clip(lower=0.0, upper=cap)
 
 
 def risk_parity(price_data, max_asset_weight=0.2):
@@ -334,6 +349,41 @@ def momentum_tilt_weights(price_data, lookback=MOMENTUM_LOOKBACK_DAYS, skip=MOME
     scores = momentum_rank(data, lookback=lookback, skip=skip)
     raw = (scores + 1.0).clip(lower=0.0).fillna(0.0)
     return cap_and_normalize_weights(raw.reindex(data.columns), max_asset_weight=max_asset_weight)
+
+
+def risk_managed_momentum_weights(
+    price_data,
+    momentum_lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
+    volatility_lookback=63,
+    max_asset_weight=0.2,
+):
+    """Scale positive cross-sectional momentum ranks by inverse recent volatility."""
+    data = _clean_price_frame(price_data)
+    scores = momentum_rank(
+        data,
+        lookback=momentum_lookback,
+        skip=0,
+    ).reindex(data.columns)
+    returns = (
+        data.tail(max(2, int(volatility_lookback)) + 1)
+        .pct_change()
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna(how="all")
+    )
+    volatility = returns.std(ddof=0).reindex(data.columns)
+    inverse_volatility = 1.0 / volatility.where(volatility > 0)
+    momentum_strength = ((scores + 1.0) / 2.0).clip(
+        lower=0.0,
+        upper=1.0,
+    )
+    raw = (
+        momentum_strength
+        * inverse_volatility.replace([np.inf, -np.inf], np.nan)
+    ).fillna(0.0)
+    return cap_and_normalize_weights(
+        raw,
+        max_asset_weight=max_asset_weight,
+    )
 
 
 def low_volatility_tilt(price_data, max_asset_weight=0.2):

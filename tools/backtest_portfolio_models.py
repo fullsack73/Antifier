@@ -450,6 +450,11 @@ def _run_gauntlet(args, checkpoint_path):
                     end_date=scenario["end"],
                 )
             market_caps = _market_caps_for_prices(prices, models, args.fetch_market_caps)
+            market_caps_as_of_date = (
+                datetime.now().date().isoformat()
+                if market_caps
+                else None
+            )
             target_start = None if csv_prices is not None else scenario["start"]
             target_end = None if csv_prices is not None else scenario["end"]
             rebalance_targets = build_rebalance_targets(
@@ -463,6 +468,7 @@ def _run_gauntlet(args, checkpoint_path):
                 max_asset_weight=args.max_asset_weight,
                 min_holding_weight=args.min_holding_weight,
                 market_caps=market_caps,
+                market_caps_as_of_date=market_caps_as_of_date,
                 risk_free_rate=args.risk_free_rate,
                 point_in_time_features=args.point_in_time_features,
             )
@@ -494,6 +500,7 @@ def _run_gauntlet(args, checkpoint_path):
                     max_turnover=case["max_turnover"],
                     min_holding_weight=args.min_holding_weight,
                     market_caps=market_caps,
+                    market_caps_as_of_date=market_caps_as_of_date,
                     risk_free_rate=args.risk_free_rate,
                     initial_value=args.initial_value,
                     rebalance_targets=rebalance_targets,
@@ -725,6 +732,11 @@ def main(argv=None):
             raise ValueError("--csv and --ticker-group cannot be combined")
         prices = _load_prices(args)
         market_caps = _market_caps_for_prices(prices, args.models, args.fetch_market_caps)
+        market_caps_as_of_date = (
+            datetime.now().date().isoformat()
+            if market_caps
+            else None
+        )
         result = run_portfolio_model_backtest(
             prices,
             models=args.models,
@@ -739,6 +751,7 @@ def main(argv=None):
             max_turnover=args.max_turnover,
             min_holding_weight=args.min_holding_weight,
             market_caps=market_caps,
+            market_caps_as_of_date=market_caps_as_of_date,
             risk_free_rate=args.risk_free_rate,
             initial_value=args.initial_value,
             point_in_time_features=args.point_in_time_features,

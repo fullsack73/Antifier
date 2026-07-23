@@ -1,0 +1,697 @@
+"""SEC filing-date point-in-time fundamental feature construction."""
+
+import hashlib
+import json
+import re
+import time
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import requests
+
+
+SEC_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
+SEC_COMPANY_FACTS_URL = (
+    "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
+)
+SEC_SUBMISSIONS_URL = (
+    "https://data.sec.gov/submissions/CIK{cik:010d}.json"
+)
+ANNUAL_FORMS = {"10-K", "10-K/A"}
+
+CONCEPTS = {
+    "net_income": (
+        ("us-gaap", "NetIncomeLoss", ("USD",)),
+        (
+            "us-gaap",
+            "ProfitLoss",
+            ("USD",),
+        ),
+    ),
+    "revenue": (
+        (
+            "us-gaap",
+            "RevenueFromContractWithCustomerExcludingAssessedTax",
+            ("USD",),
+        ),
+        ("us-gaap", "Revenues", ("USD",)),
+        ("us-gaap", "SalesRevenueNet", ("USD",)),
+    ),
+    "gross_profit": (
+        ("us-gaap", "GrossProfit", ("USD",)),
+    ),
+    "operating_cash_flow": (
+        (
+            "us-gaap",
+            "NetCashProvidedByUsedInOperatingActivities",
+            ("USD",),
+        ),
+    ),
+    "assets": (
+        ("us-gaap", "Assets", ("USD",)),
+    ),
+    "current_assets": (
+        ("us-gaap", "AssetsCurrent", ("USD",)),
+    ),
+    "current_liabilities": (
+        ("us-gaap", "LiabilitiesCurrent", ("USD",)),
+    ),
+    "shares": (
+        (
+            "dei",
+            "EntityCommonStockSharesOutstanding",
+            ("shares",),
+        ),
+        (
+            "us-gaap",
+            "CommonStockSharesOutstanding",
+            ("shares",),
+        ),
+    ),
+}
+
+
+def sic_sector(sic):
+    """Map SEC SIC to a broad, stable sector used for factor neutralization."""
+    try:
+        sic = int(sic)
+    except (TypeError, ValueError):
+        return "Unknown"
+    if 100 <= sic <= 999:
+        return "Agriculture"
+    if 1000 <= sic <= 1499:
+        return "Mining"
+    if 1500 <= sic <= 1799:
+        return "Construction"
+    if 2000 <= sic <= 3999:
+        return "Manufacturing"
+    if 4000 <= sic <= 4999:
+        return "Transportation Utilities"
+    if 5000 <= sic <= 5199:
+        return "Wholesale"
+    if 5200 <= sic <= 5999:
+        return "Retail"
+    if 6000 <= sic <= 6799:
+        return "Finance Real Estate"
+    if 7000 <= sic <= 8999:
+        return "Services"
+    if 9000 <= sic <= 9999:
+        return "Public Administration"
+    return "Unknown"
+
+
+class SecEdgarClient:
+    """Small cached SEC client that enforces declared access and rate limits."""
+
+    def __init__(
+        self,
+        user_agent,
+        cache_dir=".cache/sec",
+        minimum_interval=0.12,
+        timeout=30,
+        session=None,
+    ):
+        user_agent = str(user_agent or "").strip()
+        if len(user_agent) < 10 or (
+            "@" not in user_agent and "http" not in user_agent.lower()
+        ):
+            raise ValueError(
+                "SEC user_agent must identify the application and provide "
+                "an email address or project URL"
+            )
+        self.user_agent = user_agent
+        self.cache_dir = Path(cache_dir).expanduser().resolve()
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.minimum_interval = max(0.10, float(minimum_interval))
+        self.timeout = max(1, int(timeout))
+        self.session = session or requests.Session()
+        self.session.headers.update(
+            {
+                "User-Agent": self.user_agent,
+                "Accept-Encoding": "gzip, deflate",
+            }
+        )
+        self._last_request_at = 0.0
+
+    def _cache_path(self, url):
+        digest = hashlib.sha256(url.encode("utf-8")).hexdigest()
+        return self.cache_dir / f"{digest}.json"
+
+    def _get_json(self, url, refresh=False):
+        cache_path = self._cache_path(url)
+        if cache_path.exists() and not refresh:
+            return json.loads(cache_path.read_text(encoding="utf-8"))
+
+        elapsed = time.monotonic() - self._last_request_at
+        if elapsed < self.minimum_interval:
+            time.sleep(self.minimum_interval - elapsed)
+        response = self.session.get(
+            url,
+            timeout=self.timeout,
+            headers={"User-Agent": self.user_agent},
+        )
+        self._last_request_at = time.monotonic()
+        response.raise_for_status()
+        payload = response.json()
+        temporary = cache_path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps(payload, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        temporary.replace(cache_path)
+        return payload
+
+    def ticker_cik_map(self, refresh=False):
+        payload = self._get_json(SEC_TICKERS_URL, refresh=refresh)
+        return parse_ticker_cik_map(payload)
+
+    def company_facts(self, cik, refresh=False):
+        return self._get_json(
+            SEC_COMPANY_FACTS_URL.format(cik=int(cik)),
+            refresh=refresh,
+        )
+
+    def submissions(self, cik, refresh=False):
+        return self._get_json(
+            SEC_SUBMISSIONS_URL.format(cik=int(cik)),
+            refresh=refresh,
+        )
+
+
+class SecCompanyFactsDirectoryClient:
+    """Read an extracted official SEC companyfacts archive from local disk."""
+
+    def __init__(
+        self,
+        companyfacts_dir,
+        ticker_cik_map,
+        submissions=None,
+        submissions_dir=None,
+    ):
+        self.source_description = (
+            "local extracted SEC EDGAR companyfacts bulk archive"
+        )
+        self.companyfacts_dir = Path(companyfacts_dir).expanduser().resolve()
+        if not self.companyfacts_dir.is_dir():
+            raise ValueError(
+                f"SEC companyfacts directory does not exist: "
+                f"{self.companyfacts_dir}"
+            )
+        self._ticker_cik_map = {
+            str(ticker).strip().upper(): int(cik)
+            for ticker, cik in dict(ticker_cik_map or {}).items()
+            if str(ticker).strip()
+        }
+        if not self._ticker_cik_map:
+            raise ValueError("Local SEC client requires a ticker-to-CIK map")
+        self._submissions = {
+            int(cik): dict(payload)
+            for cik, payload in dict(submissions or {}).items()
+        }
+        self.submissions_dir = (
+            None
+            if submissions_dir is None
+            else Path(submissions_dir).expanduser().resolve()
+        )
+        if (
+            self.submissions_dir is not None
+            and not self.submissions_dir.is_dir()
+        ):
+            raise ValueError(
+                f"SEC submissions directory does not exist: "
+                f"{self.submissions_dir}"
+            )
+
+    def ticker_cik_map(self, refresh=False):
+        del refresh
+        return dict(self._ticker_cik_map)
+
+    def company_facts_path(self, cik):
+        return self.companyfacts_dir / f"CIK{int(cik):010d}.json"
+
+    def company_facts(self, cik, refresh=False):
+        del refresh
+        path = self.company_facts_path(cik)
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"SEC companyfacts file is missing for CIK {int(cik):010d}"
+            )
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or int(payload.get("cik", -1)) != int(cik):
+            raise ValueError(
+                f"SEC companyfacts CIK mismatch in {path.name}"
+            )
+        return payload
+
+    def submissions(self, cik, refresh=False):
+        del refresh
+        cik = int(cik)
+        if cik in self._submissions:
+            return dict(self._submissions[cik])
+        if self.submissions_dir is None:
+            return {}
+        path = self.submissions_dir / f"CIK{cik:010d}.json"
+        if not path.is_file():
+            return {}
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or int(payload.get("cik", -1)) != cik:
+            raise ValueError(
+                f"SEC submissions CIK mismatch in {path.name}"
+            )
+        return payload
+
+
+def normalize_ticker_cik_map(mapping):
+    """Normalize mapping/dataset input and reject ambiguous ticker identities."""
+    if isinstance(mapping, dict):
+        rows = [
+            {"ticker": ticker, "cik": cik}
+            for ticker, cik in mapping.items()
+        ]
+    else:
+        frame = pd.DataFrame(mapping).copy()
+        cik_column = "cik" if "cik" in frame.columns else "cik_str"
+        if "ticker" not in frame.columns or cik_column not in frame.columns:
+            raise ValueError("Ticker-CIK data requires ticker and cik columns")
+        rows = frame.rename(columns={cik_column: "cik"}).to_dict(
+            orient="records"
+        )
+
+    normalized = {}
+    for row in rows:
+        ticker = str(row.get("ticker") or "").strip().upper()
+        try:
+            cik = int(row.get("cik"))
+        except (TypeError, ValueError):
+            continue
+        if not ticker or cik <= 0:
+            continue
+        previous = normalized.get(ticker)
+        if previous is not None and previous != cik:
+            raise ValueError(
+                f"Ticker-CIK data maps {ticker} to multiple CIKs"
+            )
+        normalized[ticker] = cik
+    if not normalized:
+        raise ValueError("Ticker-CIK data contains no valid mappings")
+    return normalized
+
+
+def extract_cik_from_filing_metadata(filings):
+    """Extract the registrant CIK from Yahoo SEC filing metadata URLs."""
+    exhibit_candidates = []
+    for filing in filings or []:
+        if not isinstance(filing, dict):
+            continue
+        edgar_url = str(filing.get("edgarUrl") or "")
+        match = re.search(r"_([0-9]{1,10})(?:[/?#]|$)", edgar_url)
+        if match:
+            return int(match.group(1))
+        for exhibit_url in dict(filing.get("exhibits") or {}).values():
+            match = re.search(
+                r"/sec-filings/0*([0-9]{1,10})/",
+                str(exhibit_url),
+            )
+            if match:
+                exhibit_candidates.append(int(match.group(1)))
+    return exhibit_candidates[0] if exhibit_candidates else None
+
+
+def parse_ticker_cik_map(payload):
+    """Parse the SEC company_tickers payload into an uppercase ticker map."""
+    mapping = {}
+    rows = payload.values() if isinstance(payload, dict) else payload
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        ticker = str(row.get("ticker") or "").strip().upper()
+        try:
+            cik = int(row.get("cik_str"))
+        except (TypeError, ValueError):
+            continue
+        if ticker:
+            mapping[ticker] = cik
+    return mapping
+
+
+def _concept_entries(company_facts, concept_name):
+    entries = []
+    for taxonomy, tag, preferred_units in CONCEPTS[concept_name]:
+        concept = (
+            company_facts.get("facts", {})
+            .get(taxonomy, {})
+            .get(tag, {})
+        )
+        units = concept.get("units", {})
+        for unit in preferred_units:
+            for raw in units.get(unit, []):
+                try:
+                    value = float(raw.get("val"))
+                except (TypeError, ValueError):
+                    continue
+                if not np.isfinite(value):
+                    continue
+                entry = {
+                    **raw,
+                    "val": value,
+                    "taxonomy": taxonomy,
+                    "tag": tag,
+                    "unit": unit,
+                }
+                for key in ("filed", "start", "end"):
+                    if entry.get(key):
+                        entry[key] = pd.Timestamp(entry[key])
+                entries.append(entry)
+    return entries
+
+
+def _duration_days(entry):
+    start = entry.get("start")
+    end = entry.get("end")
+    if start is None or end is None:
+        return None
+    return int((pd.Timestamp(end) - pd.Timestamp(start)).days)
+
+
+def _annual_entries(company_facts, concept_name):
+    return [
+        entry
+        for entry in _concept_entries(company_facts, concept_name)
+        if entry.get("form") in ANNUAL_FORMS
+        and entry.get("filed") is not None
+        and entry.get("end") is not None
+        and _duration_days(entry) is not None
+        and 250 <= _duration_days(entry) <= 450
+    ]
+
+
+def annual_filing_anchors(company_facts):
+    """Return unique annual report accessions using filing date as availability."""
+    anchors = {}
+    for concept_name in ("net_income", "revenue", "operating_cash_flow"):
+        for entry in _annual_entries(company_facts, concept_name):
+            accession = str(entry.get("accn") or "").strip()
+            if not accession:
+                continue
+            key = (accession, pd.Timestamp(entry["end"]))
+            candidate = {
+                "accn": accession,
+                "filed": pd.Timestamp(entry["filed"]),
+                "report_end": pd.Timestamp(entry["end"]),
+                "report_start": pd.Timestamp(entry["start"]),
+                "form": entry.get("form"),
+            }
+            previous = anchors.get(key)
+            if previous is None or candidate["filed"] < previous["filed"]:
+                anchors[key] = candidate
+    return sorted(
+        anchors.values(),
+        key=lambda item: (item["filed"], item["report_end"], item["accn"]),
+    )
+
+
+def _select_fact(
+    company_facts,
+    concept_name,
+    anchor,
+    duration,
+):
+    entries = (
+        _annual_entries(company_facts, concept_name)
+        if duration
+        else _concept_entries(company_facts, concept_name)
+    )
+    eligible = [
+        entry
+        for entry in entries
+        if entry.get("filed") is not None
+        and pd.Timestamp(entry["filed"]) <= anchor["filed"]
+        and entry.get("end") is not None
+        and pd.Timestamp(entry["end"]) <= anchor["report_end"]
+    ]
+    exact = [
+        entry
+        for entry in eligible
+        if entry.get("accn") == anchor["accn"]
+        and pd.Timestamp(entry["end"]) == anchor["report_end"]
+    ]
+    candidates = exact or eligible
+    if not candidates:
+        return None
+    candidates.sort(
+        key=lambda entry: (
+            pd.Timestamp(entry["end"]),
+            pd.Timestamp(entry["filed"]),
+            bool(entry.get("accn") == anchor["accn"]),
+        )
+    )
+    return candidates[-1]
+
+
+def _safe_ratio(numerator, denominator):
+    if numerator is None or denominator is None:
+        return np.nan
+    numerator = float(numerator)
+    denominator = float(denominator)
+    if not np.isfinite(numerator) or not np.isfinite(denominator):
+        return np.nan
+    if abs(denominator) <= 1e-12:
+        return np.nan
+    return float(numerator / denominator)
+
+
+def _price_on_or_before(price_series, date):
+    prices = pd.Series(price_series, dtype=float).copy()
+    prices.index = pd.to_datetime(prices.index)
+    prices = prices.sort_index().replace([np.inf, -np.inf], np.nan).dropna()
+    eligible = prices.loc[prices.index <= pd.Timestamp(date)]
+    if eligible.empty or float(eligible.iloc[-1]) <= 0:
+        return None
+    return float(eligible.iloc[-1])
+
+
+def build_company_pit_features(
+    ticker,
+    company_facts,
+    submissions,
+    price_series,
+    start_date=None,
+    end_date=None,
+):
+    """Build annual filing-date features for one company without future facts."""
+    ticker = str(ticker).strip().upper()
+    sector = sic_sector(submissions.get("sic"))
+    rows = []
+    for anchor in annual_filing_anchors(company_facts):
+        available_date = anchor["filed"]
+        if start_date and available_date < pd.Timestamp(start_date):
+            continue
+        if end_date and available_date > pd.Timestamp(end_date):
+            continue
+
+        selected = {
+            "net_income": _select_fact(
+                company_facts,
+                "net_income",
+                anchor,
+                duration=True,
+            ),
+            "revenue": _select_fact(
+                company_facts,
+                "revenue",
+                anchor,
+                duration=True,
+            ),
+            "gross_profit": _select_fact(
+                company_facts,
+                "gross_profit",
+                anchor,
+                duration=True,
+            ),
+            "operating_cash_flow": _select_fact(
+                company_facts,
+                "operating_cash_flow",
+                anchor,
+                duration=True,
+            ),
+            "assets": _select_fact(
+                company_facts,
+                "assets",
+                anchor,
+                duration=False,
+            ),
+            "current_assets": _select_fact(
+                company_facts,
+                "current_assets",
+                anchor,
+                duration=False,
+            ),
+            "current_liabilities": _select_fact(
+                company_facts,
+                "current_liabilities",
+                anchor,
+                duration=False,
+            ),
+            "shares": _select_fact(
+                company_facts,
+                "shares",
+                anchor,
+                duration=False,
+            ),
+        }
+        values = {
+            name: None if entry is None else float(entry["val"])
+            for name, entry in selected.items()
+        }
+        filing_price = _price_on_or_before(price_series, available_date)
+        shares = values["shares"]
+        market_cap = (
+            None
+            if filing_price is None
+            or shares is None
+            or shares <= 0
+            else float(filing_price * shares)
+        )
+        assets = values["assets"]
+        net_income = values["net_income"]
+        operating_cash_flow = values["operating_cash_flow"]
+        quality_numerator = (
+            operating_cash_flow
+            if operating_cash_flow is not None
+            else net_income
+        )
+        quality = _safe_ratio(quality_numerator, assets)
+        profitability = _safe_ratio(
+            values["gross_profit"],
+            values["revenue"],
+        )
+        if not np.isfinite(profitability):
+            profitability = _safe_ratio(
+                net_income,
+                values["revenue"],
+            )
+        valuation = _safe_ratio(net_income, market_cap)
+        liquidity = _safe_ratio(
+            values["current_assets"],
+            values["current_liabilities"],
+        )
+        if market_cap is None or market_cap <= 0:
+            continue
+        rows.append(
+            {
+                "available_date": available_date,
+                "ticker": ticker,
+                "sector": sector,
+                "market_cap": market_cap,
+                "quality": quality,
+                "profitability": profitability,
+                "valuation": valuation,
+                "liquidity": liquidity,
+                "filing_accession": anchor["accn"],
+                "filing_form": anchor["form"],
+                "report_end": anchor["report_end"],
+                "filing_price": filing_price,
+                "shares_outstanding": shares,
+            }
+        )
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "available_date",
+                "ticker",
+                "sector",
+                "market_cap",
+                "quality",
+                "profitability",
+                "valuation",
+                "liquidity",
+                "filing_accession",
+                "filing_form",
+                "report_end",
+                "filing_price",
+                "shares_outstanding",
+            ]
+        )
+    return (
+        pd.DataFrame(rows)
+        .sort_values(["available_date", "ticker"])
+        .drop_duplicates(["ticker", "available_date"], keep="last")
+        .reset_index(drop=True)
+    )
+
+
+def build_sec_pit_features(
+    tickers,
+    prices,
+    client,
+    start_date=None,
+    end_date=None,
+    refresh=False,
+):
+    """Fetch SEC facts and construct a long-form PIT feature dataset."""
+    prices = pd.DataFrame(prices).copy()
+    prices.index = pd.to_datetime(prices.index)
+    ticker_map = client.ticker_cik_map(refresh=refresh)
+    frames = []
+    failures = {}
+    metadata = {}
+    for ticker in [str(value).strip().upper() for value in tickers]:
+        cik = ticker_map.get(ticker)
+        if cik is None:
+            failures[ticker] = "ticker_not_in_sec_mapping"
+            continue
+        if ticker not in prices.columns:
+            failures[ticker] = "price_history_missing"
+            continue
+        try:
+            facts = client.company_facts(cik, refresh=refresh)
+            submissions = client.submissions(cik, refresh=refresh)
+            frame = build_company_pit_features(
+                ticker,
+                facts,
+                submissions,
+                prices[ticker],
+                start_date=start_date,
+                end_date=end_date,
+            )
+            if frame.empty:
+                failures[ticker] = "no_usable_annual_filing_features"
+                continue
+            frames.append(frame)
+            metadata[ticker] = {
+                "cik": int(cik),
+                "entity_name": facts.get("entityName"),
+                "sic": submissions.get("sic"),
+                "sic_description": submissions.get("sicDescription"),
+                "row_count": int(len(frame)),
+            }
+        except Exception as exc:
+            failures[ticker] = f"{type(exc).__name__}: {exc}"
+    features = (
+        pd.concat(frames, ignore_index=True)
+        if frames
+        else pd.DataFrame()
+    )
+    provenance = {
+        "source": getattr(
+            client,
+            "source_description",
+            "SEC EDGAR companyfacts and submissions APIs",
+        ),
+        "availability_policy": "SEC filing date; filed <= signal as-of date",
+        "feature_policy": {
+            "quality": "operating_cash_flow/assets; net_income/assets fallback",
+            "profitability": "gross_profit/revenue; net_margin fallback",
+            "valuation": "net_income/(filing-date price * shares)",
+            "liquidity": "current_assets/current_liabilities",
+            "market_cap": "filing-date price * reported shares outstanding",
+        },
+        "tickers_requested": [
+            str(value).strip().upper() for value in tickers
+        ],
+        "tickers_completed": sorted(metadata),
+        "company_metadata": metadata,
+        "failures": failures,
+    }
+    return features, provenance

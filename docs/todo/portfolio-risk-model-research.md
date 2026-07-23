@@ -1,0 +1,60 @@
+# TODO - Portfolio Risk Model Research
+
+- 등록 일시: 2026-07-23 20:40 (KST)
+- 작성자: Codex
+- 에이전트: Codex
+- 현재 상태: robust/regime/CVaR/nested/stability/resampled/OOS covariance ensemble 후보 statistical research 탈락, 기본 Ledoit-Wolf 유지
+
+> 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
+
+## 배경
+
+- 기존 backtest와 optimizer는 Ledoit-Wolf shrinkage covariance를 사용해 sample covariance보다 안정적인 기본선을 이미 갖고 있습니다.
+- 2005-2013 sector ETF research split에서 Ledoit-Wolf 50%, OAS 30%, 180일 exponential covariance 20% blend minimum variance가 기존 minimum variance보다 CAGR, volatility, Sharpe, max drawdown을 모두 소폭 개선했습니다.
+- specification을 freeze해 기존 4-case validation에 보냈지만 defensive case만 통과하고 전체 1/4로 탈락했습니다.
+- validation 결과를 이용해 blend weight/span을 재튜닝하지 않습니다.
+
+## 완료 기반
+
+- exact capped-simplex long-only weight projection
+- covariance PSD/condition number/effective-rank diagnostics
+- robust shrinkage/exponential covariance blend research candidate
+- exact equal-risk-contribution SLSQP allocator
+- hierarchical risk parity allocator
+- research-only risk comparison CLI
+- frozen candidate 4-case validation CLI
+
+## 다음 연구
+
+- validation과 겹치지 않는 새 research universe/period에서 covariance estimator error와 realized risk forecast error를 직접 측정합니다.
+- covariance half-life와 estimator blend는 nested research walk-forward 안에서만 선택합니다.
+- 현재 구현한 hard regime switch는 fresh research에서 baseline을 이기지 못했으므로 폐기하거나 continuous shrinkage로 재설계합니다.
+- nested estimator selection은 volatility와 drawdown을 낮췄지만 Sharpe 하락과 turnover 증가로 탈락했습니다. estimator 선택보다 covariance ensemble과 weight stability penalty를 우선 연구합니다.
+- volatility targeting, drawdown budget, correlation shock stress를 risk-only gate에 추가합니다.
+- 새 specification을 freeze한 뒤에만 4-case validation을 다시 실행합니다.
+- 모든 validation을 통과하기 전 locked holdout은 실행하지 않습니다.
+
+## 2026-07-23 추가 연구
+
+- style/value/growth/small/mid/credit/REIT ETF 10종, 2008-2013 fresh research split을 사용했습니다.
+- robust minimum variance는 Ledoit-Wolf보다 volatility `0.1091 < 0.1092`, Sharpe `0.9998 > 0.9974`, max drawdown `-0.1274 > -0.1278`로 미세 우위였지만 기존 frozen validation 탈락 결정을 뒤집지 않습니다.
+- regime minimum variance와 historical minimum-CVaR는 가장 가까운 minimum-variance baseline을 통과하지 못했습니다.
+- train-window 내부 252/63 nested walk-forward로 Ledoit-Wolf/OAS/exponential 60/180/static blend를 고르는 후보는 volatility `0.1065`, max drawdown `-0.1260`으로 개선했지만 Sharpe `0.9186`으로 하락했고 average controlled turnover가 `0.2296`으로 증가해 탈락했습니다.
+- Transformer hyperparameter 확장보다 risk-estimation error, portfolio construction stability, signal target/data quality를 먼저 개선합니다.
+
+## 2026-07-23 통계/PIT 추가
+
+- predicted-versus-realized period volatility의 bias, MAE, ratio를 추가했습니다.
+- paired 21일 circular block bootstrap 2,000회에서 volatility와 Sharpe 개선 확률 95%를 요구합니다.
+- 동일 split의 동시 후보 비교는 Holm-Bonferroni family-wise correction을 적용합니다.
+- country ETF research에서 deterministic gate를 통과했던 robust/ERC/regime/minimum-CVaR도 Sharpe 개선 확률이 각각 `74.10%`, `82.60%`, `83.65%`, `80.25%`에 그쳐 모두 탈락했습니다.
+- stability-regularized, resampled minimum variance와 inverse-vol scaled momentum도 별도 fresh research에서 탈락했습니다.
+- continuous regime covariance v2는 절대 상관 임계치를 제거하고 normal Ledoit-Wolf에서 stress covariance로 연속 혼합했지만 fresh industrial-stock research에서 baseline을 이기지 못했습니다.
+- OOS covariance ensemble은 252/63 inner fold에서 Ledoit-Wolf, OAS, exponential 60/180, static blend의 covariance/correlation/variance-calibration loss를 점수화하고 soft weight로 결합합니다.
+- fixed-income ETF 8종 2008-2013 fresh research에서 504일 outer train을 사용했을 때 volatility `0.0273 < 0.0280`, Sharpe `0.5265 > 0.5119`, max drawdown `-0.0545 > -0.0548`로 deterministic 개선했습니다.
+- 그러나 paired bootstrap에서 lower-volatility 확률은 `99.50%`, higher-Sharpe 확률은 `62.60%`에 그쳐 95% joint gate와 Holm correction을 통과하지 못했습니다. validation은 실행하지 않습니다.
+- 252일 outer train은 252/63 inner fold를 만들 수 없어 Ledoit-Wolf fallback과 동일해집니다. research CLI는 이 후보에 `train_window >= 315`를 강제합니다.
+
+## 참고
+
+- 결과 보고서: `docs/reports/260723-2040-01-risk-allocator-research.md`
