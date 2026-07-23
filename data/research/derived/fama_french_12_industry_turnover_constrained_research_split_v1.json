@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-12-industry-turnover-constrained-research-2000-2011-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2011-12-30",
+  "experiment_namespace": "allocator-v4-turnover-constrained-minvar-industry-portfolios",
+  "objectives": [
+    "turnover_constrained_minimum_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "turnover_constrained_minimum_variance",
+    "statistical_baselines": [
+      "min_variance",
+      "risk_parity",
+      "lightweight_bl"
+    ],
+    "guard_baselines": [
+      "equal_weight",
+      "historical_bl"
+    ],
+    "models": [
+      "equal_weight",
+      "historical_bl",
+      "min_variance",
+      "risk_parity",
+      "lightweight_bl",
+      "turnover_constrained_minimum_variance"
+    ],
+    "candidate_policy": {
+      "objective": "long_only_minimum_variance",
+      "covariance": "ledoit_wolf_constant_variance",
+      "constraint": "prior_target_l1_turnover",
+      "max_target_turnover": 0.35,
+      "initial_allocation": "unconstrained_minimum_variance",
+      "solver": "clarabel_convex_quadratic_program",
+      "expected_returns": "unused",
+      "forecast_model": "unused"
+    }
+  },
+  "universe_manifest_sha256": "f5cd9ec046bfde0e8f809ab0280f88bdfbd8694d288b6fefb88c94b1048fa2b2",
+  "price_file_sha256": "f605a517f68d3c2315b3882966e2513f3a656e026db478eddef9707b5921e579",
+  "factor_file_sha256": "ec66ea8c568369a6dc14cad574a143897af95c0b0cea9bd5fd15e23a9fb70cbc",
+  "auxiliary_files": {
+    "price_provenance": "0e9030fd1cb82eca4fbf7d338a5ee8ccd30831507eea89ba97cd09ac0c37190c",
+    "risk_free_provenance": "9aa444b3f9a10525279dc7bcdddad4a5d38f4b0e6dd399591c83571d15ffddf7"
+  },
+  "locked": true,
+  "manifest_sha256": "b14ac3d77540259c498e686b84221cd5128e37259c8b751123035812a01bbcd0"
+}

@@ -160,6 +160,29 @@ def test_constant_correlation_policy_is_return_forecast_free():
     assert policy["forecast_model"] == "unused"
 
 
+def test_turnover_constrained_policy_is_exact_and_forecast_free():
+    policy = research_minvar_promotion.CANDIDATE_POLICIES[
+        "turnover_constrained_minimum_variance"
+    ]
+
+    assert policy["constraint"] == "prior_target_l1_turnover"
+    assert policy["max_target_turnover"] == 0.35
+    assert policy["solver"] == (
+        "clarabel_convex_quadratic_program"
+    )
+    assert policy["expected_returns"] == "unused"
+
+
+def test_turnover_candidate_rejects_manifest_setting_drift():
+    args = type("Args", (), {"max_turnover": 0.20})()
+
+    with pytest.raises(ValueError, match="max_target_turnover"):
+        research_minvar_promotion._validate_candidate_arguments(
+            args,
+            "turnover_constrained_minimum_variance",
+        )
+
+
 def test_replication_requires_unchanged_prior_candidate(tmp_path):
     prior = tmp_path / "prior.json"
     prior.write_text(

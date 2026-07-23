@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: constant-correlation minvar가 독립 복제에서도 closest-baseline gate 탈락
+- 현재 상태: exact turnover-constrained minvar도 closest-baseline statistical gate 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -164,6 +164,11 @@
 - Candidate는 다시 minvar 대비 CAGR `10.55%→10.64%`, volatility `20.53%→20.46%`, Sharpe `0.4811→0.4860`, drawdown `-55.34%→-54.97%`로 deterministic 개선을 반복했습니다.
 - Risk parity와 lightweight 대비 lower-volatility/higher-Sharpe는 모두 `99.95%+`였지만 closest minvar 대비 확률은 `96.85%/83.00%`, Holm-adjusted p-value `0.0630/0.1700`이었습니다.
 - Unchanged replication도 full gate에 실패했으므로 candidate를 최종 폐기합니다. Validation/locked holdout은 열지 않습니다.
+- Post-hoc turnover scaling 대신 prior target과 새 target의 L1 distance를 convex optimizer 내부에서 직접 제한하는 execution-aware minvar를 구현했습니다.
+- Target turnover limit를 rebalance-target cache signature에 포함해 다른 execution setting으로 잘못 재사용되는 것을 차단했습니다.
+- Official French 12-industry `2000~2011` locked research에서 candidate는 minvar 대비 volatility `17.11%→17.09%`, Sharpe `0.3265→0.3272`, drawdown `-42.77%→-42.62%`로 deterministic gate를 통과했습니다.
+- 그러나 minvar 대비 P(higher Sharpe)는 `60.25%`, Holm-adjusted p-value `0.3975`였습니다. 평균 controlled turnover도 `11.44%→11.71%`로 감소하지 않았습니다.
+- 35% exact constraint는 첫 배치 제외 47회 중 1회(`2.13%`)만 binding했습니다. 같은 split에서 limit를 10%/20%로 낮춰 재튜닝하지 않고 validation/holdout을 봉인합니다.
 
 ## 금지
 

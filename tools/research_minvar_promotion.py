@@ -71,6 +71,16 @@ CANDIDATE_POLICIES = {
         "expected_returns": "unused",
         "forecast_model": "unused",
     },
+    "turnover_constrained_minimum_variance": {
+        "objective": "long_only_minimum_variance",
+        "covariance": "ledoit_wolf_constant_variance",
+        "constraint": "prior_target_l1_turnover",
+        "max_target_turnover": 0.35,
+        "initial_allocation": "unconstrained_minimum_variance",
+        "solver": "clarabel_convex_quadratic_program",
+        "expected_returns": "unused",
+        "forecast_model": "unused",
+    },
 }
 
 
@@ -224,6 +234,9 @@ def _write_report(
         "constant_correlation_minimum_variance": (
             "Constant-Correlation Minimum-Variance Promotion Research"
         ),
+        "turnover_constrained_minimum_variance": (
+            "Turnover-Constrained Minimum-Variance Promotion Research"
+        ),
     }
     title = titles[candidate]
     lines = [
@@ -346,6 +359,16 @@ def _candidate_risk_diagnostics(result, candidate):
             if item.get("method")
         })
     }
+    target_turnovers = [
+        float(item["target_turnover"])
+        for item in diagnostics
+        if item.get("target_turnover") is not None
+    ]
+    constraint_bindings = [
+        bool(item.get("constraint_binding"))
+        for item in diagnostics
+        if item.get("target_turnover") is not None
+    ]
     return {
         "rebalance_count": int(len(diagnostics)),
         "method_distribution": methods,
@@ -395,6 +418,23 @@ def _candidate_risk_diagnostics(result, candidate):
             if not shrinkage_intensities
             else float(max(shrinkage_intensities))
         ),
+        "mean_target_turnover": (
+            None
+            if not target_turnovers
+            else float(sum(target_turnovers) / len(target_turnovers))
+        ),
+        "maximum_target_turnover": (
+            None
+            if not target_turnovers
+            else float(max(target_turnovers))
+        ),
+        "turnover_constraint_binding_rate": (
+            None
+            if not constraint_bindings
+            else float(
+                sum(constraint_bindings) / len(constraint_bindings)
+            )
+        ),
         "first_clusters": diagnostics[0].get("clusters"),
         "last_clusters": diagnostics[-1].get("clusters"),
     }
@@ -439,6 +479,21 @@ def _load_replication(args, candidate):
         "candidate_specification": "unchanged",
         "prior_deterministic_gate": "passed",
     }, {"prior_result": digest}
+
+
+def _validate_candidate_arguments(args, candidate):
+    policy = CANDIDATE_POLICIES[candidate]
+    declared_turnover = policy.get("max_target_turnover")
+    if (
+        declared_turnover is not None
+        and abs(
+            float(args.max_turnover) - float(declared_turnover)
+        )
+        > 1e-12
+    ):
+        raise ValueError(
+            "Candidate max_target_turnover must match --max-turnover"
+        )
 
 
 def main(argv=None):
@@ -490,6 +545,7 @@ def main(argv=None):
 
     try:
         candidate = args.candidate
+        _validate_candidate_arguments(args, candidate)
         statistical_baselines = tuple(args.statistical_baselines)
         guard_baselines = tuple(args.guard_baselines)
         if candidate in (*statistical_baselines, *guard_baselines):

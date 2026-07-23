@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: constant-correlation shrinkage가 독립 복제에서도 closest minvar 통계 gate 탈락
+- 현재 상태: exact turnover-constrained minvar도 closest minvar 통계 gate 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -147,6 +147,18 @@
 - 두 independent universe에서 deterministic 방향은 반복됐지만 closest-baseline Sharpe uplift를 95%로 증명하지 못했습니다.
 - Candidate를 최종 폐기하고 validation/holdout을 봉인합니다.
 - 보고서: `docs/reports/260724-0643-01-constant-correlation-replication.md`
+
+## 2026-07-24 exact turnover-constrained minimum variance
+
+- 기존 stability L2 penalty와 post-hoc proportional scaling과 다른 exact convex L1 turnover constraint를 추가했습니다.
+- 첫 allocation은 unconstrained Ledoit-Wolf minvar, 이후 target은 `||w_t-w_(t-1)||₁≤35%`를 CLARABEL로 직접 풉니다.
+- Target turnover limit를 rebalance-target signature에 넣어 cache setting mismatch를 거부합니다.
+- Official French 12-industry `2000~2011` fresh split에서 candidate volatility/Sharpe `17.09%/0.3272`는 minvar `17.11%/0.3265`보다 미세하게 개선됐습니다.
+- Candidate maximum target turnover는 `34.9994%`, solver success는 `100%`로 exact constraint가 작동했습니다.
+- 하지만 constraint binding rate는 `2.13%`뿐이고 average controlled turnover는 minvar `11.44%`보다 높은 `11.71%`였습니다.
+- Minvar 대비 P(lower volatility/higher Sharpe)는 `100%/60.25%`, Holm-adjusted higher-Sharpe p-value는 `0.3975`였습니다.
+- Candidate를 폐기하고 같은 split에서 turnover limit를 재튜닝하지 않습니다. Validation/holdout은 열지 않습니다.
+- 보고서: `docs/reports/260724-0652-01-turnover-constrained-minvar-research.md`
 
 ## 2026-07-24 RMT research
 

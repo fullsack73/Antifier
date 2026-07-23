@@ -1,5 +1,6 @@
 """Robust covariance and risk-only allocators for portfolio research."""
 
+import cvxpy as cp
 import numpy as np
 import pandas as pd
 from pypfopt import EfficientCVaR, EfficientFrontier, HRPOpt, risk_models
@@ -1270,6 +1271,122 @@ def stability_regularized_minimum_variance_weights(
             "previous_target" if valid_previous else "inverse_volatility"
         ),
         "reference_l1_distance": float((weights - reference).abs().sum()),
+        "covariance": covariance_diagnostics(covariance),
+    }
+
+
+def turnover_constrained_minimum_variance_weights(
+    price_data,
+    previous_weights=None,
+    max_asset_weight=0.20,
+    max_target_turnover=0.35,
+):
+    """Solve minimum variance with an exact prior-target L1 constraint."""
+    prices = _clean_prices(price_data)
+    tickers = list(prices.columns)
+    covariance = risk_models.CovarianceShrinkage(prices).ledoit_wolf()
+    covariance = covariance.reindex(index=tickers, columns=tickers)
+    matrix = covariance.to_numpy(dtype=float)
+    asset_count = len(tickers)
+    cap = max(
+        float(max_asset_weight),
+        1.0 / max(1, asset_count) + 1e-9,
+    )
+    reference = pd.Series(
+        {} if previous_weights is None else previous_weights,
+        dtype=float,
+    ).reindex(tickers)
+    valid_previous = bool(
+        previous_weights is not None
+        and reference.notna().sum() == asset_count
+        and float(reference.fillna(0.0).clip(lower=0.0).sum()) > 0.0
+    )
+    if not valid_previous:
+        weights, success = _minimum_variance_from_covariance(
+            covariance,
+            tickers,
+            max_asset_weight,
+        )
+        return weights, {
+            "method": (
+                "turnover_constrained_ledoit_wolf_minimum_variance"
+            ),
+            "optimizer_success": bool(success),
+            "solver_status": (
+                "unconstrained_initial_allocation"
+                if success
+                else "unconstrained_initial_fallback"
+            ),
+            "reference_source": "none_initial_allocation",
+            "max_target_turnover": float(
+                max(0.0, max_target_turnover)
+            ),
+            "target_turnover": None,
+            "constraint_binding": False,
+            "covariance": covariance_diagnostics(covariance),
+        }
+
+    reference = cap_and_normalize_weights(
+        reference,
+        max_asset_weight=max_asset_weight,
+    )
+    turnover_limit = max(0.0, float(max_target_turnover))
+    variable = cp.Variable(asset_count)
+    problem = cp.Problem(
+        cp.Minimize(
+            cp.quad_form(variable, cp.psd_wrap(matrix))
+        ),
+        (
+            cp.sum(variable) == 1.0,
+            variable >= 0.0,
+            variable <= min(1.0, cap),
+            cp.norm1(variable - reference.to_numpy(dtype=float))
+            <= turnover_limit,
+        ),
+    )
+    try:
+        problem.solve(
+            solver=cp.CLARABEL,
+            max_iter=1000,
+            tol_gap_abs=1e-10,
+            tol_feas=1e-10,
+        )
+        success = bool(
+            problem.status in {cp.OPTIMAL, cp.OPTIMAL_INACCURATE}
+            and variable.value is not None
+            and np.isfinite(variable.value).all()
+        )
+    except Exception:
+        success = False
+    raw = (
+        np.asarray(variable.value, dtype=float)
+        if success
+        else reference.to_numpy(dtype=float)
+    )
+    weights = cap_and_normalize_weights(
+        pd.Series(raw, index=tickers, dtype=float),
+        max_asset_weight=max_asset_weight,
+    )
+    target_turnover = float((weights - reference).abs().sum())
+    return weights, {
+        "method": "turnover_constrained_ledoit_wolf_minimum_variance",
+        "optimizer_success": bool(success),
+        "solver_status": str(problem.status),
+        "reference_source": "previous_target",
+        "max_target_turnover": turnover_limit,
+        "target_turnover": target_turnover,
+        "constraint_binding": bool(
+            target_turnover
+            >= max(
+                0.0,
+                turnover_limit
+                - max(1e-5, turnover_limit * 1e-4),
+            )
+        ),
+        "reference_weights": {
+            ticker: float(value)
+            for ticker, value in reference.items()
+        },
         "covariance": covariance_diagnostics(covariance),
     }
 

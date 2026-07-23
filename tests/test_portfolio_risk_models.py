@@ -41,6 +41,7 @@ from portfolio_risk_models import (  # noqa: E402
     stability_regularized_minimum_variance_weights,
     trend_filtered_minimum_variance_weights,
     trend_filtered_risk_parity_weights,
+    turnover_constrained_minimum_variance_weights,
     volatility_targeted_minimum_variance_weights,
 )
 
@@ -122,6 +123,7 @@ def test_constant_correlation_minvar_reports_shrinkage_target():
         cross_validated_minimum_variance_weights,
         forecast_ensemble_minimum_variance_weights,
         stability_regularized_minimum_variance_weights,
+        turnover_constrained_minimum_variance_weights,
         nested_blended_minimum_variance_weights,
         resampled_minimum_variance_weights,
         scenario_robust_minimum_variance_weights,
@@ -264,6 +266,72 @@ def test_backtest_runs_constant_correlation_minimum_variance_model():
         == "constant_correlation"
         for record in result["rebalance_records"]
     )
+
+
+def test_turnover_constrained_minvar_respects_exact_l1_limit():
+    prices = _correlated_prices()
+    reference = pd.Series(
+        1.0 / len(prices.columns),
+        index=prices.columns,
+    )
+
+    weights, diagnostics = (
+        turnover_constrained_minimum_variance_weights(
+            prices,
+            previous_weights=reference,
+            max_asset_weight=0.25,
+            max_target_turnover=0.10,
+        )
+    )
+
+    assert diagnostics["optimizer_success"] is True
+    assert diagnostics["solver_status"] == "optimal"
+    assert diagnostics["target_turnover"] <= 0.100001
+    assert diagnostics["constraint_binding"] is True
+    assert (weights - reference).abs().sum() <= 0.100001
+    assert weights.sum() == pytest.approx(1.0)
+    assert weights.max() <= 0.250001
+
+
+def test_backtest_turnover_constraint_is_in_target_signature():
+    prices = _correlated_prices()
+    targets = portfolio_backtest.build_rebalance_targets(
+        prices,
+        models=("turnover_constrained_minimum_variance",),
+        train_window=252,
+        rebalance_frequency=63,
+        forecast_horizon=63,
+        max_asset_weight=0.25,
+        target_turnover_limit=0.10,
+    )
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("turnover_constrained_minimum_variance",),
+        train_window=252,
+        rebalance_frequency=63,
+        forecast_horizon=63,
+        max_asset_weight=0.25,
+        max_turnover=0.10,
+        rebalance_targets=targets,
+    )
+
+    constrained_records = result["rebalance_records"][1:]
+    assert constrained_records
+    assert all(
+        record["risk_model"]["target_turnover"] <= 0.100001
+        for record in constrained_records
+    )
+    with pytest.raises(ValueError, match="rebalance_targets"):
+        portfolio_backtest.run_portfolio_model_backtest(
+            prices,
+            models=("turnover_constrained_minimum_variance",),
+            train_window=252,
+            rebalance_frequency=63,
+            forecast_horizon=63,
+            max_asset_weight=0.25,
+            max_turnover=0.20,
+            rebalance_targets=targets,
+        )
 
 
 def test_volatility_targeted_allocator_holds_cash_in_elevated_risk():

@@ -62,6 +62,7 @@ from portfolio_risk_models import (
     stability_regularized_minimum_variance_weights,
     trend_filtered_minimum_variance_weights,
     trend_filtered_risk_parity_weights,
+    turnover_constrained_minimum_variance_weights,
     volatility_targeted_minimum_variance_weights,
 )
 from portfolio_signals import (
@@ -134,6 +135,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
     "stability_regularized_min_variance",
+    "turnover_constrained_minimum_variance",
     "nested_blended_min_variance",
     "resampled_min_variance",
     "scenario_robust_min_variance",
@@ -885,7 +887,8 @@ def _price_signal_rank_tilt_weights(
 
 def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate,
                    market_caps=None, point_in_time_features=None,
-                   previous_target_weights=None):
+                   previous_target_weights=None,
+                   target_turnover_limit=DEFAULT_MAX_TURNOVER):
     tickers = list(train_prices.columns)
     if model_name == "equal_weight":
         return _equal_weights(tickers), {"failed_forecast_count": 0, "avg_forecast_confidence": None}
@@ -970,6 +973,21 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
                 train_prices,
                 previous_weights=previous_target_weights,
                 max_asset_weight=max_asset_weight,
+            )
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "turnover_constrained_minimum_variance":
+        weights, risk_diagnostics = (
+            turnover_constrained_minimum_variance_weights(
+                train_prices,
+                previous_weights=previous_target_weights,
+                max_asset_weight=max_asset_weight,
+                max_target_turnover=target_turnover_limit,
             )
         )
         return weights.to_dict(), {
@@ -1827,6 +1845,7 @@ def _rebalance_target_signature(
     point_in_time_features,
     market_caps_as_of_date,
     point_in_time_market_caps,
+    target_turnover_limit=None,
 ):
     market_caps = {} if market_caps is None else dict(market_caps)
     price_hashes = pd.util.hash_pandas_object(data, index=True).values
@@ -1861,7 +1880,7 @@ def _rebalance_target_signature(
             ).encode("utf-8"),
             digest_size=16,
         ).hexdigest()
-    return {
+    signature = {
         "start_date": data.index[0].strftime("%Y-%m-%d"),
         "end_date": data.index[-1].strftime("%Y-%m-%d"),
         "row_count": int(len(data)),
@@ -1886,6 +1905,13 @@ def _rebalance_target_signature(
         "risk_free_rate": float(risk_free_rate),
         "point_in_time_factor_digest": factor_digest,
     }
+    if "turnover_constrained_minimum_variance" in models:
+        signature["target_turnover_limit"] = (
+            None
+            if target_turnover_limit is None
+            else float(max(0.0, target_turnover_limit))
+        )
+    return signature
 
 
 def _market_caps_available_at(
@@ -1939,6 +1965,7 @@ def _build_rebalance_targets_for_data(
     point_in_time_features,
     market_caps_as_of_date,
     point_in_time_market_caps,
+    target_turnover_limit=DEFAULT_MAX_TURNOVER,
 ):
     records = []
     warnings = []
@@ -1973,6 +2000,7 @@ def _build_rebalance_targets_for_data(
                 market_caps=available_market_caps,
                 point_in_time_features=point_in_time_features,
                 previous_target_weights=previous_target_weights.get(model),
+                target_turnover_limit=target_turnover_limit,
             )
             allow_cash_reserve = bool(
                 diagnostics.get("allow_cash_reserve", False)
@@ -2046,6 +2074,7 @@ def _build_rebalance_targets_for_data(
             point_in_time_features,
             market_caps_as_of_date,
             point_in_time_market_caps,
+            target_turnover_limit,
         ),
         "records": records,
         "warnings": warnings,
@@ -2068,6 +2097,7 @@ def build_rebalance_targets(
     point_in_time_features=None,
     market_caps_as_of_date=None,
     point_in_time_market_caps=None,
+    target_turnover_limit=DEFAULT_MAX_TURNOVER,
 ):
     """Precompute model targets once so execution sensitivities can replay them cheaply."""
     train_window = int(train_window)
@@ -2092,6 +2122,7 @@ def build_rebalance_targets(
         point_in_time_features,
         market_caps_as_of_date,
         point_in_time_market_caps,
+        target_turnover_limit,
     )
 
 
@@ -2140,6 +2171,7 @@ def run_portfolio_model_backtest(
         point_in_time_features,
         market_caps_as_of_date,
         point_in_time_market_caps,
+        max_turnover,
     )
     reused_rebalance_targets = rebalance_targets is not None
     if rebalance_targets is None:
@@ -2156,6 +2188,7 @@ def run_portfolio_model_backtest(
             point_in_time_features,
             market_caps_as_of_date,
             point_in_time_market_caps,
+            max_turnover,
         )
     elif rebalance_targets.get("signature") != expected_target_signature:
         raise ValueError("rebalance_targets do not match the requested backtest data or model settings")
