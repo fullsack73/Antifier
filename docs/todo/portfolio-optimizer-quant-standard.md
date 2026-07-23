@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: trend-filtered risk parity validation과 maximum diversification research가 탈락
+- 현재 상태: quality-momentum research gate 통과, frozen validation 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -92,6 +92,8 @@
 - official French 25 size×value portfolio의 maximum-diversification allocator는 risk parity보다 volatility, Sharpe, drawdown을 평균적으로 개선했습니다.
 - 그러나 P(higher Sharpe) `75.55%`, Holm-adjusted p-value `0.2445`로 95% statistical gate에서 탈락했습니다. 같은 split 재튜닝과 validation을 금지합니다.
 - official French 25 size×operating-profitability의 50/50 profitability-momentum은 자체 signal gate를 통과했지만 raw momentum 대비 paired IC/spread 개선 확률이 `22.40%`/`45.05%`라 탈락했습니다.
+- official French 25 operating-profitability×investment의 frozen quality-momentum은 raw momentum 대비 IC `0.0668→0.1085`, spread `0.00697→0.01303`으로 개선했습니다.
+- paired P(higher IC/spread) `97.95%`/`98.55%`, Holm-adjusted p-value `0.0205`로 research gate를 통과했습니다. untouched 4-case validation 전 사양 변경을 금지합니다.
 
 ## 금지
 

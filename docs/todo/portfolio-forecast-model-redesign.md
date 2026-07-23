@@ -99,6 +99,8 @@
 - factor exposure 제거 자체가 Transformer hyperparameter 확대 근거를 만들지 못했으므로 residual window/factor set을 같은 결과에 맞춰 재튜닝하지 않습니다.
 - fresh French size×operating-profitability research에서 50/50 profitability-momentum은 자체 signal gate를 통과했지만 raw momentum보다 IC `-0.0226`, spread `-0.00036` 열위였습니다.
 - 새 fundamental feature도 paired uplift를 만들지 못했으므로 이 결과는 Transformer HPO 근거가 아닙니다.
+- OP×investment quality composite를 raw 12-1 momentum과 결합한 고정 선형 신호는 IC/spread paired improvement와 Holm gate를 통과했습니다.
+- 복잡한 Transformer HPO 없이 데이터/feature family 변경으로 uplift를 얻었습니다. frozen 4-case validation 전 architecture와 weight를 변경하지 않습니다.
 
 ## 선행조건
 
@@ -121,3 +123,4 @@
 - Fundamental momentum research: `docs/reports/260724-0111-01-fundamental-momentum-research.md`
 - Factor-residual momentum research: `docs/reports/260724-0210-01-factor-residual-momentum-research.md`
 - Profitability-momentum research: `docs/reports/260724-0226-01-profitability-momentum-research.md`
+- Quality-momentum research: `docs/reports/260724-0232-01-quality-momentum-research.md`

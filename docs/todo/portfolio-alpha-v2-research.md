@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: frozen nested PIT ridge가 독립 Nasdaq-100 locked holdout에서 탈락
+- 현재 상태: quality-momentum이 research gate를 통과해 frozen validation 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -96,6 +96,11 @@
 - official French 25 size×operating-profitability 1965~1999 research에서 12-1 momentum과 annual OP quintile을 50/50으로 고정 결합했습니다.
 - 후보 자체는 IC `0.0951`, spread `0.01221`로 개별 95% gate를 통과했지만 raw momentum의 IC `0.1177`, spread `0.01257`보다 낮았습니다.
 - paired P(higher IC/spread)는 `22.40%`/`45.05%`여서 폐기합니다. 같은 split에서 blend weight, momentum window, skip, horizon을 재튜닝하지 않습니다.
+- official French 25 operating-profitability×investment 1965~1999 research에서 momentum 50%, OP 25%, conservative investment 25%를 결과 확인 전에 고정했습니다.
+- quality-momentum은 raw momentum 대비 IC `0.0668→0.1085`, spread `0.00697→0.01303`으로 개선했습니다.
+- paired P(higher IC/spread)는 `97.95%`/`98.55%`, Holm-adjusted p-value는 `0.0205`로 candidate, paired, familywise gate를 모두 통과했습니다.
+- 후보를 freeze합니다. validation 전 momentum/OP/investment weight, lookback, skip, horizon을 변경하지 않습니다.
+- 다음 단계는 untouched 2000~2011의 full universe와 low/high OP, low/high investment 4-case validation입니다.
 
 ## 참고
 
@@ -111,3 +116,4 @@
 - Dual-horizon momentum 폐기: `docs/reports/260724-0129-01-dual-horizon-momentum-research.md`
 - Factor-residual momentum 폐기: `docs/reports/260724-0210-01-factor-residual-momentum-research.md`
 - Profitability-momentum 폐기: `docs/reports/260724-0226-01-profitability-momentum-research.md`
+- Quality-momentum freeze: `docs/reports/260724-0232-01-quality-momentum-research.md`

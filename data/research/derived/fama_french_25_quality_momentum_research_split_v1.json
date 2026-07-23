@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-quality-momentum-research-1965-1999-v1",
+  "role": "research",
+  "evaluation_start": "1965-07-02",
+  "evaluation_end": "1999-10-01",
+  "experiment_namespace": "alpha-v10-quality-momentum",
+  "objectives": [
+    "quality_momentum"
+  ],
+  "settings": {
+    "train_window": 505,
+    "horizon": 63,
+    "rebalance_step": 63,
+    "momentum_lookback": 252,
+    "momentum_skip": 21,
+    "momentum_weight": 0.5,
+    "profitability_signal": "official_annual_operating_profitability_quintile",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "profitability_weight": 0.25,
+    "conservative_investment_weight": 0.25,
+    "investment_signal": "inverse_official_annual_investment_quintile"
+  },
+  "universe_manifest_sha256": "4116f11c664f2ec1f7150cfafba279f6a89cb26f82e454e63a6259fc7ea032b5",
+  "price_file_sha256": "d8e7da2b8d6491ce339353f50dd6f2f9e10219ed764cb97ba58209dcda4eeaa0",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "7af92f6025c1fd4db2e8f9a66ef88cba396af5504f108eacf628d14cc2dfe150"
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate fixed profitability-plus-momentum against raw 12-1 momentum."""
+"""Evaluate fixed fundamental-plus-momentum signals against raw momentum."""
 
 import argparse
 import hashlib
@@ -32,6 +32,7 @@ from research_split import validate_research_split_run  # noqa: E402
 
 
 CANDIDATE = "profitability_momentum"
+QUALITY_CANDIDATE = "quality_momentum"
 BASELINE = "momentum_12_1"
 MOMENTUM_WEIGHT = 0.50
 
@@ -49,12 +50,12 @@ def operating_profitability_buckets(tickers):
     values = {}
     for ticker in tickers:
         label = str(ticker).strip()
-        if label.endswith("LoOP"):
+        if "LoOP" in label:
             bucket = 1
-        elif label.endswith("HiOP"):
+        elif "HiOP" in label:
             bucket = 5
         else:
-            match = re.search(r"\bOP([1-5])$", label)
+            match = re.search(r"\bOP([1-5])(?:\s|$)", label)
             if match is None:
                 raise ValueError(
                     f"Cannot parse operating-profitability bucket: {label}"
@@ -64,8 +65,36 @@ def operating_profitability_buckets(tickers):
     return pd.Series(values, dtype=float)
 
 
+def investment_buckets(tickers):
+    """Parse fixed investment quintiles from official French labels."""
+    values = {}
+    for ticker in tickers:
+        label = str(ticker).strip()
+        if "LoINV" in label:
+            bucket = 1
+        elif "HiINV" in label:
+            bucket = 5
+        else:
+            match = re.search(r"\bINV([1-5])(?:\s|$)", label)
+            if match is None:
+                raise ValueError(
+                    f"Cannot parse investment bucket: {label}"
+                )
+            bucket = int(match.group(1))
+        values[label] = float(bucket)
+    return pd.Series(values, dtype=float)
+
+
+def _candidate_name(args):
+    return (
+        QUALITY_CANDIDATE
+        if args.signal_kind == "quality"
+        else CANDIDATE
+    )
+
+
 def _settings(args):
-    return {
+    settings = {
         "train_window": int(args.train_window),
         "horizon": int(args.horizon),
         "rebalance_step": int(args.rebalance_step),
@@ -83,6 +112,14 @@ def _settings(args):
             args.bootstrap_minimum_probability
         ),
     }
+    if args.signal_kind == "quality":
+        settings.pop("profitability_weight")
+        settings["profitability_weight"] = 0.25
+        settings["conservative_investment_weight"] = 0.25
+        settings["investment_signal"] = (
+            "inverse_official_annual_investment_quintile"
+        )
+    return settings
 
 
 def _load_prices(args):
@@ -151,7 +188,7 @@ def _period_record(period_id, forward_end, scores, realized):
     }
 
 
-def _run_periods(prices, profitability, args):
+def _run_periods(prices, fundamental_signal, args):
     candidate_periods = []
     baseline_periods = []
     last_position = len(prices) - int(args.horizon) - 1
@@ -167,7 +204,7 @@ def _run_periods(prices, profitability, args):
         forward_end = prices.index[position + int(args.horizon)]
         candidate_scores = profitability_momentum_scores(
             train_prices,
-            profitability,
+            fundamental_signal,
             momentum_weight=MOMENTUM_WEIGHT,
         )
         baseline_scores = momentum_12_1(train_prices)
@@ -196,7 +233,7 @@ def _run_periods(prices, profitability, args):
     return candidate_periods, baseline_periods
 
 
-def _paired_gate(paired, minimum_probability):
+def _paired_gate(paired, minimum_probability, candidate_name):
     probability = paired.get("probability", {})
     reasons = []
     if paired.get("status") != "ok":
@@ -225,9 +262,9 @@ def _paired_gate(paired, minimum_probability):
             - probability["higher_mean_top_bottom_spread"],
         )
     holm = holm_bonferroni(
-        {CANDIDATE: p_value},
+        {candidate_name: p_value},
         alpha=0.05,
-    )[CANDIDATE]
+    )[candidate_name]
     if not holm["significant"]:
         reasons.append(
             "Paired improvement is not significant after Holm correction."
@@ -242,8 +279,13 @@ def _write_report(payload, output_path):
     candidate = payload["candidate"]
     baseline = payload["baseline"]
     paired = payload["paired_bootstrap"]
+    candidate_name = candidate["name"]
     lines = [
-        "# Profitability-Momentum Research",
+        (
+            "# Profitability-Momentum Research"
+            if candidate_name == CANDIDATE
+            else "# Quality-Momentum Research"
+        ),
         "",
         f"- Split: `{payload['research_split']}`",
         f"- Promotion eligible: `{payload['promotion_eligible']}`",
@@ -258,7 +300,7 @@ def _write_report(payload, output_path):
         ),
         "|---|---:|---:|---:|---:|---:|---:|",
     ]
-    for name, result in ((CANDIDATE, candidate), (BASELINE, baseline)):
+    for name, result in ((candidate_name, candidate), (BASELINE, baseline)):
         rank = result["rank_diagnostics"]
         probability = result["bootstrap"].get("probability", {})
         lines.append(
@@ -314,6 +356,11 @@ def _write_report(payload, output_path):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--signal-kind",
+        choices=("profitability", "quality"),
+        default="profitability",
+    )
     parser.add_argument("--csv", required=True)
     parser.add_argument("--price-provenance", required=True)
     parser.add_argument("--split-manifest", required=True)
@@ -336,15 +383,24 @@ def main(argv=None):
         prices, provenance, price_path, provenance_path = (
             _load_prices(args)
         )
-        profitability = operating_profitability_buckets(
-            prices.columns
+        candidate_name = _candidate_name(args)
+        profitability = operating_profitability_buckets(prices.columns)
+        investment = (
+            investment_buckets(prices.columns)
+            if args.signal_kind == "quality"
+            else None
+        )
+        fundamental_signal = (
+            profitability
+            if investment is None
+            else 0.50 * profitability + 0.50 * (6.0 - investment)
         )
         split_path = Path(args.split_manifest).expanduser().resolve()
         split = validate_research_split_run(
             _load_json(split_path),
             split_id=args.research_split,
             experiment_namespace=args.experiment_namespace,
-            objectives=[CANDIDATE],
+            objectives=[candidate_name],
             settings=_settings(args),
             evaluation_start=prices.index[args.train_window],
             evaluation_end=prices.index[
@@ -362,7 +418,7 @@ def main(argv=None):
 
         candidate_periods, baseline_periods = _run_periods(
             prices,
-            profitability,
+            fundamental_signal,
             args,
         )
         candidate_rank = cross_sectional_rank_diagnostics(
@@ -414,6 +470,7 @@ def main(argv=None):
         paired_gate, paired_holm = _paired_gate(
             paired,
             minimum_probability,
+            candidate_name,
         )
         promotion_eligible = bool(
             candidate_gate["status"] == "passed"
@@ -438,10 +495,20 @@ def main(argv=None):
                     ticker: int(value)
                     for ticker, value in profitability.items()
                 },
+                **(
+                    {}
+                    if investment is None
+                    else {
+                        "portfolio_investment_buckets": {
+                        ticker: int(value)
+                        for ticker, value in investment.items()
+                        }
+                    }
+                ),
             },
             "settings": _settings(args),
             "candidate": {
-                "name": CANDIDATE,
+                "name": candidate_name,
                 "rank_diagnostics": candidate_rank,
                 "distribution_diagnostics": candidate_distribution,
                 "bootstrap": candidate_bootstrap,
