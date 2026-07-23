@@ -44,6 +44,22 @@ def test_net_issuance_quality_orders_special_and_quintile_buckets():
     assert result.tolist() == [7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0]
 
 
+def test_residual_variance_quality_inverts_official_quintiles():
+    labels = [
+        "SMALL LoVAR",
+        "ME2 VAR1",
+        "ME3 VAR2",
+        "ME3 VAR3",
+        "ME4 VAR4",
+        "ME5 VAR5",
+        "BIG HiVAR",
+    ]
+
+    result = RESEARCH.residual_variance_quality_buckets(labels)
+
+    assert result.tolist() == [5.0, 5.0, 4.0, 3.0, 2.0, 1.0, 1.0]
+
+
 def test_accrual_research_uses_only_pre_signal_momentum_prices():
     dates = pd.date_range("2000-01-31", periods=18, freq="ME")
     prices = pd.DataFrame(

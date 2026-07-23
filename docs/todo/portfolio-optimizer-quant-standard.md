@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: frozen net-issuance-quality-momentum도 untouched validation에서 탈락
+- 현재 상태: low-residual-variance-momentum도 paired/Holm research gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -118,6 +118,8 @@
 - paired P(higher IC/spread) `97.60%`/`98.35%`, Holm-adjusted p-value `0.0240`으로 research gate를 통과했습니다. Production/default 변경 전 untouched 2000~2011 4-case validation이 필요하며 2012+ holdout은 봉인합니다.
 - Untouched validation에서 aggregate paired P(higher IC/spread)는 `100.00%`/`98.05%`였지만 candidate absolute P(IC>0/spread>0)는 `84.55%`/`87.35%`에 그쳤습니다.
 - Low-net-issuance case가 baseline보다 낮아 `3/4` case만 통과했습니다. Candidate를 폐기하고 같은 validation에 맞춘 재튜닝과 2012+ holdout 실행을 금지합니다.
+- official French 25 size×FF3 residual-variance의 fixed 50/50 low-residual-variance-momentum은 absolute IC `0.2800`, spread `0.03599`로 강했습니다.
+- 그러나 raw momentum 대비 paired P(higher IC/spread) `80.75%`/`77.15%`, Holm-adjusted p-value `0.2285`로 incremental uplift를 증명하지 못했습니다. Default alpha/risk model은 변경하지 않고 validation/holdout을 봉인합니다.
 
 ## 금지
 

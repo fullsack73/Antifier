@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: frozen net-issuance-quality-momentum이 untouched validation에서 탈락
+- 현재 상태: low-residual-variance-momentum이 paired/Holm research gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -128,6 +128,9 @@
 - Frozen 후보는 untouched 2000~2011에서 aggregate IC `-0.0072→0.1297`, spread `0.02782→0.06477`, paired P(higher IC/spread) `100.00%`/`98.05%`를 기록했습니다.
 - 그러나 candidate absolute P(IC>0/spread>0)는 `84.55%`/`87.35%`였고 low-net-issuance case가 baseline보다 낮아 `3/4` case만 통과했습니다.
 - Validation 결과에 맞춘 재튜닝 없이 후보를 폐기하고 2012+ holdout을 봉인합니다.
+- official French 25 size×FF3 residual-variance의 fresh 1969~1989 research에서 fixed 50/50 low-residual-variance-momentum은 IC `0.2800`, spread `0.03599`로 absolute gate를 통과했습니다.
+- Raw momentum 대비 delta IC/spread는 `+0.0351`/`+0.00353`이었지만 paired P(higher IC/spread)는 `80.75%`/`77.15%`, Holm-adjusted p-value는 `0.2285`여서 폐기합니다.
+- 1991~1998 validation과 2000~2011 holdout을 열지 않고 같은 split에서 weight, horizon, cadence를 재튜닝하지 않습니다.
 - official French 12-industry daily panel의 fresh 1933~1952 research split에서 price predictor와 252일 market trend, 63일 volatility regime의 interaction을 사전 고정했습니다.
 - regime candidate는 baseline nested ridge 대비 IC `0.0193→0.0050`, spread `0.00445→0.00286`으로 악화됐습니다. paired P(higher IC/spread)는 `35.75%`/`40.25%`, Holm-adjusted p-value는 `0.6070`이었습니다.
 - 93개 OOS period 모두 trend/volatility regime이 가용했고 coverage는 100%였으므로 실패 원인은 결측 regime이 아닙니다. 후보를 폐기하고 1953+ validation/holdout은 봉인합니다.
@@ -155,3 +158,4 @@
 - Market-regime interaction 폐기: `docs/reports/260724-0411-01-market-regime-interaction-research.md`
 - Net-issuance quality-momentum freeze: `docs/reports/260724-0438-01-net-issuance-quality-momentum-research.md`
 - Net-issuance quality-momentum validation: `docs/reports/260724-0443-01-net-issuance-quality-momentum-validation.md`
+- Low residual-variance momentum research: `docs/reports/260724-0448-01-low-residual-variance-momentum-research.md`

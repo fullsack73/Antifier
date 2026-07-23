@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-low-residual-variance-momentum-research-1969-1989-v1",
+  "role": "research",
+  "evaluation_start": "1969-07-31",
+  "evaluation_end": "1989-10-31",
+  "experiment_namespace": "alpha-v16-low-residual-variance-momentum",
+  "objectives": [
+    "low_residual_variance_momentum"
+  ],
+  "settings": {
+    "train_window": 72,
+    "horizon": 3,
+    "rebalance_step": 3,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "primary_candidate": "low_residual_variance_momentum",
+    "diagnostic_signal": "low_residual_variance",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "low_residual_variance_weight": 0.5,
+    "residual_variance_signal": "inverse_official_monthly_ff3_residual_variance_quintile",
+    "residual_variance_definition": "variance_of_ff3_residuals_from_60_lagged_daily_returns_minimum_20",
+    "bucket_order_best_to_worst": [
+      "LoVAR",
+      "VAR2",
+      "VAR3",
+      "VAR4",
+      "HiVAR"
+    ]
+  },
+  "universe_manifest_sha256": "70d82fff6ded341b48e05d6b40c4a78d1924db3f3de9de75cae170a28b8d9c42",
+  "price_file_sha256": "063a7b218e0927e7d2ef16c7a4b6b2097088a9fe6938393942976e08cf8b7260",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "reserved_validation_interval": {
+    "start": "1991-01-31",
+    "end": "1998-10-31"
+  },
+  "reserved_locked_holdout_interval": {
+    "start": "2000-01-31",
+    "end": "2011-10-31"
+  },
+  "locked": true,
+  "manifest_sha256": "24f2619d2bcf5bfb9387b407456448e8afaa9abeed8ec94457779220f4b61715"
+}

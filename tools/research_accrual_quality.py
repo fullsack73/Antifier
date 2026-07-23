@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate fixed accrual-quality plus momentum against raw momentum."""
+"""Evaluate fixed characteristic-quality plus momentum against momentum."""
 
 import argparse
 import hashlib
@@ -36,6 +36,8 @@ BASELINE = "momentum_12_1"
 DIAGNOSTIC = "accrual_quality"
 NET_ISSUANCE_CANDIDATE = "net_issuance_quality_momentum"
 NET_ISSUANCE_DIAGNOSTIC = "net_issuance_quality"
+RESIDUAL_VARIANCE_CANDIDATE = "low_residual_variance_momentum"
+RESIDUAL_VARIANCE_DIAGNOSTIC = "low_residual_variance"
 MOMENTUM_WEIGHT = 0.50
 
 
@@ -91,24 +93,44 @@ def net_issuance_quality_buckets(tickers):
     return pd.Series(values, dtype=float)
 
 
+def residual_variance_quality_buckets(tickers):
+    """Parse inverse FF3 residual-variance quintiles from French labels."""
+    values = {}
+    for ticker in tickers:
+        label = str(ticker).strip()
+        if "LoVAR" in label:
+            variance_bucket = 1
+        elif "HiVAR" in label:
+            variance_bucket = 5
+        else:
+            match = re.search(r"\bVAR([1-5])(?:\s|$)", label)
+            if match is None:
+                raise ValueError(
+                    f"Cannot parse residual-variance bucket: {label}"
+                )
+            variance_bucket = int(match.group(1))
+        values[label] = float(6 - variance_bucket)
+    return pd.Series(values, dtype=float)
+
+
 def _signal_kind(args):
     return str(getattr(args, "signal_kind", "accrual"))
 
 
 def _candidate_name(args):
-    return (
-        NET_ISSUANCE_CANDIDATE
-        if _signal_kind(args) == "net_issuance"
-        else CANDIDATE
-    )
+    return {
+        "accrual": CANDIDATE,
+        "net_issuance": NET_ISSUANCE_CANDIDATE,
+        "residual_variance": RESIDUAL_VARIANCE_CANDIDATE,
+    }[_signal_kind(args)]
 
 
 def _diagnostic_name(args):
-    return (
-        NET_ISSUANCE_DIAGNOSTIC
-        if _signal_kind(args) == "net_issuance"
-        else DIAGNOSTIC
-    )
+    return {
+        "accrual": DIAGNOSTIC,
+        "net_issuance": NET_ISSUANCE_DIAGNOSTIC,
+        "residual_variance": RESIDUAL_VARIANCE_DIAGNOSTIC,
+    }[_signal_kind(args)]
 
 
 def _settings(args):
@@ -146,6 +168,24 @@ def _settings(args):
                 "NI3",
                 "NI4",
                 "HiNI",
+            ],
+        })
+    elif _signal_kind(args) == "residual_variance":
+        settings.update({
+            "low_residual_variance_weight": 1.0 - MOMENTUM_WEIGHT,
+            "residual_variance_signal": (
+                "inverse_official_monthly_ff3_residual_variance_quintile"
+            ),
+            "residual_variance_definition": (
+                "variance_of_ff3_residuals_from_60_lagged_daily_returns_"
+                "minimum_20"
+            ),
+            "bucket_order_best_to_worst": [
+                "LoVAR",
+                "VAR2",
+                "VAR3",
+                "VAR4",
+                "HiVAR",
             ],
         })
     else:
@@ -357,18 +397,21 @@ def _fmt(value):
 
 def _write_report(payload, output_path):
     net_issuance = payload["feature_kind"] == "net_issuance"
+    residual_variance = payload["feature_kind"] == "residual_variance"
+    if net_issuance:
+        title = "# Net-Issuance Quality Momentum Research"
+    elif residual_variance:
+        title = "# Low Residual-Variance Momentum Research"
+    else:
+        title = "# Accrual-Quality Momentum Research"
     lines = [
-        (
-            "# Net-Issuance Quality Momentum Research"
-            if net_issuance
-            else "# Accrual-Quality Momentum Research"
-        ),
+        title,
         "",
         f"- Split: `{payload['research_split']}`",
         f"- Promotion eligible: `{payload['promotion_eligible']}`",
         *(
             []
-            if net_issuance
+            if net_issuance or residual_variance
             else [
                 (
                     "- Economic benchmark only: French working-capital "
@@ -453,7 +496,7 @@ def main(argv=None):
     parser.add_argument("--experiment-namespace", required=True)
     parser.add_argument(
         "--signal-kind",
-        choices=("accrual", "net_issuance"),
+        choices=("accrual", "net_issuance", "residual_variance"),
         default="accrual",
     )
     parser.add_argument("--train-window", type=int, default=72)
@@ -475,11 +518,12 @@ def main(argv=None):
         prices, provenance, price_path, provenance_path = (
             _load_prices(args)
         )
-        quality = (
-            net_issuance_quality_buckets(prices.columns)
-            if args.signal_kind == "net_issuance"
-            else accrual_quality_buckets(prices.columns)
-        )
+        quality_loader = {
+            "accrual": accrual_quality_buckets,
+            "net_issuance": net_issuance_quality_buckets,
+            "residual_variance": residual_variance_quality_buckets,
+        }[args.signal_kind]
+        quality = quality_loader(prices.columns)
         candidate_name = _candidate_name(args)
         diagnostic_name = _diagnostic_name(args)
         positions = _evaluation_positions(prices, args)
@@ -557,11 +601,15 @@ def main(argv=None):
                 "price_provenance_file": str(provenance_path),
                 "row_count": int(len(prices)),
                 "ticker_count": int(len(prices.columns)),
-                (
-                    "portfolio_net_issuance_quality_buckets"
-                    if args.signal_kind == "net_issuance"
-                    else "portfolio_accrual_quality_buckets"
-                ): {
+                {
+                    "accrual": "portfolio_accrual_quality_buckets",
+                    "net_issuance": (
+                        "portfolio_net_issuance_quality_buckets"
+                    ),
+                    "residual_variance": (
+                        "portfolio_residual_variance_quality_buckets"
+                    ),
+                }[args.signal_kind]: {
                     ticker: int(value)
                     for ticker, value in quality.items()
                 },
