@@ -173,6 +173,8 @@
 - 이 복제에서 absolute 2% band가 diversified target의 매수/매도를 비대칭 제거해 평균 현금을 최대 `14.55%` 누적시키는 execution bug를 발견했습니다. Target net trade 보존으로 수정 후 fully-invested 모델 현금은 `0.021%` 이하였습니다.
 - Transaction cost 계산 뒤 모든 보유를 비례 축소하던 숨은 매도를 제거했습니다. 목표 현금을 먼저 사용하고 부족분만 매수 주문에서 줄인 뒤 실제 gross trade로 비용을 재계산하며, 회계 항등식과 음수 현금 방지 테스트를 추가했습니다.
 - 이미 본 early 49-industry panel의 mechanical diagnostic에서 비용 항등식 최대 오차는 `0`, 최소 잔여 현금은 `0`이었습니다. 이는 execution truth 개선이며 candidate 승격 근거로 재사용하지 않습니다.
+- Gross return의 기존 `net period end + starting cost` 근사는 비용 때문에 매수하지 못한 자산의 기간 수익을 누락했습니다. 동일 pre-cost controlled target의 별도 costless path로 교체해 gross/net cost drag를 정확히 계산합니다.
+- +100% synthetic period와 10% 비용에서 기존 gross `90.91%`가 `100%`, cost drag `9.09%p`가 `18.18%p`로 교정됐습니다. Net path와 optimizer weight는 바뀌지 않습니다.
 
 ## 금지
 

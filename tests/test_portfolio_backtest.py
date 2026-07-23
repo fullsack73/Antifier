@@ -975,6 +975,43 @@ def test_transaction_cost_funding_uses_existing_cash_first():
     assert diagnostics["cash_after_transaction_cost"] == pytest.approx(48.5)
 
 
+def test_gross_period_return_values_the_costless_target_path():
+    dates = pd.date_range("2024-01-02", periods=6, freq="B")
+    prices = pd.DataFrame(
+        {
+            "AAA": [100.0, 100.0, 100.0, 100.0, 150.0, 200.0],
+            "BBB": [100.0, 100.0, 100.0, 100.0, 150.0, 200.0],
+        },
+        index=dates,
+    )
+
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=("equal_weight",),
+        train_window=3,
+        rebalance_frequency=2,
+        forecast_horizon=1,
+        transaction_cost_bps=1000.0,
+        risk_free_rate=0.0,
+        rebalance_band=0.0,
+        max_turnover=1.0,
+    )
+
+    record = result["rebalance_records"][0]
+    metrics = result["summary_by_model"]["equal_weight"]
+    assert record["gross_period_end_value"] == pytest.approx(20000.0)
+    assert record["net_period_end_value"] == pytest.approx(
+        18181.8181818
+    )
+    assert record["gross_period_return"] == pytest.approx(1.0)
+    assert record["net_period_return"] == pytest.approx(0.81818181818)
+    assert record["transaction_cost_return_drag"] == pytest.approx(
+        0.18181818182
+    )
+    assert metrics["gross_cumulative_return"] == pytest.approx(1.0)
+    assert metrics["net_cumulative_return"] == pytest.approx(0.81818181818)
+
+
 def test_inverse_vol_risk_parity_weights_sum_cap_and_prefer_lower_vol():
     dates = pd.date_range("2024-01-02", periods=80, freq="B")
     x = np.arange(len(dates))

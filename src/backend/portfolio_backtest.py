@@ -2377,6 +2377,9 @@ def run_portfolio_model_backtest(
                 ),
             )
             controls["initial_allocation"] = initial_allocation
+            pre_cost_controlled_target_values = (
+                controlled_target_values.copy()
+            )
             (
                 controlled_target_values,
                 cost,
@@ -2504,6 +2507,26 @@ def run_portfolio_model_backtest(
                 period_prices.mul(state["shares"], axis=1).sum(axis=1)
                 + cash_values
             )
+            gross_shares = (
+                pre_cost_controlled_target_values
+                .reindex(train_prices.columns)
+                .fillna(0.0)
+                / current_prices
+            ).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+            gross_cash_values = _cash_value_path(
+                max(
+                    0.0,
+                    portfolio_value
+                    - float(pre_cost_controlled_target_values.sum()),
+                ),
+                period_prices.index,
+                risk_free_rate,
+                risk_free_daily_returns=risk_free_daily_returns,
+            )
+            gross_daily_values = (
+                period_prices.mul(gross_shares, axis=1).sum(axis=1)
+                + gross_cash_values
+            )
             execution_variance = float(
                 controlled_weights.values
                 @ diagnostic_covariance.reindex(
@@ -2565,7 +2588,14 @@ def run_portfolio_model_backtest(
             state["initialized"] = True
             end_value = float(daily_values.iloc[-1]) if not daily_values.empty else investable_value
             net_period_return = float(end_value / portfolio_value - 1.0)
-            gross_period_return = float((end_value + cost) / portfolio_value - 1.0)
+            gross_end_value = (
+                float(gross_daily_values.iloc[-1])
+                if not gross_daily_values.empty
+                else portfolio_value
+            )
+            gross_period_return = float(
+                gross_end_value / portfolio_value - 1.0
+            )
             state["net_period_returns"].append(net_period_return)
             state["gross_period_returns"].append(gross_period_return)
 
@@ -2650,6 +2680,8 @@ def run_portfolio_model_backtest(
                 ),
                 "gross_period_return": gross_period_return,
                 "net_period_return": net_period_return,
+                "gross_period_end_value": gross_end_value,
+                "net_period_end_value": end_value,
                 "transaction_cost_return_drag": float(gross_period_return - net_period_return),
                 "market_caps_available": diagnostics.get("market_caps_available"),
                 "market_caps_as_of_date": diagnostics.get(
