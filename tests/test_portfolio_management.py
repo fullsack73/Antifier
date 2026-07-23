@@ -30,8 +30,105 @@ def test_calculate_rebalance_orders_no_injection():
     result = calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection)
     
     assert result["total_target_value"] == 2500
+    assert result["required_price_tickers"] == ["AAPL", "MSFT"]
+    assert result["execution_price_coverage"] == 1.0
     assert len(result["buy_list"]) == 0
     assert len(result["sell_list"]) == 0
+
+
+@pytest.mark.parametrize("invalid_price", [None, 0.0, -1.0, np.nan, np.inf])
+def test_calculate_rebalance_orders_rejects_invalid_required_price(invalid_price):
+    with pytest.raises(
+        ValueError,
+        match="Missing or invalid latest price for required tickers: AAPL",
+    ):
+        calculate_rebalance_orders(
+            {"AAPL": 10.0},
+            {"AAPL": 1.0},
+            {"AAPL": invalid_price},
+            0.0,
+        )
+
+
+def test_calculate_rebalance_orders_requires_prices_for_new_targets():
+    with pytest.raises(
+        ValueError,
+        match="Missing or invalid latest price for required tickers: MSFT",
+    ):
+        calculate_rebalance_orders(
+            {},
+            {"MSFT": 1.0},
+            {},
+            1000.0,
+        )
+
+
+def test_calculate_rebalance_orders_ignores_zero_exposure_without_price():
+    result = calculate_rebalance_orders(
+        {"DUST": 0.0},
+        {"AAPL": 1.0, "DUST": 0.0},
+        {"AAPL": 100.0},
+        1000.0,
+    )
+
+    assert result["required_price_tickers"] == ["AAPL"]
+    assert result["execution_price_coverage"] == 1.0
+    assert result["buy_list"]["AAPL"]["quantity"] == pytest.approx(10.0)
+
+
+def test_manage_portfolio_rejects_partial_orders_when_holding_price_is_missing():
+    opt_payload = {
+        "weights": {"AAPL": 1.0},
+        "prices": {"AAPL": 100.0},
+        "return": 0.08,
+        "risk": 0.12,
+        "sharpe_ratio": 0.5,
+    }
+
+    with patch(
+        "portfolio_optimization.optimize_portfolio",
+        return_value=deepcopy(opt_payload),
+    ):
+        result = manage_portfolio_logic(
+            current_holdings={"OLD": 2.0},
+            cash_injection=0.0,
+            start_date="2023-01-01",
+            end_date="2023-12-31",
+            risk_free_rate=0.02,
+            optimization_method="MPT",
+        )
+
+    assert result["required_price_tickers"] == ["AAPL", "OLD"]
+    assert result["missing_price_tickers"] == ["OLD"]
+    assert result["execution_price_coverage"] == pytest.approx(0.5)
+    assert "OLD" in result["error"]
+    assert "buy_list" not in result
+    assert "sell_list" not in result
+
+
+def test_manage_portfolio_returns_validation_error_for_nonfinite_holding():
+    opt_payload = {
+        "weights": {"AAPL": 1.0},
+        "prices": {"AAPL": 100.0},
+    }
+
+    with patch(
+        "portfolio_optimization.optimize_portfolio",
+        return_value=deepcopy(opt_payload),
+    ):
+        result = manage_portfolio_logic(
+            current_holdings={"AAPL": np.nan},
+            cash_injection=0.0,
+            start_date="2023-01-01",
+            end_date="2023-12-31",
+            risk_free_rate=0.02,
+            optimization_method="MPT",
+        )
+
+    assert result == {
+        "error": "current_holdings[AAPL] must be a finite non-negative number"
+    }
+
 
 def test_calculate_rebalance_orders_with_injection():
     current_holdings = {"AAPL": 10.0, "MSFT": 5.0} # Value 2500
@@ -321,6 +418,25 @@ def test_manage_portfolio_api(client):
         assert "weights" in data
         assert "buy_list" in data
         assert data["total_target_value"] == 3000.0
+
+
+def test_manage_portfolio_api_returns_400_for_incomplete_execution_prices(client):
+    with patch("app.manage_portfolio_logic") as mock_logic:
+        mock_logic.return_value = {
+            "error": "Missing or invalid latest price for required tickers: OLD",
+            "execution_price_coverage": 0.0,
+        }
+
+        response = client.post('/api/manage-portfolio', json={
+            "current_holdings": {"OLD": 2.0},
+            "cash_injection": 0.0,
+            "start_date": "2023-01-01",
+            "end_date": "2023-12-31",
+            "risk_free_rate": 0.02,
+        })
+
+    assert response.status_code == 400
+    assert response.get_json()["execution_price_coverage"] == 0.0
 
 
 def test_manage_portfolio_api_forwards_ticker_group(client):

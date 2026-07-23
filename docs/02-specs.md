@@ -92,7 +92,7 @@
 - `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening
 - `POST /api/asset-names`: ticker display name 조회
 - `POST /api/benchmark-portfolio`: 포트폴리오 benchmark 계산
-- `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산. 입력에서 생략하면 `rebalance_band=0.02`, `max_turnover=0.35`를 적용해 작은 거래를 건너뛰고 gross turnover를 제한합니다. Band가 매수/매도 한쪽만 제거해 target의 의도된 현금 비중을 바꾸지 않도록 필요한 최소 반대편 거래를 재도입한 뒤 turnover cap을 적용합니다. 선택 입력 `turnover_penalty`, `min_holding_weight`는 내부 최적화 호출에 전달됩니다.
+- `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산. 입력에서 생략하면 `rebalance_band=0.02`, `max_turnover=0.35`를 적용해 작은 거래를 건너뛰고 gross turnover를 제한합니다. Band가 매수/매도 한쪽만 제거해 target의 의도된 현금 비중을 바꾸지 않도록 필요한 최소 반대편 거래를 재도입한 뒤 turnover cap을 적용합니다. 선택 입력 `turnover_penalty`, `min_holding_weight`는 내부 최적화 호출에 전달됩니다. 양수 보유수량 또는 양수 target weight가 있는 모든 ticker는 finite 양수 최신 가격이 필요합니다. 하나라도 누락되면 부분 주문을 만들지 않고 HTTP 400과 `required_price_tickers`, `missing_price_tickers`, 실제 `execution_price_coverage`를 반환합니다.
 
 Backend-only research tool:
 

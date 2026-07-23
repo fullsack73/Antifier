@@ -185,6 +185,8 @@
 - `OLD 70%`가 남는 재현에서 기존 엔진은 이를 risk-free cash처럼 처리해 return/risk/Sharpe를 생성했습니다. 수정 후 coverage `30%`, unmodeled exposure `70%`, 성과 `null`이며 frontend도 crash 없이 한/영 경고를 표시합니다.
 - Frontend 투자금 배분이 가격 없는 ticker에 `$1`을 대입해 가짜 share plan을 만들던 fallback을 제거했습니다. Positive-weight ticker의 가격이 누락/비정상일 때 누락 목록을 표시하고 allocation을 차단합니다.
 - 미모델 `OLD 70%`와 가격 누락 재현에서 더 이상 예산 70%를 `$1` 종목으로 배분하지 않습니다. 양수 finite 예산과 전 ticker 가격 coverage를 모두 통과해야 계산합니다.
+- Backend 리밸런싱도 가격 없는 기존 보유를 0원으로 평가하거나 가격 없는 신규 target 주문을 생략하던 partial-order 경로를 제거했습니다. 양수 보유수량/target weight의 필수 가격 coverage가 100%가 아니면 주문 전체를 거부합니다.
+- 실패 응답은 필수/누락 ticker와 실제 coverage 비율을 반환합니다. 2개 필수 ticker 중 기존 보유 `OLD` 가격만 누락된 재현은 coverage `50%`, HTTP 400이며 buy/sell list를 생성하지 않습니다.
 
 ## 금지
 

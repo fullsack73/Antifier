@@ -2842,6 +2842,25 @@ def iteratively_solve_max_sharpe(mu, S, risk_free_rate, max_asset_weight=0.2):
     
     return best_weights
 
+
+class RebalancePriceCoverageError(ValueError):
+    """Raised when an executable rebalance cannot price every required asset."""
+
+    def __init__(self, required_tickers, missing_tickers):
+        self.required_price_tickers = sorted(str(ticker) for ticker in required_tickers)
+        self.missing_price_tickers = sorted(str(ticker) for ticker in missing_tickers)
+        required_count = len(self.required_price_tickers)
+        self.execution_price_coverage = (
+            (required_count - len(self.missing_price_tickers)) / required_count
+            if required_count
+            else 1.0
+        )
+        super().__init__(
+            "Missing or invalid latest price for required tickers: "
+            + ", ".join(self.missing_price_tickers)
+        )
+
+
 def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection,
                                allow_fractional=True, fractional_overrides=None,
                                rebalance_band=0.0, max_turnover=None):
@@ -2852,19 +2871,67 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
     import math
     if fractional_overrides is None:
         fractional_overrides = {}
-        
+
+    def finite_nonnegative(value, field_name):
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field_name} must be a finite non-negative number") from exc
+        if not math.isfinite(parsed) or parsed < 0:
+            raise ValueError(f"{field_name} must be a finite non-negative number")
+        return parsed
+
+    cash_injection = finite_nonnegative(cash_injection, "cash_injection")
+    current_holdings = {
+        ticker: finite_nonnegative(quantity, f"current_holdings[{ticker}]")
+        for ticker, quantity in current_holdings.items()
+    }
+    target_weights = {
+        ticker: finite_nonnegative(weight, f"target_weights[{ticker}]")
+        for ticker, weight in target_weights.items()
+    }
+    normalized_prices = {}
+    for ticker, price in latest_prices.items():
+        try:
+            parsed_price = float(price)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(parsed_price) and parsed_price > 0:
+            normalized_prices[ticker] = parsed_price
+
+    required_price_tickers = {
+        ticker
+        for ticker, quantity in current_holdings.items()
+        if quantity > 1e-10
+    }
+    required_price_tickers.update(
+        ticker
+        for ticker, weight in target_weights.items()
+        if weight > 1e-10
+    )
+    missing_price_tickers = {
+        ticker
+        for ticker in required_price_tickers
+        if ticker not in normalized_prices
+    }
+    if missing_price_tickers:
+        raise RebalancePriceCoverageError(
+            required_price_tickers,
+            missing_price_tickers,
+        )
+
     def is_fractional(ticker):
         return fractional_overrides.get(ticker, allow_fractional)
 
     total_current_value = 0.0
     current_values = {}
     for ticker, qty in current_holdings.items():
-        price = latest_prices.get(ticker, 0.0)
-        value = price * float(qty)
+        price = normalized_prices.get(ticker, 0.0)
+        value = price * qty
         current_values[ticker] = value
         total_current_value += value
         
-    total_target_value = total_current_value + float(cash_injection)
+    total_target_value = total_current_value + cash_injection
     
     all_tickers = set(current_holdings.keys()).union(target_weights.keys())
     pre_control_target_values = {
@@ -2897,7 +2964,7 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
     ideal_quantities = {}
     all_tickers = set(all_tickers).union(controlled_target_values.index)
     for ticker in all_tickers:
-        price = latest_prices.get(ticker, 0.0)
+        price = normalized_prices.get(ticker, 0.0)
         target_value = float(controlled_target_values.get(ticker, 0.0))
         if price > 0:
             ideal_quantities[ticker] = target_value / price
@@ -2908,7 +2975,7 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
     fractional_tickers = []
     
     for ticker, ideal_qty in ideal_quantities.items():
-        price = latest_prices.get(ticker, 0.0)
+        price = normalized_prices.get(ticker, 0.0)
         if is_fractional(ticker):
             target_quantities[ticker] = ideal_qty
             if controlled_target_values.get(ticker, 0.0) > 0:
@@ -2925,7 +2992,7 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
             if frac_value_sum > 0:
                 for ticker in fractional_tickers:
                     extra_cash = (controlled_target_values[ticker] / frac_value_sum) * rounding_cash
-                    target_quantities[ticker] += extra_cash / latest_prices[ticker]
+                    target_quantities[ticker] += extra_cash / normalized_prices[ticker]
                 rounding_cash = 0.0
             
         if rounding_cash > 0.01:
@@ -2938,7 +3005,7 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
             while changed and rounding_cash > 0.01:
                 changed = False
                 for ticker in sorted_tickers:
-                    price = latest_prices.get(ticker, 0.0)
+                    price = normalized_prices.get(ticker, 0.0)
                     if price > 0 and price <= rounding_cash:
                         target_quantities[ticker] += 1.0
                         rounding_cash -= price
@@ -2949,12 +3016,12 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
     sell_list = {}
     
     for ticker in all_tickers:
-        price = latest_prices.get(ticker, 0.0)
+        price = normalized_prices.get(ticker, 0.0)
         if price <= 0:
             continue
             
         target_qty = target_quantities.get(ticker, 0.0)
-        current_qty = float(current_holdings.get(ticker, 0.0))
+        current_qty = current_holdings.get(ticker, 0.0)
         delta_qty = target_qty - current_qty
         
         if delta_qty > 1e-6:
@@ -2968,7 +3035,9 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         "target_quantities": target_quantities,
         "target_weights": target_weights,
         "total_target_value": total_target_value,
-        "remaining_cash": float(control_cash_reserve + rounding_cash)
+        "remaining_cash": float(control_cash_reserve + rounding_cash),
+        "required_price_tickers": sorted(str(ticker) for ticker in required_price_tickers),
+        "execution_price_coverage": 1.0,
     }
     if controls_enabled:
         rebalance_controls = dict(rebalance_controls)
@@ -3017,13 +3086,23 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
     # We will use the optimized weights from optimize_portfolio or iteratively calculate them if asked.
     # For now, optimize_portfolio already returned the best weights (either by max_sharpe or otherwise).
     
-    rebalance_data = calculate_rebalance_orders(
-        current_holdings, target_weights, latest_prices, cash_injection,
-        allow_fractional=allow_fractional,
-        fractional_overrides=fractional_overrides,
-        rebalance_band=rebalance_band,
-        max_turnover=max_turnover,
-    )
+    try:
+        rebalance_data = calculate_rebalance_orders(
+            current_holdings, target_weights, latest_prices, cash_injection,
+            allow_fractional=allow_fractional,
+            fractional_overrides=fractional_overrides,
+            rebalance_band=rebalance_band,
+            max_turnover=max_turnover,
+        )
+    except RebalancePriceCoverageError as exc:
+        return {
+            "error": str(exc),
+            "required_price_tickers": exc.required_price_tickers,
+            "missing_price_tickers": exc.missing_price_tickers,
+            "execution_price_coverage": exc.execution_price_coverage,
+        }
+    except ValueError as exc:
+        return {"error": str(exc)}
     opt_result.update(rebalance_data)
     opt_result["current_holdings"] = current_holdings
     opt_result["cash_injection"] = cash_injection
