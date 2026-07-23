@@ -20,6 +20,7 @@ from cross_sectional_forecast import (  # noqa: E402
     compare_pooled_objectives,
 )
 from portfolio_backtest import fetch_backtest_price_data  # noqa: E402
+from research_split import validate_research_split_run  # noqa: E402
 from universe_manifest import (  # noqa: E402
     manifest_tickers_during,
     normalize_universe_manifest,
@@ -39,6 +40,38 @@ RESERVED_SPLIT_NAMES = {
 
 def _sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _research_settings(args):
+    settings = {
+        "horizon": int(args.horizon),
+        "rebalance_step": int(
+            args.horizon
+            if args.rebalance_step is None
+            else args.rebalance_step
+        ),
+        "minimum_feature_history": 253,
+        "minimum_training_periods": int(
+            args.minimum_training_periods
+        ),
+        "maximum_training_periods": int(
+            args.maximum_training_periods
+        ),
+        "minimum_observations": int(args.minimum_observations),
+        "ridge_penalty": float(args.ridge_penalty),
+        "nested_ridge_penalties": [
+            float(value) for value in args.nested_ridge_penalties
+        ],
+        "nested_validation_periods": int(
+            args.nested_validation_periods
+        ),
+        "nominal_uncertainty_coverage": 0.8,
+    }
+    if args.market_factor_data:
+        settings["market_beta_policy"] = (
+            "fama_french_market_total_return"
+        )
+    return settings
 
 
 def _load_prices(args, universe_manifest=None):
@@ -136,7 +169,221 @@ def _load_factor_data(args):
         "feature_file_sha256": actual_digest,
         "provenance_file": str(provenance_path),
         "universe": universe,
-        "promotion_safe": bool(universe.get("promotion_safe", False)),
+        "prices": dict(provenance.get("prices") or {}),
+        "promotion_safe": bool(
+            universe.get("promotion_safe", False)
+            and provenance.get("promotion_safe", False)
+        ),
+    }
+
+
+def _load_market_factor_data(args):
+    if bool(args.market_factor_data) != bool(
+        args.market_factor_provenance
+    ):
+        raise ValueError(
+            "--market-factor-data and --market-factor-provenance "
+            "must be used together"
+        )
+    if not args.market_factor_data:
+        return None, None
+    path = Path(args.market_factor_data).expanduser().resolve()
+    provenance_path = Path(
+        args.market_factor_provenance
+    ).expanduser().resolve()
+    provenance = json.loads(
+        provenance_path.read_text(encoding="utf-8")
+    )
+    actual = _sha256(path)
+    if provenance.get("factor_file_sha256") != actual:
+        raise ValueError(
+            "Market-factor data SHA-256 does not match provenance"
+        )
+    frame = pd.read_csv(path, index_col=0, parse_dates=True)
+    required = {"mkt_rf", "rf_daily"}
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise ValueError(
+            "Market-factor data is missing: " + ", ".join(missing)
+        )
+    market = (
+        pd.to_numeric(frame["mkt_rf"], errors="coerce")
+        + pd.to_numeric(frame["rf_daily"], errors="coerce")
+    ).dropna()
+    return market, {
+        **provenance,
+        "file": str(provenance_path),
+        "file_sha256": _sha256(provenance_path),
+    }
+
+
+def _load_price_provenance(args):
+    if not args.csv:
+        if args.price_provenance:
+            raise ValueError(
+                "--price-provenance requires --csv"
+            )
+        return None
+    if not args.price_provenance:
+        if args.require_promotion_safe_universe:
+            raise ValueError(
+                "Promotion-safe universe research requires "
+                "--price-provenance with --csv"
+            )
+        return None
+    price_path = Path(args.csv).expanduser().resolve()
+    provenance_path = Path(args.price_provenance).expanduser().resolve()
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    actual_digest = _sha256(price_path)
+    expected_digest = str(provenance.get("price_file_sha256") or "")
+    if not expected_digest:
+        raise ValueError(
+            "Price provenance requires price_file_sha256"
+        )
+    if actual_digest != expected_digest:
+        raise ValueError(
+            "Price CSV SHA-256 does not match provenance"
+        )
+    return {
+        **provenance,
+        "provenance_file": str(provenance_path),
+        "promotion_safe": True,
+    }
+
+
+def _load_split_manifest(
+    args,
+    universe_provenance,
+    price_provenance,
+    factor_provenance,
+    market_factor_provenance,
+):
+    if not args.split_manifest:
+        if args.require_promotion_safe_universe:
+            raise ValueError(
+                "Promotion-safe research requires --split-manifest"
+            )
+        return {
+            "source": "unlocked CLI arguments",
+            "promotion_safe": False,
+        }
+    if not args.evaluation_start or not args.evaluation_end:
+        raise ValueError(
+            "--split-manifest requires --evaluation-start and "
+            "--evaluation-end"
+        )
+    path = Path(args.split_manifest).expanduser().resolve()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    validated = validate_research_split_run(
+        payload,
+        split_id=args.research_split,
+        experiment_namespace=args.experiment_namespace,
+        objectives=args.objectives,
+        settings=_research_settings(args),
+        evaluation_start=args.evaluation_start,
+        evaluation_end=args.evaluation_end,
+        universe_manifest_sha256=universe_provenance.get(
+            "manifest_sha256"
+        ),
+        price_file_sha256=(
+            None
+            if price_provenance is None
+            else price_provenance.get("price_file_sha256")
+        ),
+        factor_file_sha256=(
+            None
+            if factor_provenance is None
+            else factor_provenance.get("feature_file_sha256")
+        ),
+        auxiliary_files=(
+            {}
+            if market_factor_provenance is None
+            else {
+                "market_factor_file_sha256": (
+                    market_factor_provenance["factor_file_sha256"]
+                )
+            }
+        ),
+    )
+    return {
+        **validated,
+        "file": str(path),
+        "file_sha256": _sha256(path),
+    }
+
+
+def _validate_data_lineage(
+    universe_provenance,
+    price_provenance,
+    factor_provenance,
+    market_factor_provenance=None,
+):
+    expected_universe = str(
+        universe_provenance.get("manifest_sha256") or ""
+    ).strip()
+    issues = []
+    price_universe = (
+        ""
+        if price_provenance is None
+        else str(
+            price_provenance.get("universe_manifest_sha256") or ""
+        ).strip()
+    )
+    if price_provenance is not None and price_universe != expected_universe:
+        issues.append(
+            "price provenance universe hash does not match the loaded "
+            "universe manifest"
+        )
+    if factor_provenance is not None:
+        factor_universe = str(
+            factor_provenance.get("universe", {}).get(
+                "manifest_sha256"
+            )
+            or ""
+        ).strip()
+        if factor_universe != expected_universe:
+            issues.append(
+                "factor provenance universe hash does not match the loaded "
+                "universe manifest"
+            )
+        expected_price = (
+            ""
+            if price_provenance is None
+            else str(
+                price_provenance.get("price_file_sha256") or ""
+            ).strip()
+        )
+        factor_price = str(
+            factor_provenance.get("prices", {}).get(
+                "price_file_sha256"
+            )
+            or ""
+        ).strip()
+        if factor_price != expected_price:
+            issues.append(
+                "factor provenance price hash does not match the loaded "
+                "price data"
+            )
+    if issues:
+        raise ValueError("Data lineage mismatch: " + "; ".join(issues))
+    return {
+        "universe_manifest_sha256": expected_universe,
+        "price_file_sha256": (
+            None
+            if price_provenance is None
+            else price_provenance.get("price_file_sha256")
+        ),
+        "factor_file_sha256": (
+            None
+            if factor_provenance is None
+            else factor_provenance.get("feature_file_sha256")
+        ),
+        "market_factor_file_sha256": (
+            None
+            if market_factor_provenance is None
+            else market_factor_provenance.get("factor_file_sha256")
+        ),
+        "status": "verified",
     }
 
 
@@ -155,6 +402,9 @@ def _write_markdown(payload, output_path):
         f"- Price rows: {payload['data']['row_count']}",
         f"- Tickers: {payload['data']['ticker_count']}",
         f"- Selection: `{payload['comparison']['selection_status']}`",
+        f"- Data promotion safe: `{payload['data_promotion_safe']}`",
+        f"- Split locked: `{payload['split']['promotion_safe']}`",
+        f"- Signal gate passed: `{payload['signal_gate_passed']}`",
         f"- Promotion eligible: `{payload['promotion_eligible']}`",
         "",
         "## Signal-only comparison",
@@ -182,7 +432,12 @@ def _write_markdown(payload, output_path):
                 p_spread=_fmt(
                     probability.get("positive_mean_top_bottom_spread")
                 ),
-                coverage=_fmt(rank["mean_coverage_rate"]),
+                coverage=_fmt(
+                    run["distribution_diagnostics"].get(
+                        "active_universe_coverage_rate",
+                        rank["mean_coverage_rate"],
+                    )
+                ),
                 radius=_fmt(
                     uncertainty.get("calibrated_absolute_error_radius")
                 ),
@@ -194,6 +449,41 @@ def _write_markdown(payload, output_path):
                 ),
             )
         )
+    paired = payload["comparison"].get("paired_improvement") or {}
+    if paired:
+        lines.extend([
+            "",
+            "## Paired candidate improvement",
+            "",
+            "| Comparison | Gate | Δ rank IC | P(higher IC) | "
+            "Δ spread | P(higher spread) |",
+            "|---|---|---:|---:|---:|---:|",
+        ])
+        for name, result in paired.items():
+            observed = result.get("observed_difference") or {}
+            probability = result.get("probability") or {}
+            lines.append(
+                "| {name} | {gate} | {rank_ic} | {p_ic} | "
+                "{spread} | {p_spread} |".format(
+                    name=name,
+                    gate=result.get("gate", {}).get(
+                        "status",
+                        "rejected",
+                    ),
+                    rank_ic=_fmt(observed.get("mean_rank_ic")),
+                    p_ic=_fmt(
+                        probability.get("higher_mean_rank_ic")
+                    ),
+                    spread=_fmt(
+                        observed.get("mean_top_bottom_spread")
+                    ),
+                    p_spread=_fmt(
+                        probability.get(
+                            "higher_mean_top_bottom_spread"
+                        )
+                    ),
+                )
+            )
     lines.extend([
         "",
         "## Guardrail",
@@ -210,9 +500,21 @@ def _write_markdown(payload, output_path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--csv", help="Research price CSV")
+    parser.add_argument(
+        "--price-provenance",
+        help="JSON provenance containing the research price CSV SHA-256",
+    )
     parser.add_argument("--tickers", nargs="*", help="Research-only ticker set")
     parser.add_argument("--start", help="Price start date YYYY-MM-DD")
     parser.add_argument("--end", help="Price end date YYYY-MM-DD")
+    parser.add_argument(
+        "--evaluation-start",
+        help="First signal date; earlier prices remain training history",
+    )
+    parser.add_argument(
+        "--evaluation-end",
+        help="Last signal date",
+    )
     parser.add_argument(
         "--research-split",
         required=True,
@@ -222,6 +524,13 @@ def main(argv=None):
         "--experiment-namespace",
         required=True,
         help="Unique model/target namespace",
+    )
+    parser.add_argument(
+        "--split-manifest",
+        help=(
+            "Immutable split/data/objective contract with a self-declared "
+            "SHA-256"
+        ),
     )
     parser.add_argument(
         "--objectives",
@@ -239,6 +548,8 @@ def main(argv=None):
         "--factor-provenance",
         help="JSON provenance containing the PIT factor CSV SHA-256",
     )
+    parser.add_argument("--market-factor-data")
+    parser.add_argument("--market-factor-provenance")
     parser.add_argument(
         "--universe-manifest",
         help="Dated effective_date,ticker,in_universe CSV",
@@ -257,6 +568,17 @@ def main(argv=None):
     parser.add_argument("--maximum-training-periods", type=int, default=12)
     parser.add_argument("--minimum-observations", type=int, default=40)
     parser.add_argument("--ridge-penalty", type=float, default=5.0)
+    parser.add_argument(
+        "--nested-ridge-penalties",
+        nargs="+",
+        type=float,
+        default=[1.0, 5.0, 20.0, 100.0],
+    )
+    parser.add_argument(
+        "--nested-validation-periods",
+        type=int,
+        default=3,
+    )
     parser.add_argument("--output", required=True, help="Output JSON path")
     args = parser.parse_args(argv)
 
@@ -266,16 +588,39 @@ def main(argv=None):
             raise ValueError(
                 "Reserved validation/holdout split name cannot be used for research"
             )
-        if (
-            "factor_residual_ridge" in args.objectives
-            and not args.factor_data
+        factor_objectives = {
+            "factor_residual_price_ridge",
+            "factor_residual_ridge",
+            "factor_residual_nested_ridge",
+            "factor_residual_market_nested_ridge",
+            "factor_residual_quality_ridge",
+        }
+        if factor_objectives.intersection(args.objectives) and not (
+            args.factor_data
         ):
             raise ValueError(
-                "factor_residual_ridge requires --factor-data"
+                "factor-residual objectives require --factor-data"
             )
         universe_manifest, universe_provenance = _load_universe(args)
+        price_provenance = _load_price_provenance(args)
         prices = _load_prices(args, universe_manifest=universe_manifest)
         factor_data, factor_provenance = _load_factor_data(args)
+        market_factor_returns, market_factor_provenance = (
+            _load_market_factor_data(args)
+        )
+        data_lineage = _validate_data_lineage(
+            universe_provenance,
+            price_provenance,
+            factor_provenance,
+            market_factor_provenance,
+        )
+        split_manifest = _load_split_manifest(
+            args,
+            universe_provenance,
+            price_provenance,
+            factor_provenance,
+            market_factor_provenance,
+        )
         comparison = compare_pooled_objectives(
             prices,
             objectives=args.objectives,
@@ -285,20 +630,46 @@ def main(argv=None):
             maximum_training_periods=args.maximum_training_periods,
             minimum_observations=args.minimum_observations,
             ridge_penalty=args.ridge_penalty,
+            nested_ridge_penalties=args.nested_ridge_penalties,
+            nested_validation_periods=args.nested_validation_periods,
+            market_factor_returns=market_factor_returns,
             point_in_time_features=factor_data,
             universe_manifest=universe_manifest,
+            evaluation_start=args.evaluation_start,
+            evaluation_end=args.evaluation_end,
         )
-        promotion_eligible = bool(
+        data_promotion_safe = bool(
             universe_provenance.get("promotion_safe", False)
+            and (
+                price_provenance is not None
+                and price_provenance.get("promotion_safe", False)
+            )
             and (
                 factor_provenance is None
                 or factor_provenance["promotion_safe"]
             )
+            and (
+                market_factor_provenance is None
+                or market_factor_provenance.get(
+                    "promotion_safe",
+                    False,
+                )
+            )
+        )
+        signal_gate_passed = bool(comparison["passed_objectives"])
+        promotion_eligible = bool(
+            data_promotion_safe
+            and split_manifest.get("promotion_safe", False)
+            and signal_gate_passed
         )
         payload = {
             "research_split": args.research_split,
             "experiment_namespace": args.experiment_namespace,
+            "data_promotion_safe": data_promotion_safe,
+            "signal_gate_passed": signal_gate_passed,
             "promotion_eligible": promotion_eligible,
+            "split": split_manifest,
+            "data_lineage": data_lineage,
             "data": {
                 "source": (
                     str(Path(args.csv).expanduser().resolve())
@@ -310,9 +681,11 @@ def main(argv=None):
                 "row_count": int(len(prices)),
                 "ticker_count": int(len(prices.columns)),
                 "tickers": list(prices.columns),
+                "provenance": price_provenance,
             },
             "universe": universe_provenance,
             "factor_data": factor_provenance,
+            "market_factor_data": market_factor_provenance,
             "comparison": comparison,
         }
         output_path = Path(args.output)

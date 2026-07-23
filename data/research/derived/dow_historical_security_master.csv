@@ -1,0 +1,51 @@
+ticker,cik,effective_start,effective_end,sector
+AA,4281,,,Manufacturing
+AAPL,320193,,,Manufacturing
+AIG,5272,,,Finance Real Estate
+AMGN,318154,,,Manufacturing
+AMZN,1018724,,,Retail
+AXP,4962,,,Finance Real Estate
+BA,12927,,,Manufacturing
+BAC,70858,,,Finance Real Estate
+C,831001,,,Finance Real Estate
+CAT,18230,,,Manufacturing
+CRM,1108524,,,Services
+CSCO,858877,,,Manufacturing
+CVX,93410,,,Manufacturing
+DD,30554,,,Manufacturing
+DIS,1001039,,2019-03-19,Services
+DIS,1744489,2019-03-20,,Services
+DOW,1751788,,,Manufacturing
+DWDP,1666700,,,Manufacturing
+GE,40545,,,Manufacturing
+GM,40730,,2009-06-08,Manufacturing
+GS,886982,,,Finance Real Estate
+HD,354950,,,Retail
+HON,773840,,,Manufacturing
+HPQ,47217,,,Manufacturing
+IBM,51143,,,Manufacturing
+INTC,50863,,,Manufacturing
+JNJ,200406,,,Manufacturing
+JPM,19617,,,Finance Real Estate
+KFT,1103982,,2012-09-24,Manufacturing
+KO,21344,,,Manufacturing
+MCD,63908,,,Retail
+MMM,66740,,,Manufacturing
+MO,764180,,,Manufacturing
+MRK,310158,,,Manufacturing
+MSFT,789019,,,Services
+NKE,320187,,,Manufacturing
+NVDA,1045810,,,Manufacturing
+PFE,78003,,,Manufacturing
+PG,80424,,,Manufacturing
+RTX,101829,,,Manufacturing
+SHW,89800,,,Manufacturing
+T,732717,,,Transportation Utilities
+TRV,86312,,,Finance Real Estate
+UNH,731766,,,Finance Real Estate
+UTX,101829,,2020-04-06,Manufacturing
+V,1403161,,,Finance Real Estate
+VZ,732712,,,Transportation Utilities
+WBA,1618921,,2024-02-26,Retail
+WMT,104169,,,Retail
+XOM,34088,,2020-08-31,Manufacturing

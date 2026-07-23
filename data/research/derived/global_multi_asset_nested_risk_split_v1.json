@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "split_id": "global-multi-asset-nested-risk-research-2008-2016",
+  "role": "research",
+  "evaluation_start": "2009-12-31",
+  "evaluation_end": "2016-12-30",
+  "experiment_namespace": "risk-v1-nested-weight-blend-global-assets",
+  "objectives": [
+    "nested_blended_min_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95
+  },
+  "universe_manifest_sha256": "16b005516fe040c575a18894b44ef7a05fc361d74aaa4a49303eae1d2879c9e0",
+  "price_file_sha256": "5a9ac40dcb54cc2ae5a39ddbeb60b933881677c3f899970e643f148fc29d273b",
+  "factor_file_sha256": null,
+  "locked": true,
+  "manifest_sha256": "cb0ca2c73dc9ace6f7904cb1ee51c547bd11cd3da19d5026b68d28e5adc8c091"
+}

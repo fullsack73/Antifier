@@ -116,3 +116,38 @@ deterministic 지표는 모두 개선했지만 Sharpe 개선 확률이 95% gate�
 - research run completed for six allocator families
 - frozen validation completed 4/4 cases with candidate survival 1/4
 - OOS covariance ensemble follow-up 이후 risk model test `23 passed`, 전체 backend test `174 passed`
+
+## Nested min-variance / inverse-vol weight shrinkage
+
+- fresh research basket:
+  `SPY, EFA, EEM, IEF, TLT, LQD, HYG, GLD, DBC, VNQ`
+- period: 2008-2016, 2,267 price rows
+- split digest:
+  `cb0ca2c73dc9ace6f7904cb1ee51c547bd11cd3da19d5026b68d28e5adc8c091`
+- 252-day inner train / 63-day completed validation에서 realized variance가
+  가장 낮은 inverse-vol blend를 선택했습니다.
+
+| Metric | Ledoit-Wolf min-var | Nested blend |
+|---|---:|---:|
+| CAGR | 0.0544 | 0.0524 |
+| Annual volatility | 0.0501 | 0.0494 |
+| Sharpe | 0.6857 | 0.6561 |
+| Max drawdown | -0.0938 | -0.0921 |
+| Risk forecast MAE | 0.0177 | 0.0173 |
+
+- P(lower volatility): `99.75%`
+- P(higher Sharpe): `13.95%`
+- 결론: risk reduction은 유의하지만 return efficiency가 악화되어 후보를
+  폐기합니다. 기본 Ledoit-Wolf를 유지하고 validation은 실행하지 않습니다.
+
+## Historical risk-free correction
+
+- 고정 annual `2%` Sharpe 대신 FRED DGS3MO annual yield를 daily equivalent로
+  변환해 OOS 날짜에 정렬했습니다.
+- Fama/French daily RF는 0.01% 단위 반올림으로 저금리 기간 대부분 0이므로
+  성과평가 risk-free로 사용하지 않았습니다.
+- 2009-12-31~2016-12-30 실현 annualized risk-free는 `0.1058%`,
+  exact-date coverage는 `100%`였습니다.
+- corrected Sharpe는 Ledoit-Wolf `1.0605`, nested blend `1.0376`이며
+  P(higher Sharpe)는 `19.20%`입니다.
+- 결론은 동일하게 nested blend 탈락입니다.

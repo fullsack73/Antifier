@@ -1,0 +1,1145 @@
+{
+  "source": "local extracted SEC EDGAR companyfacts bulk archive",
+  "availability_policy": "SEC filing date; filed <= signal as-of date",
+  "feature_policy": {
+    "quality": "operating_cash_flow/assets; net_income/assets fallback",
+    "profitability": "gross_profit/revenue; net_margin fallback",
+    "valuation": "net_income/(filing-date price * shares)",
+    "liquidity": "current_assets/current_liabilities",
+    "market_cap": "filing-date price * reported shares outstanding"
+  },
+  "tickers_requested": [
+    "AA",
+    "AAPL",
+    "AIG",
+    "AMGN",
+    "AMZN",
+    "AXP",
+    "BA",
+    "BAC",
+    "C",
+    "CAT",
+    "CRM",
+    "CSCO",
+    "CVX",
+    "DD",
+    "DIS",
+    "DOW",
+    "DWDP",
+    "GE",
+    "GM",
+    "GS",
+    "HD",
+    "HON",
+    "HPQ",
+    "IBM",
+    "INTC",
+    "JNJ",
+    "JPM",
+    "KFT",
+    "KO",
+    "MCD",
+    "MMM",
+    "MO",
+    "MRK",
+    "MSFT",
+    "NKE",
+    "NVDA",
+    "PFE",
+    "PG",
+    "RTX",
+    "SHW",
+    "T",
+    "TRV",
+    "UNH",
+    "UTX",
+    "V",
+    "VZ",
+    "WBA",
+    "WMT",
+    "XOM"
+  ],
+  "tickers_completed": [
+    "AA",
+    "AAPL",
+    "AIG",
+    "AMGN",
+    "AMZN",
+    "AXP",
+    "BA",
+    "BAC",
+    "C",
+    "CAT",
+    "CRM",
+    "CSCO",
+    "CVX",
+    "DD",
+    "DIS",
+    "DOW",
+    "DWDP",
+    "GE",
+    "GS",
+    "HD",
+    "HON",
+    "HPQ",
+    "IBM",
+    "INTC",
+    "JNJ",
+    "JPM",
+    "KFT",
+    "KO",
+    "MCD",
+    "MMM",
+    "MO",
+    "MRK",
+    "MSFT",
+    "NKE",
+    "NVDA",
+    "PFE",
+    "PG",
+    "RTX",
+    "SHW",
+    "T",
+    "TRV",
+    "UNH",
+    "UTX",
+    "V",
+    "VZ",
+    "WMT",
+    "XOM"
+  ],
+  "company_metadata": {
+    "AA": {
+      "cik": 4281,
+      "entity_name": "HOWMET AEROSPACE INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 17,
+      "identities": [
+        {
+          "cik": 4281,
+          "entity_name": "HOWMET AEROSPACE INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 17
+        }
+      ],
+      "identity_failures": []
+    },
+    "AAPL": {
+      "cik": 320193,
+      "entity_name": "Apple Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 18,
+      "identities": [
+        {
+          "cik": 320193,
+          "entity_name": "Apple Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 18
+        }
+      ],
+      "identity_failures": []
+    },
+    "AIG": {
+      "cik": 5272,
+      "entity_name": "American International Group, Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 5272,
+          "entity_name": "American International Group, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "AMGN": {
+      "cik": 318154,
+      "entity_name": "Amgen Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 318154,
+          "entity_name": "Amgen Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "AMZN": {
+      "cik": 1018724,
+      "entity_name": "AMAZON COM INC",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 1018724,
+          "entity_name": "AMAZON COM INC",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "AXP": {
+      "cik": 4962,
+      "entity_name": "AMERICAN EXPRESS CO",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 4962,
+          "entity_name": "AMERICAN EXPRESS CO",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "BA": {
+      "cik": 12927,
+      "entity_name": "THE BOEING COMPANY",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 12927,
+          "entity_name": "THE BOEING COMPANY",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "BAC": {
+      "cik": 70858,
+      "entity_name": "BofA Finance LLC",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 70858,
+          "entity_name": "BofA Finance LLC",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "C": {
+      "cik": 831001,
+      "entity_name": "Citigroup Inc",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 831001,
+          "entity_name": "Citigroup Inc",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "CAT": {
+      "cik": 18230,
+      "entity_name": "CATERPILLAR INC",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 18230,
+          "entity_name": "CATERPILLAR INC",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "CRM": {
+      "cik": 1108524,
+      "entity_name": "Salesforce, Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 1108524,
+          "entity_name": "Salesforce, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "CSCO": {
+      "cik": 858877,
+      "entity_name": "CISCO SYSTEMS, INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 858877,
+          "entity_name": "CISCO SYSTEMS, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "CVX": {
+      "cik": 93410,
+      "entity_name": "Chevron Corp",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 93410,
+          "entity_name": "Chevron Corp",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "DD": {
+      "cik": 30554,
+      "entity_name": "EIDP, INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 7,
+      "identities": [
+        {
+          "cik": 30554,
+          "entity_name": "EIDP, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 7
+        }
+      ],
+      "identity_failures": []
+    },
+    "DIS": {
+      "cik": 1744489,
+      "entity_name": "WALT DISNEY CO/",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 18,
+      "identities": [
+        {
+          "cik": 1001039,
+          "entity_name": "WALT DISNEY CO/",
+          "effective_start": null,
+          "effective_end": "2019-03-19",
+          "sector": "Services",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 10
+        },
+        {
+          "cik": 1744489,
+          "entity_name": "WALT DISNEY CO/",
+          "effective_start": "2019-03-20",
+          "effective_end": null,
+          "sector": "Services",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 8
+        }
+      ],
+      "identity_failures": []
+    },
+    "DOW": {
+      "cik": 1751788,
+      "entity_name": "DOW INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 6,
+      "identities": [
+        {
+          "cik": 1751788,
+          "entity_name": "DOW INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 6
+        }
+      ],
+      "identity_failures": []
+    },
+    "DWDP": {
+      "cik": 1666700,
+      "entity_name": "DUPONT DE NEMOURS, INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 8,
+      "identities": [
+        {
+          "cik": 1666700,
+          "entity_name": "DUPONT DE NEMOURS, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 8
+        }
+      ],
+      "identity_failures": []
+    },
+    "GE": {
+      "cik": 40545,
+      "entity_name": "GENERAL ELECTRIC CO",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 40545,
+          "entity_name": "GENERAL ELECTRIC CO",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "GS": {
+      "cik": 886982,
+      "entity_name": "The Goldman Sachs Group, Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 17,
+      "identities": [
+        {
+          "cik": 886982,
+          "entity_name": "The Goldman Sachs Group, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 17
+        }
+      ],
+      "identity_failures": []
+    },
+    "HD": {
+      "cik": 354950,
+      "entity_name": "HOME DEPOT,\u00a0INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 354950,
+          "entity_name": "HOME DEPOT,\u00a0INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "HON": {
+      "cik": 773840,
+      "entity_name": "Honeywell International Inc",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 773840,
+          "entity_name": "Honeywell International Inc",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "HPQ": {
+      "cik": 47217,
+      "entity_name": "HP\u00a0INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 19,
+      "identities": [
+        {
+          "cik": 47217,
+          "entity_name": "HP\u00a0INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 19
+        }
+      ],
+      "identity_failures": []
+    },
+    "IBM": {
+      "cik": 51143,
+      "entity_name": "INTERNATIONAL BUSINESS MACHINES CORP",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 51143,
+          "entity_name": "INTERNATIONAL BUSINESS MACHINES CORP",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "INTC": {
+      "cik": 50863,
+      "entity_name": "INTEL CORP",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 50863,
+          "entity_name": "INTEL CORP",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "JNJ": {
+      "cik": 200406,
+      "entity_name": "Johnson & Johnson",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 200406,
+          "entity_name": "Johnson & Johnson",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "JPM": {
+      "cik": 19617,
+      "entity_name": "JPMORGAN CHASE & CO",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 19617,
+          "entity_name": "JPMORGAN CHASE & CO",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "KFT": {
+      "cik": 1103982,
+      "entity_name": "Mondelez International, Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 3,
+      "identities": [
+        {
+          "cik": 1103982,
+          "entity_name": "Mondelez International, Inc.",
+          "effective_start": null,
+          "effective_end": "2012-09-24",
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 3
+        }
+      ],
+      "identity_failures": []
+    },
+    "KO": {
+      "cik": 21344,
+      "entity_name": "COCA COLA CO",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 15,
+      "identities": [
+        {
+          "cik": 21344,
+          "entity_name": "COCA COLA CO",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 15
+        }
+      ],
+      "identity_failures": []
+    },
+    "MCD": {
+      "cik": 63908,
+      "entity_name": "McDONALD\u2019S CORPORATION",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 63908,
+          "entity_name": "McDONALD\u2019S CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "MMM": {
+      "cik": 66740,
+      "entity_name": "3M COMPANY",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 66740,
+          "entity_name": "3M COMPANY",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "MO": {
+      "cik": 764180,
+      "entity_name": "ALTRIA GROUP, INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 764180,
+          "entity_name": "ALTRIA GROUP, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "MRK": {
+      "cik": 310158,
+      "entity_name": "Merck & Co., Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 310158,
+          "entity_name": "Merck & Co., Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "MSFT": {
+      "cik": 789019,
+      "entity_name": "MICROSOFT CORPORATION",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 789019,
+          "entity_name": "MICROSOFT CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Services",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "NKE": {
+      "cik": 320187,
+      "entity_name": "NIKE, Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 320187,
+          "entity_name": "NIKE, Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "NVDA": {
+      "cik": 1045810,
+      "entity_name": "NVIDIA CORP",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 1045810,
+          "entity_name": "NVIDIA CORP",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "PFE": {
+      "cik": 78003,
+      "entity_name": "Pfizer Inc.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 78003,
+          "entity_name": "Pfizer Inc.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "PG": {
+      "cik": 80424,
+      "entity_name": "PROCTER & GAMBLE CO",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 17,
+      "identities": [
+        {
+          "cik": 80424,
+          "entity_name": "PROCTER & GAMBLE CO",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 17
+        }
+      ],
+      "identity_failures": []
+    },
+    "RTX": {
+      "cik": 101829,
+      "entity_name": "RTX CORPORATION",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 101829,
+          "entity_name": "RTX CORPORATION",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "SHW": {
+      "cik": 89800,
+      "entity_name": "THE SHERWIN-WILLIAMS COMPANY",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 89800,
+          "entity_name": "THE SHERWIN-WILLIAMS COMPANY",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "T": {
+      "cik": 732717,
+      "entity_name": "AT&T INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 732717,
+          "entity_name": "AT&T INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "TRV": {
+      "cik": 86312,
+      "entity_name": "TRAVELERS COMPANIES, INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 86312,
+          "entity_name": "TRAVELERS COMPANIES, INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "UNH": {
+      "cik": 731766,
+      "entity_name": "UnitedHealth Group Incorporated",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 731766,
+          "entity_name": "UnitedHealth Group Incorporated",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "UTX": {
+      "cik": 101829,
+      "entity_name": "RTX CORPORATION",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 11,
+      "identities": [
+        {
+          "cik": 101829,
+          "entity_name": "RTX CORPORATION",
+          "effective_start": null,
+          "effective_end": "2020-04-06",
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 11
+        }
+      ],
+      "identity_failures": []
+    },
+    "V": {
+      "cik": 1403161,
+      "entity_name": "VISA INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 1403161,
+          "entity_name": "VISA INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Finance Real Estate",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "VZ": {
+      "cik": 732712,
+      "entity_name": "VERIZON COMMUNICATIONS INC",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 732712,
+          "entity_name": "VERIZON COMMUNICATIONS INC",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Transportation Utilities",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "WMT": {
+      "cik": 104169,
+      "entity_name": "WALMART INC.",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 16,
+      "identities": [
+        {
+          "cik": 104169,
+          "entity_name": "WALMART INC.",
+          "effective_start": null,
+          "effective_end": null,
+          "sector": "Retail",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 16
+        }
+      ],
+      "identity_failures": []
+    },
+    "XOM": {
+      "cik": 34088,
+      "entity_name": "Exxon Mobil Corporation",
+      "sic": null,
+      "sic_description": null,
+      "row_count": 12,
+      "identities": [
+        {
+          "cik": 34088,
+          "entity_name": "Exxon Mobil Corporation",
+          "effective_start": null,
+          "effective_end": "2020-08-31",
+          "sector": "Manufacturing",
+          "sic": null,
+          "sic_description": null,
+          "row_count": 12
+        }
+      ],
+      "identity_failures": []
+    }
+  },
+  "failures": {
+    "GM": "no_usable_annual_filing_features",
+    "WBA": "no_usable_annual_filing_features"
+  },
+  "retrieved_at": "2026-07-23T13:55:55.820369+00:00",
+  "official_endpoints": {
+    "ticker_mapping": "https://www.sec.gov/files/company_tickers.json",
+    "company_facts": "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json",
+    "submissions": "https://data.sec.gov/submissions/CIK{cik:010d}.json"
+  },
+  "requested_start": "2008-01-01",
+  "requested_end": "2025-12-31",
+  "row_count": 712,
+  "feature_file": "/Applications/react/my-app/portfolio-project/data/research/derived/dow_sec_pit_features_2008_2025.csv",
+  "feature_file_sha256": "cf9163ee5c10eb2544aea8a7d6c61dab5d2d768cdcaeba16d87f08915a7818f0",
+  "universe": {
+    "source": "https://en.wikipedia.org/w/index.php?title=Historical_components_of_the_Dow_Jones_Industrial_Average&oldid=1362314398",
+    "retrieved_at": "2026-07-23T13:40:14.571564+00:00",
+    "universe_policy": "full dated DJIA constituent snapshots reconstructed to membership events",
+    "survivorship_policy": "historical_constituents",
+    "source_quality": "secondary public history; pinned revision and snapshot-size checked",
+    "source_license": "CC BY-SA 4.0",
+    "source_attribution": "Wikipedia contributors, Historical components of the Dow Jones Industrial Average",
+    "raw_source_file": "/Applications/react/my-app/portfolio-project/data/research/raw/dow_historical_components_wikipedia.html",
+    "raw_source_sha256": "e4d33734caf137eb574a2c0dabf85ef35e00d0dd5038e98b1cd9a5059929a08e",
+    "manifest_file": "/Applications/react/my-app/portfolio-project/data/research/derived/dow_membership_events_2005_2024.csv",
+    "manifest_sha256": "6f832f112f0af8717d8505e26c4f12839c52ab74f51459d5fed752dfd0f70f21",
+    "snapshot_count": 14,
+    "event_count": 70,
+    "ticker_count": 49,
+    "start_date": "2005-11-21",
+    "end_date": "2024-11-08",
+    "promotion_note": "Membership is point-in-time; price and issuer identity coverage must pass separate gates.",
+    "promotion_safe": true
+  },
+  "ingestion_mode": "local_official_companyfacts_archive",
+  "companyfacts_directory": "/Applications/react/my-app/portfolio-project/companyfacts",
+  "submissions_directory": null,
+  "ticker_cik_map_sha256": null,
+  "security_master": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/dow_historical_security_master.csv",
+    "sha256": "7549cff26fdcf92a86ece2e3147a67880294597e2dad813ee8c69d3626594266",
+    "provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/dow_historical_security_master.provenance.json",
+    "provenance_file_sha256": "1294b5f485a79d9fd79289781f3e667052dce0dd02fe84df7c4cfc9a6741e0a9",
+    "promotion_safe": false,
+    "identity_policy": "dated ticker-to-CIK intervals; no overlapping issuer identities",
+    "sector_policy": "security-master sector override when present; otherwise SEC submissions SIC"
+  },
+  "prices": {
+    "source": "Yahoo Finance adjusted price history",
+    "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/dow_prices_2007_2025.csv",
+    "price_file_sha256": "dde563f1d01da794b4e1b6a90d94ac04af6e9b807d72c1b726b95814a19fc8c2",
+    "provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/dow_prices_2007_2025.provenance.json",
+    "provenance_file_sha256": "7f580be6fcac43cbd99273982f35ca26ff6e4381336928954f70da912e9a4c46",
+    "missing_tickers": [
+      "WBA"
+    ],
+    "price_aliases": {
+      "file": "/Applications/react/my-app/portfolio-project/data/research/derived/dow_price_aliases.csv",
+      "sha256": "c421136d34e355abc6b2b3fbabde7b365d9df28e858852a33c4b142f61e90e4e",
+      "records": [
+        {
+          "ticker": "DWDP",
+          "price_ticker": "DD",
+          "identity_policy": "renamed successor carries historical DowDuPont series"
+        },
+        {
+          "ticker": "KFT",
+          "price_ticker": "MDLZ",
+          "identity_policy": "renamed successor carries historical Kraft Foods series"
+        },
+        {
+          "ticker": "UTX",
+          "price_ticker": "RTX",
+          "identity_policy": "renamed successor carries historical United Technologies series"
+        }
+      ]
+    },
+    "promotion_safe": true
+  },
+  "promotion_safe": false,
+  "user_agent_declared": false
+}

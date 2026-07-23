@@ -684,6 +684,141 @@ def stability_regularized_minimum_variance_weights(
     }
 
 
+def _inverse_volatility_weights(price_data, max_asset_weight):
+    returns = _returns(price_data)
+    volatility = returns.std(ddof=0).replace(0.0, np.nan)
+    inverse = (1.0 / volatility).replace(
+        [np.inf, -np.inf],
+        np.nan,
+    ).fillna(0.0)
+    if float(inverse.sum()) <= 0.0:
+        inverse = pd.Series(
+            1.0,
+            index=pd.DataFrame(price_data).columns,
+            dtype=float,
+        )
+    return cap_and_normalize_weights(
+        inverse,
+        max_asset_weight=max_asset_weight,
+    )
+
+
+def nested_blended_minimum_variance_weights(
+    price_data,
+    max_asset_weight=0.20,
+    blend_grid=(0.0, 0.25, 0.50, 0.75, 1.0),
+    inner_train=252,
+    inner_validation=63,
+):
+    """Select min-variance/inverse-vol shrinkage on completed inner folds."""
+    prices = _clean_prices(price_data)
+    tickers = list(prices.columns)
+    inner_train = max(63, int(inner_train))
+    inner_validation = max(21, int(inner_validation))
+    blend_grid = tuple(sorted({
+        float(np.clip(value, 0.0, 1.0))
+        for value in blend_grid
+        if np.isfinite(float(value))
+    }))
+    if not blend_grid:
+        raise ValueError("nested blend grid requires a finite value")
+
+    losses = {blend: [] for blend in blend_grid}
+    fold_count = 0
+    last_train_end = len(prices) - inner_validation - 1
+    for train_end in range(
+        inner_train,
+        last_train_end + 1,
+        inner_validation,
+    ):
+        inner_prices = prices.iloc[
+            train_end - inner_train:train_end + 1
+        ]
+        validation_returns = (
+            prices.iloc[
+                train_end:train_end + inner_validation + 1
+            ]
+            .pct_change()
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna(how="any")
+        )
+        if len(validation_returns) < max(20, len(tickers) + 2):
+            continue
+        covariance = risk_models.CovarianceShrinkage(
+            inner_prices
+        ).ledoit_wolf()
+        min_variance, _ = _minimum_variance_from_covariance(
+            covariance,
+            tickers,
+            max_asset_weight,
+        )
+        inverse_volatility = _inverse_volatility_weights(
+            inner_prices,
+            max_asset_weight,
+        )
+        for blend in blend_grid:
+            weights = cap_and_normalize_weights(
+                (1.0 - blend) * min_variance
+                + blend * inverse_volatility,
+                max_asset_weight=max_asset_weight,
+            )
+            portfolio_returns = validation_returns.reindex(
+                columns=tickers
+            ).mul(weights, axis=1).sum(axis=1)
+            losses[blend].append(
+                float(portfolio_returns.var(ddof=0) * TRADING_DAYS_PER_YEAR)
+            )
+        fold_count += 1
+
+    scores = {
+        blend: float(np.median(values))
+        for blend, values in losses.items()
+        if values
+    }
+    selected_blend = (
+        0.50
+        if not scores
+        else min(scores, key=lambda blend: (scores[blend], -blend))
+    )
+    covariance = risk_models.CovarianceShrinkage(prices).ledoit_wolf()
+    min_variance, success = _minimum_variance_from_covariance(
+        covariance,
+        tickers,
+        max_asset_weight,
+    )
+    inverse_volatility = _inverse_volatility_weights(
+        prices,
+        max_asset_weight,
+    )
+    weights = cap_and_normalize_weights(
+        (1.0 - selected_blend) * min_variance
+        + selected_blend * inverse_volatility,
+        max_asset_weight=max_asset_weight,
+    )
+    return weights, {
+        "method": "nested_min_variance_inverse_volatility_blend",
+        "selection_metric": "median completed inner-fold realized variance",
+        "selected_inverse_volatility_weight": float(selected_blend),
+        "blend_grid": [float(value) for value in blend_grid],
+        "inner_train": int(inner_train),
+        "inner_validation": int(inner_validation),
+        "inner_fold_count": int(fold_count),
+        "fallback": not bool(scores),
+        "candidate_scores": {
+            str(float(blend)): float(score)
+            for blend, score in scores.items()
+        },
+        "optimizer_success": bool(success),
+        "minimum_variance_l1_distance": float(
+            (weights - min_variance).abs().sum()
+        ),
+        "inverse_volatility_l1_distance": float(
+            (weights - inverse_volatility).abs().sum()
+        ),
+        "covariance": covariance_diagnostics(covariance),
+    }
+
+
 def resampled_minimum_variance_weights(
     price_data,
     max_asset_weight=0.20,

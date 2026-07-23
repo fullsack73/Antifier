@@ -70,6 +70,27 @@ def test_paired_block_bootstrap_is_deterministic_and_aligned():
     assert first["observation_count"] == 295
 
 
+def test_paired_bootstrap_uses_historical_daily_risk_free_returns():
+    dates = pd.date_range("2020-01-02", periods=300, freq="B")
+    baseline = pd.Series(0.0005, index=dates)
+    candidate = pd.Series(0.0010, index=dates)
+    risk_free = pd.Series(0.0002, index=dates)
+
+    result = paired_block_bootstrap(
+        candidate,
+        baseline,
+        risk_free_daily_returns=risk_free,
+        samples=200,
+    )
+
+    assert result["observed"]["candidate"][
+        "annualized_excess_return"
+    ] == pytest.approx((0.0010 - 0.0002) * 252)
+    assert result["observed"]["baseline"][
+        "annualized_excess_return"
+    ] == pytest.approx((0.0005 - 0.0002) * 252)
+
+
 def test_bootstrap_gate_rejects_insufficient_data():
     result = paired_block_bootstrap(
         [0.01, -0.01, 0.005],

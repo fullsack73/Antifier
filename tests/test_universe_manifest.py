@@ -13,6 +13,7 @@ if str(BACKEND) not in sys.path:
 from universe_manifest import (  # noqa: E402
     manifest_tickers_during,
     normalize_universe_manifest,
+    snapshots_to_membership_events,
     universe_manifest_digest,
     universe_snapshot,
     validate_universe_provenance,
@@ -45,6 +46,21 @@ def test_manifest_interval_returns_assets_active_at_any_time():
         "2020-05-01",
         "2020-12-31",
     ) == ["AAA", "BBB", "CCC"]
+
+
+def test_snapshots_to_membership_events_reconstructs_each_snapshot():
+    snapshots = pd.DataFrame([
+        {"effective_date": "2020-01-01", "ticker": "AAA"},
+        {"effective_date": "2020-01-01", "ticker": "BBB"},
+        {"effective_date": "2021-01-01", "ticker": "BBB"},
+        {"effective_date": "2021-01-01", "ticker": "CCC"},
+    ])
+
+    events = snapshots_to_membership_events(snapshots)
+
+    assert universe_snapshot(events, "2020-06-01") == ["AAA", "BBB"]
+    assert universe_snapshot(events, "2021-06-01") == ["BBB", "CCC"]
+    assert len(events) == 4
 
 
 def test_manifest_normalization_rejects_duplicate_events():

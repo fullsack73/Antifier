@@ -27,6 +27,7 @@ from sec_point_in_time import (  # noqa: E402
     SecCompanyFactsDirectoryClient,
     build_sec_pit_features,
     normalize_ticker_cik_map,
+    normalize_ticker_cik_history,
 )
 from universe_manifest import (  # noqa: E402
     manifest_tickers_during,
@@ -63,6 +64,65 @@ def _load_universe(args):
     )
     provenance["manifest_sha256"] = universe_manifest_digest(manifest)
     return manifest, provenance
+
+
+def _load_verified_prices(args, tickers, start, end):
+    if bool(args.price_csv) != bool(args.price_provenance):
+        raise ValueError(
+            "--price-csv and --price-provenance must be used together"
+        )
+    if not args.price_csv:
+        price_start = (start - pd.Timedelta(days=14)).strftime("%Y-%m-%d")
+        price_end = (end + pd.Timedelta(days=2)).strftime("%Y-%m-%d")
+        return (
+            fetch_backtest_price_data(
+                tickers=tickers,
+                start_date=price_start,
+                end_date=price_end,
+            ),
+            {
+                "source": "runtime market-data fetch",
+                "promotion_safe": False,
+            },
+        )
+
+    provenance = json.loads(
+        Path(args.price_provenance).read_text(encoding="utf-8")
+    )
+    expected_sha = str(provenance.get("price_file_sha256") or "").strip()
+    actual_sha = _sha256(args.price_csv)
+    if not expected_sha:
+        raise ValueError(
+            "Price provenance requires price_file_sha256"
+        )
+    if expected_sha != actual_sha:
+        raise ValueError(
+            "Price CSV SHA-256 does not match price provenance"
+        )
+    prices = pd.read_csv(args.price_csv, index_col=0)
+    prices.index = pd.to_datetime(prices.index, errors="raise")
+    prices.columns = [
+        str(column).strip().upper() for column in prices.columns
+    ]
+    prices = prices.loc[
+        (prices.index >= start - pd.Timedelta(days=14))
+        & (prices.index <= end + pd.Timedelta(days=2))
+    ]
+    return prices, {
+        "source": provenance.get("source"),
+        "price_file": str(Path(args.price_csv).expanduser().resolve()),
+        "price_file_sha256": actual_sha,
+        "provenance_file": str(
+            Path(args.price_provenance).expanduser().resolve()
+        ),
+        "provenance_file_sha256": _sha256(args.price_provenance),
+        "missing_tickers": provenance.get("missing_tickers", []),
+        "price_aliases": provenance.get("price_aliases"),
+        "promotion_safe": bool(
+            provenance.get("price_file_sha256")
+            and provenance.get("universe_manifest_sha256")
+        ),
+    }
 
 
 def main(argv=None):
@@ -105,6 +165,25 @@ def main(argv=None):
         help="CSV with ticker,cik columns for --companyfacts-dir",
     )
     parser.add_argument(
+        "--security-master",
+        help=(
+            "CSV with ticker,cik and optional dated identity/sector columns "
+            "for --companyfacts-dir"
+        ),
+    )
+    parser.add_argument(
+        "--security-master-provenance",
+        help="JSON provenance containing security_master_sha256",
+    )
+    parser.add_argument(
+        "--price-csv",
+        help="Prebuilt dated price CSV; requires --price-provenance",
+    )
+    parser.add_argument(
+        "--price-provenance",
+        help="JSON provenance with price_file_sha256",
+    )
+    parser.add_argument(
         "--submissions-dir",
         help="Optional extracted SEC submissions directory for SIC metadata",
     )
@@ -124,9 +203,26 @@ def main(argv=None):
         if not tickers:
             raise ValueError("No active tickers in the requested interval")
         uses_local_companyfacts = bool(args.companyfacts_dir)
-        if uses_local_companyfacts != bool(args.ticker_cik_map):
+        identity_sources = sum(
+            bool(value)
+            for value in (args.ticker_cik_map, args.security_master)
+        )
+        if uses_local_companyfacts != (identity_sources == 1):
             raise ValueError(
-                "--companyfacts-dir and --ticker-cik-map must be used together"
+                "--companyfacts-dir requires exactly one of "
+                "--ticker-cik-map or --security-master"
+            )
+        if not uses_local_companyfacts and identity_sources:
+            raise ValueError(
+                "--ticker-cik-map and --security-master require "
+                "--companyfacts-dir"
+            )
+        if bool(args.security_master) != bool(
+            args.security_master_provenance
+        ):
+            raise ValueError(
+                "--security-master and --security-master-provenance "
+                "must be used together"
             )
         if args.submissions_dir and not uses_local_companyfacts:
             raise ValueError(
@@ -136,23 +232,57 @@ def main(argv=None):
             raise ValueError(
                 "Set SEC_USER_AGENT to an application name plus contact "
                 "email or project URL, or provide --companyfacts-dir and "
-                "--ticker-cik-map"
+                "an issuer identity file"
             )
 
-        price_start = (start - pd.Timedelta(days=14)).strftime("%Y-%m-%d")
-        price_end = (end + pd.Timedelta(days=2)).strftime("%Y-%m-%d")
-        prices = fetch_backtest_price_data(
-            tickers=tickers,
-            start_date=price_start,
-            end_date=price_end,
+        prices, price_provenance = _load_verified_prices(
+            args,
+            tickers,
+            start,
+            end,
         )
+        ticker_cik_history = None
+        ticker_cik_map = None
+        security_master_provenance = None
+        if args.security_master:
+            security_master_provenance = json.loads(
+                Path(args.security_master_provenance).read_text(
+                    encoding="utf-8"
+                )
+            )
+            expected_sha = str(
+                security_master_provenance.get(
+                    "security_master_sha256"
+                )
+                or ""
+            ).strip()
+            actual_sha = _sha256(args.security_master)
+            if not expected_sha:
+                raise ValueError(
+                    "Security-master provenance requires "
+                    "security_master_sha256"
+                )
+            if expected_sha != actual_sha:
+                raise ValueError(
+                    "Security-master SHA-256 does not match provenance"
+                )
+            ticker_cik_history = normalize_ticker_cik_history(
+                pd.read_csv(args.security_master)
+            )
+            ticker_cik_map = {
+                ticker: records[-1]["cik"]
+                for ticker, records in ticker_cik_history.items()
+            }
+        elif args.ticker_cik_map:
+            ticker_cik_map = normalize_ticker_cik_map(
+                pd.read_csv(args.ticker_cik_map)
+            )
         client = (
             SecCompanyFactsDirectoryClient(
                 args.companyfacts_dir,
-                normalize_ticker_cik_map(
-                    pd.read_csv(args.ticker_cik_map)
-                ),
+                ticker_cik_map,
                 submissions_dir=args.submissions_dir,
+                ticker_cik_history=ticker_cik_history,
             )
             if uses_local_companyfacts
             else SecEdgarClient(
@@ -226,8 +356,52 @@ def main(argv=None):
             ),
             "ticker_cik_map_sha256": (
                 _sha256(args.ticker_cik_map)
-                if uses_local_companyfacts
+                if args.ticker_cik_map
                 else None
+            ),
+            "security_master": (
+                {
+                    "file": str(
+                        Path(args.security_master).expanduser().resolve()
+                    ),
+                    "sha256": _sha256(args.security_master),
+                    "provenance_file": str(
+                        Path(
+                            args.security_master_provenance
+                        ).expanduser().resolve()
+                    ),
+                    "provenance_file_sha256": _sha256(
+                        args.security_master_provenance
+                    ),
+                    "promotion_safe": bool(
+                        security_master_provenance.get(
+                            "promotion_safe",
+                            False,
+                        )
+                    ),
+                    "identity_policy": (
+                        "dated ticker-to-CIK intervals; no overlapping "
+                        "issuer identities"
+                    ),
+                    "sector_policy": (
+                        "security-master sector override when present; "
+                        "otherwise SEC submissions SIC"
+                    ),
+                }
+                if args.security_master
+                else None
+            ),
+            "prices": price_provenance,
+            "promotion_safe": bool(
+                universe_provenance.get("promotion_safe", False)
+                and price_provenance.get("promotion_safe", False)
+                and (
+                    security_master_provenance is None
+                    or security_master_provenance.get(
+                        "promotion_safe",
+                        False,
+                    )
+                )
             ),
             "user_agent_declared": bool(
                 args.user_agent and not uses_local_companyfacts

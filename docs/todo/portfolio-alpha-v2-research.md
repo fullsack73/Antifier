@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: 실제 로컬 SEC PIT dataset과 objective 진단 완료, factor 후보 탈락 및 promotion-safe universe/sector metadata 대기
+- 현재 상태: nested PIT joint가 개별 signal gate 통과, familywise/paired improvement gate 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -57,6 +57,23 @@
 - feature별 진단에서 profitability와 quality의 raw rank IC는 각각 `0.0478`, `0.0254`였지만 16-feature Holm 보정 후 유의한 feature는 없었습니다. 이를 근거로 시험한 compact quality ridge도 rank IC `-0.0476`으로 탈락했습니다.
 - 로컬 companyfacts에는 SIC/submissions metadata가 없어 sector가 전부 `Unknown`입니다. 현재 residual target은 beta/size만 제거하므로 sector-neutral 성능을 주장하지 않습니다.
 - 현재 DOW 정적 ticker 표본은 survivorship-safe하지 않아 모든 결과의 `promotion_eligible`은 false입니다.
+- pinned historical DJIA full-composition snapshot 14개를 70개 membership event로 재구성했고 각 source date에서 30종목을 검증했습니다.
+- corporate ticker alias `KFT→MDLZ`, `UTX→RTX`, `DWDP→DD`를 적용한 49-column price panel과 SHA provenance를 생성했습니다.
+- historical membership 연구에서 relative ridge mean rank IC는 `0.0289`, positive IC rate `58.73%`, top-minus-bottom `0.0076`이었습니다.
+- block bootstrap의 positive IC/spread 확률은 `84.80%`, `77.80%`로 95% gate를 통과하지 못했습니다. static-current-DOW의 `0.0539` IC는 생존편향의 영향을 받은 것으로 판단합니다.
+- active-universe coverage 분모에서 가격 없는 ticker가 제외되던 결함을 수정했습니다. 최종 aggregate coverage는 `98.57%`, period minimum은 `93.33%`, 남은 누락은 `WBA`입니다.
+- historical ticker-to-CIK interval과 local companyfacts를 결합해 2009-2025 PIT feature `712`행, `47/49` ticker를 생성했습니다. `DIS`는 2019년 전후 registrant CIK를 분리했습니다.
+- historical-DOW factor-residual 비교에서 price-only IC `0.0252` 대비 full PIT joint IC `0.0581`로 개선됐고 spread도 `0.0044`에서 `0.0114`로 증가했습니다.
+- full PIT joint의 positive IC/spread 확률은 `98.00%`/`94.55%`였습니다. spread 95%와 Holm-adjusted p-value `0.1635` 때문에 승격하지 않습니다.
+- broad sector는 manually audited static proxy이고 canonical dated SEC SIC가 아닙니다. security-master provenance를 `promotion_safe=false`로 기록하고 최종 research 판정에 전파했습니다.
+- historical-DOW research split의 날짜, namespace, objective family, 학습 설정, universe/price/factor hash를 immutable manifest로 잠갔습니다.
+- universe→price→factor lineage 교차검증을 추가해 개별 hash가 맞아도 서로 다른 dataset 계보를 섞는 실행을 거부합니다.
+- 승격 판정은 data-safe, split-locked, signal-gate 세 축으로 분리했습니다. 이번 실행은 각각 false/true/false이므로 `promotion_eligible=false`입니다.
+- inner completed time fold만 사용하는 nested ridge penalty 선택을 추가했습니다. `[1,5,20,100]` grid와 3개 inner validation period를 v2 split digest `8e10ff…1ae5`로 사전 잠갔습니다.
+- nested ridge는 IC `0.0627`, spread `0.0153`, positive bootstrap `98.70%`/`97.45%`로 개별 signal gate를 통과했습니다.
+- 네 objective Holm-adjusted p-value는 `0.1020`, fixed ridge 대비 paired improvement 확률은 IC `81.70%`, spread `93.50%`여서 후보 freeze는 보류합니다.
+- official French market total return으로 beta를 추정한 v3 nested target은 IC `0.0618`, spread `0.0149`로 내부 equal-weight beta의 `0.0627`/`0.0153`보다 낮았습니다.
+- external-market 후보의 기존 nested 대비 paired improvement는 IC `38.80%`, spread `6.85%`, 5-objective adjusted p-value는 `0.1275`여서 폐기합니다.
 
 ## 참고
 

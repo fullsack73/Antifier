@@ -105,28 +105,54 @@ def _cross_sectional_zscore(values, clip=3.0):
     return result
 
 
-def _market_betas(price_history):
+def _market_betas(price_history, market_returns_history=None):
     prices = pd.DataFrame(price_history).apply(pd.to_numeric, errors="coerce")
     returns = prices.pct_change(fill_method=None).replace(
         [np.inf, -np.inf],
         np.nan,
     )
-    market = returns.mean(axis=1, skipna=True)
+    if market_returns_history is None:
+        market = returns.mean(axis=1, skipna=True)
+        market_source = "cross_sectional_equal_weight"
+    else:
+        market = pd.Series(
+            market_returns_history,
+            dtype=float,
+        ).copy()
+        market.index = pd.to_datetime(market.index)
+        market = (
+            market.sort_index()
+            .reindex(returns.index)
+            .replace([np.inf, -np.inf], np.nan)
+        )
+        market_source = "external_market_factor"
     market_variance = float(market.var(ddof=0))
     if not np.isfinite(market_variance) or market_variance <= 1e-12:
-        return pd.Series(np.nan, index=prices.columns, dtype=float)
+        return (
+            pd.Series(np.nan, index=prices.columns, dtype=float),
+            market_source,
+        )
     return returns.apply(
         lambda values: values.cov(market, ddof=0) / market_variance
         if int(values.notna().sum()) >= 20
         else np.nan
-    )
+    ), market_source
 
 
-def factor_residual_forward_returns(forward_returns, price_history, snapshot):
+def factor_residual_forward_returns(
+    forward_returns,
+    price_history,
+    snapshot,
+    market_returns_history=None,
+):
     """Remove beta, sector, and log-size common-factor exposure cross-sectionally."""
     returns = pd.Series(forward_returns, dtype=float).replace([np.inf, -np.inf], np.nan)
     factors = pd.DataFrame(index=returns.index)
-    factors["market_beta"] = _market_betas(price_history).reindex(returns.index)
+    market_betas, market_beta_source = _market_betas(
+        price_history,
+        market_returns_history=market_returns_history,
+    )
+    factors["market_beta"] = market_betas.reindex(returns.index)
     factors["log_market_cap"] = np.log(
         pd.to_numeric(snapshot["market_cap"], errors="coerce").reindex(returns.index)
     )
@@ -151,6 +177,7 @@ def factor_residual_forward_returns(forward_returns, price_history, snapshot):
             "sector_count": sector_count,
             "sector_dummy_count": int(len(sector_dummies.columns)),
             "r_squared": None,
+            "market_beta_source": market_beta_source,
         }
 
     x = design.loc[valid].to_numpy(dtype=float)
@@ -175,6 +202,7 @@ def factor_residual_forward_returns(forward_returns, price_history, snapshot):
         "sector_count": sector_count,
         "sector_dummy_count": int(len(sector_dummies.columns)),
         "r_squared": r_squared,
+        "market_beta_source": market_beta_source,
     }
 
 

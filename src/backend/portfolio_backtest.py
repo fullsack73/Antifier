@@ -44,6 +44,7 @@ from portfolio_risk_models import (
     forecast_ensemble_minimum_variance_weights,
     hierarchical_risk_parity_weights,
     minimum_cvar_weights,
+    nested_blended_minimum_variance_weights,
     resampled_minimum_variance_weights,
     regime_minimum_variance_weights,
     robust_minimum_variance_weights,
@@ -101,6 +102,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
     "stability_regularized_min_variance",
+    "nested_blended_min_variance",
     "resampled_min_variance",
     "risk_managed_momentum",
 )
@@ -741,6 +743,19 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             "risk_model": risk_diagnostics,
         }
 
+    if model_name == "nested_blended_min_variance":
+        weights, risk_diagnostics = (
+            nested_blended_minimum_variance_weights(
+                train_prices,
+                max_asset_weight=max_asset_weight,
+            )
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
     if model_name == "resampled_min_variance":
         weights, risk_diagnostics = resampled_minimum_variance_weights(
             train_prices,
@@ -978,10 +993,17 @@ def calculate_turnover_and_cost(current_values, target_weights, portfolio_value,
     return float(turnover), float(cost)
 
 
-def _portfolio_metrics(value_timeline, risk_free_rate):
+def _portfolio_metrics(
+    value_timeline,
+    risk_free_rate,
+    risk_free_daily_returns=None,
+):
     empty_metrics = {
         "cagr": 0.0,
         "annual_volatility": 0.0,
+        "annualized_excess_return": 0.0,
+        "annualized_risk_free_return": float(risk_free_rate),
+        "risk_free_observation_coverage": 0.0,
         "annual_downside_deviation": 0.0,
         "sharpe": None,
         "sortino": None,
@@ -1003,15 +1025,56 @@ def _portfolio_metrics(value_timeline, risk_free_rate):
     years = max((len(series) - 1) / TRADING_DAYS_PER_YEAR, 1 / TRADING_DAYS_PER_YEAR)
     cagr = (series.iloc[-1] / series.iloc[0]) ** (1 / years) - 1 if series.iloc[0] > 0 else 0.0
     annual_vol = float(returns.std(ddof=0) * np.sqrt(TRADING_DAYS_PER_YEAR)) if len(returns) else 0.0
-    sharpe = None if annual_vol <= 0 else float((cagr - risk_free_rate) / annual_vol)
     drawdown = series / series.cummax() - 1
     max_drawdown = float(drawdown.min())
-    daily_risk_free = (
-        (1.0 + float(risk_free_rate)) ** (1.0 / TRADING_DAYS_PER_YEAR) - 1.0
-        if float(risk_free_rate) > -1.0
-        else 0.0
+    if risk_free_daily_returns is None:
+        daily_risk_free = (
+            (
+                (1.0 + float(risk_free_rate))
+                ** (1.0 / TRADING_DAYS_PER_YEAR)
+                - 1.0
+            )
+            if float(risk_free_rate) > -1.0
+            else 0.0
+        )
+        aligned_risk_free = pd.Series(
+            daily_risk_free,
+            index=returns.index,
+            dtype=float,
+        )
+        risk_free_coverage = 1.0
+    else:
+        supplied = pd.Series(
+            risk_free_daily_returns,
+            dtype=float,
+        ).copy()
+        supplied.index = pd.to_datetime(supplied.index)
+        supplied = supplied.sort_index().replace(
+            [np.inf, -np.inf],
+            np.nan,
+        )
+        exact = supplied.reindex(returns.index)
+        risk_free_coverage = float(exact.notna().mean())
+        aligned_risk_free = exact.ffill()
+        if aligned_risk_free.isna().any():
+            raise ValueError(
+                "Historical risk-free series does not cover the "
+                "portfolio return start date"
+            )
+    excess_returns = returns - aligned_risk_free
+    annualized_excess_return = float(
+        excess_returns.mean() * TRADING_DAYS_PER_YEAR
     )
-    excess_returns = returns - daily_risk_free
+    annualized_risk_free_return = float(
+        (1.0 + aligned_risk_free).prod()
+        ** (TRADING_DAYS_PER_YEAR / len(aligned_risk_free))
+        - 1.0
+    )
+    sharpe = (
+        None
+        if annual_vol <= 0
+        else float(annualized_excess_return / annual_vol)
+    )
     downside = excess_returns.clip(upper=0.0)
     downside_deviation = float(
         np.sqrt(np.mean(np.square(downside)))
@@ -1020,7 +1083,7 @@ def _portfolio_metrics(value_timeline, risk_free_rate):
     sortino = (
         None
         if downside_deviation <= 0
-        else float((cagr - risk_free_rate) / downside_deviation)
+        else float(annualized_excess_return / downside_deviation)
     )
     calmar = (
         None
@@ -1039,6 +1102,9 @@ def _portfolio_metrics(value_timeline, risk_free_rate):
     return {
         "cagr": float(cagr),
         "annual_volatility": annual_vol,
+        "annualized_excess_return": annualized_excess_return,
+        "annualized_risk_free_return": annualized_risk_free_return,
+        "risk_free_observation_coverage": risk_free_coverage,
         "annual_downside_deviation": downside_deviation,
         "sharpe": sharpe,
         "sortino": sortino,
@@ -1523,6 +1589,7 @@ def run_portfolio_model_backtest(
     min_holding_weight=0.0,
     market_caps=None,
     risk_free_rate=0.02,
+    risk_free_daily_returns=None,
     initial_value=10000.0,
     rebalance_targets=None,
     point_in_time_features=None,
@@ -1886,7 +1953,11 @@ def run_portfolio_model_backtest(
 
     summary_by_model = {}
     for model, state in states.items():
-        metrics = _portfolio_metrics(state["values"], risk_free_rate)
+        metrics = _portfolio_metrics(
+            state["values"],
+            risk_free_rate,
+            risk_free_daily_returns=risk_free_daily_returns,
+        )
         total_turnover = float(sum(state["turnovers"]))
         total_controlled_turnover = float(sum(state["controlled_turnovers"]))
         rebalance_count = len(state["turnovers"])
@@ -2090,6 +2161,11 @@ def run_portfolio_model_backtest(
             "max_turnover": None if max_turnover is None else float(max_turnover),
             "min_holding_weight": float(max(0.0, _to_float(min_holding_weight, 0.0))),
             "risk_free_rate": float(risk_free_rate),
+            "risk_free_rate_source": (
+                "historical_daily_series"
+                if risk_free_daily_returns is not None
+                else "constant_annual_rate"
+            ),
             "initial_value": float(initial_value),
             "reused_rebalance_targets": bool(reused_rebalance_targets),
             "price_digest": expected_target_signature["price_digest"],

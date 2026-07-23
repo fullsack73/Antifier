@@ -1,5 +1,7 @@
 import subprocess
 import sys
+import json
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -22,8 +24,10 @@ from cross_sectional_forecast import (  # noqa: E402
 )
 from portfolio_alpha_v2 import PIT_ALPHA_FEATURES  # noqa: E402
 from forecast_signal_research import (  # noqa: E402
+    paired_rank_signal_block_bootstrap,
     rank_signal_block_bootstrap,
 )
+from universe_manifest import universe_manifest_digest  # noqa: E402
 
 
 def _research_prices(rows=600, ticker_count=10):
@@ -205,6 +209,107 @@ def test_factor_residual_price_baseline_uses_same_target_without_fundamentals():
     )
 
 
+def test_nested_factor_ridge_selects_penalty_from_completed_inner_folds():
+    prices = _research_prices()
+    result = walk_forward_pooled_ridge(
+        prices,
+        objective="factor_residual_nested_ridge",
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=6,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        nested_ridge_penalties=[0.0, 10.0],
+        nested_validation_periods=2,
+        point_in_time_features=_point_in_time_features(prices),
+    )
+
+    assert result["records"]
+    assert result["settings"]["nested_ridge_penalties"] == [0.0, 10.0]
+    for record in result["records"]:
+        nested = record["fit"]["nested_selection"]
+        assert nested["selected_penalty"] in {0.0, 10.0}
+        assert set(nested["candidates"]) == {"0.0", "10.0"}
+        assert all(
+            pd.Timestamp(date) < pd.Timestamp(record["as_of_date"])
+            for date in nested["validation_dates"]
+        )
+        for candidate in nested["candidates"].values():
+            assert all(
+                pd.Timestamp(fold["training_latest_forward_end"])
+                <= pd.Timestamp(fold["validation_date"])
+                for fold in candidate["folds"]
+            )
+        assert pd.Timestamp(record["train_end_date"]) <= pd.Timestamp(
+            record["as_of_date"]
+        )
+
+
+def test_external_market_nested_ridge_uses_official_market_beta_history():
+    prices = _research_prices()
+    market_returns = prices.pct_change().mean(axis=1).fillna(0.0)
+    result = walk_forward_pooled_ridge(
+        prices,
+        objective="factor_residual_market_nested_ridge",
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=6,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        nested_ridge_penalties=[1.0, 10.0],
+        nested_validation_periods=2,
+        market_factor_returns=market_returns,
+        point_in_time_features=_point_in_time_features(prices),
+    )
+
+    assert result["records"]
+    assert all(
+        record["target_diagnostics"]["market_beta_source"]
+        == "external_market_factor"
+        for record in result["records"]
+    )
+
+
+def test_paired_rank_bootstrap_detects_strong_signal_improvement():
+    candidate = []
+    baseline = []
+    tickers = [f"T{index}" for index in range(10)]
+    for period in range(24):
+        realized = {
+            ticker: float(index + period * 0.01)
+            for index, ticker in enumerate(tickers)
+        }
+        candidate.append({
+            "period_id": period,
+            "scores": {
+                ticker: float(index)
+                for index, ticker in enumerate(tickers)
+            },
+            "realized_returns": realized,
+        })
+        baseline.append({
+            "period_id": period,
+            "scores": {
+                ticker: float(-index)
+                for index, ticker in enumerate(tickers)
+            },
+            "realized_returns": realized,
+        })
+
+    result = paired_rank_signal_block_bootstrap(
+        candidate,
+        baseline,
+        samples=500,
+    )
+
+    assert result["status"] == "ok"
+    assert result["probability"]["higher_mean_rank_ic"] == 1.0
+    assert (
+        result["probability"]["higher_mean_top_bottom_spread"]
+        == 1.0
+    )
+
+
 def test_compact_factor_residual_model_uses_quality_predictors_only():
     prices = _research_prices()
     result = walk_forward_pooled_ridge(
@@ -327,6 +432,79 @@ def test_walk_forward_handles_ticker_with_late_price_inception():
         if pd.Timestamp(record["as_of_date"]) < prices.index[420]
     )
     assert prices.columns[-1] not in early_record["scores"]
+    assert early_record["active_universe_coverage_rate"] == 0.9
+    assert (
+        result["distribution_diagnostics"][
+            "active_universe_coverage_rate"
+        ]
+        < 1.0
+    )
+
+
+def test_manifest_coverage_counts_active_ticker_missing_from_prices():
+    prices = _research_prices(rows=600, ticker_count=9)
+    missing_ticker = "MISSING"
+    manifest = pd.DataFrame(
+        [
+            {
+                "effective_date": prices.index[0],
+                "ticker": ticker,
+                "in_universe": True,
+            }
+            for ticker in list(prices.columns) + [missing_ticker]
+        ]
+    )
+
+    result = walk_forward_pooled_ridge(
+        prices,
+        objective="relative_ridge",
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=4,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        universe_manifest=manifest,
+    )
+
+    assert result["records"]
+    assert all(
+        record["active_universe_size"] == 10
+        and record["available_universe_size"] == 9
+        and record["missing_active_tickers"] == [missing_ticker]
+        for record in result["records"]
+    )
+    assert result["distribution_diagnostics"][
+        "active_universe_coverage_rate"
+    ] == 0.9
+
+
+def test_walk_forward_limits_evaluation_dates_but_keeps_prior_training():
+    prices = _research_prices(rows=600, ticker_count=10)
+    evaluation_start = prices.index[450]
+    evaluation_end = prices.index[520]
+
+    result = walk_forward_pooled_ridge(
+        prices,
+        objective="relative_ridge",
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=4,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        evaluation_start=evaluation_start,
+        evaluation_end=evaluation_end,
+    )
+
+    assert result["records"]
+    assert all(
+        evaluation_start
+        <= pd.Timestamp(record["as_of_date"])
+        <= evaluation_end
+        for record in result["records"]
+    )
+    assert result["settings"]["evaluation_start"] == evaluation_start.strftime(
+        "%Y-%m-%d"
+    )
 
 
 def test_research_cli_rejects_reserved_validation_split(tmp_path):
@@ -389,3 +567,126 @@ def test_research_cli_requires_matching_factor_provenance(tmp_path):
 
     assert result.returncode == 2
     assert "--factor-data requires --factor-provenance" in result.stderr
+
+
+def test_promotion_safe_cli_requires_hashed_price_provenance(tmp_path):
+    prices_path = tmp_path / "prices.csv"
+    manifest_path = tmp_path / "manifest.csv"
+    universe_provenance_path = tmp_path / "universe.json"
+    output_path = tmp_path / "result.json"
+    prices = _research_prices(rows=300)
+    prices.to_csv(prices_path)
+    manifest = pd.DataFrame([
+        {
+            "effective_date": prices.index[0],
+            "ticker": ticker,
+            "in_universe": True,
+        }
+        for ticker in prices.columns
+    ])
+    manifest.to_csv(manifest_path, index=False)
+    universe_provenance_path.write_text(
+        json.dumps({
+            "source": "test historical constituents",
+            "retrieved_at": "2026-07-23T00:00:00Z",
+            "universe_policy": "dated membership events",
+            "survivorship_policy": "historical_constituents",
+            "manifest_sha256": universe_manifest_digest(manifest),
+        }),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "research_cross_sectional_forecasts.py"),
+            "--csv",
+            str(prices_path),
+            "--universe-manifest",
+            str(manifest_path),
+            "--universe-provenance",
+            str(universe_provenance_path),
+            "--require-promotion-safe-universe",
+            "--research-split",
+            "research_a",
+            "--experiment-namespace",
+            "price_provenance_a",
+            "--output",
+            str(output_path),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "requires --price-provenance" in result.stderr
+
+
+def test_research_cli_rejects_price_universe_lineage_mismatch(tmp_path):
+    prices_path = tmp_path / "prices.csv"
+    price_provenance_path = tmp_path / "prices.json"
+    manifest_path = tmp_path / "manifest.csv"
+    universe_provenance_path = tmp_path / "universe.json"
+    output_path = tmp_path / "result.json"
+    prices = _research_prices(rows=300)
+    prices.to_csv(prices_path)
+    manifest = pd.DataFrame([
+        {
+            "effective_date": prices.index[0],
+            "ticker": ticker,
+            "in_universe": True,
+        }
+        for ticker in prices.columns
+    ])
+    manifest.to_csv(manifest_path, index=False)
+    universe_provenance_path.write_text(
+        json.dumps({
+            "source": "test historical constituents",
+            "retrieved_at": "2026-07-23T00:00:00Z",
+            "universe_policy": "dated membership events",
+            "survivorship_policy": "historical_constituents",
+            "manifest_sha256": universe_manifest_digest(manifest),
+        }),
+        encoding="utf-8",
+    )
+    price_provenance_path.write_text(
+        json.dumps({
+            "source": "test prices",
+            "price_file_sha256": hashlib.sha256(
+                prices_path.read_bytes()
+            ).hexdigest(),
+            "universe_manifest_sha256": "f" * 64,
+        }),
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "research_cross_sectional_forecasts.py"),
+            "--csv",
+            str(prices_path),
+            "--price-provenance",
+            str(price_provenance_path),
+            "--universe-manifest",
+            str(manifest_path),
+            "--universe-provenance",
+            str(universe_provenance_path),
+            "--require-promotion-safe-universe",
+            "--research-split",
+            "research_a",
+            "--experiment-namespace",
+            "lineage_a",
+            "--output",
+            str(output_path),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "Data lineage mismatch" in result.stderr

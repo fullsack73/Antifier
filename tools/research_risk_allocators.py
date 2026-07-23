@@ -2,6 +2,7 @@
 """Compare robust risk allocators on a research-only split."""
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -23,6 +24,7 @@ from portfolio_statistics import (  # noqa: E402
     holm_bonferroni,
     paired_block_bootstrap,
 )
+from research_split import validate_research_split_run  # noqa: E402
 
 
 RISK_RESEARCH_MODELS = (
@@ -38,6 +40,7 @@ RISK_RESEARCH_MODELS = (
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
     "stability_regularized_min_variance",
+    "nested_blended_min_variance",
     "resampled_min_variance",
     "risk_managed_momentum",
 )
@@ -50,6 +53,7 @@ RISK_CANDIDATES = (
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
     "stability_regularized_min_variance",
+    "nested_blended_min_variance",
     "resampled_min_variance",
     "risk_managed_momentum",
 )
@@ -60,6 +64,29 @@ RESERVED_SPLITS = {
     "holdout",
     "locked_holdout",
 }
+
+
+def _sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _research_settings(args):
+    settings = {
+        "train_window": int(args.train_window),
+        "rebalance_frequency": int(args.rebalance_frequency),
+        "transaction_cost_bps": float(args.transaction_cost_bps),
+        "max_asset_weight": float(args.max_asset_weight),
+        "rebalance_band": float(args.rebalance_band),
+        "max_turnover": float(args.max_turnover),
+        "bootstrap_samples": int(args.bootstrap_samples),
+        "bootstrap_block_size": int(args.bootstrap_block_size),
+        "bootstrap_minimum_probability": float(
+            args.bootstrap_minimum_probability
+        ),
+    }
+    if args.risk_free_data:
+        settings["risk_free_policy"] = "fred_dgs3mo_daily_equivalent"
+    return settings
 
 
 def _load_prices(args):
@@ -75,6 +102,107 @@ def _load_prices(args):
         start_date=args.start,
         end_date=args.end,
     )
+
+
+def _load_price_provenance(args, prices):
+    if not args.price_provenance:
+        if args.require_locked_split:
+            raise ValueError(
+                "--require-locked-split requires --price-provenance"
+            )
+        return {
+            "source": "unverified runtime data",
+            "promotion_safe": False,
+        }
+    if not args.csv:
+        raise ValueError("--price-provenance requires --csv")
+    path = Path(args.price_provenance).expanduser().resolve()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    actual = _sha256(args.csv)
+    if payload.get("price_file_sha256") != actual:
+        raise ValueError(
+            "Price CSV SHA-256 does not match price provenance"
+        )
+    if list(payload.get("tickers") or []) != list(prices.columns):
+        raise ValueError(
+            "Price provenance ticker order does not match price CSV"
+        )
+    return {
+        **payload,
+        "file": str(path),
+        "file_sha256": _sha256(path),
+    }
+
+
+def _load_split_manifest(args, prices, price_provenance, candidates):
+    if not args.split_manifest:
+        if args.require_locked_split:
+            raise ValueError(
+                "--require-locked-split requires --split-manifest"
+            )
+        return {
+            "source": "unlocked CLI arguments",
+            "promotion_safe": False,
+        }
+    path = Path(args.split_manifest).expanduser().resolve()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    validated = validate_research_split_run(
+        payload,
+        split_id=args.research_split,
+        experiment_namespace=args.experiment_namespace,
+        objectives=candidates,
+        settings=_research_settings(args),
+        evaluation_start=prices.index[args.train_window],
+        evaluation_end=prices.index[-1],
+        universe_manifest_sha256=price_provenance.get(
+            "basket_manifest_sha256"
+        ),
+        price_file_sha256=price_provenance.get("price_file_sha256"),
+        factor_file_sha256=args.risk_free_file_sha256,
+    )
+    return {
+        **validated,
+        "file": str(path),
+        "file_sha256": _sha256(path),
+    }
+
+
+def _load_risk_free_data(args):
+    if bool(args.risk_free_data) != bool(args.risk_free_provenance):
+        raise ValueError(
+            "--risk-free-data and --risk-free-provenance must be used "
+            "together"
+        )
+    if not args.risk_free_data:
+        args.risk_free_file_sha256 = None
+        return None, None
+    data_path = Path(args.risk_free_data).expanduser().resolve()
+    provenance_path = Path(
+        args.risk_free_provenance
+    ).expanduser().resolve()
+    provenance = json.loads(
+        provenance_path.read_text(encoding="utf-8")
+    )
+    actual = _sha256(data_path)
+    if provenance.get("factor_file_sha256") != actual:
+        raise ValueError(
+            "Risk-free data SHA-256 does not match provenance"
+        )
+    frame = pd.read_csv(data_path, index_col=0, parse_dates=True)
+    if "rf_daily_dgs3mo" not in frame:
+        raise ValueError("Risk-free data requires rf_daily_dgs3mo")
+    series = pd.to_numeric(
+        frame["rf_daily_dgs3mo"],
+        errors="coerce",
+    ).dropna()
+    if series.empty:
+        raise ValueError("Risk-free data contains no usable observations")
+    args.risk_free_file_sha256 = actual
+    return series, {
+        **provenance,
+        "file": str(provenance_path),
+        "file_sha256": _sha256(provenance_path),
+    }
 
 
 def _risk_gate(summary, candidate_name):
@@ -93,6 +221,7 @@ def _risk_gate(summary, candidate_name):
                 "cross_validated_min_variance",
                 "forecast_ensemble_min_variance",
                 "stability_regularized_min_variance",
+                "nested_blended_min_variance",
                 "resampled_min_variance",
             }
             else "risk_parity"
@@ -148,8 +277,13 @@ def _write_report(payload, output_path):
         "# Risk Allocator Research",
         "",
         f"- Split: `{payload['research_split']}`",
+        f"- Namespace: `{payload['experiment_namespace']}`",
         f"- Rows: {payload['data']['row_count']}",
         f"- Tickers: {payload['data']['ticker_count']}",
+        f"- Data promotion safe: `{payload['data_promotion_safe']}`",
+        f"- Split locked: `{payload['split']['promotion_safe']}`",
+        f"- Risk gate passed: `{payload['risk_gate_passed']}`",
+        f"- Promotion eligible: `{payload['promotion_eligible']}`",
         "",
         "## Performance",
         "",
@@ -204,6 +338,12 @@ def main(argv=None):
     parser.add_argument("--start")
     parser.add_argument("--end")
     parser.add_argument("--research-split", required=True)
+    parser.add_argument("--experiment-namespace", required=True)
+    parser.add_argument("--price-provenance")
+    parser.add_argument("--risk-free-data")
+    parser.add_argument("--risk-free-provenance")
+    parser.add_argument("--split-manifest")
+    parser.add_argument("--require-locked-split", action="store_true")
     parser.add_argument("--train-window", type=int, default=504)
     parser.add_argument("--rebalance-frequency", type=int, default=63)
     parser.add_argument("--transaction-cost-bps", type=float, default=10.0)
@@ -233,15 +373,27 @@ def main(argv=None):
                 "Reserved validation/holdout split cannot be used for research"
             )
         prices = _load_prices(args)
+        risk_free_daily, risk_free_provenance = _load_risk_free_data(args)
         candidates = list(dict.fromkeys(args.candidates))
+        nested_candidates = {
+            "forecast_ensemble_min_variance",
+            "nested_blended_min_variance",
+        }
         if (
-            "forecast_ensemble_min_variance" in candidates
+            nested_candidates.intersection(candidates)
             and args.train_window < 315
         ):
             raise ValueError(
-                "forecast_ensemble_min_variance requires --train-window "
+                "nested covariance/weight candidates require --train-window "
                 "at least 315 for a 252/63 completed inner OOS fold"
             )
+        price_provenance = _load_price_provenance(args, prices)
+        split_manifest = _load_split_manifest(
+            args,
+            prices,
+            price_provenance,
+            candidates,
+        )
         models = list(dict.fromkeys(
             (
                 "equal_weight",
@@ -262,6 +414,7 @@ def main(argv=None):
             rebalance_band=args.rebalance_band,
             max_turnover=args.max_turnover,
             include_daily_returns=True,
+            risk_free_daily_returns=risk_free_daily,
         )
         deterministic_gates = {
             candidate: _risk_gate(result["summary_by_model"], candidate)
@@ -280,6 +433,7 @@ def main(argv=None):
                 block_size=args.bootstrap_block_size,
                 samples=args.bootstrap_samples,
                 seed=42 + index,
+                risk_free_daily_returns=risk_free_daily,
             )
             statistical_gate = bootstrap_improvement_gate(
                 bootstrap,
@@ -326,8 +480,23 @@ def main(argv=None):
                 gates[candidate]["reasons"].append(
                     "Improvement is not significant after Holm correction."
                 )
+        risk_gate_passed = any(
+            gate["status"] == "passed" for gate in gates.values()
+        )
+        data_promotion_safe = bool(
+            price_provenance.get("promotion_safe", False)
+        )
         payload = {
             "research_split": args.research_split,
+            "experiment_namespace": args.experiment_namespace,
+            "data_promotion_safe": data_promotion_safe,
+            "risk_gate_passed": risk_gate_passed,
+            "promotion_eligible": bool(
+                data_promotion_safe
+                and split_manifest.get("promotion_safe", False)
+                and risk_gate_passed
+            ),
+            "split": split_manifest,
             "data": {
                 "source": (
                     str(Path(args.csv).expanduser().resolve())
@@ -339,20 +508,10 @@ def main(argv=None):
                 "row_count": int(len(prices)),
                 "ticker_count": int(len(prices.columns)),
                 "tickers": list(prices.columns),
+                "provenance": price_provenance,
+                "risk_free_provenance": risk_free_provenance,
             },
-            "settings": {
-                "train_window": args.train_window,
-                "rebalance_frequency": args.rebalance_frequency,
-                "transaction_cost_bps": args.transaction_cost_bps,
-                "max_asset_weight": args.max_asset_weight,
-                "rebalance_band": args.rebalance_band,
-                "max_turnover": args.max_turnover,
-                "bootstrap_samples": args.bootstrap_samples,
-                "bootstrap_block_size": args.bootstrap_block_size,
-                "bootstrap_minimum_probability": (
-                    args.bootstrap_minimum_probability
-                ),
-            },
+            "settings": _research_settings(args),
             "models": models,
             "candidates": candidates,
             "risk_gates": gates,

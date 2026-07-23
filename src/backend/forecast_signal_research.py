@@ -254,6 +254,7 @@ def _cross_sectional_rank_rows(periods):
         bottom = order.index[:bucket_size]
         top = order.index[-bucket_size:]
         rows.append({
+            "period_id": period.get("period_id"),
             "rank_ic": (
                 None
                 if rank_ic is None or pd.isna(rank_ic)
@@ -265,6 +266,106 @@ def _cross_sectional_rank_rows(periods):
             "coverage_rate": float(valid.sum() / len(scores)) if len(scores) else 0.0,
         })
     return rows
+
+
+def paired_rank_signal_block_bootstrap(
+    candidate_periods,
+    baseline_periods,
+    block_size=4,
+    samples=2000,
+    seed=42,
+):
+    """Paired dependent-period test of rank-IC and spread improvement."""
+    candidate = pd.DataFrame(
+        _cross_sectional_rank_rows(candidate_periods)
+    )
+    baseline = pd.DataFrame(
+        _cross_sectional_rank_rows(baseline_periods)
+    )
+    if candidate.empty or baseline.empty:
+        return {
+            "status": "insufficient_data",
+            "observation_count": 0,
+        }
+    if candidate["period_id"].notna().all() and baseline[
+        "period_id"
+    ].notna().all():
+        frame = candidate.merge(
+            baseline,
+            on="period_id",
+            suffixes=("_candidate", "_baseline"),
+        )
+    else:
+        candidate = candidate.reset_index(names="period_id")
+        baseline = baseline.reset_index(names="period_id")
+        frame = candidate.merge(
+            baseline,
+            on="period_id",
+            suffixes=("_candidate", "_baseline"),
+        )
+    frame = frame.dropna(
+        subset=[
+            "rank_ic_candidate",
+            "rank_ic_baseline",
+            "top_bottom_spread_candidate",
+            "top_bottom_spread_baseline",
+        ]
+    )
+    differences = np.column_stack([
+        frame["rank_ic_candidate"] - frame["rank_ic_baseline"],
+        frame["top_bottom_spread_candidate"]
+        - frame["top_bottom_spread_baseline"],
+    ]).astype(float)
+    observation_count = len(differences)
+    block_size = max(2, min(int(block_size), max(2, observation_count)))
+    samples = max(100, int(samples))
+    if observation_count < block_size * 2:
+        return {
+            "status": "insufficient_data",
+            "observation_count": int(observation_count),
+            "block_size": int(block_size),
+            "samples": int(samples),
+        }
+
+    rng = np.random.default_rng(int(seed))
+    block_count = int(np.ceil(observation_count / block_size))
+    offsets = np.arange(block_size)
+    means = np.empty((samples, 2), dtype=float)
+    for sample in range(samples):
+        starts = rng.integers(0, observation_count, size=block_count)
+        indices = (
+            starts[:, None] + offsets[None, :]
+        ).reshape(-1)[:observation_count] % observation_count
+        means[sample] = differences[indices].mean(axis=0)
+
+    def interval(column):
+        return {
+            "lower_95": float(np.quantile(column, 0.025)),
+            "median": float(np.quantile(column, 0.50)),
+            "upper_95": float(np.quantile(column, 0.975)),
+        }
+
+    return {
+        "status": "ok",
+        "observation_count": int(observation_count),
+        "block_size": int(block_size),
+        "samples": int(samples),
+        "seed": int(seed),
+        "observed_difference": {
+            "mean_rank_ic": float(differences[:, 0].mean()),
+            "mean_top_bottom_spread": float(differences[:, 1].mean()),
+        },
+        "probability": {
+            "higher_mean_rank_ic": float(np.mean(means[:, 0] > 0.0)),
+            "higher_mean_top_bottom_spread": float(
+                np.mean(means[:, 1] > 0.0)
+            ),
+        },
+        "difference_interval": {
+            "mean_rank_ic": interval(means[:, 0]),
+            "mean_top_bottom_spread": interval(means[:, 1]),
+        },
+    }
 
 
 def rank_signal_block_bootstrap(
@@ -360,10 +461,11 @@ def signal_only_gate(
         or rank_diagnostics["mean_top_bottom_spread"] <= 0.0
     ):
         reasons.append("Mean OOS top-minus-bottom spread is not positive.")
-    if (
-        distribution_diagnostics.get("coverage_rate", 0.0)
-        < float(minimum_coverage)
-    ):
+    coverage_rate = distribution_diagnostics.get(
+        "active_universe_coverage_rate",
+        distribution_diagnostics.get("coverage_rate", 0.0),
+    )
+    if coverage_rate < float(minimum_coverage):
         reasons.append("Forecast coverage is below the configured minimum.")
     saturation_rate = distribution_diagnostics.get("boundary_saturation_rate")
     if (

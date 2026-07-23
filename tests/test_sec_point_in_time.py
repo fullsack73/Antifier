@@ -15,8 +15,10 @@ if str(BACKEND) not in sys.path:
 from sec_point_in_time import (  # noqa: E402
     SecCompanyFactsDirectoryClient,
     SecEdgarClient,
+    build_sec_pit_features,
     build_company_pit_features,
     extract_cik_from_filing_metadata,
+    normalize_ticker_cik_history,
     normalize_ticker_cik_map,
     parse_ticker_cik_map,
 )
@@ -264,6 +266,132 @@ def test_normalize_ticker_cik_map_rejects_ambiguous_ticker():
                 {"ticker": "abc", "cik": 2},
             ]
         )
+
+
+def test_ticker_cik_history_rejects_overlapping_issuer_intervals():
+    with pytest.raises(ValueError, match="overlapping"):
+        normalize_ticker_cik_history([
+            {
+                "ticker": "ABC",
+                "cik": 1,
+                "effective_start": "2020-01-01",
+                "effective_end": "2021-12-31",
+            },
+            {
+                "ticker": "ABC",
+                "cik": 2,
+                "effective_start": "2021-01-01",
+            },
+        ])
+
+
+def test_ticker_cik_history_accepts_normalized_mapping():
+    normalized = normalize_ticker_cik_history([
+        {
+            "ticker": "DIS",
+            "cik": 1001039,
+            "effective_end": "2019-03-19",
+        },
+        {
+            "ticker": "DIS",
+            "cik": 1744489,
+            "effective_start": "2019-03-20",
+        },
+    ])
+
+    assert normalize_ticker_cik_history(normalized) == normalized
+
+
+def test_sec_builder_cli_requires_security_master_provenance(tmp_path):
+    companyfacts_dir = tmp_path / "companyfacts"
+    companyfacts_dir.mkdir()
+    security_master = tmp_path / "security_master.csv"
+    pd.DataFrame([{"ticker": "AAPL", "cik": 320193}]).to_csv(
+        security_master,
+        index=False,
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "build_sec_pit_features.py"),
+            "--tickers",
+            "AAPL",
+            "--start",
+            "2020-01-01",
+            "--end",
+            "2020-12-31",
+            "--output",
+            str(tmp_path / "features.csv"),
+            "--companyfacts-dir",
+            str(companyfacts_dir),
+            "--security-master",
+            str(security_master),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "--security-master-provenance" in result.stderr
+
+
+def test_sec_builder_combines_dated_issuer_identities(tmp_path):
+    companyfacts_dir = tmp_path / "companyfacts"
+    companyfacts_dir.mkdir()
+    first = _company_facts()
+    first["cik"] = 123
+    second = _company_facts()
+    second["cik"] = 456
+    (companyfacts_dir / "CIK0000000123.json").write_text(
+        json.dumps(first),
+        encoding="utf-8",
+    )
+    (companyfacts_dir / "CIK0000000456.json").write_text(
+        json.dumps(second),
+        encoding="utf-8",
+    )
+    history = [
+        {
+            "ticker": "EXM",
+            "cik": 123,
+            "effective_end": "2023-12-31",
+            "sector": "Legacy Sector",
+        },
+        {
+            "ticker": "EXM",
+            "cik": 456,
+            "effective_start": "2024-01-01",
+            "sector": "Modern Sector",
+        },
+    ]
+    client = SecCompanyFactsDirectoryClient(
+        companyfacts_dir,
+        {"EXM": 456},
+        ticker_cik_history=history,
+    )
+    prices = pd.DataFrame(
+        {"EXM": [10.0, 20.0]},
+        index=pd.to_datetime(["2023-02-10", "2024-02-09"]),
+    )
+
+    features, provenance = build_sec_pit_features(
+        ["EXM"],
+        prices,
+        client,
+    )
+
+    assert list(features["sector"]) == [
+        "Legacy Sector",
+        "Modern Sector",
+    ]
+    assert list(features["available_date"]) == [
+        pd.Timestamp("2023-02-10"),
+        pd.Timestamp("2024-02-09"),
+    ]
+    assert len(provenance["company_metadata"]["EXM"]["identities"]) == 2
 
 
 def test_extract_cik_from_yahoo_filing_metadata():

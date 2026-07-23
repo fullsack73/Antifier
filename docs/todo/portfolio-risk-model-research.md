@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: robust/regime/CVaR/nested/stability/resampled/OOS covariance ensemble 후보 statistical research 탈락, 기본 Ledoit-Wolf 유지
+- 현재 상태: nested weight-shrinkage까지 statistical research 탈락, 기본 Ledoit-Wolf 유지
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -54,6 +54,25 @@
 - fixed-income ETF 8종 2008-2013 fresh research에서 504일 outer train을 사용했을 때 volatility `0.0273 < 0.0280`, Sharpe `0.5265 > 0.5119`, max drawdown `-0.0545 > -0.0548`로 deterministic 개선했습니다.
 - 그러나 paired bootstrap에서 lower-volatility 확률은 `99.50%`, higher-Sharpe 확률은 `62.60%`에 그쳐 95% joint gate와 Holm correction을 통과하지 못했습니다. validation은 실행하지 않습니다.
 - 252일 outer train은 252/63 inner fold를 만들 수 없어 Ledoit-Wolf fallback과 동일해집니다. research CLI는 이 후보에 `train_window >= 315`를 강제합니다.
+
+## 2026-07-23 nested weight shrinkage
+
+- 새 global multi-asset basket `SPY/EFA/EEM/IEF/TLT/LQD/HYG/GLD/DBC/VNQ`
+  2008-2016 가격 2,267행을 SHA provenance와 함께 생성했습니다.
+- research basket, 가격 SHA, 실행 설정, 단일 candidate를 split digest
+  `cb0ca2c7…c091`로 실행 전에 잠갔습니다.
+- `nested_blended_min_variance`는 최소분산과 inverse-vol weight의 blend
+  `[0, .25, .5, .75, 1]`을 252/63 completed inner realized variance로
+  선택합니다.
+- Ledoit-Wolf minimum variance 대비 annual volatility는
+  `0.05010→0.04939`, max drawdown은 `-0.09377→-0.09211`,
+  risk forecast MAE는 `0.01767→0.01728`로 개선했습니다.
+- lower-volatility bootstrap probability는 `99.75%`였습니다.
+- 그러나 Sharpe는 `0.6857→0.6561`, higher-Sharpe probability는
+  `13.95%`로 하락했습니다. deterministic/statistical/Holm gate에서
+  모두 탈락했고 validation은 실행하지 않습니다.
+- 고정 2% Sharpe 평가를 FRED DGS3MO daily-equivalent curve로 교체했습니다. 2009-2016 실현 risk-free는 연율 `0.1058%`, date coverage는 `100%`입니다.
+- historical-RF corrected Sharpe는 baseline `1.0605`, nested `1.0376`, paired higher-Sharpe probability `19.20%`로 결론은 동일합니다.
 
 ## 참고
 

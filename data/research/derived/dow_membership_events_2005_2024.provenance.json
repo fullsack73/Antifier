@@ -1,0 +1,19 @@
+{
+  "source": "https://en.wikipedia.org/w/index.php?title=Historical_components_of_the_Dow_Jones_Industrial_Average&oldid=1362314398",
+  "retrieved_at": "2026-07-23T13:40:14.571564+00:00",
+  "universe_policy": "full dated DJIA constituent snapshots reconstructed to membership events",
+  "survivorship_policy": "historical_constituents",
+  "source_quality": "secondary public history; pinned revision and snapshot-size checked",
+  "source_license": "CC BY-SA 4.0",
+  "source_attribution": "Wikipedia contributors, Historical components of the Dow Jones Industrial Average",
+  "raw_source_file": "/Applications/react/my-app/portfolio-project/data/research/raw/dow_historical_components_wikipedia.html",
+  "raw_source_sha256": "e4d33734caf137eb574a2c0dabf85ef35e00d0dd5038e98b1cd9a5059929a08e",
+  "manifest_file": "/Applications/react/my-app/portfolio-project/data/research/derived/dow_membership_events_2005_2024.csv",
+  "manifest_sha256": "6f832f112f0af8717d8505e26c4f12839c52ab74f51459d5fed752dfd0f70f21",
+  "snapshot_count": 14,
+  "event_count": 70,
+  "ticker_count": 49,
+  "start_date": "2005-11-21",
+  "end_date": "2024-11-08",
+  "promotion_note": "Membership is point-in-time; price and issuer identity coverage must pass separate gates."
+}

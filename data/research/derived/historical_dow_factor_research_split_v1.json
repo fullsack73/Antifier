@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "split_id": "historical-dow-factor-research-2011-2025",
+  "role": "research",
+  "evaluation_start": "2011-01-01",
+  "evaluation_end": "2025-09-30",
+  "experiment_namespace": "pit-factor-v1-historical-dow",
+  "objectives": [
+    "factor_residual_price_ridge",
+    "factor_residual_ridge",
+    "factor_residual_quality_ridge"
+  ],
+  "settings": {
+    "horizon": 63,
+    "rebalance_step": 63,
+    "minimum_feature_history": 253,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 12,
+    "minimum_observations": 40,
+    "ridge_penalty": 5.0,
+    "nested_ridge_penalties": [
+      1.0,
+      5.0,
+      20.0,
+      100.0
+    ],
+    "nested_validation_periods": 3,
+    "nominal_uncertainty_coverage": 0.8
+  },
+  "universe_manifest_sha256": "6f832f112f0af8717d8505e26c4f12839c52ab74f51459d5fed752dfd0f70f21",
+  "price_file_sha256": "dde563f1d01da794b4e1b6a90d94ac04af6e9b807d72c1b726b95814a19fc8c2",
+  "factor_file_sha256": "cf9163ee5c10eb2544aea8a7d6c61dab5d2d768cdcaeba16d87f08915a7818f0",
+  "locked": true,
+  "manifest_sha256": "073af1a44a502a2923de95db64fa0c1e8719d1742e066339fe6a69ca32434577"
+}

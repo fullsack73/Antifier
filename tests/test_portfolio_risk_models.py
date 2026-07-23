@@ -24,6 +24,7 @@ from portfolio_risk_models import (  # noqa: E402
     forecast_ensemble_minimum_variance_weights,
     hierarchical_risk_parity_weights,
     minimum_cvar_weights,
+    nested_blended_minimum_variance_weights,
     regime_minimum_variance_weights,
     regime_conditioned_covariance,
     resampled_minimum_variance_weights,
@@ -70,6 +71,7 @@ def test_robust_covariance_is_psd_and_reports_conditioning():
         cross_validated_minimum_variance_weights,
         forecast_ensemble_minimum_variance_weights,
         stability_regularized_minimum_variance_weights,
+        nested_blended_minimum_variance_weights,
         resampled_minimum_variance_weights,
     ),
 )
@@ -106,6 +108,7 @@ def test_backtest_runs_robust_risk_allocator_family():
             "minimum_cvar",
             "forecast_ensemble_min_variance",
             "stability_regularized_min_variance",
+            "nested_blended_min_variance",
             "resampled_min_variance",
         ),
         train_window=252,
@@ -122,12 +125,35 @@ def test_backtest_runs_robust_risk_allocator_family():
         "minimum_cvar",
         "forecast_ensemble_min_variance",
         "stability_regularized_min_variance",
+        "nested_blended_min_variance",
         "resampled_min_variance",
     }
     assert all(
         record["risk_model"]
         for record in result["rebalance_records"]
     )
+
+
+def test_nested_blended_allocator_uses_completed_inner_variance_folds():
+    weights, diagnostics = nested_blended_minimum_variance_weights(
+        _correlated_prices(rows=700),
+        max_asset_weight=0.25,
+        blend_grid=(0.0, 0.5, 1.0),
+    )
+
+    assert weights.sum() == pytest.approx(1.0)
+    assert diagnostics["inner_fold_count"] >= 1
+    assert diagnostics["fallback"] is False
+    assert diagnostics["selected_inverse_volatility_weight"] in {
+        0.0,
+        0.5,
+        1.0,
+    }
+    assert set(diagnostics["candidate_scores"]) == {
+        "0.0",
+        "0.5",
+        "1.0",
+    }
 
 
 def test_risk_allocator_gate_requires_improvement_over_min_variance():
@@ -175,6 +201,31 @@ def test_portfolio_metrics_include_downside_and_tail_risk():
     assert metrics["omega"] is not None
     assert metrics["daily_var_95"] > 0
     assert metrics["daily_cvar_95"] >= metrics["daily_var_95"]
+
+
+def test_portfolio_metrics_use_historical_daily_risk_free_returns():
+    dates = pd.date_range("2024-01-02", periods=253, freq="B")
+    values = pd.Series(
+        100.0 * np.cumprod(np.full(len(dates), 1.001)),
+        index=dates,
+    )
+    risk_free = pd.Series(0.0002, index=dates)
+
+    metrics = portfolio_backtest._portfolio_metrics(
+        values,
+        risk_free_rate=0.02,
+        risk_free_daily_returns=risk_free,
+    )
+
+    assert metrics["risk_free_observation_coverage"] == 1.0
+    assert metrics["annualized_excess_return"] == pytest.approx(
+        (0.001 - 0.0002) * 252,
+        rel=1e-6,
+    )
+    assert metrics["annualized_risk_free_return"] == pytest.approx(
+        (1.0002 ** 252) - 1.0,
+        rel=1e-6,
+    )
 
 
 def test_cross_validated_covariance_reports_inner_selection():

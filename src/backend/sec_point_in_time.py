@@ -188,6 +188,7 @@ class SecCompanyFactsDirectoryClient:
         ticker_cik_map,
         submissions=None,
         submissions_dir=None,
+        ticker_cik_history=None,
     ):
         self.source_description = (
             "local extracted SEC EDGAR companyfacts bulk archive"
@@ -205,6 +206,20 @@ class SecCompanyFactsDirectoryClient:
         }
         if not self._ticker_cik_map:
             raise ValueError("Local SEC client requires a ticker-to-CIK map")
+        self._ticker_cik_history = (
+            normalize_ticker_cik_history(ticker_cik_history)
+            if ticker_cik_history is not None
+            else {
+                ticker: [{
+                    "ticker": ticker,
+                    "cik": cik,
+                    "effective_start": None,
+                    "effective_end": None,
+                    "sector": None,
+                }]
+                for ticker, cik in self._ticker_cik_map.items()
+            }
+        )
         self._submissions = {
             int(cik): dict(payload)
             for cik, payload in dict(submissions or {}).items()
@@ -226,6 +241,15 @@ class SecCompanyFactsDirectoryClient:
     def ticker_cik_map(self, refresh=False):
         del refresh
         return dict(self._ticker_cik_map)
+
+    def ticker_cik_history(self, ticker):
+        return [
+            dict(record)
+            for record in self._ticker_cik_history.get(
+                str(ticker).strip().upper(),
+                [],
+            )
+        ]
 
     def company_facts_path(self, cik):
         return self.companyfacts_dir / f"CIK{int(cik):010d}.json"
@@ -296,6 +320,101 @@ def normalize_ticker_cik_map(mapping):
     if not normalized:
         raise ValueError("Ticker-CIK data contains no valid mappings")
     return normalized
+
+
+def normalize_ticker_cik_history(history):
+    """Normalize dated ticker-to-issuer identities and reject overlap."""
+    if isinstance(history, dict) and all(
+        isinstance(records, (list, tuple))
+        for records in history.values()
+    ):
+        rows = []
+        for ticker, records in history.items():
+            for record in records:
+                rows.append({"ticker": ticker, **dict(record)})
+        frame = pd.DataFrame(rows)
+    else:
+        frame = pd.DataFrame(history).copy()
+    required = {"ticker", "cik"}
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise ValueError(
+            "Ticker-CIK history is missing required columns: "
+            + ", ".join(missing)
+        )
+    for column in ("effective_start", "effective_end", "sector"):
+        if column not in frame.columns:
+            frame[column] = None
+    frame["ticker"] = frame["ticker"].astype(str).str.strip().str.upper()
+    frame["cik"] = pd.to_numeric(frame["cik"], errors="coerce")
+    for column in ("effective_start", "effective_end"):
+        frame[column] = pd.to_datetime(frame[column], errors="coerce")
+    if (
+        (frame["ticker"] == "").any()
+        or frame["cik"].isna().any()
+        or (frame["cik"] <= 0).any()
+    ):
+        raise ValueError("Ticker-CIK history contains invalid identities")
+    invalid_interval = (
+        frame["effective_start"].notna()
+        & frame["effective_end"].notna()
+        & (frame["effective_start"] > frame["effective_end"])
+    )
+    if invalid_interval.any():
+        raise ValueError(
+            "Ticker-CIK history contains an inverted effective interval"
+        )
+
+    result = {}
+    for ticker, group in frame.groupby("ticker", sort=True):
+        records = []
+        previous_end = None
+        ordered = group.sort_values(
+            ["effective_start", "effective_end"],
+            na_position="first",
+        )
+        for row in ordered.itertuples(index=False):
+            start = (
+                None
+                if pd.isna(row.effective_start)
+                else pd.Timestamp(row.effective_start)
+            )
+            end = (
+                None
+                if pd.isna(row.effective_end)
+                else pd.Timestamp(row.effective_end)
+            )
+            if previous_end is None and records:
+                raise ValueError(
+                    f"Ticker-CIK history has an open interval before "
+                    f"another identity for {ticker}"
+                )
+            if (
+                previous_end is not None
+                and start is not None
+                and start <= previous_end
+            ):
+                raise ValueError(
+                    f"Ticker-CIK history has overlapping identities for "
+                    f"{ticker}"
+                )
+            records.append({
+                "ticker": ticker,
+                "cik": int(row.cik),
+                "effective_start": start,
+                "effective_end": end,
+                "sector": (
+                    None
+                    if pd.isna(row.sector)
+                    or not str(row.sector).strip()
+                    else str(row.sector).strip()
+                ),
+            })
+            previous_end = end
+        result[ticker] = records
+    if not result:
+        raise ValueError("Ticker-CIK history contains no valid identities")
+    return result
 
 
 def extract_cik_from_filing_metadata(filings):
@@ -478,10 +597,16 @@ def build_company_pit_features(
     price_series,
     start_date=None,
     end_date=None,
+    sector_override=None,
 ):
     """Build annual filing-date features for one company without future facts."""
     ticker = str(ticker).strip().upper()
-    sector = sic_sector(submissions.get("sic"))
+    sector = (
+        str(sector_override).strip()
+        if sector_override is not None
+        and str(sector_override).strip()
+        else sic_sector(submissions.get("sic"))
+    )
     rows = []
     for anchor in annual_filing_anchors(company_facts):
         available_date = anchor["filed"]
@@ -637,37 +762,119 @@ def build_sec_pit_features(
     failures = {}
     metadata = {}
     for ticker in [str(value).strip().upper() for value in tickers]:
-        cik = ticker_map.get(ticker)
-        if cik is None:
+        identities = (
+            client.ticker_cik_history(ticker)
+            if hasattr(client, "ticker_cik_history")
+            else []
+        )
+        if not identities:
+            cik = ticker_map.get(ticker)
+            identities = (
+                []
+                if cik is None
+                else [{
+                    "ticker": ticker,
+                    "cik": int(cik),
+                    "effective_start": None,
+                    "effective_end": None,
+                    "sector": None,
+                }]
+            )
+        if not identities:
             failures[ticker] = "ticker_not_in_sec_mapping"
             continue
         if ticker not in prices.columns:
             failures[ticker] = "price_history_missing"
             continue
-        try:
-            facts = client.company_facts(cik, refresh=refresh)
-            submissions = client.submissions(cik, refresh=refresh)
-            frame = build_company_pit_features(
-                ticker,
-                facts,
-                submissions,
-                prices[ticker],
-                start_date=start_date,
-                end_date=end_date,
+        ticker_frames = []
+        identity_metadata = []
+        identity_failures = []
+        for identity in identities:
+            cik = int(identity["cik"])
+            identity_start = identity.get("effective_start")
+            identity_end = identity.get("effective_end")
+            bounded_start = max(
+                [
+                    pd.Timestamp(value)
+                    for value in (start_date, identity_start)
+                    if value is not None
+                ],
+                default=None,
             )
-            if frame.empty:
-                failures[ticker] = "no_usable_annual_filing_features"
+            bounded_end = min(
+                [
+                    pd.Timestamp(value)
+                    for value in (end_date, identity_end)
+                    if value is not None
+                ],
+                default=None,
+            )
+            if (
+                bounded_start is not None
+                and bounded_end is not None
+                and bounded_start > bounded_end
+            ):
                 continue
-            frames.append(frame)
-            metadata[ticker] = {
-                "cik": int(cik),
-                "entity_name": facts.get("entityName"),
-                "sic": submissions.get("sic"),
-                "sic_description": submissions.get("sicDescription"),
-                "row_count": int(len(frame)),
-            }
-        except Exception as exc:
-            failures[ticker] = f"{type(exc).__name__}: {exc}"
+            try:
+                facts = client.company_facts(cik, refresh=refresh)
+                submissions = client.submissions(cik, refresh=refresh)
+                frame = build_company_pit_features(
+                    ticker,
+                    facts,
+                    submissions,
+                    prices[ticker],
+                    start_date=bounded_start,
+                    end_date=bounded_end,
+                    sector_override=identity.get("sector"),
+                )
+                if not frame.empty:
+                    ticker_frames.append(frame)
+                identity_metadata.append({
+                    "cik": cik,
+                    "entity_name": facts.get("entityName"),
+                    "effective_start": (
+                        None
+                        if identity_start is None
+                        else pd.Timestamp(identity_start).strftime(
+                            "%Y-%m-%d"
+                        )
+                    ),
+                    "effective_end": (
+                        None
+                        if identity_end is None
+                        else pd.Timestamp(identity_end).strftime("%Y-%m-%d")
+                    ),
+                    "sector": identity.get("sector"),
+                    "sic": submissions.get("sic"),
+                    "sic_description": submissions.get("sicDescription"),
+                    "row_count": int(len(frame)),
+                })
+            except Exception as exc:
+                identity_failures.append(
+                    f"CIK{cik:010d} {type(exc).__name__}: {exc}"
+                )
+        if not ticker_frames:
+            failures[ticker] = (
+                "; ".join(identity_failures)
+                if identity_failures
+                else "no_usable_annual_filing_features"
+            )
+            continue
+        ticker_frame = (
+            pd.concat(ticker_frames, ignore_index=True)
+            .sort_values(["available_date", "ticker"])
+            .drop_duplicates(["ticker", "available_date"], keep="last")
+        )
+        frames.append(ticker_frame)
+        metadata[ticker] = {
+            "cik": int(identity_metadata[-1]["cik"]),
+            "entity_name": identity_metadata[-1]["entity_name"],
+            "sic": identity_metadata[-1]["sic"],
+            "sic_description": identity_metadata[-1]["sic_description"],
+            "row_count": int(len(ticker_frame)),
+            "identities": identity_metadata,
+            "identity_failures": identity_failures,
+        }
     features = (
         pd.concat(frames, ignore_index=True)
         if frames

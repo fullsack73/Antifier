@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
-- 현재 상태: PIT joint target/model 진단 완료, 통계·survivorship gate 미통과로 candidate freeze 대기
+- 현재 상태: nested linear PIT joint가 개별 signal gate 통과, familywise/paired gate 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -70,6 +70,16 @@
 - price-only relative ridge는 59개 OOS period에서 mean rank IC `0.0539`, top-minus-bottom `0.0165`와 개별 95% block-bootstrap gate를 통과했습니다.
 - 그러나 compact quality 후보까지 포함한 4개 동시 objective의 Holm-adjusted p-value는 `0.1340`이었고 static current-DOW universe도 survivorship-safe하지 않아 후보를 freeze하지 않았습니다.
 - 현 단계에서는 Transformer hyperparameter 조정보다 historical constituent membership, sector metadata, immutable research split 확보가 먼저입니다.
+- historical DJIA 2008-2025 membership을 적용하자 relative ridge IC는 static-DOW `0.0539`에서 `0.0289`로 감소했습니다.
+- 63개 OOS period bootstrap에서 positive mean IC 확률 `84.80%`, positive spread 확률 `77.80%`로 95% gate를 통과하지 못했습니다.
+- 동일 feature/target family를 Transformer hyperparameter로 확장할 근거가 없으므로 relative ridge도 freeze하지 않습니다.
+- historical issuer CIK interval을 적용한 47-ticker PIT joint model은 동일 residual target의 price-only IC `0.0252`보다 높은 `0.0581`을 기록했습니다.
+- 다만 top-minus-bottom positive probability가 `94.55%`, 3-objective Holm-adjusted p-value가 `0.1635`여서 signal-only gate를 통과하지 못했습니다.
+- feature/data 방향의 가능성은 생겼지만 architecture 또는 Transformer hyperparameter 탐색 전 canonical PIT identity/sector provenance와 fresh immutable research split이 필요합니다.
+- historical-DOW factor research split은 objective와 입력 SHA까지 포함한 manifest로 잠갔습니다. 새 architecture나 hyperparameter family는 같은 namespace를 수정하지 말고 별도 split/namespace를 선언해야 합니다.
+- Transformer 대신 먼저 nested time-fold ridge regularization을 구현했습니다. nested model은 IC `0.0627`, spread `0.0153`으로 고정 penalty를 개선하고 개별 95% signal gate를 통과했습니다.
+- 하지만 Holm-adjusted p-value `0.1020`과 fixed baseline 대비 paired IC improvement `81.70%` 때문에 아직 복잡한 architecture로 확장하지 않습니다.
+- official French market beta target도 IC `0.0618`로 내부 beta nested ridge `0.0627`을 넘지 못했습니다. target data를 바꿔도 Transformer 확장 근거는 생기지 않았습니다.
 
 ## 선행조건
 

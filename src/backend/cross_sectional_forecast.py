@@ -9,6 +9,7 @@ import pandas as pd
 from forecast_signal_research import (
     cross_sectional_rank_diagnostics,
     empirical_oos_uncertainty,
+    paired_rank_signal_block_bootstrap,
     prediction_distribution_diagnostics,
     rank_signal_block_bootstrap,
     signal_only_gate,
@@ -48,11 +49,14 @@ QUALITY_POOLED_FEATURE_COLUMNS = (
     "profitability",
     "profitability_missing",
 )
+DEFAULT_NESTED_RIDGE_PENALTIES = (1.0, 5.0, 20.0, 100.0)
 POOLED_OBJECTIVES = (
     "absolute_ridge",
     "relative_ridge",
     "factor_residual_price_ridge",
     "factor_residual_ridge",
+    "factor_residual_nested_ridge",
+    "factor_residual_market_nested_ridge",
     "factor_residual_quality_ridge",
     "pairwise_ridge",
     "listwise_rank_ridge",
@@ -158,6 +162,7 @@ def _forward_target(
     target_kind,
     point_in_time_features=None,
     active_tickers=None,
+    market_returns_history=None,
 ):
     returns = (
         prices.iloc[position + horizon] / prices.iloc[position] - 1.0
@@ -185,6 +190,7 @@ def _forward_target(
                 returns.index,
             ],
             snapshot,
+            market_returns_history=market_returns_history,
         )
     raise ValueError(f"Unsupported target kind: {target_kind}")
 
@@ -195,6 +201,8 @@ def _objective_target_kind(objective):
     if objective in {
         "factor_residual_price_ridge",
         "factor_residual_ridge",
+        "factor_residual_nested_ridge",
+        "factor_residual_market_nested_ridge",
         "factor_residual_quality_ridge",
     }:
         return "factor_residual"
@@ -279,6 +287,115 @@ def _fit_pooled_ridge(
     }
 
 
+def _select_nested_ridge_penalty(
+    training_rows,
+    penalties,
+    minimum_observations,
+    feature_columns,
+    validation_periods=3,
+):
+    """Select regularization using only completed inner time folds."""
+    frame = pd.DataFrame(training_rows).copy()
+    frame["as_of_date"] = pd.to_datetime(frame["as_of_date"])
+    frame["forward_end_date"] = pd.to_datetime(
+        frame["forward_end_date"]
+    )
+    dates = sorted(frame["as_of_date"].dropna().unique())
+    validation_count = min(
+        max(1, int(validation_periods)),
+        max(0, len(dates) - 2),
+    )
+    validation_dates = dates[-validation_count:] if validation_count else []
+    diagnostics = {}
+    for penalty in penalties:
+        rank_ics = []
+        fold_rows = []
+        for validation_date in validation_dates:
+            inner_training = frame.loc[
+                frame["forward_end_date"] <= validation_date
+            ].to_dict(orient="records")
+            validation = frame.loc[
+                frame["as_of_date"] == validation_date
+            ].copy()
+            try:
+                intercept, coefficients, fit = _fit_pooled_ridge(
+                    inner_training,
+                    "factor_residual_ridge",
+                    penalty,
+                    minimum_observations,
+                    feature_columns,
+                )
+            except ValueError as exc:
+                if str(exc).startswith("Insufficient pooled"):
+                    continue
+                raise
+            scores = (
+                validation.loc[:, feature_columns]
+                .mul(coefficients, axis=1)
+                .sum(axis=1, min_count=len(feature_columns))
+                + intercept
+            )
+            target = pd.to_numeric(
+                validation["target"],
+                errors="coerce",
+            )
+            valid = scores.notna() & target.notna()
+            rank_ic = (
+                None
+                if int(valid.sum()) < 3
+                else scores.loc[valid].corr(
+                    target.loc[valid],
+                    method="spearman",
+                )
+            )
+            if rank_ic is not None and np.isfinite(rank_ic):
+                rank_ics.append(float(rank_ic))
+                fold_rows.append({
+                    "validation_date": pd.Timestamp(
+                        validation_date
+                    ).strftime("%Y-%m-%d"),
+                    "rank_ic": float(rank_ic),
+                    "training_row_count": fit["source_row_count"],
+                    "training_latest_forward_end": pd.Timestamp(
+                        max(
+                            row["forward_end_date"]
+                            for row in inner_training
+                        )
+                    ).strftime("%Y-%m-%d"),
+                    "validation_row_count": int(valid.sum()),
+                })
+        diagnostics[str(float(penalty))] = {
+            "mean_rank_ic": (
+                None if not rank_ics else float(np.mean(rank_ics))
+            ),
+            "fold_count": int(len(rank_ics)),
+            "folds": fold_rows,
+        }
+    eligible = [
+        (result["mean_rank_ic"], float(penalty))
+        for penalty, result in (
+            (float(key), value)
+            for key, value in diagnostics.items()
+        )
+        if result["mean_rank_ic"] is not None
+    ]
+    selected = (
+        float(max(penalties))
+        if not eligible
+        else max(eligible, key=lambda item: (item[0], item[1]))[1]
+    )
+    return selected, {
+        "selection_metric": "mean inner-fold cross-sectional rank IC",
+        "validation_periods": int(validation_count),
+        "validation_dates": [
+            pd.Timestamp(value).strftime("%Y-%m-%d")
+            for value in validation_dates
+        ],
+        "candidates": diagnostics,
+        "selected_penalty": float(selected),
+    }
+
+
 def _feature_signal_diagnostics(
     snapshots,
     evaluation_positions,
@@ -338,14 +455,55 @@ def walk_forward_pooled_ridge(
     maximum_training_periods=12,
     minimum_observations=40,
     ridge_penalty=5.0,
+    nested_ridge_penalties=DEFAULT_NESTED_RIDGE_PENALTIES,
+    nested_validation_periods=3,
     nominal_uncertainty_coverage=0.80,
     point_in_time_features=None,
+    market_factor_returns=None,
     universe_manifest=None,
+    evaluation_start=None,
+    evaluation_end=None,
 ):
     """Evaluate one pooled objective with strictly prior completed targets."""
     if objective not in POOLED_OBJECTIVES:
         raise ValueError(f"Unsupported pooled objective: {objective}")
+    nested_ridge_penalties = tuple(
+        sorted({
+            float(value)
+            for value in nested_ridge_penalties
+            if np.isfinite(float(value)) and float(value) >= 0.0
+        })
+    )
+    if objective in {
+        "factor_residual_nested_ridge",
+        "factor_residual_market_nested_ridge",
+    } and not (
+        nested_ridge_penalties
+    ):
+        raise ValueError(
+            "Nested ridge requires at least one non-negative penalty"
+        )
     prices = _clean_prices(price_data)
+    normalized_market_factor = None
+    if market_factor_returns is not None:
+        normalized_market_factor = pd.Series(
+            market_factor_returns,
+            dtype=float,
+        ).copy()
+        normalized_market_factor.index = pd.to_datetime(
+            normalized_market_factor.index
+        )
+        normalized_market_factor = (
+            normalized_market_factor.sort_index()
+            .replace([np.inf, -np.inf], np.nan)
+        )
+    if (
+        objective == "factor_residual_market_nested_ridge"
+        and normalized_market_factor is None
+    ):
+        raise ValueError(
+            "External-market nested ridge requires market_factor_returns"
+        )
     horizon = max(1, int(horizon))
     step = horizon if rebalance_step is None else max(1, int(rebalance_step))
     positions = list(
@@ -356,7 +514,11 @@ def walk_forward_pooled_ridge(
         )
     )
     target_kind = _objective_target_kind(objective)
-    if objective == "factor_residual_ridge":
+    if objective in {
+        "factor_residual_ridge",
+        "factor_residual_nested_ridge",
+        "factor_residual_market_nested_ridge",
+    }:
         feature_columns = FACTOR_POOLED_FEATURE_COLUMNS
     elif objective == "factor_residual_quality_ridge":
         feature_columns = QUALITY_POOLED_FEATURE_COLUMNS
@@ -367,6 +529,18 @@ def walk_forward_pooled_ridge(
         if universe_manifest is None
         else normalize_universe_manifest(universe_manifest)
     )
+    evaluation_start = (
+        None if evaluation_start is None else pd.Timestamp(evaluation_start)
+    )
+    evaluation_end = (
+        None if evaluation_end is None else pd.Timestamp(evaluation_end)
+    )
+    if (
+        evaluation_start is not None
+        and evaluation_end is not None
+        and evaluation_start > evaluation_end
+    ):
+        raise ValueError("evaluation_start must be on or before evaluation_end")
     evaluation_records = []
     pending_residuals = []
     fit_seconds = 0.0
@@ -378,7 +552,7 @@ def walk_forward_pooled_ridge(
     started_at = time.perf_counter()
     snapshots = {}
     for position in positions:
-        active_tickers = (
+        requested_active_tickers = (
             list(prices.columns)
             if normalized_universe is None
             else universe_snapshot(
@@ -387,13 +561,17 @@ def walk_forward_pooled_ridge(
             )
         )
         active_tickers = [
-            ticker for ticker in active_tickers if ticker in prices.columns
+            ticker
+            for ticker in requested_active_tickers
+            if ticker in prices.columns
         ]
         features = pooled_price_features(
             prices.iloc[:position + 1].loc[:, active_tickers]
         )
         if objective in {
             "factor_residual_ridge",
+            "factor_residual_nested_ridge",
+            "factor_residual_market_nested_ridge",
             "factor_residual_quality_ridge",
         }:
             pit_features = pooled_point_in_time_features(
@@ -413,6 +591,13 @@ def walk_forward_pooled_ridge(
             target_kind,
             point_in_time_features=point_in_time_features,
             active_tickers=active_tickers,
+            market_returns_history=(
+                None
+                if objective != "factor_residual_market_nested_ridge"
+                else normalized_market_factor.reindex(
+                    prices.index[:position + 1]
+                )
+            ),
         )
         valid = (
             features.notna().all(axis=1)
@@ -423,9 +608,11 @@ def walk_forward_pooled_ridge(
             "target": target,
             "target_diagnostics": target_diagnostics,
             "active_tickers": active_tickers,
+            "requested_active_tickers": requested_active_tickers,
             "training_rows": [
                 {
                     "as_of_date": prices.index[position],
+                    "forward_end_date": prices.index[position + horizon],
                     "ticker": ticker,
                     "target": float(target.loc[ticker]),
                     **{
@@ -437,7 +624,19 @@ def walk_forward_pooled_ridge(
             ],
         }
 
-    for evaluation_position in positions:
+    evaluation_positions = [
+        position
+        for position in positions
+        if (
+            evaluation_start is None
+            or prices.index[position] >= evaluation_start
+        )
+        and (
+            evaluation_end is None
+            or prices.index[position] <= evaluation_end
+        )
+    ]
+    for evaluation_position in evaluation_positions:
         eligible_training_positions = [
             position
             for position in positions
@@ -457,13 +656,29 @@ def walk_forward_pooled_ridge(
             continue
         fit_started_at = time.perf_counter()
         try:
+            effective_penalty = float(ridge_penalty)
+            nested_diagnostics = None
+            if objective in {
+                "factor_residual_nested_ridge",
+                "factor_residual_market_nested_ridge",
+            }:
+                effective_penalty, nested_diagnostics = (
+                    _select_nested_ridge_penalty(
+                        training_rows,
+                        nested_ridge_penalties,
+                        minimum_observations,
+                        feature_columns,
+                        validation_periods=nested_validation_periods,
+                    )
+                )
             intercept, coefficients, fit_diagnostics = _fit_pooled_ridge(
                 training_rows,
                 objective,
-                ridge_penalty,
+                effective_penalty,
                 minimum_observations,
                 feature_columns,
             )
+            fit_diagnostics["nested_selection"] = nested_diagnostics
         except ValueError as exc:
             if str(exc).startswith("Insufficient pooled"):
                 continue
@@ -497,6 +712,13 @@ def walk_forward_pooled_ridge(
             )
         )
         valid = raw_predictions.notna() & realized_target.notna()
+        active_universe_size = int(
+            len(snapshots[evaluation_position]["requested_active_tickers"])
+        )
+        available_universe_size = int(
+            len(snapshots[evaluation_position]["active_tickers"])
+        )
+        prediction_count = int(valid.sum())
         evaluation_records.append({
             "as_of_date": as_of_date.strftime("%Y-%m-%d"),
             "forward_end_date": prices.index[
@@ -517,8 +739,21 @@ def walk_forward_pooled_ridge(
                 for ticker in realized_target.index[valid]
             },
             "reported_uncertainty": uncertainty,
-            "active_universe_size": int(
-                len(snapshots[evaluation_position]["active_tickers"])
+            "active_universe_size": active_universe_size,
+            "available_universe_size": available_universe_size,
+            "missing_active_tickers": sorted(
+                set(
+                    snapshots[evaluation_position][
+                        "requested_active_tickers"
+                    ]
+                )
+                - set(snapshots[evaluation_position]["active_tickers"])
+            ),
+            "active_prediction_count": prediction_count,
+            "active_universe_coverage_rate": (
+                float(prediction_count / active_universe_size)
+                if active_universe_size
+                else 0.0
             ),
             "fit": fit_diagnostics,
             "target_diagnostics": snapshots[evaluation_position][
@@ -544,6 +779,7 @@ def walk_forward_pooled_ridge(
 
     periods = [
         {
+            "period_id": record["as_of_date"],
             "scores": record["scores"],
             "realized_returns": record["realized_returns"],
         }
@@ -559,6 +795,31 @@ def walk_forward_pooled_ridge(
         for value in record["scores"].values()
     ]
     distribution = prediction_distribution_diagnostics(prediction_rows)
+    active_total = sum(
+        record["active_universe_size"] for record in evaluation_records
+    )
+    active_prediction_total = sum(
+        record["active_prediction_count"] for record in evaluation_records
+    )
+    period_universe_coverages = [
+        record["active_universe_coverage_rate"]
+        for record in evaluation_records
+    ]
+    distribution["active_universe_coverage_rate"] = (
+        float(active_prediction_total / active_total)
+        if active_total
+        else 0.0
+    )
+    distribution["mean_period_universe_coverage_rate"] = (
+        None
+        if not period_universe_coverages
+        else float(np.mean(period_universe_coverages))
+    )
+    distribution["minimum_period_universe_coverage_rate"] = (
+        None
+        if not period_universe_coverages
+        else float(np.min(period_universe_coverages))
+    )
     prediction_series = {}
     realized_series = {}
     uncertainty_series = {}
@@ -605,14 +866,32 @@ def walk_forward_pooled_ridge(
             "maximum_training_periods": int(maximum_training_periods),
             "minimum_observations": int(minimum_observations),
             "ridge_penalty": float(ridge_penalty),
+            "nested_ridge_penalties": [
+                float(value) for value in nested_ridge_penalties
+            ],
+            "nested_validation_periods": int(
+                nested_validation_periods
+            ),
             "nominal_uncertainty_coverage": float(
                 nominal_uncertainty_coverage
             ),
             "dated_universe_manifest": normalized_universe is not None,
+            "evaluation_start": (
+                None
+                if evaluation_start is None
+                else evaluation_start.strftime("%Y-%m-%d")
+            ),
+            "evaluation_end": (
+                None
+                if evaluation_end is None
+                else evaluation_end.strftime("%Y-%m-%d")
+            ),
             "feature_columns": list(feature_columns),
             "point_in_time_fundamentals": (
                 objective in {
                     "factor_residual_ridge",
+                    "factor_residual_nested_ridge",
+                    "factor_residual_market_nested_ridge",
                     "factor_residual_quality_ridge",
                 }
             ),
@@ -689,10 +968,64 @@ def compare_pooled_objectives(
         for objective in passed
         if multiple_testing.get(objective, {}).get("significant", False)
     ]
+    paired_improvement = {}
+    paired_comparisons = (
+        (
+            "factor_residual_nested_ridge",
+            "factor_residual_ridge",
+        ),
+        (
+            "factor_residual_market_nested_ridge",
+            "factor_residual_nested_ridge",
+        ),
+    )
+    for nested_name, baseline_name in paired_comparisons:
+        if nested_name not in runs or baseline_name not in runs:
+            continue
+        candidate_periods = [
+            {
+                "period_id": record["as_of_date"],
+                "scores": record["scores"],
+                "realized_returns": record["realized_returns"],
+            }
+            for record in runs[nested_name]["records"]
+        ]
+        baseline_periods = [
+            {
+                "period_id": record["as_of_date"],
+                "scores": record["scores"],
+                "realized_returns": record["realized_returns"],
+            }
+            for record in runs[baseline_name]["records"]
+        ]
+        result = paired_rank_signal_block_bootstrap(
+            candidate_periods,
+            baseline_periods,
+        )
+        probability = result.get("probability") or {}
+        result["gate"] = {
+            "status": (
+                "passed"
+                if (
+                    result.get("status") == "ok"
+                    and probability.get("higher_mean_rank_ic", 0.0)
+                    >= 0.95
+                    and probability.get(
+                        "higher_mean_top_bottom_spread",
+                        0.0,
+                    )
+                    >= 0.95
+                )
+                else "rejected"
+            ),
+            "minimum_probability": 0.95,
+        }
+        paired_improvement[f"{nested_name}_vs_{baseline_name}"] = result
     return {
         "objectives": list(selected),
         "passed_objectives": passed,
         "multiple_testing": multiple_testing,
+        "paired_improvement": paired_improvement,
         "selection_status": (
             "no_signal_candidate"
             if not passed

@@ -110,6 +110,54 @@ def universe_manifest_digest(manifest):
     ).hexdigest()
 
 
+def snapshots_to_membership_events(snapshots):
+    """Convert dated full constituent snapshots into membership events."""
+    frame = pd.DataFrame(snapshots).copy()
+    required = {"effective_date", "ticker"}
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise ValueError(
+            "Constituent snapshots are missing required fields: "
+            + ", ".join(missing)
+        )
+    frame = frame.loc[:, ["effective_date", "ticker"]].copy()
+    frame["effective_date"] = pd.to_datetime(
+        frame["effective_date"],
+        errors="coerce",
+    )
+    frame["ticker"] = frame["ticker"].astype(str).str.strip().str.upper()
+    if frame["effective_date"].isna().any() or (frame["ticker"] == "").any():
+        raise ValueError(
+            "Constituent snapshots require valid dates and tickers"
+        )
+    if frame.duplicated(["effective_date", "ticker"]).any():
+        raise ValueError(
+            "Constituent snapshots contain duplicate date/ticker rows"
+        )
+
+    events = []
+    previous = set()
+    for effective_date, group in frame.groupby(
+        "effective_date",
+        sort=True,
+    ):
+        current = set(group["ticker"])
+        for ticker in sorted(current - previous):
+            events.append({
+                "effective_date": effective_date,
+                "ticker": ticker,
+                "in_universe": True,
+            })
+        for ticker in sorted(previous - current):
+            events.append({
+                "effective_date": effective_date,
+                "ticker": ticker,
+                "in_universe": False,
+            })
+        previous = current
+    return normalize_universe_manifest(events)
+
+
 def validate_universe_provenance(provenance, require_promotion_safe=False):
     required = {
         "source",

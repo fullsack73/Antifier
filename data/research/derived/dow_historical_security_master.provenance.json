@@ -1,0 +1,17 @@
+{
+  "source": "Local official SEC companyfacts bulk archive plus manually audited historical ticker identity intervals",
+  "created_at": "2026-07-23T14:10:00+00:00",
+  "security_master_file": "data/research/derived/dow_historical_security_master.csv",
+  "security_master_sha256": "7549cff26fdcf92a86ece2e3147a67880294597e2dad813ee8c69d3626594266",
+  "row_count": 50,
+  "ticker_count": 49,
+  "cik_count": 49,
+  "identity_policy": "Ticker-to-CIK intervals are non-overlapping; Disney uses predecessor and successor registrant CIKs around the 2019 reorganization.",
+  "sector_policy": "Static broad business-category proxy compatible with the existing SEC SIC buckets; it is not a dated SEC SIC history.",
+  "known_limitations": [
+    "Historical issuer mapping was manually audited against local companyfacts entity names rather than downloaded from a canonical security-master feed.",
+    "Broad sector labels are static and therefore must not be described as point-in-time SEC SIC classifications.",
+    "BAC CIK 70858 currently identifies BofA Finance LLC in the bulk archive and requires filing-level coverage validation."
+  ],
+  "promotion_safe": false
+}

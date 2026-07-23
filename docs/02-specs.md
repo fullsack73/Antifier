@@ -112,18 +112,31 @@ Backend-only research tool:
   - `forecast_signal_research.py`의 empirical uncertainty calibration은 동일 단위의 완료된 OOS prediction/realized return 최소 20개를 요구합니다. in-sample training RMSE를 OOS-calibrated uncertainty로 표시하지 않습니다.
   - research target builder는 명시한 training cutoff 안에서 forward horizon이 완료된 row만 만들며 `absolute`, cross-sectional median-adjusted `relative`, PIT beta/sector/size `factor_residual` target을 지원합니다.
   - forecast 후보는 portfolio construction 전에 signal-only gate에서 OOS rank IC, positive IC rate, top-minus-bottom spread, coverage, saturation, tie 기준을 통과해야 합니다.
-  - `tools/research_cross_sectional_forecasts.py`는 validation/holdout 이름을 거부하고 research split에서만 pooled `absolute_ridge`, `relative_ridge`, `pairwise_ridge`, `listwise_rank_ridge`, 선택적 `factor_residual_price_ridge`, 전체 재무 predictor를 결합한 `factor_residual_ridge`, compact `factor_residual_quality_ridge`를 비교합니다.
+  - `tools/research_cross_sectional_forecasts.py`는 validation/holdout 이름을 거부하고 research split에서만 pooled `absolute_ridge`, `relative_ridge`, `pairwise_ridge`, `listwise_rank_ridge`, 선택적 `factor_residual_price_ridge`, 전체 재무 predictor를 결합한 `factor_residual_ridge`, compact `factor_residual_quality_ridge`, inner time-fold에서만 penalty를 선택하는 `factor_residual_nested_ridge`를 비교합니다.
   - PIT 재무 predictor는 signal date까지 알려진 최신 filing만 사용합니다. quality, profitability, valuation, liquidity를 cross-sectional winsorized z-score로 만들고 결측은 중립값 0과 별도 missing indicator로 표현합니다.
-  - factor CSV 사용 시 SHA-256을 포함한 `--factor-provenance`가 필수이며 불일치 파일을 거부합니다.
+  - factor CSV 사용 시 SHA-256을 포함한 `--factor-provenance`가 필수이며 불일치 파일을 거부합니다. universe, price, factor 파일 hash의 lineage도 서로 동일한 dataset 계보를 가리켜야 합니다.
+  - promotion-safe pooled research는 `--split-manifest`를 필수로 사용합니다. split ID, evaluation interval, namespace, objective family, universe/price/factor SHA-256을 self-hash contract로 잠그고 어느 하나라도 drift하면 실행을 거부합니다.
+  - 최종 `promotion_eligible`은 data provenance safe, immutable research split locked, signal-only statistical gate passed 세 조건이 모두 true일 때만 true입니다. 단순히 데이터 hash가 맞다는 이유로 탈락 모델을 승격 가능으로 표시하지 않습니다.
   - signal-only gate는 시점 의존성을 보존한 circular block bootstrap에서 mean rank IC와 mean top-minus-bottom spread가 양수일 확률을 각각 95% 이상 요구합니다. 동시 비교 objective는 Holm-Bonferroni로 보정합니다.
   - 선택적 universe manifest는 `effective_date`, `ticker`, `in_universe` event 열을 요구합니다. 각 signal date에는 그 날짜까지 발생한 마지막 membership event만 적용하고 미래 편입 종목은 cross-sectional 표준화, target, prediction에서 제외합니다.
   - universe provenance는 `source`, `retrieved_at`, `universe_policy`, `survivorship_policy`를 요구합니다. promotion-safe 실행은 `historical_constituents`, `point_in_time_membership`, `survivorship_safe` 정책만 허용합니다.
+  - full constituent snapshot은 `snapshots_to_membership_events`로 편입/퇴출 event를 재구성하고 모든 source date에서 원 snapshot과 동일한 membership인지 검증합니다.
+  - promotion-safe universe 연구에 로컬 price CSV를 사용하면 `price_file_sha256`을 포함한 `--price-provenance`가 필수입니다. corporate ticker alias는 별도 파일과 hash로 기록합니다.
+  - forecast coverage는 다운로드된 가격 열 내부가 아니라 signal date의 manifest active universe 전체를 분모로 계산합니다. 누락 active ticker와 period별 최소 coverage를 결과에 기록합니다.
   - `tools/build_sec_pit_features.py`는 SEC companyfacts/submissions API 또는 사용자가 제공한 로컬 공식 companyfacts archive의 공시일을 `available_date`로 사용해 quality, profitability, valuation, liquidity, filing-date market cap을 생성합니다. 이후 제출된 정정 공시는 이전 signal date row를 덮어쓰지 않습니다.
+  - historical ticker가 registrant 변경을 거치면 `--security-master`의 `effective_start`, `effective_end`, `cik` interval을 사용합니다. interval overlap은 거부하며 `--security-master-provenance`의 SHA-256과 promotion-safe 여부를 결과에 전파합니다.
+  - prebuilt historical price를 사용할 때는 `--price-csv`와 SHA-256을 가진 `--price-provenance`를 함께 요구합니다. 누락 ticker와 corporate alias도 factor provenance에 보존합니다.
   - 로컬 archive 모드는 선택적 `--submissions-dir`의 `CIK##########.json` 파일에서 SIC를 읽습니다. 이를 제공하지 않으면 sector는 `Unknown`이며 sector-neutral 성능을 주장하거나 후보를 승격할 수 없습니다.
   - SEC 수집은 연락처 email 또는 project URL을 포함한 `SEC_USER_AGENT`를 요구하고, 캐시와 최소 0.10초 요청 간격을 적용합니다. 결과 CSV와 provenance JSON에는 endpoint, 수집 시각, 실패 ticker, universe 정책, SHA-256을 기록합니다.
   - pooled candidate는 ticker별 모델을 반복 학습하지 않고 date × ticker observation을 한 모델로 학습합니다. 각 evaluation date의 training set은 그 날짜까지 forward horizon이 완료된 target만 포함합니다.
+  - nested ridge는 outer evaluation보다 먼저 완료된 target만 inner fold에 사용합니다. overlapping rebalance에서도 inner validation date까지 forward outcome이 완료되지 않은 row는 penalty 선택에서 제외합니다.
+  - nested candidate와 fixed-penalty baseline의 period별 rank IC와 top-bottom spread 차이는 paired circular block bootstrap으로 별도 검증합니다.
+  - historical 성과의 Sharpe/Sortino와 paired bootstrap은 가능하면 SHA-verified daily risk-free series를 사용합니다. FRED DGS3MO 연율은 해당 날짜 또는 그 이전 최신 관측만 backward-asof 정렬한 뒤 일수익률로 변환하며 미래 금리를 backward-fill하지 않습니다.
+  - Fama/French `Mkt-RF + RF` daily return을 외부 market beta history로 사용하는 residual-target 후보를 지원합니다. 외부 factor가 내부 equal-weight market beta보다 낫다는 가정은 별도 paired gate로 검증합니다.
   - uncertainty는 이전 evaluation prediction 중 현재 signal date 전에 outcome이 완료된 residual만 사용해 순차적으로 계산합니다. 최종 보고서는 fit count, elapsed time, prediction throughput, peak Python memory를 함께 기록합니다.
   - risk allocator research는 기존 Ledoit-Wolf minimum variance와 별도로 Ledoit-Wolf 50%, Oracle Approximating 30%, 180일 exponential covariance 20% blend, exact equal-risk-contribution, hierarchical risk parity, regime-conditioned covariance, historical minimum-CVaR를 비교할 수 있습니다.
+  - `nested_blended_min_variance`는 Ledoit-Wolf minimum-variance와 inverse-volatility weight 사이 shrinkage를 완료된 252/63 inner OOS realized variance만으로 선택합니다. `train_window < 315`이면 research CLI가 실행을 거부합니다.
+  - risk allocator research도 price SHA, ordered basket hash, 모든 실행 설정과 candidate family를 split manifest로 잠급니다. 낮은 변동성만으로 승격하지 않고 closest baseline 대비 Sharpe, drawdown, turnover와 paired block bootstrap를 함께 통과해야 합니다.
   - cross-validated covariance 후보는 outer rebalance의 train window 안에서만 252일 inner train/63일 validation walk-forward를 수행하고 realized portfolio variance로 estimator를 선택합니다. 이 후보도 research-only이며 높은 turnover 또는 Sharpe 저하 시 승격하지 않습니다.
   - covariance forecast ensemble은 완료된 inner OOS window에서 relative Frobenius error, correlation RMSE, equal/inverse-vol portfolio log-variance calibration error를 측정합니다. estimator를 hard-select하지 않고 inverse-loss weight를 50% equal-weight prior로 shrink해 결합합니다.
   - covariance stress 진단은 PSD를 보존하는 correlation-to-one shock와 volatility shock에서 portfolio volatility amplification, effective asset count, maximum weight를 기록합니다.

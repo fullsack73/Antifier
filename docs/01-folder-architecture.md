@@ -63,6 +63,7 @@ src/backend/
 ├─ portfolio_risk_models.py           # OOS covariance ensemble/stress, robust/nested covariance, ERC, HRP, CVaR
 ├─ portfolio_statistics.py            # paired block bootstrap와 multiple-testing gate
 ├─ sec_point_in_time.py               # SEC filing-date 기준 PIT 재무 factor 생성
+├─ research_split.py                   # research/validation/holdout split hash와 실행 계약 검증
 ├─ universe_manifest.py               # 날짜별 universe membership와 생존편향 정책 검증
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
@@ -154,6 +155,10 @@ tools/
 ├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
 ├─ build_sec_pit_features.py          # SEC 공시일 기준 PIT factor/provenance 생성
 ├─ build_ticker_cik_map.py             # 제한된 ticker 집합의 Yahoo SEC metadata 기반 CIK map
+├─ build_dow_universe_manifest.py       # pinned DJIA snapshot을 dated membership event로 변환
+├─ build_historical_price_panel.py      # ticker alias와 SHA provenance를 갖는 historical price panel
+├─ build_research_price_panel.py        # explicit research basket 가격과 SHA provenance 생성
+├─ build_market_factor_panel.py         # French factors + FRED DGS3MO PIT-aligned panel
 ├─ research_risk_allocators.py        # research-only risk allocator 비교
 ├─ validate_risk_allocator_candidate.py # frozen risk candidate 4-case validation
 └─ tune_transformer_hpo.py

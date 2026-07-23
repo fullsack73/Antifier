@@ -1,0 +1,38 @@
+{
+  "source": "Yahoo Finance adjusted price history",
+  "retrieved_at": "2026-07-23T14:22:24.770087+00:00",
+  "basket_policy": "explicit predeclared research basket",
+  "survivorship_policy": "not_asserted",
+  "promotion_safe": false,
+  "start_date": "2008-01-01",
+  "end_date": "2017-01-01",
+  "row_count": 2267,
+  "ticker_count": 10,
+  "tickers": [
+    "SPY",
+    "EFA",
+    "EEM",
+    "IEF",
+    "TLT",
+    "LQD",
+    "HYG",
+    "GLD",
+    "DBC",
+    "VNQ"
+  ],
+  "basket_manifest_sha256": "16b005516fe040c575a18894b44ef7a05fc361d74aaa4a49303eae1d2879c9e0",
+  "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/global_multi_asset_prices_2008_2016.csv",
+  "price_file_sha256": "5a9ac40dcb54cc2ae5a39ddbeb60b933881677c3f899970e643f148fc29d273b",
+  "usable_observations": {
+    "SPY": 2267,
+    "EFA": 2267,
+    "EEM": 2267,
+    "IEF": 2267,
+    "TLT": 2267,
+    "LQD": 2267,
+    "HYG": 2267,
+    "GLD": 2267,
+    "DBC": 2267,
+    "VNQ": 2267
+  }
+}
