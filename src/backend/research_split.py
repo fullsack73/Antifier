@@ -189,7 +189,7 @@ def validate_research_split_run(
     return {
         **normalized,
         "promotion_safe": bool(
-            normalized["role"] == "research"
+            normalized["role"] in {"research", "locked_holdout"}
             and normalized["locked"]
         ),
     }

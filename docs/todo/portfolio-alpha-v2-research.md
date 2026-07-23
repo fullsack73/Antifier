@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: nested PIT joint가 개별 signal gate 통과, familywise/paired improvement gate 탈락
+- 현재 상태: frozen nested PIT ridge가 독립 Nasdaq-100 locked holdout에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -74,6 +74,10 @@
 - 네 objective Holm-adjusted p-value는 `0.1020`, fixed ridge 대비 paired improvement 확률은 IC `81.70%`, spread `93.50%`여서 후보 freeze는 보류합니다.
 - official French market total return으로 beta를 추정한 v3 nested target은 IC `0.0618`, spread `0.0149`로 내부 equal-weight beta의 `0.0627`/`0.0153`보다 낮았습니다.
 - external-market 후보의 기존 nested 대비 paired improvement는 IC `38.80%`, spread `6.85%`, 5-objective adjusted p-value는 `0.1275`여서 폐기합니다.
+- pinned Nasdaq-100 change history를 2016-2025 PIT membership event로 역재구성하고 179 ticker 가격, 174 issuer security master, SEC SIC sector를 source-lock했습니다.
+- 20-F/40-F와 IFRS facts, weighted-average shares fallback을 지원해 Nasdaq PIT feature를 1,244행/152 ticker로 확장했습니다.
+- 2022-2025 locked holdout에서 nested IC `0.0260`, spread `-0.0022`, fixed 대비 paired improvement `60.55%`/`61.35%`로 signal gate를 통과하지 못했습니다.
+- Nasdaq holdout은 소진됐으며 같은 결과를 사용한 feature/penalty 재탐색을 금지합니다.
 
 ## 참고
 
@@ -81,3 +85,4 @@
 - v1 validation 결과: `logs/portfolio_gauntlet_candidate_adaptive_20260723.json`
 - v2 기반 보고서: `docs/reports/260723-1921-01-portfolio-alpha-v2-foundation.md`
 - pooled price-only 결과: `docs/reports/260723-2032-01-pooled-cross-sectional-research.md`
+- 독립 holdout 결과: `docs/reports/260724-0000-01-nasdaq100-frozen-holdout.md`

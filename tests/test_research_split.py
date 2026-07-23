@@ -93,3 +93,25 @@ def test_locked_research_split_is_promotion_safe():
     )
 
     assert result["promotion_safe"] is True
+
+
+def test_locked_holdout_split_is_promotion_safe():
+    payload = _manifest()
+    payload["role"] = "locked_holdout"
+    payload["manifest_sha256"] = research_split_digest(payload)
+
+    result = validate_research_split_run(
+        payload,
+        split_id=payload["split_id"],
+        experiment_namespace=payload["experiment_namespace"],
+        objectives=payload["objectives"],
+        settings=payload["settings"],
+        evaluation_start=payload["evaluation_start"],
+        evaluation_end=payload["evaluation_end"],
+        universe_manifest_sha256="a" * 64,
+        price_file_sha256="b" * 64,
+        factor_file_sha256="c" * 64,
+        auxiliary_files={},
+    )
+
+    assert result["promotion_safe"] is True

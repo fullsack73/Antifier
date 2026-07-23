@@ -18,7 +18,14 @@ SEC_COMPANY_FACTS_URL = (
 SEC_SUBMISSIONS_URL = (
     "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 )
-ANNUAL_FORMS = {"10-K", "10-K/A"}
+ANNUAL_FORMS = {
+    "10-K",
+    "10-K/A",
+    "20-F",
+    "20-F/A",
+    "40-F",
+    "40-F/A",
+}
 
 CONCEPTS = {
     "net_income": (
@@ -26,6 +33,12 @@ CONCEPTS = {
         (
             "us-gaap",
             "ProfitLoss",
+            ("USD",),
+        ),
+        ("ifrs-full", "ProfitLoss", ("USD",)),
+        (
+            "ifrs-full",
+            "ProfitLossAttributableToOwnersOfParent",
             ("USD",),
         ),
     ),
@@ -37,9 +50,16 @@ CONCEPTS = {
         ),
         ("us-gaap", "Revenues", ("USD",)),
         ("us-gaap", "SalesRevenueNet", ("USD",)),
+        ("ifrs-full", "Revenue", ("USD",)),
+        (
+            "ifrs-full",
+            "RevenueFromContractsWithCustomers",
+            ("USD",),
+        ),
     ),
     "gross_profit": (
         ("us-gaap", "GrossProfit", ("USD",)),
+        ("ifrs-full", "GrossProfit", ("USD",)),
     ),
     "operating_cash_flow": (
         (
@@ -47,15 +67,23 @@ CONCEPTS = {
             "NetCashProvidedByUsedInOperatingActivities",
             ("USD",),
         ),
+        (
+            "ifrs-full",
+            "CashFlowsFromUsedInOperatingActivities",
+            ("USD",),
+        ),
     ),
     "assets": (
         ("us-gaap", "Assets", ("USD",)),
+        ("ifrs-full", "Assets", ("USD",)),
     ),
     "current_assets": (
         ("us-gaap", "AssetsCurrent", ("USD",)),
+        ("ifrs-full", "CurrentAssets", ("USD",)),
     ),
     "current_liabilities": (
         ("us-gaap", "LiabilitiesCurrent", ("USD",)),
+        ("ifrs-full", "CurrentLiabilities", ("USD",)),
     ),
     "shares": (
         (
@@ -66,6 +94,28 @@ CONCEPTS = {
         (
             "us-gaap",
             "CommonStockSharesOutstanding",
+            ("shares",),
+        ),
+        (
+            "ifrs-full",
+            "NumberOfSharesOutstanding",
+            ("shares",),
+        ),
+    ),
+    "weighted_average_shares": (
+        (
+            "us-gaap",
+            "WeightedAverageNumberOfSharesOutstandingBasic",
+            ("shares",),
+        ),
+        (
+            "us-gaap",
+            "WeightedAverageNumberOfDilutedSharesOutstanding",
+            ("shares",),
+        ),
+        (
+            "ifrs-full",
+            "WeightedAverageNumberOfSharesOutstandingBasic",
             ("shares",),
         ),
     ),
@@ -664,6 +714,12 @@ def build_company_pit_features(
                 anchor,
                 duration=False,
             ),
+            "weighted_average_shares": _select_fact(
+                company_facts,
+                "weighted_average_shares",
+                anchor,
+                duration=True,
+            ),
         }
         values = {
             name: None if entry is None else float(entry["val"])
@@ -671,6 +727,8 @@ def build_company_pit_features(
         }
         filing_price = _price_on_or_before(price_series, available_date)
         shares = values["shares"]
+        if shares is None or shares <= 0:
+            shares = values["weighted_average_shares"]
         market_cap = (
             None
             if filing_price is None
@@ -893,6 +951,10 @@ def build_sec_pit_features(
             "valuation": "net_income/(filing-date price * shares)",
             "liquidity": "current_assets/current_liabilities",
             "market_cap": "filing-date price * reported shares outstanding",
+            "shares_fallback": (
+                "annual weighted-average basic/diluted shares when an "
+                "instant shares-outstanding fact is unavailable"
+            ),
         },
         "tickers_requested": [
             str(value).strip().upper() for value in tickers

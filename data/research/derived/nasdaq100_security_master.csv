@@ -1,0 +1,180 @@
+ticker,cik,effective_start,effective_end,sector,component_security_name,sec_entity_name,mapping_source,sector_source
+AAL,6201,,,Transportation Utilities,American Airlines | American Airlines Group,AMERICAN AIRLINES GROUP INC.,SEC company_tickers.json,SEC submissions SIC
+AAPL,320193,,,Manufacturing,Apple Inc.,Apple Inc.,SEC company_tickers.json,SEC submissions SIC
+ABNB,1559720,,,Services,Airbnb,"Airbnb, Inc.",SEC company_tickers.json,SEC submissions SIC
+ADBE,796343,,,Services,Adobe Inc.,ADOBE INC.,SEC company_tickers.json,SEC submissions SIC
+ADI,6281,,,Manufacturing,Analog Devices,"Analog Devices, Inc.",SEC company_tickers.json,SEC submissions SIC
+ADP,8670,,,Services,Automatic Data Processing,AUTOMATIC DATA PROCESSING INC,SEC company_tickers.json,SEC submissions SIC
+ADSK,769397,,,Services,Autodesk,"AUTODESK, INC.",SEC company_tickers.json,SEC submissions SIC
+AEP,4904,,,Transportation Utilities,American Electric Power,"American Electric Power Company, Inc.",SEC company_tickers.json,SEC submissions SIC
+AKAM,1086222,,,Services,Akamai Technologies,"AKAMAI TECHNOLOGIES, INC.",SEC company_tickers.json,SEC submissions SIC
+ALGN,1097149,,,Manufacturing,Align Technology,"ALIGN TECHNOLOGY, INC.",SEC company_tickers.json,SEC submissions SIC
+ALNY,1178670,,,Manufacturing,Alnylam Pharmaceuticals,"ALNYLAM PHARMACEUTICALS, INC.",SEC company_tickers.json,SEC submissions SIC
+ALXN,899866,,,Manufacturing,Alexion Pharmaceuticals,"ALEXION PHARMACEUTICALS, INC.",historical CIK override,SEC submissions SIC
+AMAT,6951,,,Manufacturing,Applied Materials,APPLIED MATERIALS INC /DE,SEC company_tickers.json,SEC submissions SIC
+AMD,2488,,,Manufacturing,Advanced Micro Devices,ADVANCED MICRO DEVICES INC,SEC company_tickers.json,SEC submissions SIC
+AMGN,318154,,,Manufacturing,Amgen,Amgen Inc.,SEC company_tickers.json,SEC submissions SIC
+AMZN,1018724,,,Retail,Amazon,AMAZON COM INC,SEC company_tickers.json,SEC submissions SIC
+ANSS,1013462,,,Services,Ansys,"ANSYS, Inc.",historical CIK override,SEC submissions SIC
+APP,1751008,,,Services,AppLovin,AppLovin Corp,SEC company_tickers.json,SEC submissions SIC
+ARM,1973239,,,Manufacturing,Arm Holdings,ARM HOLDINGS PLC /UK,SEC company_tickers.json,SEC submissions SIC
+ASML,937966,,,Manufacturing,ASML Holding,ASML HOLDING NV,SEC company_tickers.json,SEC submissions SIC
+ATVI,718877,,,Services,Activision Blizzard,"ACTIVISION BLIZZARD, INC.",historical CIK override,SEC submissions SIC
+AVGO,1730168,,,Manufacturing,Avago Technologies | Broadcom | Broadcom Corporation,Broadcom Inc.,SEC company_tickers.json,SEC submissions SIC
+AXON,1069183,,,Manufacturing,Axon Enterprise,"Axon Enterprise, Inc.",SEC company_tickers.json,SEC submissions SIC
+AZN,901832,,,Manufacturing,AstraZeneca,ASTRAZENECA PLC,SEC company_tickers.json,SEC submissions SIC
+BIDU,1329099,,,Services,"Baidu | Baidu.com, Inc.","Baidu, Inc.",SEC company_tickers.json,SEC submissions SIC
+BIIB,875045,,,Manufacturing,Biogen,BIOGEN INC.,SEC company_tickers.json,SEC submissions SIC
+BKNG,1075531,,,Transportation Utilities,Booking Holdings,Booking Holdings Inc.,SEC company_tickers.json,SEC submissions SIC
+BKR,1701605,,,Manufacturing,Baker Hughes,Baker Hughes Co,SEC company_tickers.json,SEC submissions SIC
+BMRN,1048477,,,Manufacturing,BioMarin Pharmaceutical,BioMarin Pharmaceutical Inc,SEC company_tickers.json,SEC submissions SIC
+CA,356028,,,Services,CA Inc. | CA Technologies,"CA, INC.",historical CIK override,SEC submissions SIC
+CCEP,1650107,,,Manufacturing,Coca-Cola Europacific Partners,COCA-COLA EUROPACIFIC PARTNERS PLC,SEC company_tickers.json,SEC submissions SIC
+CDNS,813672,,,Services,Cadence Design Systems,"CADENCE DESIGN SYSTEMS, INC.",SEC company_tickers.json,SEC submissions SIC
+CDW,1402057,,,Retail,CDW | CDW Corporation,CDW CORP,SEC company_tickers.json,SEC submissions SIC
+CEG,1868275,,,Transportation Utilities,Constellation Energy,CONSTELLATION ENERGY CORPORATION,SEC company_tickers.json,SEC submissions SIC
+CELG,816284,,,Manufacturing,Celgene,CELGENE CORPORATION,historical CIK override,SEC submissions SIC
+CERN,804753,,,Services,Cerner,CERNER Corp,historical CIK override,SEC submissions SIC
+CHKP,1015922,,,Services,Check Point,CHECK POINT SOFTWARE TECHNOLOGIES LTD.,SEC company_tickers.json,SEC submissions SIC
+CHTR,1091667,,,Transportation Utilities,Charter Communications,"Charter Communications, Inc.",SEC company_tickers.json,SEC submissions SIC
+CMCSA,1166691,,,Transportation Utilities,Comcast | Comcast Corporation Class A,Comcast Corporation,SEC company_tickers.json,SEC submissions SIC
+COST,909832,,,Retail,Costco,COSTCO WHOLESALE CORP /NEW,SEC company_tickers.json,SEC submissions SIC
+CPRT,900075,,,Retail,Copart,"COPART, INC.",SEC company_tickers.json,SEC submissions SIC
+CRWD,1535527,,,Services,CrowdStrike | Crowdstrike,"CROWDSTRIKE HOLDINGS, INC.",SEC company_tickers.json,SEC submissions SIC
+CSCO,858877,,,Manufacturing,Cisco,"CISCO SYSTEMS, INC.",SEC company_tickers.json,SEC submissions SIC
+CSGP,1057352,,,Services,CoStar Group,"COSTAR GROUP, INC.",SEC company_tickers.json,SEC submissions SIC
+CSX,277948,,,Transportation Utilities,CSX Corporation,CSX CORPORATION,SEC company_tickers.json,SEC submissions SIC
+CTAS,723254,,,Manufacturing,Cintas,Cintas Corporation,SEC company_tickers.json,SEC submissions SIC
+CTSH,1058290,,,Services,Cognizant,COGNIZANT TECHNOLOGY SOLUTIONS CORPORATION,SEC company_tickers.json,SEC submissions SIC
+CTXS,877890,,,Services,Citrix Systems,CITRIX SYSTEMS INC,historical CIK override,SEC submissions SIC
+DASH,1792789,,,Services,DoorDash,"DOORDASH, INC.",SEC company_tickers.json,SEC submissions SIC
+DDOG,1561550,,,Services,Datadog,"Datadog, Inc.",SEC company_tickers.json,SEC submissions SIC
+DISCA,1437107,,,Transportation Utilities,Discovery Communications | Discovery Communications Class A | Discovery Communications Series A,"Warner Bros. Discovery, Inc.",historical CIK override,SEC submissions SIC
+DISCK,1437107,,,Transportation Utilities,Discovery Communications Series C,"Warner Bros. Discovery, Inc.",historical CIK override,SEC submissions SIC
+DISH,1001082,,,Transportation Utilities,DISH Network Corporation | Dish Network,DISH Network Corp,historical CIK override,SEC submissions SIC
+DLTR,935703,,,Retail,Dollar Tree,"DOLLAR TREE, INC.",SEC company_tickers.json,SEC submissions SIC
+DOCU,1261333,,,Services,DocuSign,"DOCUSIGN, INC.",SEC company_tickers.json,SEC submissions SIC
+DXCM,1093557,,,Manufacturing,DexCom | Dexcom,"DEXCOM, INC.",SEC company_tickers.json,SEC submissions SIC
+EA,712515,,,Services,Electronic Arts,ELECTRONIC ARTS INC.,SEC company_tickers.json,SEC submissions SIC
+EBAY,1065088,,,Services,EBay,eBay Inc.,SEC company_tickers.json,SEC submissions SIC
+ENPH,1463101,,,Manufacturing,Enphase Energy,"Enphase Energy, Inc.",SEC company_tickers.json,SEC submissions SIC
+ESRX,1532063,,,Retail,Express Scripts,Express Scripts Holding Co.,historical CIK override,SEC submissions SIC
+EXC,1109357,,,Transportation Utilities,Exelon,EXELON CORPORATION,SEC company_tickers.json,SEC submissions SIC
+EXPE,1324424,,,Transportation Utilities,Expedia | Expedia Group,"EXPEDIA GROUP, INC.",SEC company_tickers.json,SEC submissions SIC
+FANG,1539838,,,Mining,Diamondback Energy,"Diamondback Energy, Inc.",SEC company_tickers.json,SEC submissions SIC
+FAST,815556,,,Retail,Fastenal,FASTENAL CO,SEC company_tickers.json,SEC submissions SIC
+FER,1468522,,,Construction,Ferrovial | Ferrovial SE,Ferrovial SE,SEC company_tickers.json,SEC submissions SIC
+FI,798354,,,Services,Fiserv,FISERV INC,historical CIK override,SEC submissions SIC
+FOX,1754301,,,Transportation Utilities,"21st Century Fox Class B | Fox Corporation | Fox Corporation Class B | Twenty-First Century Fox, Inc. Class B",FOX CORPORATION,SEC company_tickers.json,SEC submissions SIC
+FOXA,1754301,,,Transportation Utilities,21st Century Fox Class A | Fox Corporation | Fox Corporation Class A,FOX CORPORATION,SEC company_tickers.json,SEC submissions SIC
+FTNT,1262039,,,Manufacturing,Fortinet,"FORTINET, INC.",SEC company_tickers.json,SEC submissions SIC
+GEHC,1932393,,,Manufacturing,GE HealthCare,GE HEALTHCARE TECHNOLOGIES INC.,SEC company_tickers.json,SEC submissions SIC
+GFS,1709048,,,Manufacturing,GlobalFoundries,GLOBALFOUNDRIES Inc.,SEC company_tickers.json,SEC submissions SIC
+GILD,882095,,,Manufacturing,Gilead Sciences,"GILEAD SCIENCES, INC.",SEC company_tickers.json,SEC submissions SIC
+GOOG,1652044,,,Services,Alphabet Inc. (Class C) | Google Class C,ALPHABET INC.,SEC company_tickers.json,SEC submissions SIC
+GOOGL,1652044,,,Services,Alphabet Inc. (Class A),ALPHABET INC.,SEC company_tickers.json,SEC submissions SIC
+HAS,46080,,,Manufacturing,Hasbro,"HASBRO, INC.",SEC company_tickers.json,SEC submissions SIC
+HOLX,859737,,,Manufacturing,Hologic,HOLOGIC INC,historical CIK override,SEC submissions SIC
+HON,773840,,,Manufacturing,Honeywell | Honeywell Technologies,Honeywell International Inc,SEC company_tickers.json,SEC submissions SIC
+HSIC,1000228,,,Wholesale,Henry Schein,"HENRY SCHEIN, INC.",SEC company_tickers.json,SEC submissions SIC
+IDXX,874716,,,Manufacturing,Idexx Laboratories,IDEXX LABORATORIES INC /DE,SEC company_tickers.json,SEC submissions SIC
+ILMN,1110803,,,Manufacturing,Illumina | Ilumina,"Illumina, Inc.",SEC company_tickers.json,SEC submissions SIC
+INCY,879169,,,Services,Incyte,INCYTE CORPORATION,SEC company_tickers.json,SEC submissions SIC
+INSM,1104506,,,Manufacturing,Insmed Incorporated,INSMED INCORPORATED,SEC company_tickers.json,SEC submissions SIC
+INTC,50863,,,Manufacturing,Intel,INTEL CORP,SEC company_tickers.json,SEC submissions SIC
+INTU,896878,,,Services,Intuit,INTUIT INC.,SEC company_tickers.json,SEC submissions SIC
+ISRG,1035267,,,Manufacturing,Intuitive Surgical,"Intuitive Surgical, Inc.",SEC company_tickers.json,SEC submissions SIC
+JBHT,728535,,,Transportation Utilities,J. B. Hunt | J.B. Hunt,"J.B. HUNT TRANSPORT SERVICES, INC.",SEC company_tickers.json,SEC submissions SIC
+JD,1549802,,,Retail,JD.com,"JD.com, Inc.",SEC company_tickers.json,SEC submissions SIC
+KDP,1418135,,,Manufacturing,Keurig Dr Pepper,Keurig Dr Pepper Inc.,SEC company_tickers.json,SEC submissions SIC
+KHC,1637459,,,Manufacturing,Kraft Heinz,Kraft Heinz Co,SEC company_tickers.json,SEC submissions SIC
+KLAC,319201,,,Manufacturing,KLA Corporation | KLA-Tencor,KLA CORPORATION,SEC company_tickers.json,SEC submissions SIC
+LBTYA,1570585,,,Transportation Utilities,Liberty Global | Liberty Global Class A,Liberty Global Ltd.,SEC company_tickers.json,SEC submissions SIC
+LBTYK,1570585,,,Transportation Utilities,Liberty Global | Liberty Global PLC Class C,Liberty Global Ltd.,SEC company_tickers.json,SEC submissions SIC
+LCID,1811210,,,Manufacturing,Lucid Group,"Lucid Group, Inc.",SEC company_tickers.json,SEC submissions SIC
+LIN,1707925,,,Manufacturing,Linde | Linde plc,LINDE PLC,SEC company_tickers.json,SEC submissions SIC
+LRCX,707549,,,Manufacturing,Lam Research,LAM RESEARCH CORPORATION,SEC company_tickers.json,SEC submissions SIC
+LULU,1397187,,,Manufacturing,Lululemon Athletica | lululemon Athletica,lululemon athletica inc.,SEC company_tickers.json,SEC submissions SIC
+MAR,1048286,,,Services,Marriott International,MARRIOTT INTERNATIONAL INC /MD/,SEC company_tickers.json,SEC submissions SIC
+MAT,63276,,,Manufacturing,Mattel,MATTEL INC /DE/,SEC company_tickers.json,SEC submissions SIC
+MCHP,827054,,,Manufacturing,Microchip Technology,Microchip Technology Incorporated,SEC company_tickers.json,SEC submissions SIC
+MDB,1441816,,,Services,MongoDB,"MONGODB, INC.",SEC company_tickers.json,SEC submissions SIC
+MDLZ,1103982,,,Manufacturing,Mondelez International,"Mondelez International, Inc.",SEC company_tickers.json,SEC submissions SIC
+MELI,1099590,,,Services,Mercado Libre | MercadoLibre,"MercadoLibre, Inc.",SEC company_tickers.json,SEC submissions SIC
+META,1326801,,,Services,"Facebook, Inc. | Meta Platforms","Meta Platforms, Inc.",SEC company_tickers.json,SEC submissions SIC
+MNST,865752,,,Manufacturing,Hansen Natural | Monster Beverage | Monster Worldwide,Monster Beverage Corp,SEC company_tickers.json,SEC submissions SIC
+MPWR,1280452,,,Manufacturing,Monolithic Power Systems,MONOLITHIC POWER SYSTEMS INC,SEC company_tickers.json,SEC submissions SIC
+MRNA,1682852,,,Manufacturing,Moderna,"Moderna, Inc.",SEC company_tickers.json,SEC submissions SIC
+MRVL,1835632,,,Manufacturing,Marvell Technology | Marvell Technology Group,"Marvell Technology, Inc.",SEC company_tickers.json,SEC submissions SIC
+MSFT,789019,,,Services,Microsoft,MICROSOFT CORPORATION,SEC company_tickers.json,SEC submissions SIC
+MSTR,1050446,,,Finance Real Estate,MicroStrategy,STRATEGY INC,SEC company_tickers.json,SEC submissions SIC
+MTCH,891103,,,Services,Match Group,"Match Group, Inc.",SEC company_tickers.json,SEC submissions SIC
+MU,723125,,,Manufacturing,Micron Technology,"Micron Technology, Inc.",SEC company_tickers.json,SEC submissions SIC
+MXIM,743316,,,Manufacturing,Maxim Integrated Products,"MAXIM INTEGRATED PRODUCTS, INC.",historical CIK override,SEC submissions SIC
+MYL,1623613,,,Manufacturing,Mylan,MYLAN II B.V.,historical CIK override,SEC submissions SIC
+NCLH,1513761,,,Transportation Utilities,Norwegian Cruise Line | Norwegian Cruise Line Holdings,NORWEGIAN CRUISE LINE HOLDINGS LTD.,SEC company_tickers.json,SEC submissions SIC
+NFLX,1065280,,,Services,"Netflix | Netflix, Inc.",NETFLIX INC,SEC company_tickers.json,SEC submissions SIC
+NLOK,849399,,,Services,NortonLifeLock,Gen Digital Inc.,historical CIK override,SEC submissions SIC
+NTAP,1002047,,,Manufacturing,NetApp,"NetApp, Inc.",SEC company_tickers.json,SEC submissions SIC
+NTES,1110646,,,Services,NetEase,"NETEASE, INC.",SEC company_tickers.json,SEC submissions SIC
+NVDA,1045810,,,Manufacturing,Nvidia,NVIDIA CORP,SEC company_tickers.json,SEC submissions SIC
+NXPI,1413447,,,Manufacturing,NXP Semiconductors,NXP Semiconductors N.V.,SEC company_tickers.json,SEC submissions SIC
+ODFL,878927,,,Transportation Utilities,Old Dominion Freight Line,"OLD DOMINION FREIGHT LINE, INC.",SEC company_tickers.json,SEC submissions SIC
+OKTA,1660134,,,Services,Okta,"Okta, Inc.",SEC company_tickers.json,SEC submissions SIC
+ON,1097864,,,Manufacturing,ON Semiconductor | Onsemi,ON Semiconductor Corporation,SEC company_tickers.json,SEC submissions SIC
+ORLY,898173,,,Retail,O'Reilly Auto Parts | O'Reilly Automotive,O Reilly Automotive Inc,SEC company_tickers.json,SEC submissions SIC
+PANW,1327567,,,Manufacturing,Palo Alto Networks,"PALO ALTO NETWORKS, INC",SEC company_tickers.json,SEC submissions SIC
+PAYX,723531,,,Services,Paychex,"Paychex, Inc.",SEC company_tickers.json,SEC submissions SIC
+PCAR,75362,,,Manufacturing,Paccar,PACCAR Inc,SEC company_tickers.json,SEC submissions SIC
+PDD,1737806,,,Services,PDD Holdings | Pinduoduo,PDD Holdings Inc.,SEC company_tickers.json,SEC submissions SIC
+PEP,77476,,,Manufacturing,PepsiCo,"PepsiCo, Inc.",SEC company_tickers.json,SEC submissions SIC
+PLTR,1321655,,,Services,Palantir Technologies,Palantir Technologies Inc.,SEC company_tickers.json,SEC submissions SIC
+PTON,1639825,,,Manufacturing,Peloton,"Peloton Interactive, Inc.",SEC company_tickers.json,SEC submissions SIC
+PYPL,1633917,,,Services,PayPal,"PayPal Holdings, Inc.",SEC company_tickers.json,SEC submissions SIC
+QCOM,804328,,,Manufacturing,Qualcomm,QUALCOMM INC/DE,SEC company_tickers.json,SEC submissions SIC
+QRTEA,1355096,,,Retail,Qurate Retail,"QVC GROUP, INC.",historical CIK override,SEC submissions SIC
+REGN,872589,,,Manufacturing,Regeneron Pharmaceuticals,"REGENERON PHARMACEUTICALS, INC.",SEC company_tickers.json,SEC submissions SIC
+RIVN,1874178,,,Manufacturing,Rivian Automotive,"Rivian Automotive, Inc. / DE",SEC company_tickers.json,SEC submissions SIC
+ROP,882835,,,Manufacturing,Roper Technologies,ROPER TECHNOLOGIES INC,SEC company_tickers.json,SEC submissions SIC
+ROST,745732,,,Retail,Ross Stores,"Ross Stores, Inc.",SEC company_tickers.json,SEC submissions SIC
+SBAC,1034054,,,Finance Real Estate,SBA Communications,SBA COMMUNICATIONS CORP,SEC company_tickers.json,SEC submissions SIC
+SBUX,829224,,,Retail,Starbucks,Starbucks Corporation,SEC company_tickers.json,SEC submissions SIC
+SGEN,1060736,,,Manufacturing,Seagen Inc. | Seattle Genetics,Seagen Inc.,historical CIK override,SEC submissions SIC
+SHOP,1594805,,,Services,Shopify,Shopify Inc.,SEC company_tickers.json,SEC submissions SIC
+SHPG,936402,,,Manufacturing,Shire PLC,Shire plc,historical CIK override,SEC submissions SIC
+SIRI,908937,,,Transportation Utilities,Sirius XM Radio | SiriusXM,SIRIUS XM HOLDINGS INC.,SEC company_tickers.json,SEC submissions SIC
+SMCI,1375365,,,Manufacturing,Supermicro,"SUPER MICRO COMPUTER, INC.",SEC company_tickers.json,SEC submissions SIC
+SNPS,883241,,,Services,Synopsys,SYNOPSYS INC,SEC company_tickers.json,SEC submissions SIC
+SOLS,2064953,,,Manufacturing,Solstice Advanced Materials,Solstice Advanced Materials Inc.,SEC company_tickers.json,SEC submissions SIC
+SPLK,1353283,,,Services,Splunk,Splunk Inc.,historical CIK override,SEC submissions SIC
+STX,1137789,,,Manufacturing,Seagate Technology | Seagate Technology Holdings,Seagate Technology Holdings plc,SEC company_tickers.json,SEC submissions SIC
+SWKS,4127,,,Manufacturing,Skyworks | Skyworks Solutions,"SKYWORKS SOLUTIONS, INC.",SEC company_tickers.json,SEC submissions SIC
+TCOM,1269238,,,Services,Ctrip | Trip.com,Trip.com Group Limited,SEC company_tickers.json,SEC submissions SIC
+TEAM,1650372,,,Services,Atlassian,Atlassian Corporation,SEC company_tickers.json,SEC submissions SIC
+TMUS,1283699,,,Transportation Utilities,T-Mobile US,"T-Mobile US, Inc.",SEC company_tickers.json,SEC submissions SIC
+TRI,1075124,,,Manufacturing,Thomson Reuters,THOMSON REUTERS CORPORATION,SEC company_tickers.json,SEC submissions SIC
+TRIP,1526520,,,Services,TripAdvisor,"TRIPADVISOR, INC.",SEC company_tickers.json,SEC submissions SIC
+TSCO,916365,,,Retail,Tractor Supply | Tractor Supply Company,TRACTOR SUPPLY CO /DE/,SEC company_tickers.json,SEC submissions SIC
+TSLA,1318605,,,Manufacturing,"Tesla Motors | Tesla, Inc.","Tesla, Inc.",SEC company_tickers.json,SEC submissions SIC
+TTD,1671933,,,Services,The Trade Desk | Trade Desk (The),"TRADE DESK, INC.",SEC company_tickers.json,SEC submissions SIC
+TTWO,946581,,,Services,Take-Two Interactive,"Take-Two Interactive Software, Inc.",SEC company_tickers.json,SEC submissions SIC
+TXN,97476,,,Manufacturing,Texas Instruments,TEXAS INSTRUMENTS INCORPORATED,SEC company_tickers.json,SEC submissions SIC
+UAL,100517,,,Transportation Utilities,United Airlines Holdings | United Continental Holdings,"United Airlines Holdings, Inc.",SEC company_tickers.json,SEC submissions SIC
+ULTA,1403568,,,Retail,Ulta Beauty,"ULTA BEAUTY, INC.",SEC company_tickers.json,SEC submissions SIC
+VIAB,1339947,,,Transportation Utilities,Viacom,VIACOM INC.,historical CIK override,SEC submissions SIC
+VOD,839923,,,Transportation Utilities,Vodafone,VODAFONE GROUP PUBLIC LTD CO,SEC company_tickers.json,SEC submissions SIC
+VRSK,1442145,,,Services,Verisk Analytics,"Verisk Analytics, Inc.",SEC company_tickers.json,SEC submissions SIC
+VRSN,1014473,,,Services,VeriSign | Verisign,VERISIGN INC/CA,SEC company_tickers.json,SEC submissions SIC
+VRTX,875320,,,Manufacturing,Vertex Pharmaceuticals,VERTEX PHARMACEUTICALS INC / MA,SEC company_tickers.json,SEC submissions SIC
+WBA,1618921,,,Retail,Walgreens Boots Alliance,"WALGREENS BOOTS ALLIANCE, INC.",historical CIK override,SEC submissions SIC
+WBD,1437107,,,Transportation Utilities,Warner Bros. Discovery,"Warner Bros. Discovery, Inc.",SEC company_tickers.json,SEC submissions SIC
+WDAY,1327811,,,Services,"Workday | Workday, Inc.","WORKDAY, INC.",SEC company_tickers.json,SEC submissions SIC
+WDC,106040,,,Manufacturing,Western Digital,WESTERN DIGITAL CORPORATION,SEC company_tickers.json,SEC submissions SIC
+WTW,1140536,,,Finance Real Estate,Willis Towers Watson,WILLIS TOWERS WATSON PLC,SEC company_tickers.json,SEC submissions SIC
+WYNN,1174922,,,Services,Wynn Resorts,WYNN RESORTS LTD,SEC company_tickers.json,SEC submissions SIC
+XEL,72903,,,Transportation Utilities,Xcel Energy,XCEL ENERGY INC,SEC company_tickers.json,SEC submissions SIC
+XLNX,743988,,,Manufacturing,Xilinx,"XILINX, INC.",historical CIK override,SEC submissions SIC
+XRAY,818479,,,Manufacturing,Dentsply | Dentsply Sirona,DENTSPLY SIRONA Inc.,SEC company_tickers.json,SEC submissions SIC
+YHOO,1011006,,,Unknown,Yahoo! Inc.,YAHOO INC,historical CIK override,missing SEC SIC
+ZM,1585521,,,Services,Zoom Video Communications,"Zoom Communications, Inc.",SEC company_tickers.json,SEC submissions SIC
+ZS,1713683,,,Services,Zscaler,"ZSCALER, INC.",SEC company_tickers.json,SEC submissions SIC

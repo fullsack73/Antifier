@@ -159,6 +159,82 @@ def test_future_amendment_does_not_rewrite_earlier_filing_row():
     assert amended.iloc[0]["valuation"] == pytest.approx(0.10)
 
 
+def test_company_features_fall_back_to_weighted_average_shares():
+    facts = _company_facts()
+    facts["facts"]["dei"] = {}
+    facts["facts"]["us-gaap"][
+        "WeightedAverageNumberOfSharesOutstandingBasic"
+    ] = {
+        "units": {
+            "shares": [
+                _duration_fact(
+                    90.0,
+                    "2022-01-01",
+                    "2022-12-31",
+                    "2023-02-10",
+                    "a1",
+                ),
+                _duration_fact(
+                    100.0,
+                    "2023-01-01",
+                    "2023-12-31",
+                    "2024-02-09",
+                    "a2",
+                ),
+            ]
+        }
+    }
+    prices = pd.Series(
+        [10.0, 20.0],
+        index=pd.to_datetime(["2023-02-10", "2024-02-09"]),
+    )
+
+    result = build_company_pit_features(
+        "EXM",
+        facts,
+        {"sic": "3571"},
+        prices,
+    )
+
+    assert list(result["shares_outstanding"]) == [90.0, 100.0]
+    assert list(result["market_cap"]) == [900.0, 2000.0]
+
+
+def test_company_features_accept_ifrs_20f_facts():
+    facts = _company_facts()
+    us_gaap = facts["facts"].pop("us-gaap")
+    facts["facts"]["ifrs-full"] = {
+        "ProfitLoss": us_gaap["NetIncomeLoss"],
+        "Revenue": us_gaap["Revenues"],
+        "GrossProfit": us_gaap["GrossProfit"],
+        "CashFlowsFromUsedInOperatingActivities": (
+            us_gaap["NetCashProvidedByUsedInOperatingActivities"]
+        ),
+        "Assets": us_gaap["Assets"],
+        "CurrentAssets": us_gaap["AssetsCurrent"],
+        "CurrentLiabilities": us_gaap["LiabilitiesCurrent"],
+    }
+    for taxonomy in ("ifrs-full", "dei"):
+        for concept in facts["facts"][taxonomy].values():
+            for entries in concept["units"].values():
+                for entry in entries:
+                    entry["form"] = "20-F"
+    prices = pd.Series(
+        [10.0, 20.0],
+        index=pd.to_datetime(["2023-02-10", "2024-02-09"]),
+    )
+
+    result = build_company_pit_features(
+        "EXM",
+        facts,
+        {"sic": "2834"},
+        prices,
+    )
+
+    assert len(result) == 2
+    assert result.iloc[0]["profitability"] == pytest.approx(0.4)
+
+
 def test_sec_client_requires_declared_contact_and_does_not_pin_host(tmp_path):
     with pytest.raises(ValueError, match="email address or project URL"):
         SecEdgarClient("Antifier", cache_dir=tmp_path)

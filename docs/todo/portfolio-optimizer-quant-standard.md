@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: historical-DOW PIT joint 연구 완료, canonical issuer provenance와 유의한 frozen candidate 미확보
+- 현재 상태: frozen nested PIT signal이 독립 Nasdaq-100 locked holdout에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -27,19 +27,18 @@
 ## 미완료 조건
 
 - canonical/licensed historical constituent source와 issuer identity provenance
-- canonical dated sector/SIC dataset
-- validation/locked-holdout split manifest의 immutable hash(research split 완료)
+- 새 최종 후보용 untouched validation/locked-holdout split
 - factor residual/joint model familywise 및 paired-improvement gate 통과
 - default candidate가 4-case validation 전부와 corrected standard gauntlet을 통과
 - 최종 단일 frozen candidate의 untouched locked holdout 통과
 
 ## 다음 순서
 
-1. historical constituent manifest와 declared `SEC_USER_AGENT`로 실제 PIT dataset을 생성합니다.
-2. factor residual target의 compact regularized model을 fresh research split에서 평가합니다.
-3. positive rank IC, top-bottom spread, calibration, cost, 95% bootstrap와 Holm gate를 모두 통과한 모델 하나만 freeze합니다.
-4. 기존 validation 결과로 재튜닝하지 않고 새 validation manifest를 사용합니다.
-5. validation 전부 통과 후에만 locked holdout을 한 번 실행합니다.
+1. Nasdaq holdout을 재튜닝에서 제외하고 새 research namespace를 선언합니다.
+2. 분기 PIT, analyst-independent revisions, macro/regime 등 새 feature family를 research split에서 비교합니다.
+3. positive rank IC, positive top-bottom spread, calibration, cost, 95% bootstrap와 Holm gate를 모두 통과한 모델 하나만 freeze합니다.
+4. 새 validation manifest를 사용하고 실패 결과로 같은 family를 재튜닝하지 않습니다.
+5. validation 통과 후 새로운 untouched locked holdout을 한 번 실행합니다.
 
 ## 2026-07-23 추가 진단
 
@@ -64,6 +63,10 @@
 - fresh global multi-asset research에서 volatility와 drawdown은 개선됐지만 Sharpe가 `0.6857→0.6561`로 하락해 폐기했습니다. lower-vol `99.75%`만으로 승격하지 않습니다.
 - FRED historical risk-free로 재평가한 corrected Sharpe도 baseline `1.0605` 대비 nested `1.0376`으로 열위입니다.
 - French market factor beta residual target은 authoritative data를 사용했지만 내부 beta nested 후보보다 IC/spread가 낮아 폐기했습니다.
+- Nasdaq-100 historical membership 2016-2025와 SEC issuer/SIC provenance를 구성해 독립 locked holdout을 실행했습니다.
+- SEC 20-F/40-F, IFRS taxonomy, weighted-average shares fallback으로 holdout PIT coverage를 최대 96.0%까지 높였습니다.
+- frozen nested ridge는 Nasdaq holdout에서 IC `0.0260`, spread `-0.0022`였고 fixed 대비 paired improvement 확률도 `60.55%`/`61.35%`에 그쳐 탈락했습니다.
+- 이 실패로 current alpha engine은 quant-standard 승격 조건을 충족하지 못합니다.
 
 ## 금지
 

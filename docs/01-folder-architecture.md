@@ -156,6 +156,9 @@ tools/
 ├─ build_sec_pit_features.py          # SEC 공시일 기준 PIT factor/provenance 생성
 ├─ build_ticker_cik_map.py             # 제한된 ticker 집합의 Yahoo SEC metadata 기반 CIK map
 ├─ build_dow_universe_manifest.py       # pinned DJIA snapshot을 dated membership event로 변환
+├─ build_nasdaq100_universe_manifest.py # pinned Nasdaq-100 change history를 dated membership event로 역복원
+├─ build_nasdaq100_security_master.py   # SEC current/history CIK와 submissions SIC security master 생성
+├─ download_sec_submissions.py          # security master issuer의 SEC submissions JSON 수집/검증
 ├─ build_historical_price_panel.py      # ticker alias와 SHA provenance를 갖는 historical price panel
 ├─ build_research_price_panel.py        # explicit research basket 가격과 SHA provenance 생성
 ├─ build_market_factor_panel.py         # French factors + FRED DGS3MO PIT-aligned panel

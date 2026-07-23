@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "split_id": "nasdaq100-frozen-nested-holdout-2022-2025-v1",
+  "role": "locked_holdout",
+  "evaluation_start": "2022-01-01",
+  "evaluation_end": "2025-09-30",
+  "experiment_namespace": "pit-factor-v2-nested-independent-nasdaq100",
+  "objectives": [
+    "factor_residual_ridge",
+    "factor_residual_nested_ridge"
+  ],
+  "settings": {
+    "horizon": 63,
+    "rebalance_step": 63,
+    "minimum_feature_history": 253,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 12,
+    "minimum_observations": 40,
+    "ridge_penalty": 5.0,
+    "nested_ridge_penalties": [
+      1.0,
+      5.0,
+      20.0,
+      100.0
+    ],
+    "nested_validation_periods": 3,
+    "nominal_uncertainty_coverage": 0.8
+  },
+  "universe_manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+  "price_file_sha256": "03e97a80a69e58e82b06f7784ea9210fa738fd3069b51d767e52013df299dfbf",
+  "factor_file_sha256": "d1ed438e99cf7528b1e2b4606a223282179b8dcb44df497c63f0ae5dc6952ce6",
+  "locked": true,
+  "manifest_sha256": "d43422d4c3f5f58fe5c2580df31a4608bf5199e7a6fe85f9312f263870971d79"
+}

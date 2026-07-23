@@ -1,0 +1,1054 @@
+{
+  "source": "SEC EDGAR submissions API https://data.sec.gov/submissions/",
+  "retrieved_at": "2026-07-23T14:53:59.273872+00:00",
+  "security_master": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_security_master.csv",
+  "security_master_sha256": "2809b530cacec5e87bd149ded7bbc0f52d472f3b57b257dac16dc1ecfc6ee2fb",
+  "issuer_count": 174,
+  "total_bytes": 26007429,
+  "files": [
+    {
+      "cik": 2488,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000002488.json",
+      "bytes": 162609,
+      "sha256": "508725355e9182ae538e6728e1ca5942827b2d44bf029d8988da8631f79b6506"
+    },
+    {
+      "cik": 4127,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000004127.json",
+      "bytes": 160396,
+      "sha256": "76e88bff548470af4f94229823c9e18ba3ea3a194bdad3b2dee4c3854ef7739b"
+    },
+    {
+      "cik": 4904,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000004904.json",
+      "bytes": 161165,
+      "sha256": "1b280756b4339c28e3d680f1a0c65f1f10cf949667bd3383104de08579675b09"
+    },
+    {
+      "cik": 6201,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000006201.json",
+      "bytes": 166745,
+      "sha256": "384889988c6b17a56fd4a7afde4c5c3af9c45c5d64a15d6738fb90b159552d65"
+    },
+    {
+      "cik": 6281,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000006281.json",
+      "bytes": 161745,
+      "sha256": "597684030dceadb165f445fbe526290e973c270f063fc3148a56c7285c0e111c"
+    },
+    {
+      "cik": 6951,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000006951.json",
+      "bytes": 159559,
+      "sha256": "e18d7f0622d41157a6909e7ce40bc34802a2a8819f571b71d7e684fbb71cae6e"
+    },
+    {
+      "cik": 8670,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000008670.json",
+      "bytes": 145785,
+      "sha256": "55bbd50f3766dd3a8af81fa3adaed77a631a5b1c2db44f848b7c9c7ae9ba7c8a"
+    },
+    {
+      "cik": 46080,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000046080.json",
+      "bytes": 164476,
+      "sha256": "cba93ce1b2cb30ba19ee25b8694f5b3bbd1c2064fcb1314e8a874c4784bb7ed8"
+    },
+    {
+      "cik": 50863,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000050863.json",
+      "bytes": 159324,
+      "sha256": "629ff9a41d601ccfb98299644a6e5ef92553ac50b947c2c58e52a7b946299053"
+    },
+    {
+      "cik": 63276,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000063276.json",
+      "bytes": 163001,
+      "sha256": "42b6c5059b2cf42a37a426d1312656c71512db1041d82566249345add4446c84"
+    },
+    {
+      "cik": 72903,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000072903.json",
+      "bytes": 152011,
+      "sha256": "4c98990e7dfb39eaf4c9c791458d5fa3647d1d009be0898262f7f646d403006b"
+    },
+    {
+      "cik": 75362,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000075362.json",
+      "bytes": 141264,
+      "sha256": "dd6a620c4c25bda45711647d26357606a76980870aff40ef6fb7f416382cf209"
+    },
+    {
+      "cik": 77476,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000077476.json",
+      "bytes": 161830,
+      "sha256": "8d163654e9233a66ee052d23f81c5db9b2cc1729a640cb3ba5835563aa0748fb"
+    },
+    {
+      "cik": 97476,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000097476.json",
+      "bytes": 157428,
+      "sha256": "e5578b8876607269485a90791fa5f19277909f2cec5078c3951e3877b7548e94"
+    },
+    {
+      "cik": 100517,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000100517.json",
+      "bytes": 162273,
+      "sha256": "6c3951616f4d20f9d1271748e68938640548bd8241b1810199cc32429aede9db"
+    },
+    {
+      "cik": 106040,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000106040.json",
+      "bytes": 160375,
+      "sha256": "6f6910817c2cef078a73c2144fa95b7b849672a47c8542bc1007b959bb8a81c9"
+    },
+    {
+      "cik": 277948,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000277948.json",
+      "bytes": 159464,
+      "sha256": "dff879313d934771455b4a22424eef271ff9c32cf6e8e9c8b1f3e1f343c28856"
+    },
+    {
+      "cik": 318154,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000318154.json",
+      "bytes": 159679,
+      "sha256": "ae6892ad5828e1d297854cf6ce565805c28b918139038c23614a81ecca0be032"
+    },
+    {
+      "cik": 319201,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000319201.json",
+      "bytes": 160401,
+      "sha256": "6f1999e641effbd86c6d455c01369d64beaeea390490e8d4574fda890eca1ebb"
+    },
+    {
+      "cik": 320193,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000320193.json",
+      "bytes": 164394,
+      "sha256": "ea2aa552e984a29e920cf80e0827cf32b632563935f029b6ec9de7f4fa3c026d"
+    },
+    {
+      "cik": 356028,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000356028.json",
+      "bytes": 160677,
+      "sha256": "db473e6e41018ca755d2bedd02f6abb0ec48086bba9b58f485cd6bfd704c4eff"
+    },
+    {
+      "cik": 707549,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000707549.json",
+      "bytes": 166012,
+      "sha256": "214f068cd650fc76b9bb905fafe15c320992691fec424e37378a73a370d79ea3"
+    },
+    {
+      "cik": 712515,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000712515.json",
+      "bytes": 158337,
+      "sha256": "17a31956d6a91403cdba225da053e484f3f29a8912be884af299f356ac30c6e6"
+    },
+    {
+      "cik": 718877,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000718877.json",
+      "bytes": 163607,
+      "sha256": "470b021b1c0b2ea825c3bc944d58d505f8f2ec7e27ae5651617755943a9db8a2"
+    },
+    {
+      "cik": 723125,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000723125.json",
+      "bytes": 164620,
+      "sha256": "fac9a6807e0079584a48518aee2d256b243d72a78b61f3070f52b257dd3a9a7b"
+    },
+    {
+      "cik": 723254,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000723254.json",
+      "bytes": 154466,
+      "sha256": "928e6ff2ebce3d13879ca1f1734dcef0382cccc50a8236e1ce847bc20f680758"
+    },
+    {
+      "cik": 723531,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000723531.json",
+      "bytes": 157359,
+      "sha256": "84a04d1a75dccbb34cb30e35b22d3d81be60ff399f9db5ac749d2a945e71a194"
+    },
+    {
+      "cik": 728535,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000728535.json",
+      "bytes": 166134,
+      "sha256": "133c7f5f4e33f013037ceec91a6d393c8bdb569529ffb96b21588a91583cd1fb"
+    },
+    {
+      "cik": 743316,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000743316.json",
+      "bytes": 157396,
+      "sha256": "1e745e08374030234d483edcb15efd4ad11a78343375cf606434621e6c23cb99"
+    },
+    {
+      "cik": 743988,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000743988.json",
+      "bytes": 159222,
+      "sha256": "b0e2c8d144c8ce632823725e5ebdc03fda46bb8b4ccac9ea1c0978a5e683e339"
+    },
+    {
+      "cik": 745732,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000745732.json",
+      "bytes": 155347,
+      "sha256": "5013bf5da6427ca56bf0066f0a60c3b797709659683548083f71cb814008757e"
+    },
+    {
+      "cik": 769397,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000769397.json",
+      "bytes": 161560,
+      "sha256": "4fdd9888ef03a3c415926f5c60305ff66af191443b0fbf49c9031d6f326e933f"
+    },
+    {
+      "cik": 773840,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000773840.json",
+      "bytes": 158983,
+      "sha256": "97034e277755374d82576562fbafd7ffe52136059fa4e50bac64c58caed44c57"
+    },
+    {
+      "cik": 789019,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000789019.json",
+      "bytes": 183559,
+      "sha256": "6ee8ee055cf483729d458f2fd4200d0f8e167dc3bff463fd600ff62d4ae26d14"
+    },
+    {
+      "cik": 796343,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000796343.json",
+      "bytes": 161966,
+      "sha256": "58b322202e5024d8d166bfdbdebe50a11ddf2604d4400df7f32dd795425317c2"
+    },
+    {
+      "cik": 798354,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000798354.json",
+      "bytes": 158286,
+      "sha256": "0b16631b2ea350e8c57c6d33773c0a45d98a5c1a547f1c3cce8febd2a8dac9d7"
+    },
+    {
+      "cik": 804328,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000804328.json",
+      "bytes": 159551,
+      "sha256": "4c1f9ba54b7ccc664b088bab54a5d9cd3faf97a535947bc0a206a4c9372cafa4"
+    },
+    {
+      "cik": 804753,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000804753.json",
+      "bytes": 160193,
+      "sha256": "473d0b7e11d650684ee14284800922e0c873656bb05457fcf33a33d619f9cd22"
+    },
+    {
+      "cik": 813672,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000813672.json",
+      "bytes": 157449,
+      "sha256": "c26bb73f61ffc76a29f45bb196ccc43154a390eb6c296f0759cb4f20ec0351e2"
+    },
+    {
+      "cik": 815556,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000815556.json",
+      "bytes": 158128,
+      "sha256": "b3b240b9b1dfddc3bacee4b9a5a0715f456b75d8bcc3615b7bda8c468796b975"
+    },
+    {
+      "cik": 816284,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000816284.json",
+      "bytes": 159404,
+      "sha256": "efa89d746324adc80c817326b7796b3d0e95549d7af704f70b64e837f0557cdf"
+    },
+    {
+      "cik": 818479,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000818479.json",
+      "bytes": 158382,
+      "sha256": "5cefd4194dbc5f748edd3c26403cadf7f7cd93e548d0b1859a4c6f3145fffc01"
+    },
+    {
+      "cik": 827054,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000827054.json",
+      "bytes": 162262,
+      "sha256": "4c945017189166d04622ca55e7657674a2aa6f167835097b59c61fdc92579a87"
+    },
+    {
+      "cik": 829224,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000829224.json",
+      "bytes": 160900,
+      "sha256": "f8c51fcb940f4d15f27439f150fd3ab4f63cfe51336cd3b872056351cb425c65"
+    },
+    {
+      "cik": 839923,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000839923.json",
+      "bytes": 167638,
+      "sha256": "19bf31ab3d528a613f877ea39c2fe769d5dd2838826a687fc713dc9ccb62c2b8"
+    },
+    {
+      "cik": 849399,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000849399.json",
+      "bytes": 161437,
+      "sha256": "5a3ebf19ad6a68743ca18decce850da24702eefc1e96fc5da0520153487f5d20"
+    },
+    {
+      "cik": 858877,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000858877.json",
+      "bytes": 159019,
+      "sha256": "0eee4c434f7be279dc5862f0b0ccc757316200771c1c374ccb6bfb7a873133e8"
+    },
+    {
+      "cik": 859737,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000859737.json",
+      "bytes": 160320,
+      "sha256": "cc519c413c02c9fbfac37fa6d9e0262e3a689e14c219cfe4294e540b940a296a"
+    },
+    {
+      "cik": 865752,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000865752.json",
+      "bytes": 153455,
+      "sha256": "1a90d4703c09a5ddba6ccc36c8ba80228ab0a0bc1fd4306efd56d925b688e905"
+    },
+    {
+      "cik": 872589,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000872589.json",
+      "bytes": 160526,
+      "sha256": "dd1e93afcbd33102801b9b764b5c7c687c445036ebb2bc71b845ce7715769573"
+    },
+    {
+      "cik": 874716,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000874716.json",
+      "bytes": 154127,
+      "sha256": "666de000ed10a9f539144ab012f44ff27219baca789aef054a672941202d4f28"
+    },
+    {
+      "cik": 875045,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000875045.json",
+      "bytes": 160354,
+      "sha256": "f9071264eab1699de9d9516a76e2af3c63d29b12743a50f2a7e5bbe4d4bc1f1f"
+    },
+    {
+      "cik": 875320,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000875320.json",
+      "bytes": 158165,
+      "sha256": "3e58ea7329f33aeb532cb176d2c245f6521801cf62dd131091d92272cdd09b1e"
+    },
+    {
+      "cik": 877890,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000877890.json",
+      "bytes": 163671,
+      "sha256": "f13840537f4e25321a6c410dc35ec72219005f492ab64eac340bd820f838e492"
+    },
+    {
+      "cik": 878927,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000878927.json",
+      "bytes": 154206,
+      "sha256": "694c8f01c2a14e5ec33eb3a0ba4e61875cb03d4f72771a5810d6095a43957ab7"
+    },
+    {
+      "cik": 879169,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000879169.json",
+      "bytes": 158339,
+      "sha256": "8d544ad41eb4b6988c5dd4b8d124f5eecf10699ecca18004656e40eab037b47b"
+    },
+    {
+      "cik": 882095,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000882095.json",
+      "bytes": 160598,
+      "sha256": "182b9aead3e9bef14808bf10f8737d47a6b9c2881ccaacb0ac4632d1bfbb980b"
+    },
+    {
+      "cik": 882835,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000882835.json",
+      "bytes": 158318,
+      "sha256": "423a80e28fcbc10ab4ac6bc621e5a72a792c07cb457493414cd0257b57bd8972"
+    },
+    {
+      "cik": 883241,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000883241.json",
+      "bytes": 159690,
+      "sha256": "5d412c680ae55cb317d0280292625a83f339ebb0872f268458956a35f8a26f31"
+    },
+    {
+      "cik": 891103,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000891103.json",
+      "bytes": 160233,
+      "sha256": "5c28e44e4b4564b90ba7b9d82d2781d5792440f6eb5b2a08185989385d7bde35"
+    },
+    {
+      "cik": 896878,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000896878.json",
+      "bytes": 170123,
+      "sha256": "016f31d29a3d4d905bb377962e8699cd7bae0e7e05546e46051f16d2d37c49a8"
+    },
+    {
+      "cik": 898173,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000898173.json",
+      "bytes": 159956,
+      "sha256": "1cc33e6fb46c2b969aeba11610a812dbdedc9f31de2adeb193c694e584e802e0"
+    },
+    {
+      "cik": 899866,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000899866.json",
+      "bytes": 163549,
+      "sha256": "82667be36bafc5149b3b7b148d8e22dbf265f13bd9e095dad0bb1830102cc5de"
+    },
+    {
+      "cik": 900075,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000900075.json",
+      "bytes": 159721,
+      "sha256": "30df942d666e53ba8ab9bf46337f41c0d2b4f8c0d3e946f561e21ba29c8544d3"
+    },
+    {
+      "cik": 901832,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000901832.json",
+      "bytes": 186313,
+      "sha256": "606ea7022215f4d7723f49dd7b22732d5fbb2d5f8f8d8bf22b1b71ee55ce7dcf"
+    },
+    {
+      "cik": 908937,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000908937.json",
+      "bytes": 145029,
+      "sha256": "6002accd75de464c951b379e4a1a45f374394f704cbc265a6f0e85835918b248"
+    },
+    {
+      "cik": 909832,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000909832.json",
+      "bytes": 158811,
+      "sha256": "0e77534d3aaf301a91769a2f1d26c5c7b4a5f4039c2c44ce6ec0877a0d2bb92c"
+    },
+    {
+      "cik": 916365,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000916365.json",
+      "bytes": 171167,
+      "sha256": "a200557a47a567a46d44122187846a00df419f3bb5f40d149daa4fdb135c8a01"
+    },
+    {
+      "cik": 935703,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000935703.json",
+      "bytes": 163669,
+      "sha256": "43374bffa18225dbb09dae7189d5cf2060e1e6641f459460c458fa51506e3911"
+    },
+    {
+      "cik": 936402,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000936402.json",
+      "bytes": 168869,
+      "sha256": "e710a2ccd770e5747b2842b1acc712521c8cb0b869a4d42c066b8de59b408c08"
+    },
+    {
+      "cik": 937966,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000937966.json",
+      "bytes": 96944,
+      "sha256": "4dfe7cfb6673dc94f2f02869135ddb4a5e6632d8850ce141f77c865f32935d42"
+    },
+    {
+      "cik": 946581,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0000946581.json",
+      "bytes": 157919,
+      "sha256": "f020171f2565822b8eebc725c1522f548acb55f92310774cdb7173b960efc390"
+    },
+    {
+      "cik": 1000228,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001000228.json",
+      "bytes": 161165,
+      "sha256": "bcf0f3975a9ec3e25f652c1db0be84cbf4ef08df9230b031a635d6f3812cb102"
+    },
+    {
+      "cik": 1001082,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001001082.json",
+      "bytes": 160643,
+      "sha256": "ba305a8042c5935ead22503c8f9dd8a35c44c110ef795392be8eccf0194383ed"
+    },
+    {
+      "cik": 1002047,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001002047.json",
+      "bytes": 157448,
+      "sha256": "959998a6376d0bfaa00f407137adddd4d5d43742da6a4c0e58fc6e4290f8e3f2"
+    },
+    {
+      "cik": 1011006,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001011006.json",
+      "bytes": 159522,
+      "sha256": "67a1af91571fb8dcb3d3b63c5d68deb557dff359f969667fd4d710b90d7f009d"
+    },
+    {
+      "cik": 1013462,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001013462.json",
+      "bytes": 165421,
+      "sha256": "8a5633be08297f6a09fd362563f9fc22046f8719de6123857291ea35353f963e"
+    },
+    {
+      "cik": 1014473,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001014473.json",
+      "bytes": 162659,
+      "sha256": "7354a83cc747dc1ef077cfac3cf44f1ac59b733f34ca718fb81aa831b1bd89f4"
+    },
+    {
+      "cik": 1015922,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001015922.json",
+      "bytes": 83596,
+      "sha256": "aadd35e38aba4b79ea81721b19ba948b8927db9a3ea1eb789ac7bca660ac322b"
+    },
+    {
+      "cik": 1018724,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001018724.json",
+      "bytes": 159720,
+      "sha256": "598ba95a3c972130b2dded9d681bf692ca87483d4c821a11b9c5b4eb1b3c363d"
+    },
+    {
+      "cik": 1034054,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001034054.json",
+      "bytes": 160480,
+      "sha256": "a5c6267c20bea9679b89d818c309b8bef8fb63ef3eb6168b7b2b178b910636c4"
+    },
+    {
+      "cik": 1035267,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001035267.json",
+      "bytes": 157757,
+      "sha256": "d1071d173c681756950f0a5dbe22ddb569fcf0905f83f8502c2d8fe8a2428ffa"
+    },
+    {
+      "cik": 1045810,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001045810.json",
+      "bytes": 160740,
+      "sha256": "3e9a0f2bccfc5c98df7489400aa1908a0ee1aa3de6410c1eabfe44bb3c495b60"
+    },
+    {
+      "cik": 1048286,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001048286.json",
+      "bytes": 147610,
+      "sha256": "c42b3356490d660eb80185691fa7600bbc8d3e37cb0bb2415ad9308e35c0dd49"
+    },
+    {
+      "cik": 1048477,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001048477.json",
+      "bytes": 153343,
+      "sha256": "5b4c6ad90241d6853e5418e723b015b7a9f6164bfe81b80b5448a006ef1ee251"
+    },
+    {
+      "cik": 1050446,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001050446.json",
+      "bytes": 157531,
+      "sha256": "bc03bbe2ba12a8ccc654fdbe961330494d2af9a9444391784f6f2ce3e66f7892"
+    },
+    {
+      "cik": 1057352,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001057352.json",
+      "bytes": 163816,
+      "sha256": "542e7a38cf2ba97384e905719a20753b4127a7776f3fd07ba4c90c706aa110e7"
+    },
+    {
+      "cik": 1058290,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001058290.json",
+      "bytes": 162059,
+      "sha256": "766a66a9dac644f491813f00400ba6b29b448688c586107352f829326a514181"
+    },
+    {
+      "cik": 1060736,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001060736.json",
+      "bytes": 160414,
+      "sha256": "a6c4d69eb944ac9729c95cca95ff44d74b3d79b0dbb663e85e5a2c4550834a18"
+    },
+    {
+      "cik": 1065088,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001065088.json",
+      "bytes": 158993,
+      "sha256": "90b2fad0abefd0894d5d98c7ae715a46a3a408e34b8b2ef150bfee698d723963"
+    },
+    {
+      "cik": 1065280,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001065280.json",
+      "bytes": 159772,
+      "sha256": "64d57a1a4c412c8aabdc96b6ced246be5a8d08b42443b8e02aff68d653c97ee4"
+    },
+    {
+      "cik": 1069183,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001069183.json",
+      "bytes": 162688,
+      "sha256": "4dc2cf6b303e540ffc8a7cb96601c5eba373d9b413759b705e15f3ce20419694"
+    },
+    {
+      "cik": 1075124,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001075124.json",
+      "bytes": 157204,
+      "sha256": "4cbcd6fe3c81cdec64c8ef7df8ce946d97269d2e81a3321dd40fceca07f294dd"
+    },
+    {
+      "cik": 1075531,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001075531.json",
+      "bytes": 158387,
+      "sha256": "baa18673bd6ad026d2c3bfca5a34fb32bcdb09d823bfd0a94ff4f34af3488518"
+    },
+    {
+      "cik": 1086222,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001086222.json",
+      "bytes": 162648,
+      "sha256": "96f9807b839cb2d984684c60058e767d2c3b2c7bb24eec7fb1d8bf3a4a2bb6cf"
+    },
+    {
+      "cik": 1091667,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001091667.json",
+      "bytes": 162157,
+      "sha256": "a807a91fd75662930386eb3f07c7fe82093e3da3a1e61b51d3289c9fd4ce8d4a"
+    },
+    {
+      "cik": 1093557,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001093557.json",
+      "bytes": 159496,
+      "sha256": "9b5baacddb380f08f9e9db1e00ff8070f979b7a1414b7bab2fcedc9cb4c3cf28"
+    },
+    {
+      "cik": 1097149,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001097149.json",
+      "bytes": 161858,
+      "sha256": "4828b104c31e313b5e3e5123fc5362fda3804a3884df980497cac30c78ea513e"
+    },
+    {
+      "cik": 1097864,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001097864.json",
+      "bytes": 146742,
+      "sha256": "a695b3fabb257e572405fb1b79ad209540f3596797243d069bcc71394dcb6ad3"
+    },
+    {
+      "cik": 1099590,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001099590.json",
+      "bytes": 132781,
+      "sha256": "ad2e7981c9741896fd2641ac0b0beb8eabef1bd778f787a0c93498de90b165a4"
+    },
+    {
+      "cik": 1103982,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001103982.json",
+      "bytes": 161389,
+      "sha256": "a4219b90174ce68d53d03ccc01a8183cab9590e9a35d57d8d6e0f01a02d7d392"
+    },
+    {
+      "cik": 1104506,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001104506.json",
+      "bytes": 159216,
+      "sha256": "02fbd9becf59eaf3c35103cc0d7a70dcb1b4c504abe98ec21200f3a8ea16dc79"
+    },
+    {
+      "cik": 1109357,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001109357.json",
+      "bytes": 171791,
+      "sha256": "fe39797663a95e91d1fc23f9c1108b3ef063ac3a15b83c69aeeae7f6a735fb3a"
+    },
+    {
+      "cik": 1110646,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001110646.json",
+      "bytes": 70377,
+      "sha256": "00f51fb46630a386c03e236de93e79e67c95701f6eadde08c1986407675fe104"
+    },
+    {
+      "cik": 1110803,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001110803.json",
+      "bytes": 157465,
+      "sha256": "63b080cecf8c2b22b301b03b671cc4fc19c07e3cb0171712d4fb6defe9016109"
+    },
+    {
+      "cik": 1137789,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001137789.json",
+      "bytes": 163353,
+      "sha256": "3ef473d0d1f2110efacea8b1bcc805a6f54b4e1f570dac8e558071be01e20d16"
+    },
+    {
+      "cik": 1140536,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001140536.json",
+      "bytes": 157336,
+      "sha256": "53e6b1bfc44000072b8e6a35be114bc037c0b37e19fd4718b343842f7ba2b5d9"
+    },
+    {
+      "cik": 1166691,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001166691.json",
+      "bytes": 149175,
+      "sha256": "4b1e963210eabd3dcc4e53fd11f7ad5ad27f6ae19b7fd8f93f0bf61d789058b6"
+    },
+    {
+      "cik": 1174922,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001174922.json",
+      "bytes": 168050,
+      "sha256": "e8a6268d6fe8a53d1824c3d0ef31350ce48453aeed272d950ba95cd90ec2414b"
+    },
+    {
+      "cik": 1178670,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001178670.json",
+      "bytes": 162163,
+      "sha256": "6eadb20dc352ff93d3c78661fbf3b5d88e21a58c8bca69a0e57ce8246a21e262"
+    },
+    {
+      "cik": 1261333,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001261333.json",
+      "bytes": 161792,
+      "sha256": "db9663dd84ef0a3ce62d69fb911bb40a4fe81e89a5c79a6574e62be176aa575e"
+    },
+    {
+      "cik": 1262039,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001262039.json",
+      "bytes": 156050,
+      "sha256": "3d90318ad6a5cbd235ab974bc4990e5ca2c7bf27423f7485583ea84036db7606"
+    },
+    {
+      "cik": 1269238,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001269238.json",
+      "bytes": 100839,
+      "sha256": "0569dba826985beed488ed19e02d1f9b374f37000fb898eb7703bf9195b726aa"
+    },
+    {
+      "cik": 1280452,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001280452.json",
+      "bytes": 163209,
+      "sha256": "d6cd7cdd3a580682e49c5478cb7b1ea3a41498ad1a20aa697b4d66742a66dc9b"
+    },
+    {
+      "cik": 1283699,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001283699.json",
+      "bytes": 162411,
+      "sha256": "41e4e33a22d08fd27aa08c6d4ee6907dd19f1e90b0d68cf66b9576fba25ec401"
+    },
+    {
+      "cik": 1318605,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001318605.json",
+      "bytes": 162093,
+      "sha256": "005c535b7dd977134465da3859b9e53a9ca38a66c614455c1aaa0b4aa843af10"
+    },
+    {
+      "cik": 1321655,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001321655.json",
+      "bytes": 155769,
+      "sha256": "b029a84f156c175f0526075aa6a7af59fd5981ed247cfb9961d9ed574deee619"
+    },
+    {
+      "cik": 1324424,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001324424.json",
+      "bytes": 147390,
+      "sha256": "f11cf68b701143ddd60fcd4d3241b069906e50a24b3643995a833a4040452311"
+    },
+    {
+      "cik": 1326801,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001326801.json",
+      "bytes": 158583,
+      "sha256": "d900e1cc5f51d11b875c0f594b4877abf5400d980b3e854a210e5c45543205d0"
+    },
+    {
+      "cik": 1327567,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001327567.json",
+      "bytes": 154980,
+      "sha256": "e7cabb2af466c606c0bd7d907525c7ef91a2d412c5a98567ef752bed8c8bcbc4"
+    },
+    {
+      "cik": 1327811,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001327811.json",
+      "bytes": 161747,
+      "sha256": "b5a4ae96a48131ef14e53fe25978b2b7a69dc4e10cd1da9d6931a1e052c23ab8"
+    },
+    {
+      "cik": 1329099,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001329099.json",
+      "bytes": 90543,
+      "sha256": "a5c6e008590ca3fe8b73f6ff708f92589ae508e5d163a96bffac7417003c9f2d"
+    },
+    {
+      "cik": 1339947,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001339947.json",
+      "bytes": 157599,
+      "sha256": "809bdf2c1dfadb706ab644d2352e3d99285496083b39ab7a9491f3604141cca2"
+    },
+    {
+      "cik": 1353283,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001353283.json",
+      "bytes": 158475,
+      "sha256": "2990f92a805816d08a08021835627e701b41286cd8052d09ace835af1f05d91e"
+    },
+    {
+      "cik": 1355096,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001355096.json",
+      "bytes": 156353,
+      "sha256": "1baaaf8085e1861b4383cee4605be8e6ff3d92acfecdf212c6cc6c8a36763fc3"
+    },
+    {
+      "cik": 1375365,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001375365.json",
+      "bytes": 164184,
+      "sha256": "4ce8657585fd0a66d37a26f1db2cb11bf94ad04e727fb1e73f34caee96721f2d"
+    },
+    {
+      "cik": 1397187,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001397187.json",
+      "bytes": 171692,
+      "sha256": "435df5ab141e0ece72b2ab2fa7985a29fbb1816a7c03d99ce04e483e65dd25f9"
+    },
+    {
+      "cik": 1402057,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001402057.json",
+      "bytes": 162781,
+      "sha256": "726af09c31d32dd6690a52f40bd93f96f85c9746c12528a2aeb0e0678e79bc95"
+    },
+    {
+      "cik": 1403568,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001403568.json",
+      "bytes": 156329,
+      "sha256": "ebfc8838d5528f12e7c306ba49b1c571b575f4c97aa72f71f7a4c72797f64569"
+    },
+    {
+      "cik": 1413447,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001413447.json",
+      "bytes": 163309,
+      "sha256": "9bc24ed026fc0cc844efdea4109e3c811ea708a60a12efef9c50605027d2f077"
+    },
+    {
+      "cik": 1418135,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001418135.json",
+      "bytes": 161491,
+      "sha256": "646bb4998336112f14db532bce738a92f5ebac46b1e0c39f668aad145d5ddbfb"
+    },
+    {
+      "cik": 1437107,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001437107.json",
+      "bytes": 163986,
+      "sha256": "b479bb9568e96a993d97ebe095d472f2d37fa9d39339db3f9a85f152f3fdb152"
+    },
+    {
+      "cik": 1441816,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001441816.json",
+      "bytes": 161615,
+      "sha256": "b24b1f872d8fb20fad4278a3fb6dbb82165024f7d69b9ee33e989a53e3aba8b5"
+    },
+    {
+      "cik": 1442145,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001442145.json",
+      "bytes": 156368,
+      "sha256": "5748c8cc075b16dd3d40049242ad1ac79adcb2b1fff1b7d3d406c80c78bffd76"
+    },
+    {
+      "cik": 1463101,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001463101.json",
+      "bytes": 166714,
+      "sha256": "8994730dc2be082058726692620b853a1d1be17fa595249fd307ba5916d8d192"
+    },
+    {
+      "cik": 1468522,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001468522.json",
+      "bytes": 29661,
+      "sha256": "f15f8d54a2a98af773ed9255cfbdf179b99f8ee61eb94e52b3a7d4eed4d0f74e"
+    },
+    {
+      "cik": 1513761,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001513761.json",
+      "bytes": 167582,
+      "sha256": "0018c827860e2cee1a958dd241618ddacc6af0496bc81fe538c9fda82ceb42b1"
+    },
+    {
+      "cik": 1526520,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001526520.json",
+      "bytes": 159195,
+      "sha256": "8b540d36b34aae96ba0cb5cb7c51726f54d2a0b7888f0e66c0493ac04f4e054e"
+    },
+    {
+      "cik": 1532063,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001532063.json",
+      "bytes": 129802,
+      "sha256": "84a71314b7e577ed5e946679ad162fbbceb4c67931ce9d0ef6ee0b9b80278cb7"
+    },
+    {
+      "cik": 1535527,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001535527.json",
+      "bytes": 157184,
+      "sha256": "4a71dca0c642957c5017fba3ca3001f8f9c52cfa38d0696d049ec222ff60d6b1"
+    },
+    {
+      "cik": 1539838,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001539838.json",
+      "bytes": 165491,
+      "sha256": "4190ddcdf0a0abc93e09874c071d2c9b0e3bf6b4e87b58e6613f8c601b0e516e"
+    },
+    {
+      "cik": 1549802,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001549802.json",
+      "bytes": 67512,
+      "sha256": "339152833f52bfd0f964fe573c7924c6b94d7c0090e7e3a42fc8273dc7399e1f"
+    },
+    {
+      "cik": 1559720,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001559720.json",
+      "bytes": 151095,
+      "sha256": "0f5bfecb6eb750cbd352f8d732d4c6daf8c82534f7873173165075bae6795183"
+    },
+    {
+      "cik": 1561550,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001561550.json",
+      "bytes": 156826,
+      "sha256": "ff947592e60540217b3752e84004dc3157fb209f5284074900f13514aa0d46f9"
+    },
+    {
+      "cik": 1570585,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001570585.json",
+      "bytes": 167123,
+      "sha256": "7780be66eea9431b8c62a60fcbfe6001d90d35039e6a857a2bd3dd7f68b696da"
+    },
+    {
+      "cik": 1585521,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001585521.json",
+      "bytes": 161728,
+      "sha256": "ed3bf605dba08f6bafdbf1dfe786624ded1251e264b0b760110b79b182d06df5"
+    },
+    {
+      "cik": 1594805,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001594805.json",
+      "bytes": 86386,
+      "sha256": "a505e6843939119be0eccaf5d4048cb841e3a644cefcd5b282155efe6bda3a89"
+    },
+    {
+      "cik": 1618921,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001618921.json",
+      "bytes": 163138,
+      "sha256": "20f10636f3bee40121efaf2ef278901dfe949707443fd6cd916f26e7567939e4"
+    },
+    {
+      "cik": 1623613,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001623613.json",
+      "bytes": 110224,
+      "sha256": "d7a4bdc1d5d0068c3653322f9dd051b444665514330717ce6410444f1dcbbb7e"
+    },
+    {
+      "cik": 1633917,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001633917.json",
+      "bytes": 159498,
+      "sha256": "0d3492d4e5cc1b50c559f03156d18a5a7276cc73a6fc7a364b3cb00b33c1c6f6"
+    },
+    {
+      "cik": 1637459,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001637459.json",
+      "bytes": 142518,
+      "sha256": "c85e36777b0c1caad4985748800449ac42cccb8caa60cab2b4e593481b01ff5c"
+    },
+    {
+      "cik": 1639825,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001639825.json",
+      "bytes": 162376,
+      "sha256": "aba6f225dc9d12fc9aba585438c37fae1334785c9e4f5f4798f7524a8aa1848a"
+    },
+    {
+      "cik": 1650107,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001650107.json",
+      "bytes": 103108,
+      "sha256": "b0778edfd87baa93c5bb575d4a0ce97f6fe89e9a983ee002010af191be9b0655"
+    },
+    {
+      "cik": 1650372,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001650372.json",
+      "bytes": 164429,
+      "sha256": "37cd9fab1d5ff9b862e1823f9c3dbac606815e08a62edd81e0cff50c842d6b98"
+    },
+    {
+      "cik": 1652044,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001652044.json",
+      "bytes": 153480,
+      "sha256": "b823210bc497662ed61c0b2356d6c3677fc7e93822307392c139c5305803b31a"
+    },
+    {
+      "cik": 1660134,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001660134.json",
+      "bytes": 160157,
+      "sha256": "e52c88c591beb196ad266b98fd253f0e105f955b605c1b2eee19ad9ea0182b04"
+    },
+    {
+      "cik": 1671933,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001671933.json",
+      "bytes": 159539,
+      "sha256": "77de29198bb5773f7fa278823322dd55a828197389e08b061501ed83f6bdc675"
+    },
+    {
+      "cik": 1682852,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001682852.json",
+      "bytes": 156726,
+      "sha256": "2c21a7790c56ae070b0a69083f6c3e1036bf5f886244782e3692d715a2cb6621"
+    },
+    {
+      "cik": 1701605,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001701605.json",
+      "bytes": 158277,
+      "sha256": "90b81d52242a2609da581975714eddad2e531ab811b097253e2b9ec4f08b0ae3"
+    },
+    {
+      "cik": 1707925,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001707925.json",
+      "bytes": 124797,
+      "sha256": "ead55e06f2f53a3cb18545997d62a03b32909a71fa4515c4aaf1e5b7c2f2ce44"
+    },
+    {
+      "cik": 1709048,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001709048.json",
+      "bytes": 39528,
+      "sha256": "5d1be1c8eccd18add8da2e18f771cb966050ec3cfbbf0f98e2b1a67829f17f1a"
+    },
+    {
+      "cik": 1713683,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001713683.json",
+      "bytes": 137138,
+      "sha256": "7ccf1c941c70143d4ee7edc4a17ae50b834c3b9914efe79edb1f5693fd2aba4d"
+    },
+    {
+      "cik": 1730168,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001730168.json",
+      "bytes": 158214,
+      "sha256": "da697e3931a5150a2d4bfbfeff9172190f208a9687fdfda3fc84212fb045b0cf"
+    },
+    {
+      "cik": 1737806,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001737806.json",
+      "bytes": 35086,
+      "sha256": "64586a75a14b7efe6e2ef620cd086c047ca30eb7bd5df72e535db57a531aa739"
+    },
+    {
+      "cik": 1751008,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001751008.json",
+      "bytes": 128721,
+      "sha256": "f714b941bf2ce46271763966b84e0049a93ffdfb38a68760aeaa83e562f11a7f"
+    },
+    {
+      "cik": 1754301,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001754301.json",
+      "bytes": 100607,
+      "sha256": "8c8c32801fee352111773a8efad3537ec3b7ec1f3166e9846066f5e18f1a77ef"
+    },
+    {
+      "cik": 1792789,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001792789.json",
+      "bytes": 157895,
+      "sha256": "da1af657aab310b3e1102fed64710ef5948a2962a953c30a84471d57157e93de"
+    },
+    {
+      "cik": 1811210,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001811210.json",
+      "bytes": 89471,
+      "sha256": "752d28f0b74446a52ea3719ddf09e8b864f8f69f0ba002ef38832082b6b0cea6"
+    },
+    {
+      "cik": 1835632,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001835632.json",
+      "bytes": 130162,
+      "sha256": "db42a846b69410178bdf1e327643b1229eac63df2ed5c4d658d0d6e07fa26614"
+    },
+    {
+      "cik": 1868275,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001868275.json",
+      "bytes": 60026,
+      "sha256": "809b3fbfee2c31b109fbe7beb5deee4a96a438556732247a06830d05da1aeb27"
+    },
+    {
+      "cik": 1874178,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001874178.json",
+      "bytes": 83240,
+      "sha256": "35dc31e54576fe7b205032ddc883c0c581398591b0cfbc2be86d58cde1f121ad"
+    },
+    {
+      "cik": 1932393,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001932393.json",
+      "bytes": 68046,
+      "sha256": "94b32cf7f233ee1ffff255a6fc9aaedc3d4d1c65958ded5d0e54d00c374199ab"
+    },
+    {
+      "cik": 1973239,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0001973239.json",
+      "bytes": 24221,
+      "sha256": "9706ad14223ec5cccff48f8b46df3f4bdd6553d2ab926ffc3359ca55880b7e78"
+    },
+    {
+      "cik": 2064953,
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions/CIK0002064953.json",
+      "bytes": 24065,
+      "sha256": "188c57789d0f76272e39a1bee6c0c34f8e133476e4519493ac5c4de6aa5d7a94"
+    }
+  ]
+}

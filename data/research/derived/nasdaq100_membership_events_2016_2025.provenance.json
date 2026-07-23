@@ -1,0 +1,20 @@
+{
+  "source": "https://en.wikipedia.org/w/index.php?title=List_of_NASDAQ-100_companies&oldid=1365378481",
+  "retrieved_at": "2026-07-23T14:46:37.989979+00:00",
+  "universe_policy": "current Nasdaq-100 snapshot reverse-reconstructed with dated component changes",
+  "survivorship_policy": "historical_constituents",
+  "source_quality": "secondary public history; pinned revision, table schema, forward reconstruction, and snapshot size checked",
+  "source_license": "CC BY-SA 4.0",
+  "source_attribution": "Wikipedia contributors, List of NASDAQ-100 companies",
+  "raw_source_file": "/Applications/react/my-app/portfolio-project/data/research/raw/nasdaq100/nasdaq100_components_oldid_1365378481.html",
+  "raw_source_sha256": "6d88f2344e3c2cc998af5f2712c282d6d5d6a9f4a48fc3bc3f6f50952fb25331",
+  "manifest_file": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_membership_events_2016_2025.csv",
+  "manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+  "event_count": 271,
+  "ticker_count": 179,
+  "start_date": "2016-12-31",
+  "end_date": "2025-12-31",
+  "start_snapshot_count": 104,
+  "end_snapshot_count": 101,
+  "promotion_note": "Membership is point-in-time for the declared interval; price and issuer identity coverage must pass separate gates."
+}

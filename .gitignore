@@ -30,6 +30,7 @@ companyfacts/
 data/research/raw/
 data/research/derived/dow_prices_*
 data/research/derived/global_multi_asset_prices_*.csv
+data/research/derived/nasdaq100_prices_*.csv
 data/research/derived/dow_historical_ticker_cik_yahoo*
 
 # Legacy Agent OS archive is no longer tracked in this repository.

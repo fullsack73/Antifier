@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
-- 현재 상태: nested linear PIT joint가 개별 signal gate 통과, familywise/paired gate 탈락
+- 현재 상태: frozen nested PIT ridge가 독립 Nasdaq-100 locked holdout에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -80,6 +80,10 @@
 - Transformer 대신 먼저 nested time-fold ridge regularization을 구현했습니다. nested model은 IC `0.0627`, spread `0.0153`으로 고정 penalty를 개선하고 개별 95% signal gate를 통과했습니다.
 - 하지만 Holm-adjusted p-value `0.1020`과 fixed baseline 대비 paired IC improvement `81.70%` 때문에 아직 복잡한 architecture로 확장하지 않습니다.
 - official French market beta target도 IC `0.0618`로 내부 beta nested ridge `0.0627`을 넘지 못했습니다. target data를 바꿔도 Transformer 확장 근거는 생기지 않았습니다.
+- Nasdaq-100 historical membership 2016-2025, 179 ticker와 SEC SIC 173/174 issuer를 고정해 독립 locked holdout을 구성했습니다.
+- SEC parser에 20-F/40-F, IFRS taxonomy, weighted-average shares fallback을 추가해 2025 active PIT coverage를 `87.1%→96.0%`으로 높였습니다.
+- frozen nested ridge의 Nasdaq holdout IC는 `0.0260`, spread는 `-0.0022`였고 fixed ridge 대비 paired improvement 확률은 IC `60.55%`, spread `61.35%`로 탈락했습니다.
+- 이 holdout 결과로 penalty, grid, 기간을 재튜닝하지 않습니다. 현재 증거는 Transformer hyperparameter 확대보다 새로운 feature/model family와 새 untouched holdout이 필요함을 지지합니다.
 
 ## 선행조건
 
@@ -95,3 +99,4 @@
 - todo-list 한 줄 요약: redesign ARIMA/Transformer forecast targets, calibration, and training efficiency before reusing them as portfolio alpha features.
 - 기반 보고서: `docs/reports/260723-1932-01-forecast-signal-diagnostics.md`
 - pooled research 결과: `docs/reports/260723-2032-01-pooled-cross-sectional-research.md`
+- Nasdaq locked holdout: `docs/reports/260724-0000-01-nasdaq100-frozen-holdout.md`

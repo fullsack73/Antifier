@@ -1,0 +1,23 @@
+{
+  "source": "SEC company_tickers.json plus locally verified historical issuer overrides",
+  "retrieved_at": "2026-07-23T14:54:50.218059+00:00",
+  "security_master_file": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_security_master.csv",
+  "security_master_sha256": "689f580cc315a080200550b5dfa55d5b64a8d521d88251274c5560a3b1c52a79",
+  "ticker_count": 179,
+  "issuer_count": 174,
+  "official_mapping_count": 155,
+  "historical_override_count": 24,
+  "unknown_sector_count": 1,
+  "universe_manifest": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_membership_events_2016_2025.csv",
+  "universe_manifest_sha256": "b3be2edf544f7a3bee6b385cbc00510ff663f7d8377a46d29b957b07fe247892",
+  "sec_ticker_file": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/company_tickers_2026-07-23.json",
+  "sec_ticker_file_sha256": "0ca03630819cec78bcdddd494732fec48a90b11a44305fa031e5353dc91d8775",
+  "component_history_file": "/Applications/react/my-app/portfolio-project/data/research/raw/nasdaq100/nasdaq100_components_oldid_1365378481.html",
+  "component_history_file_sha256": "6d88f2344e3c2cc998af5f2712c282d6d5d6a9f4a48fc3bc3f6f50952fb25331",
+  "submissions_directory": "/Applications/react/my-app/portfolio-project/data/research/raw/sec/submissions",
+  "submissions_provenance": "/Applications/react/my-app/portfolio-project/data/research/derived/nasdaq100_sec_submissions.provenance.json",
+  "submissions_provenance_sha256": "a538272c493604919b1312031c5eb2ec937af48b63fb864f7651dab38e714f96",
+  "companyfacts_directory": "/Applications/react/my-app/portfolio-project/companyfacts",
+  "promotion_safe": true,
+  "promotion_note": "Issuer identities and sectors are source-locked; Yahoo price coverage remains a separate gate."
+}
