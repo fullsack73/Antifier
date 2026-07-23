@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: value-quality-momentum validation이 paired/4-case gate에서 탈락
+- 현재 상태: market-regime interaction도 research signal/paired gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -110,6 +110,8 @@
 - official French 25 size×accrual에서 fixed 50/50 accrual-quality-momentum은 absolute gate를 통과했지만 raw momentum 대비 paired spread probability `84.75%`, Holm-adjusted p-value `0.1525`로 탈락했습니다.
 - local companyfacts 기반 SEC cash-accrual `(operating_cash_flow-net_income)/assets`를 opt-in PIT feature로 구현했지만 fresh Nasdaq 2017 nested candidate IC `-0.0451`, spread `-0.00742`로 baseline보다 악화됐습니다.
 - usable OOS period가 6개뿐이라 bootstrap도 불가능했습니다. production optimizer/default alpha는 변경하지 않고 exact cash-accrual candidate를 폐기합니다.
+- official French 12-industry 1933~1952의 market trend/volatility interaction 후보는 baseline 대비 IC `-0.01436`, spread `-0.00159` 낮았습니다.
+- paired P(higher IC/spread)는 `35.75%`/`40.25%`, Holm-adjusted p-value는 `0.6070`이어서 폐기합니다. production/default alpha는 변경하지 않고 1953+ validation/holdout을 봉인합니다.
 
 ## 금지
 

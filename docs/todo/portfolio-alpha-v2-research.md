@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: point-in-time factor/fundamental 데이터와 validation과 분리된 research universe를 확보한 뒤
-- 현재 상태: frozen value-quality-momentum이 validation paired/4-case gate에서 탈락
+- 현재 상태: fresh market-regime interaction이 research signal/paired gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -122,6 +122,9 @@
 - SEC quarterly TTM에 opt-in `(operating_cash_flow-net_income)/assets`와 missing indicator를 추가하고 core schema를 보존했습니다.
 - fresh Nasdaq-100 2017 split은 canonical membership 시작일 때문에 usable OOS period가 6개뿐이었고, cash-accrual nested 후보 IC `-0.0451`, spread `-0.00742`로 baseline IC `-0.0298`, spread `0.00737`보다 나빴습니다.
 - exact cash-accrual feature/model을 폐기하고 2018+ 소진 구간에서 정의, penalty, missing policy를 재튜닝하지 않습니다.
+- official French 12-industry daily panel의 fresh 1933~1952 research split에서 price predictor와 252일 market trend, 63일 volatility regime의 interaction을 사전 고정했습니다.
+- regime candidate는 baseline nested ridge 대비 IC `0.0193→0.0050`, spread `0.00445→0.00286`으로 악화됐습니다. paired P(higher IC/spread)는 `35.75%`/`40.25%`, Holm-adjusted p-value는 `0.6070`이었습니다.
+- 93개 OOS period 모두 trend/volatility regime이 가용했고 coverage는 100%였으므로 실패 원인은 결측 regime이 아닙니다. 후보를 폐기하고 1953+ validation/holdout은 봉인합니다.
 
 ## 참고
 
@@ -143,3 +146,4 @@
 - Value-quality-momentum validation: `docs/reports/260724-0250-01-value-quality-momentum-validation.md`
 - Adaptive value-investment-momentum 폐기: `docs/reports/260724-0301-01-adaptive-value-investment-momentum-research.md`
 - Cash-accrual 폐기: `docs/reports/260724-0350-01-cash-accrual-research.md`
+- Market-regime interaction 폐기: `docs/reports/260724-0411-01-market-regime-interaction-research.md`
