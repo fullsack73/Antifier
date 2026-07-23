@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: frozen nested PIT signal이 독립 Nasdaq-100 locked holdout에서 탈락
+- 현재 상태: trend-filtered risk parity가 독립 research 복제를 통과해 untouched validation 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -83,6 +83,9 @@
 - 공식 French 49-industry 2011~2017 research의 고정 6m/12-1 dual-horizon momentum도 6m baseline보다 Sharpe, volatility, drawdown이 모두 악화되어 default alpha를 변경하지 않습니다.
 - 공식 French 49-industry 1983~1999의 12개월 trend-filtered minimum variance는 평균 risk/Sharpe를 개선했지만 P(higher Sharpe) `73.45%`로 statistical gate에서 탈락했습니다.
 - 공식 French 49-industry 1973~1981의 trend-filtered risk parity도 평균 Sharpe와 drawdown은 크게 개선했지만 P(higher Sharpe) `75.55%`로 statistical gate에서 탈락했습니다.
+- 동일 frozen trend-risk-parity를 기간·universe가 겹치지 않는 French 30-industry 1928~1971에서 독립 복제했습니다.
+- 복제에서는 Sharpe `0.4909→0.7237`, volatility `15.24%→9.74%`, drawdown `-82.70%→-37.77%`, P(higher Sharpe) `98.60%`, Holm p `0.0140`으로 모든 research gate를 통과했습니다.
+- 후보 사양을 freeze했으며 다음 단계는 untouched 2018~2021 4-case validation입니다. 통과 전 2022+ holdout은 열지 않습니다.
 
 ## 금지
 

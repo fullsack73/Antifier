@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 20:40 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: nested weight-shrinkage까지 statistical research 탈락, 기본 Ledoit-Wolf 유지
+- 현재 상태: trend-filtered risk parity가 독립 장기 research 복제를 통과해 validation 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -114,3 +114,12 @@
 - P(lower volatility)는 `100%`였지만 P(higher Sharpe)는 `75.55%`로 95% gate와 Holm correction을 통과하지 못했습니다.
 - 같은 기간에서 lookback, threshold, exposure floor를 재튜닝하지 않고 validation을 열지 않습니다.
 - 보고서: `docs/reports/260724-0145-01-trend-filtered-risk-parity-research.md`
+
+## 2026-07-24 independent trend replication
+
+- official French 30-industry 1928~1971 장기표본을 새로 확보하고 기존 49-industry 결과와 기간·universe가 겹치지 않게 잠갔습니다.
+- candidate specification은 252일 positive trend, inverse-vol sleeve, inactive historical RF cash로 변경하지 않았습니다.
+- risk parity 대비 volatility `15.24%→9.74%`, Sharpe `0.4909→0.7237`, drawdown `-82.70%→-37.77%`로 개선했습니다.
+- P(lower volatility/higher Sharpe)는 `100%`/`98.60%`, Holm-adjusted p-value는 `0.0140`으로 모든 research gate를 통과했습니다.
+- candidate를 freeze하고 untouched 2018~2021 validation 전에는 사양을 변경하지 않습니다.
+- 보고서: `docs/reports/260724-0153-01-trend-risk-parity-replication.md`

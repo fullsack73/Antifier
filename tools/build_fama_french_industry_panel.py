@@ -79,6 +79,11 @@ def main(argv=None):
     parser.add_argument("--start", required=True)
     parser.add_argument("--end", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--source-url",
+        default=SOURCE_URL,
+        help="Official source URL recorded in provenance",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -112,10 +117,11 @@ def main(argv=None):
             json.dumps(
                 {
                     "source": "Kenneth R. French Data Library",
-                    "source_url": SOURCE_URL,
+                    "source_url": args.source_url,
                     "source_section": SECTION_LABEL,
                     "source_portfolio_policy": (
-                        "49 SIC industry portfolios, reconstituted annually"
+                        f"{len(prices.columns)} SIC industry portfolios, "
+                        "reconstituted annually"
                     ),
                     "return_weighting": "value_weighted",
                     "retrieved_at": datetime.now(

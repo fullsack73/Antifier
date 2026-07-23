@@ -102,6 +102,15 @@ def _research_settings(args):
             if args.risk_free_column == "rf_daily"
             else "fred_dgs3mo_daily_equivalent"
         )
+    if args.replication_of:
+        settings["replication_policy"] = {
+            "prior_split_id": str(args.replication_of),
+            "candidate_specification": "unchanged",
+            "prior_requirement": "deterministic_gate_passed",
+            "replication_requirement": (
+                "deterministic_statistical_and_holm_gates_passed"
+            ),
+        }
     if "random_matrix_minimum_variance" in args.candidates:
         settings["random_matrix_policy"] = {
             "correlation": "marchenko_pastur_noise_eigenvalue_mean",
@@ -206,12 +215,45 @@ def _load_split_manifest(args, prices, price_provenance, candidates):
         ),
         price_file_sha256=price_provenance.get("price_file_sha256"),
         factor_file_sha256=args.risk_free_file_sha256,
+        auxiliary_files=args.auxiliary_files,
     )
     return {
         **validated,
         "file": str(path),
         "file_sha256": _sha256(path),
     }
+
+
+def _load_replication_auxiliary_files(args, candidates):
+    if bool(args.replication_of) != bool(args.prior_result):
+        raise ValueError(
+            "--replication-of and --prior-result must be used together"
+        )
+    if not args.replication_of:
+        return {}
+
+    path = Path(args.prior_result).expanduser().resolve()
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("research_split") != args.replication_of:
+        raise ValueError(
+            "Prior result split does not match --replication-of"
+        )
+    if list(payload.get("candidates") or []) != list(candidates):
+        raise ValueError(
+            "Prior result candidates do not match replication candidates"
+        )
+    deterministic = payload.get("deterministic_risk_gates") or {}
+    failed = [
+        candidate
+        for candidate in candidates
+        if deterministic.get(candidate, {}).get("status") != "passed"
+    ]
+    if failed:
+        raise ValueError(
+            "Replication requires prior deterministic gate pass: "
+            + ", ".join(failed)
+        )
+    return {"prior_result": _sha256(path)}
 
 
 def _load_risk_free_data(args):
@@ -405,6 +447,8 @@ def main(argv=None):
         default="rf_daily_dgs3mo",
     )
     parser.add_argument("--split-manifest")
+    parser.add_argument("--replication-of")
+    parser.add_argument("--prior-result")
     parser.add_argument("--require-locked-split", action="store_true")
     parser.add_argument("--train-window", type=int, default=504)
     parser.add_argument("--rebalance-frequency", type=int, default=63)
@@ -437,6 +481,10 @@ def main(argv=None):
         prices = _load_prices(args)
         risk_free_daily, risk_free_provenance = _load_risk_free_data(args)
         candidates = list(dict.fromkeys(args.candidates))
+        args.auxiliary_files = _load_replication_auxiliary_files(
+            args,
+            candidates,
+        )
         nested_candidates = {
             "forecast_ensemble_min_variance",
             "nested_blended_min_variance",
