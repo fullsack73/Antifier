@@ -1,0 +1,17 @@
+{
+  "source": "Kenneth R. French Data Library Size and Net Share Issues Portfolios",
+  "source_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/25_Portfolios_ME_NI_5x5_CSV.zip",
+  "retrieved_at": "2026-07-23T19:29:30Z",
+  "universe_policy": "fixed 35 size and net-share-issues portfolio definitions declared by the official source",
+  "survivorship_policy": "survivorship_safe",
+  "portfolio_membership_policy": "source portfolios are reconstituted annually from eligible NYSE, AMEX, and NASDAQ firms using NYSE breakpoints",
+  "raw_archive_sha256": "6f0bffd72c315d336dc0bac531b404b2bb8f541a4a03143476c23622870c79a1",
+  "price_file_sha256": "dc790a030ad0e20647cccd4fff45e32ad47b9dc7da280cc56de9d1981fcd9ea2",
+  "basket_manifest_sha256": "f08cdad1c585970d90d4002ef237d7969d27982ebceaa55508dce0032292022b",
+  "manifest_sha256": "9e550f8e9a6c31b8341b5ced86f36898b8ec18cd7c88a99b11b30659c63adbd0",
+  "ticker_count": 35,
+  "start_date": "1963-07-31",
+  "end_date": "1999-12-31",
+  "promotion_note": "Portfolio columns are stable definitions whose underlying eligible firms change through time.",
+  "promotion_safe": true
+}

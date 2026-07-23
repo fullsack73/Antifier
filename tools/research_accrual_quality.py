@@ -34,6 +34,8 @@ from research_split import validate_research_split_run  # noqa: E402
 CANDIDATE = "accrual_quality_momentum"
 BASELINE = "momentum_12_1"
 DIAGNOSTIC = "accrual_quality"
+NET_ISSUANCE_CANDIDATE = "net_issuance_quality_momentum"
+NET_ISSUANCE_DIAGNOSTIC = "net_issuance_quality"
 MOMENTUM_WEIGHT = 0.50
 
 
@@ -65,23 +67,60 @@ def accrual_quality_buckets(tickers):
     return pd.Series(values, dtype=float)
 
 
+def net_issuance_quality_buckets(tickers):
+    """Parse conservative net-share-issuance buckets from French labels."""
+    values = {}
+    for ticker in tickers:
+        label = str(ticker).strip()
+        if "NegNI" in label:
+            quality_bucket = 7
+        elif "ZeroNI" in label:
+            quality_bucket = 6
+        elif "LoNI" in label:
+            quality_bucket = 5
+        elif "HiNI" in label:
+            quality_bucket = 1
+        else:
+            match = re.search(r"\bNI([2-4])(?:\s|$)", label)
+            if match is None:
+                raise ValueError(
+                    f"Cannot parse net-share-issuance bucket: {label}"
+                )
+            quality_bucket = 6 - int(match.group(1))
+        values[label] = float(quality_bucket)
+    return pd.Series(values, dtype=float)
+
+
+def _signal_kind(args):
+    return str(getattr(args, "signal_kind", "accrual"))
+
+
+def _candidate_name(args):
+    return (
+        NET_ISSUANCE_CANDIDATE
+        if _signal_kind(args) == "net_issuance"
+        else CANDIDATE
+    )
+
+
+def _diagnostic_name(args):
+    return (
+        NET_ISSUANCE_DIAGNOSTIC
+        if _signal_kind(args) == "net_issuance"
+        else DIAGNOSTIC
+    )
+
+
 def _settings(args):
-    return {
+    settings = {
         "train_window": int(args.train_window),
         "horizon": int(args.horizon),
         "rebalance_step": int(args.rebalance_step),
         "momentum_lookback": int(args.momentum_lookback),
         "momentum_skip": int(args.momentum_skip),
         "momentum_weight": MOMENTUM_WEIGHT,
-        "accrual_quality_weight": 1.0 - MOMENTUM_WEIGHT,
-        "accrual_signal": (
-            "inverse_official_annual_working_capital_accrual_quintile"
-        ),
-        "accrual_definition": (
-            "change_in_operating_working_capital_divided_by_book_equity"
-        ),
-        "primary_candidate": CANDIDATE,
-        "diagnostic_signal": DIAGNOSTIC,
+        "primary_candidate": _candidate_name(args),
+        "diagnostic_signal": _diagnostic_name(args),
         "baseline": BASELINE,
         "bootstrap_samples": int(args.bootstrap_samples),
         "bootstrap_block_size": int(args.bootstrap_block_size),
@@ -89,6 +128,38 @@ def _settings(args):
             args.bootstrap_minimum_probability
         ),
     }
+    if _signal_kind(args) == "net_issuance":
+        settings.update({
+            "net_issuance_quality_weight": 1.0 - MOMENTUM_WEIGHT,
+            "net_issuance_signal": (
+                "inverse_official_annual_net_share_issues_bucket"
+            ),
+            "net_issuance_definition": (
+                "change_in_log_split_adjusted_shares_outstanding_"
+                "from_fiscal_t_minus_2_to_t_minus_1"
+            ),
+            "bucket_order_best_to_worst": [
+                "NegNI",
+                "ZeroNI",
+                "LoNI",
+                "NI2",
+                "NI3",
+                "NI4",
+                "HiNI",
+            ],
+        })
+    else:
+        settings.update({
+            "accrual_quality_weight": 1.0 - MOMENTUM_WEIGHT,
+            "accrual_signal": (
+                "inverse_official_annual_working_capital_accrual_quintile"
+            ),
+            "accrual_definition": (
+                "change_in_operating_working_capital_divided_by_"
+                "book_equity"
+            ),
+        })
+    return settings
 
 
 def _load_prices(args):
@@ -239,7 +310,7 @@ def _signal_result(name, periods, args, seed):
     }
 
 
-def _paired_gate(paired, minimum_probability):
+def _paired_gate(paired, minimum_probability, candidate_name=CANDIDATE):
     probability = paired.get("probability", {})
     reasons = []
     if paired.get("status") != "ok":
@@ -267,8 +338,8 @@ def _paired_gate(paired, minimum_probability):
             1.0
             - probability["higher_mean_top_bottom_spread"],
         )
-    holm = holm_bonferroni({CANDIDATE: p_value}, alpha=0.05)[
-        CANDIDATE
+    holm = holm_bonferroni({candidate_name: p_value}, alpha=0.05)[
+        candidate_name
     ]
     if not holm["significant"]:
         reasons.append(
@@ -285,14 +356,26 @@ def _fmt(value):
 
 
 def _write_report(payload, output_path):
+    net_issuance = payload["feature_kind"] == "net_issuance"
     lines = [
-        "# Accrual-Quality Momentum Research",
+        (
+            "# Net-Issuance Quality Momentum Research"
+            if net_issuance
+            else "# Accrual-Quality Momentum Research"
+        ),
         "",
         f"- Split: `{payload['research_split']}`",
         f"- Promotion eligible: `{payload['promotion_eligible']}`",
-        (
-            "- Economic benchmark only: French working-capital accrual "
-            "is related to, but not identical with, SEC cash-accrual quality."
+        *(
+            []
+            if net_issuance
+            else [
+                (
+                    "- Economic benchmark only: French working-capital "
+                    "accrual is related to, but not identical with, SEC "
+                    "cash-accrual quality."
+                )
+            ]
         ),
         "",
         "## Signal quality",
@@ -368,6 +451,11 @@ def main(argv=None):
     parser.add_argument("--split-manifest", required=True)
     parser.add_argument("--research-split", required=True)
     parser.add_argument("--experiment-namespace", required=True)
+    parser.add_argument(
+        "--signal-kind",
+        choices=("accrual", "net_issuance"),
+        default="accrual",
+    )
     parser.add_argument("--train-window", type=int, default=72)
     parser.add_argument("--horizon", type=int, default=12)
     parser.add_argument("--rebalance-step", type=int, default=12)
@@ -387,19 +475,26 @@ def main(argv=None):
         prices, provenance, price_path, provenance_path = (
             _load_prices(args)
         )
-        accrual_quality = accrual_quality_buckets(prices.columns)
+        quality = (
+            net_issuance_quality_buckets(prices.columns)
+            if args.signal_kind == "net_issuance"
+            else accrual_quality_buckets(prices.columns)
+        )
+        candidate_name = _candidate_name(args)
+        diagnostic_name = _diagnostic_name(args)
         positions = _evaluation_positions(prices, args)
         split_path = Path(args.split_manifest).expanduser().resolve()
         split = validate_research_split_run(
             _load_json(split_path),
             split_id=args.research_split,
             experiment_namespace=args.experiment_namespace,
-            objectives=[CANDIDATE],
+            objectives=[candidate_name],
             settings=_settings(args),
             evaluation_start=prices.index[positions[0]],
             evaluation_end=prices.index[positions[-1]],
-            universe_manifest_sha256=provenance.get(
-                "basket_manifest_sha256"
+            universe_manifest_sha256=(
+                provenance.get("universe_manifest_sha256")
+                or provenance.get("basket_manifest_sha256")
             ),
             price_file_sha256=provenance.get("price_file_sha256"),
             factor_file_sha256=None,
@@ -411,15 +506,15 @@ def main(argv=None):
             candidate_periods,
             diagnostic_periods,
             baseline_periods,
-        ) = _run_periods(prices, accrual_quality, args)
+        ) = _run_periods(prices, quality, args)
         candidate = _signal_result(
-            CANDIDATE,
+            candidate_name,
             candidate_periods,
             args,
             seed=42,
         )
         diagnostic = _signal_result(
-            DIAGNOSTIC,
+            diagnostic_name,
             diagnostic_periods,
             args,
             seed=43,
@@ -440,6 +535,7 @@ def main(argv=None):
         paired_gate, paired_holm = _paired_gate(
             paired,
             args.bootstrap_minimum_probability,
+            candidate_name=candidate_name,
         )
         promotion_eligible = bool(
             candidate["gate"]["status"] == "passed"
@@ -450,6 +546,7 @@ def main(argv=None):
         payload = {
             "research_split": args.research_split,
             "experiment_namespace": args.experiment_namespace,
+            "feature_kind": args.signal_kind,
             "split": {
                 **split,
                 "file": str(split_path),
@@ -460,9 +557,13 @@ def main(argv=None):
                 "price_provenance_file": str(provenance_path),
                 "row_count": int(len(prices)),
                 "ticker_count": int(len(prices.columns)),
-                "portfolio_accrual_quality_buckets": {
+                (
+                    "portfolio_net_issuance_quality_buckets"
+                    if args.signal_kind == "net_issuance"
+                    else "portfolio_accrual_quality_buckets"
+                ): {
                     ticker: int(value)
-                    for ticker, value in accrual_quality.items()
+                    for ticker, value in quality.items()
                 },
             },
             "settings": _settings(args),

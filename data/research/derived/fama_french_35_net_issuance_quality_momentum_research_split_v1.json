@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-35-net-issuance-quality-momentum-research-1969-1998-v1",
+  "role": "research",
+  "evaluation_start": "1969-07-31",
+  "evaluation_end": "1998-07-31",
+  "experiment_namespace": "alpha-v15-net-issuance-quality-momentum",
+  "objectives": [
+    "net_issuance_quality_momentum"
+  ],
+  "settings": {
+    "train_window": 72,
+    "horizon": 12,
+    "rebalance_step": 12,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "primary_candidate": "net_issuance_quality_momentum",
+    "diagnostic_signal": "net_issuance_quality",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 3,
+    "bootstrap_minimum_probability": 0.95,
+    "net_issuance_quality_weight": 0.5,
+    "net_issuance_signal": "inverse_official_annual_net_share_issues_bucket",
+    "net_issuance_definition": "change_in_log_split_adjusted_shares_outstanding_from_fiscal_t_minus_2_to_t_minus_1",
+    "bucket_order_best_to_worst": [
+      "NegNI",
+      "ZeroNI",
+      "LoNI",
+      "NI2",
+      "NI3",
+      "NI4",
+      "HiNI"
+    ]
+  },
+  "universe_manifest_sha256": "9e550f8e9a6c31b8341b5ced86f36898b8ec18cd7c88a99b11b30659c63adbd0",
+  "price_file_sha256": "dc790a030ad0e20647cccd4fff45e32ad47b9dc7da280cc56de9d1981fcd9ea2",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "reserved_validation_interval": {
+    "start": "2000-01-01",
+    "end": "2011-12-31"
+  },
+  "reserved_locked_holdout_interval": {
+    "start": "2012-01-01",
+    "end": "2025-12-31"
+  },
+  "locked": true,
+  "manifest_sha256": "897cb5915c3c3b6c166ee772790ed0633ea1439601cf5321b069b3a2fdecb1b4"
+}

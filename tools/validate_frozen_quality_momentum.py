@@ -35,6 +35,12 @@ from research_profitability_momentum import (  # noqa: E402
     investment_buckets,
     operating_profitability_buckets,
 )
+from research_accrual_quality import (  # noqa: E402
+    NET_ISSUANCE_CANDIDATE,
+    _paired_gate as _issuance_paired_gate,
+    _run_periods as _run_issuance_periods,
+    net_issuance_quality_buckets,
+)
 from research_split import validate_research_split_run  # noqa: E402
 
 
@@ -106,9 +112,51 @@ VALUE_QUALITY_VALIDATION_CASES = (
         ),
     },
 )
+NET_ISSUANCE_VALIDATION_CASES = (
+    {
+        "id": "small_size",
+        "tickers": (
+            "SMALL NegNI", "SMALL ZeroNI", "SMALL LoNI",
+            "ME1 NI2", "ME1 NI3", "ME1 NI4", "SMALL HiNI",
+            "ME2 NegNI", "ME2 ZeroNI", "ME2 LoNI",
+            "ME2 NI2", "ME2 NI3", "ME2 NI4", "ME2 HiNI",
+        ),
+    },
+    {
+        "id": "large_size",
+        "tickers": (
+            "ME4 NegNI", "ME4 ZeroNI", "ME4 LoNI",
+            "ME4 NI2", "ME4 NI3", "ME4 NI4", "ME4 HiNI",
+            "BIG NegNI", "BIG ZeroNI", "BIG LoNI",
+            "ME5 NI2", "ME5 NI3", "ME5 NI4", "BIG HiNI",
+        ),
+    },
+    {
+        "id": "low_net_issuance",
+        "tickers": (
+            "SMALL NegNI", "SMALL ZeroNI", "SMALL LoNI",
+            "ME2 NegNI", "ME2 ZeroNI", "ME2 LoNI",
+            "ME3 NegNI", "ME3 ZeroNI", "ME3 LoNI",
+            "ME4 NegNI", "ME4 ZeroNI", "ME4 LoNI",
+            "BIG NegNI", "BIG ZeroNI", "BIG LoNI",
+        ),
+    },
+    {
+        "id": "high_net_issuance",
+        "tickers": (
+            "ME1 NI3", "ME1 NI4", "SMALL HiNI",
+            "ME2 NI3", "ME2 NI4", "ME2 HiNI",
+            "ME3 NI3", "ME3 NI4", "ME3 HiNI",
+            "ME4 NI3", "ME4 NI4", "ME4 HiNI",
+            "ME5 NI3", "ME5 NI4", "BIG HiNI",
+        ),
+    },
+)
 
 
 def _candidate_name(args):
+    if args.signal_kind == "net_issuance":
+        return NET_ISSUANCE_CANDIDATE
     return (
         VALUE_QUALITY_CANDIDATE
         if args.signal_kind == "value_quality"
@@ -117,6 +165,8 @@ def _candidate_name(args):
 
 
 def _validation_cases(args):
+    if args.signal_kind == "net_issuance":
+        return NET_ISSUANCE_VALIDATION_CASES
     return (
         VALUE_QUALITY_VALIDATION_CASES
         if args.signal_kind == "value_quality"
@@ -135,6 +185,51 @@ def _load_json(path):
 def _settings(args):
     candidate = _candidate_name(args)
     cases = _validation_cases(args)
+    if args.signal_kind == "net_issuance":
+        return {
+            "train_window": int(args.train_window),
+            "horizon": int(args.horizon),
+            "rebalance_step": int(args.rebalance_step),
+            "momentum_lookback": 12,
+            "momentum_skip": 1,
+            "momentum_weight": 0.50,
+            "net_issuance_quality_weight": 0.50,
+            "net_issuance_signal": (
+                "inverse_official_annual_net_share_issues_bucket"
+            ),
+            "net_issuance_definition": (
+                "change_in_log_split_adjusted_shares_outstanding_"
+                "from_fiscal_t_minus_2_to_t_minus_1"
+            ),
+            "bucket_order_best_to_worst": [
+                "NegNI",
+                "ZeroNI",
+                "LoNI",
+                "NI2",
+                "NI3",
+                "NI4",
+                "HiNI",
+            ],
+            "baseline": BASELINE,
+            "bootstrap_samples": int(args.bootstrap_samples),
+            "bootstrap_block_size": int(args.bootstrap_block_size),
+            "bootstrap_minimum_probability": float(
+                args.bootstrap_minimum_probability
+            ),
+            "minimum_case_periods": 10,
+            "frozen_candidate_policy": {
+                "source_split_id": str(args.frozen_from),
+                "candidate": candidate,
+                "candidate_specification": "unchanged",
+            },
+            "validation_cases": [
+                {
+                    "id": case["id"],
+                    "tickers": list(case["tickers"]),
+                }
+                for case in cases
+            ],
+        }
     if args.signal_kind == "value_quality":
         return {
             "train_window": int(args.train_window),
@@ -217,23 +312,29 @@ def _load_frozen_result(args):
     if not payload.get("promotion_eligible"):
         raise ValueError("Frozen result is not promotion eligible")
     frozen_settings = payload.get("settings", {})
-    expected = (
-        {
+    if args.signal_kind == "net_issuance":
+        expected = {
+            "momentum_weight": 0.50,
+            "net_issuance_quality_weight": 0.50,
+            "momentum_lookback": 12,
+            "momentum_skip": 1,
+        }
+    elif args.signal_kind == "value_quality":
+        expected = {
             "momentum_weight": 0.50,
             "profitability_weight": 0.25,
             "value_weight": 0.25,
             "momentum_lookback": 252,
             "momentum_skip": 21,
         }
-        if args.signal_kind == "value_quality"
-        else {
+    else:
+        expected = {
             "momentum_weight": 0.50,
             "profitability_weight": 0.25,
             "conservative_investment_weight": 0.25,
             "momentum_lookback": 252,
             "momentum_skip": 21,
         }
-    )
     if any(frozen_settings.get(key) != value for key, value in expected.items()):
         raise ValueError("Frozen result candidate specification drifted")
     return payload, path, _sha256(path)
@@ -265,6 +366,8 @@ def _load_prices(args):
 
 
 def _fundamental_signal(tickers, args):
+    if args.signal_kind == "net_issuance":
+        return net_issuance_quality_buckets(tickers)
     profitability = operating_profitability_buckets(tickers)
     return (
         0.50 * profitability
@@ -278,11 +381,21 @@ def _fundamental_signal(tickers, args):
 
 
 def _rank_results(prices, args):
-    candidate_periods, baseline_periods = _run_periods(
-        prices,
-        _fundamental_signal(prices.columns, args),
-        args,
-    )
+    if args.signal_kind == "net_issuance":
+        run_args = argparse.Namespace(**vars(args))
+        run_args.momentum_lookback = 12
+        run_args.momentum_skip = 1
+        candidate_periods, _, baseline_periods = _run_issuance_periods(
+            prices,
+            _fundamental_signal(prices.columns, args),
+            run_args,
+        )
+    else:
+        candidate_periods, baseline_periods = _run_periods(
+            prices,
+            _fundamental_signal(prices.columns, args),
+            args,
+        )
     return {
         "candidate_periods": candidate_periods,
         "baseline_periods": baseline_periods,
@@ -295,12 +408,14 @@ def _rank_results(prices, args):
     }
 
 
-def _case_gate(result):
+def _case_gate(result, minimum_periods=16):
     candidate = result["candidate"]
     baseline = result["baseline"]
     reasons = []
-    if candidate["period_count"] < 16:
-        reasons.append("Fewer than 16 completed validation periods.")
+    if candidate["period_count"] < minimum_periods:
+        reasons.append(
+            f"Fewer than {minimum_periods} completed validation periods."
+        )
     if candidate["mean_coverage_rate"] < 0.80:
         reasons.append("Candidate coverage is below 80%.")
     if candidate["mean_rank_ic"] <= 0.0:
@@ -347,7 +462,12 @@ def _aggregate_gate(result, args):
         samples=args.bootstrap_samples,
         seed=44,
     )
-    paired_gate, paired_holm = _paired_gate(
+    paired_gate_fn = (
+        _issuance_paired_gate
+        if args.signal_kind == "net_issuance"
+        else _paired_gate
+    )
+    paired_gate, paired_holm = paired_gate_fn(
         paired,
         args.bootstrap_minimum_probability,
         _candidate_name(args),
@@ -368,12 +488,14 @@ def _aggregate_gate(result, args):
 
 
 def _write_report(payload, output_path):
+    if payload["candidate"] == NET_ISSUANCE_CANDIDATE:
+        title = "# Frozen Net-Issuance Quality-Momentum Validation"
+    elif payload["candidate"] == VALUE_QUALITY_CANDIDATE:
+        title = "# Frozen Value-Quality-Momentum Validation"
+    else:
+        title = "# Frozen Quality-Momentum Validation"
     lines = [
-        (
-            "# Frozen Value-Quality-Momentum Validation"
-            if payload["candidate"] == VALUE_QUALITY_CANDIDATE
-            else "# Frozen Quality-Momentum Validation"
-        ),
+        title,
         "",
         f"- Split: `{payload['validation_split']}`",
         f"- Frozen from: `{payload['frozen_from']}`",
@@ -439,7 +561,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--signal-kind",
-        choices=("quality", "value_quality"),
+        choices=("quality", "value_quality", "net_issuance"),
         default="quality",
     )
     parser.add_argument("--csv", required=True)
@@ -480,8 +602,9 @@ def main(argv=None):
             evaluation_end=prices.index[
                 len(prices) - int(args.horizon) - 1
             ],
-            universe_manifest_sha256=provenance.get(
-                "basket_manifest_sha256"
+            universe_manifest_sha256=(
+                provenance.get("universe_manifest_sha256")
+                or provenance.get("basket_manifest_sha256")
             ),
             price_file_sha256=provenance.get("price_file_sha256"),
             factor_file_sha256=None,
@@ -493,6 +616,9 @@ def main(argv=None):
         aggregate_result = _rank_results(prices, args)
         aggregate_gate = _aggregate_gate(aggregate_result, args)
         case_runs = []
+        minimum_case_periods = (
+            10 if args.signal_kind == "net_issuance" else 16
+        )
         for case in cases:
             case_result = _rank_results(
                 prices.loc[:, list(case["tickers"])],
@@ -505,7 +631,10 @@ def main(argv=None):
                 },
                 "candidate": case_result["candidate"],
                 "baseline": case_result["baseline"],
-                "gate": _case_gate(case_result),
+                "gate": _case_gate(
+                    case_result,
+                    minimum_periods=minimum_case_periods,
+                ),
             })
         passed_case_count = sum(
             run["gate"]["status"] == "passed"

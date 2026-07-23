@@ -28,6 +28,22 @@ def test_accrual_quality_buckets_invert_official_quintiles():
     assert result.tolist() == [5.0, 4.0, 3.0, 2.0, 1.0]
 
 
+def test_net_issuance_quality_orders_special_and_quintile_buckets():
+    labels = [
+        "SMALL NegNI",
+        "ME1 ZeroNI",
+        "ME2 LoNI",
+        "ME3 NI2",
+        "ME3 NI3",
+        "ME4 NI4",
+        "BIG HiNI",
+    ]
+
+    result = RESEARCH.net_issuance_quality_buckets(labels)
+
+    assert result.tolist() == [7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0]
+
+
 def test_accrual_research_uses_only_pre_signal_momentum_prices():
     dates = pd.date_range("2000-01-31", periods=18, freq="ME")
     prices = pd.DataFrame(

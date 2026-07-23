@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
-- 현재 상태: fresh market-regime interaction도 paired research gate에서 탈락
+- 현재 상태: independent net-issuance signal이 research gate를 통과했고 untouched validation 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -124,6 +124,8 @@
 - official French size×accrual benchmark에서 accrual-quality-momentum의 absolute signal은 강했지만 raw momentum 대비 paired spread gate가 실패했습니다.
 - local companyfacts에서 opt-in cash-accrual `(operating_cash_flow-net_income)/assets`를 생성해 fresh Nasdaq 2017 nested ridge에 추가했으나 후보 IC `-0.0451`, spread `-0.00742`로 baseline보다 악화됐습니다.
 - usable OOS period도 6개뿐이어서 statistical gate가 불가능했습니다. 같은 Nasdaq 기간에서 accrual 정의나 ridge 설정을 재튜닝하지 않으며 Transformer HPO 근거로 사용하지 않습니다.
+- official French net-share-issues와 12-1 momentum의 고정 50/50 blend가 raw momentum 대비 paired IC/spread 개선 확률 `97.60%`/`98.35%`로 research gate를 통과했습니다.
+- 이 uplift는 Transformer hyperparameter가 아니라 독립 issuer-action feature에서 발생했습니다. Frozen 2000~2011 validation 전 architecture 또는 blend weight를 변경하지 않습니다.
 - fresh official French 12-industry 1933~1952 split에서 고정 market trend/volatility interaction을 nested ridge에 추가했지만 IC `0.0193→0.0050`, spread `0.00445→0.00286`으로 악화됐습니다.
 - candidate의 paired P(higher IC/spread)는 `35.75%`/`40.25%`였고 계산시간은 baseline `32.68s`에서 `50.64s`로 증가했습니다. macro/regime interaction도 Transformer HPO 근거를 만들지 못했습니다.
 - 1953+ validation/holdout을 열지 않고 같은 split에서 lookback, threshold, interaction subset을 재튜닝하지 않습니다.
@@ -158,3 +160,4 @@
 - Lightweight rank-tilt research: `docs/reports/260724-0332-01-lightweight-rank-tilt-research.md`
 - Cash-accrual research: `docs/reports/260724-0350-01-cash-accrual-research.md`
 - Market-regime interaction research: `docs/reports/260724-0411-01-market-regime-interaction-research.md`
+- Net-issuance quality-momentum research: `docs/reports/260724-0438-01-net-issuance-quality-momentum-research.md`

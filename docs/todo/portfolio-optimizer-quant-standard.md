@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: market-regime interaction도 research signal/paired gate에서 탈락
+- 현재 상태: frozen net-issuance-quality-momentum이 locked research gate를 통과했고 validation 대기
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -114,6 +114,8 @@
 - paired P(higher IC/spread)는 `35.75%`/`40.25%`, Holm-adjusted p-value는 `0.6070`이어서 폐기합니다. production/default alpha는 변경하지 않고 1953+ validation/holdout을 봉인합니다.
 - official French 10-industry 1928~1969에서 네 기존 allocator를 completed-fold Hedge로 결합한 online ensemble은 momentum 대비 volatility와 turnover를 낮췄습니다.
 - ensemble Sharpe는 `0.5434<0.5585`, P(higher Sharpe)는 `19.80%`, Holm-adjusted p-value는 `0.8020`이어서 폐기합니다. risk/default allocator는 변경하지 않고 1970+ validation/holdout을 봉인합니다.
+- official French 35 size×net-share-issues의 frozen 50/50 issuance-quality-momentum은 raw momentum 대비 IC `0.1590→0.2476`, spread `0.03743→0.05858`로 개선했습니다.
+- paired P(higher IC/spread) `97.60%`/`98.35%`, Holm-adjusted p-value `0.0240`으로 research gate를 통과했습니다. Production/default 변경 전 untouched 2000~2011 4-case validation이 필요하며 2012+ holdout은 봉인합니다.
 
 ## 금지
 

@@ -50,3 +50,38 @@ def test_value_quality_validation_freezes_four_characteristic_cases():
         "high_profitability",
     ]
     assert all(len(case["tickers"]) == 10 for case in cases)
+
+
+def test_net_issuance_validation_freezes_size_and_issuance_cases():
+    args = Namespace(signal_kind="net_issuance")
+    cases = VALIDATION._validation_cases(args)
+
+    assert (
+        VALIDATION._candidate_name(args)
+        == "net_issuance_quality_momentum"
+    )
+    assert [case["id"] for case in cases] == [
+        "small_size",
+        "large_size",
+        "low_net_issuance",
+        "high_net_issuance",
+    ]
+    assert all(len(case["tickers"]) >= 14 for case in cases)
+
+
+def test_net_issuance_case_gate_accepts_eleven_annual_periods():
+    result = {
+        "candidate": {
+            **_diagnostics(0.06, 0.012),
+            "period_count": 11,
+        },
+        "baseline": {
+            **_diagnostics(0.01, 0.002),
+            "period_count": 11,
+        },
+    }
+
+    assert (
+        VALIDATION._case_gate(result, minimum_periods=10)["status"]
+        == "passed"
+    )
