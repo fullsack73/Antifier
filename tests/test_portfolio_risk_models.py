@@ -26,6 +26,7 @@ from portfolio_risk_models import (  # noqa: E402
     maximum_diversification_weights,
     minimum_cvar_weights,
     nested_blended_minimum_variance_weights,
+    online_allocator_ensemble_weights,
     random_matrix_denoised_covariance,
     random_matrix_minimum_variance_weights,
     regime_minimum_variance_weights,
@@ -297,6 +298,7 @@ def test_backtest_runs_robust_risk_allocator_family():
             "volatility_targeted_min_variance",
             "random_matrix_minimum_variance",
             "maximum_diversification",
+            "online_allocator_ensemble",
         ),
         train_window=252,
         rebalance_frequency=63,
@@ -318,6 +320,7 @@ def test_backtest_runs_robust_risk_allocator_family():
         "volatility_targeted_min_variance",
         "random_matrix_minimum_variance",
         "maximum_diversification",
+        "online_allocator_ensemble",
     }
     assert all(
         record["risk_model"]
@@ -345,6 +348,39 @@ def test_nested_blended_allocator_uses_completed_inner_variance_folds():
         "0.5",
         "1.0",
     }
+
+
+def test_online_allocator_ensemble_uses_only_completed_feedback():
+    prices = _correlated_prices(rows=700, asset_count=6)
+    as_of = 629
+    baseline_weights, baseline = online_allocator_ensemble_weights(
+        prices.iloc[:as_of + 1],
+        max_asset_weight=0.25,
+    )
+    changed = prices.copy()
+    changed.iloc[568:as_of + 1] *= np.linspace(
+        1.0,
+        5.0,
+        as_of + 1 - 568,
+    )[:, None]
+    changed_weights, result = online_allocator_ensemble_weights(
+        changed.iloc[:as_of + 1],
+        max_asset_weight=0.25,
+    )
+
+    assert baseline["completed_fold_count"] == 5
+    assert result["completed_fold_count"] == 5
+    assert (
+        baseline["expert_posterior_weights"]
+        == result["expert_posterior_weights"]
+    )
+    assert baseline["latest_completed_validation_date"] < str(
+        prices.index[as_of].date()
+    )
+    assert baseline_weights.sum() == pytest.approx(1.0)
+    assert changed_weights.sum() == pytest.approx(1.0)
+    assert baseline_weights.max() <= 0.25 + 1e-9
+    assert changed_weights.max() <= 0.25 + 1e-9
 
 
 def test_risk_allocator_gate_requires_improvement_over_min_variance():

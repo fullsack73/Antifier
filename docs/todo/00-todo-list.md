@@ -4,5 +4,5 @@
 
 - `portfolio-alpha-v2-research.md`: fresh French 12-industry market-regime interactions reduced IC/spread; validation remains sealed.
 - `portfolio-forecast-model-redesign.md`: market-regime interactions also failed; Transformer HPO remains unsupported.
-- `portfolio-risk-model-research.md`: trend-risk-parity validation and maximum-diversification research failed; defaults remain unchanged.
+- `portfolio-risk-model-research.md`: online allocator ensemble lowered risk/turnover but failed the Sharpe gate; defaults remain unchanged.
 - `portfolio-optimizer-quant-standard.md`: cash-accrual and market-regime features failed locked research; a new independent feature family and untouched holdout remain.

@@ -49,6 +49,7 @@ from portfolio_risk_models import (
     maximum_diversification_weights,
     minimum_cvar_weights,
     nested_blended_minimum_variance_weights,
+    online_allocator_ensemble_weights,
     resampled_minimum_variance_weights,
     regime_minimum_variance_weights,
     random_matrix_minimum_variance_weights,
@@ -125,6 +126,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "trend_filtered_minimum_variance",
     "trend_filtered_risk_parity",
     "maximum_diversification",
+    "online_allocator_ensemble",
     "lightweight_rank_tilt",
 )
 
@@ -860,6 +862,19 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
     if model_name == "nested_blended_min_variance":
         weights, risk_diagnostics = (
             nested_blended_minimum_variance_weights(
+                train_prices,
+                max_asset_weight=max_asset_weight,
+            )
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "online_allocator_ensemble":
+        weights, risk_diagnostics = (
+            online_allocator_ensemble_weights(
                 train_prices,
                 max_asset_weight=max_asset_weight,
             )

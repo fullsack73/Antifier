@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-10-industry-online-ensemble-research-1928-1969-v1",
+  "role": "research",
+  "evaluation_start": "1928-03-07",
+  "evaluation_end": "1969-12-31",
+  "experiment_namespace": "risk-v10-online-allocator-ensemble",
+  "objectives": [
+    "online_allocator_ensemble"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fama_french_daily_one_month_tbill",
+    "online_allocator_ensemble_policy": {
+      "experts": [
+        "equal_weight",
+        "min_variance",
+        "risk_parity",
+        "momentum_6m"
+      ],
+      "inner_train": 252,
+      "inner_validation": 63,
+      "loss": "completed_fold_cross_expert_return_rank_0_best_1_worst",
+      "learning_rate": "sqrt_2_log_expert_count_over_completed_fold_count",
+      "prior": "uniform",
+      "paired_baseline": "momentum_6m",
+      "deterministic_gate": "beat_all_expert_sharpes_and_momentum_volatility_drawdown",
+      "statistical_gate": "paired_lower_volatility_and_higher_sharpe_95pct_plus_holm"
+    }
+  },
+  "universe_manifest_sha256": "e28d8a113d98153912b92e152216c5213424d8a283097556c849e5ce541a0b42",
+  "price_file_sha256": "50e3cf1c6f5df73f59d3e970493940944835f0340eb78164ab5ed2a09d53668a",
+  "factor_file_sha256": "af5df62ecef99c3e3db207e5dd82e56060ba8d3ee979ff774590a6e83e418778",
+  "auxiliary_files": {},
+  "reserved_validation_interval": {
+    "start": "1970-01-01",
+    "end": "1999-12-31"
+  },
+  "reserved_locked_holdout_interval": {
+    "start": "2000-01-01",
+    "end": "2025-12-31"
+  },
+  "locked": true,
+  "manifest_sha256": "3a6aca3ed7e9767f31c87a8bddf78ef25b62d24fa90672244a756ab8d9f1f89f"
+}

@@ -53,7 +53,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - Transformer clip 전후 출력, forecast 분포/tie, OOS uncertainty와 signal-only gate를 분리 진단하는 forecast research 기반 구조
 - ticker별 재학습 없이 absolute/relative/pairwise/listwise objective를 비교하는 pooled cross-sectional walk-forward baseline
 - SEC filing-date PIT fundamental loader와 날짜별 universe membership을 적용하는 survivorship-safe research data foundation
-- shrinkage/nested covariance conditioning, exact equal-risk-contribution, hierarchical risk parity, regime/minimum-CVaR와 capped-simplex 제약을 검증하는 risk allocator research 경로
+- shrinkage/nested covariance conditioning, exact equal-risk-contribution, hierarchical risk parity, regime/minimum-CVaR, completed-feedback online allocator ensemble과 capped-simplex 제약을 검증하는 risk allocator research 경로
 - point-in-time market-cap enforcement, no-lookahead price/FX alignment, paired block bootstrap와 Holm multiple-testing correction을 포함한 quant-standard validation guardrail
 - candidate 4-case validation 후 standard 180-case와 별도 2024-2025 locked holdout으로 이어지는 staged gauntlet, basket/regime별 target 재사용, SQLite forecast cache, case checkpoint/resume
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소

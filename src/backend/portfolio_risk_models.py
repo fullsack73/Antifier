@@ -6,10 +6,34 @@ from pypfopt import EfficientCVaR, EfficientFrontier, HRPOpt, risk_models
 from scipy.optimize import minimize
 from sklearn.covariance import LedoitWolf
 
-from portfolio_signals import cap_and_normalize_weights
+from portfolio_signals import (
+    SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
+    cap_and_normalize_weights,
+    momentum_tilt_weights,
+)
 
 
 TRADING_DAYS_PER_YEAR = 252
+ONLINE_ALLOCATOR_ENSEMBLE_POLICY = {
+    "experts": (
+        "equal_weight",
+        "min_variance",
+        "risk_parity",
+        "momentum_6m",
+    ),
+    "inner_train": 252,
+    "inner_validation": 63,
+    "loss": "completed_fold_cross_expert_return_rank_0_best_1_worst",
+    "learning_rate": "sqrt_2_log_expert_count_over_completed_fold_count",
+    "prior": "uniform",
+    "paired_baseline": "momentum_6m",
+    "deterministic_gate": (
+        "beat_all_expert_sharpes_and_momentum_volatility_drawdown"
+    ),
+    "statistical_gate": (
+        "paired_lower_volatility_and_higher_sharpe_95pct_plus_holm"
+    ),
+}
 
 
 def _clean_prices(price_data):
@@ -1237,6 +1261,186 @@ def _inverse_volatility_weights(price_data, max_asset_weight):
         inverse,
         max_asset_weight=max_asset_weight,
     )
+
+
+def _online_allocator_expert_weights(
+    price_data,
+    max_asset_weight,
+):
+    prices = _clean_prices(price_data)
+    tickers = list(prices.columns)
+    equal_weight = cap_and_normalize_weights(
+        pd.Series(1.0, index=tickers, dtype=float),
+        max_asset_weight=max_asset_weight,
+    )
+    covariance = risk_models.CovarianceShrinkage(
+        prices
+    ).ledoit_wolf()
+    min_variance, _ = _minimum_variance_from_covariance(
+        covariance,
+        tickers,
+        max_asset_weight,
+    )
+    inverse_volatility = _inverse_volatility_weights(
+        prices,
+        max_asset_weight,
+    )
+    momentum = momentum_tilt_weights(
+        prices,
+        lookback=SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
+        skip=0,
+        max_asset_weight=max_asset_weight,
+    )
+    return {
+        "equal_weight": equal_weight,
+        "min_variance": min_variance,
+        "risk_parity": inverse_volatility,
+        "momentum_6m": momentum,
+    }
+
+
+def online_allocator_ensemble_weights(
+    price_data,
+    max_asset_weight=0.20,
+    inner_train=252,
+    inner_validation=63,
+):
+    """Combine allocator experts using only completed inner-fold returns."""
+    prices = _clean_prices(price_data)
+    tickers = list(prices.columns)
+    inner_train = max(126, int(inner_train))
+    inner_validation = max(21, int(inner_validation))
+    expert_names = tuple(ONLINE_ALLOCATOR_ENSEMBLE_POLICY["experts"])
+    cumulative_losses = pd.Series(
+        0.0,
+        index=expert_names,
+        dtype=float,
+    )
+    fold_records = []
+    last_train_end = len(prices) - inner_validation - 1
+    for train_end in range(
+        inner_train,
+        last_train_end + 1,
+        inner_validation,
+    ):
+        inner_prices = prices.iloc[
+            train_end - inner_train:train_end + 1
+        ]
+        validation_prices = prices.iloc[
+            train_end:train_end + inner_validation + 1
+        ]
+        if len(validation_prices) < inner_validation + 1:
+            continue
+        realized_returns = (
+            validation_prices.iloc[-1]
+            / validation_prices.iloc[0]
+            - 1.0
+        ).replace([np.inf, -np.inf], np.nan)
+        if realized_returns.reindex(tickers).isna().any():
+            continue
+        expert_targets = _online_allocator_expert_weights(
+            inner_prices,
+            max_asset_weight,
+        )
+        expert_returns = pd.Series(
+            {
+                name: float(
+                    expert_targets[name]
+                    .reindex(tickers)
+                    .mul(realized_returns.reindex(tickers))
+                    .sum()
+                )
+                for name in expert_names
+            },
+            dtype=float,
+        )
+        ranks = expert_returns.rank(
+            method="average",
+            ascending=False,
+        )
+        denominator = max(1, len(expert_names) - 1)
+        losses = (ranks - 1.0) / denominator
+        cumulative_losses = cumulative_losses.add(
+            losses,
+            fill_value=0.0,
+        )
+        fold_records.append({
+            "train_end_date": inner_prices.index[-1].strftime(
+                "%Y-%m-%d"
+            ),
+            "validation_end_date": validation_prices.index[-1].strftime(
+                "%Y-%m-%d"
+            ),
+            "expert_returns": {
+                name: float(expert_returns[name])
+                for name in expert_names
+            },
+            "expert_losses": {
+                name: float(losses[name])
+                for name in expert_names
+            },
+        })
+
+    fold_count = len(fold_records)
+    if fold_count:
+        learning_rate = float(
+            np.sqrt(
+                2.0 * np.log(len(expert_names)) / fold_count
+            )
+        )
+        log_weights = -learning_rate * cumulative_losses
+        log_weights -= float(log_weights.max())
+        posterior = np.exp(log_weights)
+        posterior /= float(posterior.sum())
+    else:
+        learning_rate = None
+        posterior = pd.Series(
+            1.0 / len(expert_names),
+            index=expert_names,
+            dtype=float,
+        )
+
+    current_experts = _online_allocator_expert_weights(
+        prices,
+        max_asset_weight,
+    )
+    weights = sum(
+        current_experts[name] * float(posterior[name])
+        for name in expert_names
+    )
+    weights = cap_and_normalize_weights(
+        weights,
+        max_asset_weight=max_asset_weight,
+    )
+    return weights, {
+        "method": "completed_fold_online_allocator_ensemble",
+        "policy": dict(ONLINE_ALLOCATOR_ENSEMBLE_POLICY),
+        "inner_train": int(inner_train),
+        "inner_validation": int(inner_validation),
+        "completed_fold_count": int(fold_count),
+        "latest_completed_validation_date": (
+            None
+            if not fold_records
+            else fold_records[-1]["validation_end_date"]
+        ),
+        "learning_rate": learning_rate,
+        "cumulative_expert_losses": {
+            name: float(cumulative_losses[name])
+            for name in expert_names
+        },
+        "expert_posterior_weights": {
+            name: float(posterior[name])
+            for name in expert_names
+        },
+        "current_expert_weights": {
+            name: {
+                ticker: float(value)
+                for ticker, value in current_experts[name].items()
+            }
+            for name in expert_names
+        },
+        "fold_records": fold_records,
+    }
 
 
 def nested_blended_minimum_variance_weights(

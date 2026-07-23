@@ -19,6 +19,9 @@ from portfolio_backtest import (  # noqa: E402
     fetch_backtest_price_data,
     run_portfolio_model_backtest,
 )
+from portfolio_risk_models import (  # noqa: E402
+    ONLINE_ALLOCATOR_ENSEMBLE_POLICY,
+)
 from portfolio_statistics import (  # noqa: E402
     bootstrap_improvement_gate,
     holm_bonferroni,
@@ -50,6 +53,7 @@ RISK_RESEARCH_MODELS = (
     "trend_filtered_minimum_variance",
     "trend_filtered_risk_parity",
     "maximum_diversification",
+    "online_allocator_ensemble",
 )
 RISK_CANDIDATES = (
     "robust_min_variance",
@@ -70,6 +74,7 @@ RISK_CANDIDATES = (
     "trend_filtered_minimum_variance",
     "trend_filtered_risk_parity",
     "maximum_diversification",
+    "online_allocator_ensemble",
 )
 RESERVED_SPLITS = {
     "validation",
@@ -151,6 +156,13 @@ def _research_settings(args):
                 "weighted_standalone_volatility_over_portfolio_volatility"
             ),
         }
+    if "online_allocator_ensemble" in args.candidates:
+        settings["online_allocator_ensemble_policy"] = {
+            **ONLINE_ALLOCATOR_ENSEMBLE_POLICY,
+            "experts": list(
+                ONLINE_ALLOCATOR_ENSEMBLE_POLICY["experts"]
+            ),
+        }
     return settings
 
 
@@ -219,8 +231,9 @@ def _load_split_manifest(args, prices, price_provenance, candidates):
         settings=_research_settings(args),
         evaluation_start=prices.index[args.train_window],
         evaluation_end=prices.index[-1],
-        universe_manifest_sha256=price_provenance.get(
-            "basket_manifest_sha256"
+        universe_manifest_sha256=(
+            price_provenance.get("universe_manifest_sha256")
+            or price_provenance.get("basket_manifest_sha256")
         ),
         price_file_sha256=price_provenance.get("price_file_sha256"),
         factor_file_sha256=args.risk_free_file_sha256,
@@ -314,6 +327,7 @@ def _risk_gate(summary, candidate_name):
         if candidate_name in {
             "risk_managed_momentum",
             "dual_horizon_momentum",
+            "online_allocator_ensemble",
         }
         else (
             "min_variance"
@@ -336,6 +350,25 @@ def _risk_gate(summary, candidate_name):
     )
     baseline = summary[baseline_name]
     reasons = []
+    if candidate_name == "online_allocator_ensemble":
+        expert_sharpes = {
+            name: summary[name].get("sharpe")
+            for name in ONLINE_ALLOCATOR_ENSEMBLE_POLICY["experts"]
+        }
+        valid_expert_sharpes = [
+            float(value)
+            for value in expert_sharpes.values()
+            if value is not None
+        ]
+        if (
+            candidate.get("sharpe") is None
+            or not valid_expert_sharpes
+            or float(candidate["sharpe"])
+            <= max(valid_expert_sharpes)
+        ):
+            reasons.append(
+                "Sharpe does not exceed every component expert."
+            )
     if candidate["annual_volatility"] >= baseline["annual_volatility"]:
         reasons.append(
             f"Realized volatility does not improve {baseline_name}."

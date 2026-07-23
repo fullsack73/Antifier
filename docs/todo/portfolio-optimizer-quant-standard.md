@@ -112,6 +112,8 @@
 - usable OOS period가 6개뿐이라 bootstrap도 불가능했습니다. production optimizer/default alpha는 변경하지 않고 exact cash-accrual candidate를 폐기합니다.
 - official French 12-industry 1933~1952의 market trend/volatility interaction 후보는 baseline 대비 IC `-0.01436`, spread `-0.00159` 낮았습니다.
 - paired P(higher IC/spread)는 `35.75%`/`40.25%`, Holm-adjusted p-value는 `0.6070`이어서 폐기합니다. production/default alpha는 변경하지 않고 1953+ validation/holdout을 봉인합니다.
+- official French 10-industry 1928~1969에서 네 기존 allocator를 completed-fold Hedge로 결합한 online ensemble은 momentum 대비 volatility와 turnover를 낮췄습니다.
+- ensemble Sharpe는 `0.5434<0.5585`, P(higher Sharpe)는 `19.80%`, Holm-adjusted p-value는 `0.8020`이어서 폐기합니다. risk/default allocator는 변경하지 않고 1970+ validation/holdout을 봉인합니다.
 
 ## 금지
 
