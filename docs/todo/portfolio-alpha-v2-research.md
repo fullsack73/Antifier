@@ -84,6 +84,9 @@
 - realized target을 동일하게 고정한 비교에서도 annual과 quarterly 후보 모두 signal gate를 통과하지 못했습니다. 같은 Nasdaq 기간에서 분기 feature 변형을 연속 탐색하지 않습니다.
 - country ETF 15종 2010~2016 fresh research에서 fixed shallow histogram gradient boosting은 relative ridge보다 IC `-0.0303` 열위였고 paired P(higher IC/spread)는 `25.65%`/`57.35%`였습니다.
 - candidate-specific paired gate를 승격 판정에 강제했습니다. nonlinear 후보가 탈락했으므로 2017+ validation/holdout을 실행하지 않습니다.
+- Nasdaq-100 2018~2019의 새 locked research split에서 300일 이상 이전 공시 대비 quality/profitability/valuation/liquidity 변화를 추가했습니다.
+- fundamental-momentum 후보는 baseline 대비 IC `0.0681→0.0461`, spread `0.02095→0.00546`으로 하락했고 paired P(higher IC/spread)는 `12.35%`/`1.20%`여서 폐기했습니다.
+- 동일 구간에서 lag, missing flag, penalty를 재튜닝하지 않으며 2020+ 데이터는 이 후보 평가에 사용하지 않았습니다.
 
 ## 참고
 
@@ -95,3 +98,4 @@
 - Rank-target 폐기: `docs/reports/260724-0009-01-rank-target-research.md`
 - Quarterly TTM 폐기: `docs/reports/260724-0024-01-quarterly-ttm-research.md`
 - Country ETF nonlinear 폐기: `docs/reports/260724-0049-01-country-etf-nonlinear-research.md`
+- Fundamental momentum 폐기: `docs/reports/260724-0111-01-fundamental-momentum-research.md`

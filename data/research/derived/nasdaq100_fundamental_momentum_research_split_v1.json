@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "split_id": "nasdaq100-fundamental-momentum-research-2018-2019-v1",
+  "role": "research",
+  "evaluation_start": "2018-01-01",
+  "evaluation_end": "2019-09-30",
+  "experiment_namespace": "pit-factor-v6-fundamental-momentum-nasdaq100",
+  "objectives": [
+    "factor_residual_nested_ridge",
+    "factor_residual_fundamental_momentum_nested_ridge"
+  ],
+  "settings": {
+    "horizon": 63,
+    "rebalance_step": 21,
+    "minimum_feature_history": 253,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 24,
+    "minimum_observations": 40,
+    "ridge_penalty": 5.0,
+    "nested_ridge_penalties": [
+      1.0,
+      5.0,
+      20.0,
+      100.0
+    ],
+    "nested_validation_periods": 3,
+    "nominal_uncertainty_coverage": 0.8,
+    "target_factor_policy": "separate_point_in_time_target_factors",
+    "fundamental_momentum_policy": {
+      "change": "latest_minus_prior_filing",
+      "minimum_lag_days": 300
+    }
+  },
+  "universe_manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+  "price_file_sha256": "e6ae09bdec0950038d3157c947ed8d12949bc087810abacbd6c92dd25906e9ca",
+  "factor_file_sha256": "04ab377fbcdfcd48c08167216c8781215f2a18f110d31c521e95a3a2dd56d2a4",
+  "auxiliary_files": {
+    "target_factor_file_sha256": "04ab377fbcdfcd48c08167216c8781215f2a18f110d31c521e95a3a2dd56d2a4"
+  },
+  "locked": true,
+  "manifest_sha256": "03bcf376749751766dff08707beddc36ab9c9712d37c18b645e49d9861738370"
+}

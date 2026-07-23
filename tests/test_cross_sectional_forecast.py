@@ -15,9 +15,12 @@ if str(BACKEND) not in sys.path:
 
 from cross_sectional_forecast import (  # noqa: E402
     FACTOR_POOLED_FEATURE_COLUMNS,
+    FUNDAMENTAL_MOMENTUM_PIT_FEATURE_COLUMNS,
+    FUNDAMENTAL_MOMENTUM_POOLED_FEATURE_COLUMNS,
     POOLED_FEATURE_COLUMNS,
     PIT_MISSING_FEATURE_COLUMNS,
     compare_pooled_objectives,
+    pooled_point_in_time_fundamental_momentum_features,
     pooled_point_in_time_features,
     pooled_price_features,
     walk_forward_pooled_ridge,
@@ -241,6 +244,57 @@ def test_pit_predictors_ignore_future_filing_rows():
     assert baseline.notna().all().all()
 
 
+def test_fundamental_momentum_uses_only_prior_known_filings():
+    rows = []
+    for date, quality_values in (
+        ("2019-12-31", (1.0, 1.0, 1.0)),
+        ("2020-12-31", (3.0, 2.0, 1.0)),
+        ("2022-01-15", (1e12, -1e12, 1e12)),
+    ):
+        for ticker, quality in zip(("A", "B", "C"), quality_values):
+            rows.append({
+                "available_date": date,
+                "ticker": ticker,
+                "sector": "Technology",
+                "market_cap": 1_000_000_000.0,
+                "quality": quality,
+                "profitability": quality / 10.0,
+                "valuation": quality / 20.0,
+                "liquidity": quality / 5.0,
+            })
+    feature_data = pd.DataFrame(rows)
+    as_of = pd.Timestamp("2021-02-01")
+
+    baseline = pooled_point_in_time_fundamental_momentum_features(
+        feature_data,
+        as_of,
+        ["A", "B", "C"],
+    )
+    future_changed = feature_data.copy()
+    future_changed.loc[
+        future_changed["available_date"] == "2022-01-15",
+        list(PIT_ALPHA_FEATURES),
+    ] *= -100.0
+    changed = pooled_point_in_time_fundamental_momentum_features(
+        future_changed,
+        as_of,
+        ["A", "B", "C"],
+    )
+
+    pd.testing.assert_frame_equal(baseline, changed)
+    assert list(baseline.columns) == list(
+        FUNDAMENTAL_MOMENTUM_PIT_FEATURE_COLUMNS
+    )
+    assert (
+        baseline.loc["A", "quality_change_1y"]
+        > baseline.loc["B", "quality_change_1y"]
+        > baseline.loc["C", "quality_change_1y"]
+    )
+    assert (
+        baseline["quality_change_1y_missing"] == 0.0
+    ).all()
+
+
 def test_factor_residual_model_uses_pit_fundamentals_as_predictors():
     prices = _research_prices()
     result = walk_forward_pooled_ridge(
@@ -263,6 +317,43 @@ def test_factor_residual_model_uses_pit_fundamentals_as_predictors():
     assert set(PIT_MISSING_FEATURE_COLUMNS).issubset(
         result["mean_coefficients"]
     )
+
+
+def test_fundamental_momentum_candidate_has_paired_gate():
+    prices = _research_prices(rows=650, ticker_count=10)
+    comparison = compare_pooled_objectives(
+        prices,
+        objectives=(
+            "factor_residual_nested_ridge",
+            "factor_residual_fundamental_momentum_nested_ridge",
+        ),
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=6,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        nested_ridge_penalties=[1.0, 10.0],
+        nested_validation_periods=2,
+        point_in_time_features=_point_in_time_features(prices),
+    )
+
+    candidate = comparison["runs"][
+        "factor_residual_fundamental_momentum_nested_ridge"
+    ]
+    assert candidate["records"]
+    assert candidate["settings"]["feature_columns"] == list(
+        FUNDAMENTAL_MOMENTUM_POOLED_FEATURE_COLUMNS
+    )
+    key = (
+        "factor_residual_fundamental_momentum_nested_ridge"
+        "_vs_factor_residual_nested_ridge"
+    )
+    assert key in comparison["paired_improvement"]
+    if comparison["paired_improvement"][key]["gate"]["status"] != "passed":
+        assert (
+            "factor_residual_fundamental_momentum_nested_ridge"
+            not in comparison["passed_candidate_objectives"]
+        )
 
 
 def test_factor_residual_price_baseline_uses_same_target_without_fundamentals():

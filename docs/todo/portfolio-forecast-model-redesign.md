@@ -93,6 +93,8 @@
 - fresh country-ETF 15종의 2010~2016 research에서 고정 shallow histogram gradient boosting을 relative ridge와 비교했습니다.
 - nonlinear candidate는 IC `-0.0139`, spread `0.0001`로 ridge IC `0.0164`, spread `-0.0030`을 안정적으로 개선하지 못했습니다.
 - paired P(higher IC/spread)는 `25.65%`/`57.35%`였고 속도는 ridge보다 약 2.25배 느려 폐기했습니다. 2017+ validation/holdout은 열지 않습니다.
+- fresh Nasdaq 2018~2019 research에서 공시 level에 1년 변화 feature를 더한 fundamental-momentum nested ridge는 baseline보다 IC `-0.0220`, spread `-0.01549` 낮았습니다.
+- paired P(higher IC/spread)는 `12.35%`/`1.20%`여서 폐기했고, Transformer 확장 근거는 생기지 않았습니다.
 
 ## 선행조건
 
@@ -112,3 +114,4 @@
 - Rank-target research: `docs/reports/260724-0009-01-rank-target-research.md`
 - Quarterly TTM research: `docs/reports/260724-0024-01-quarterly-ttm-research.md`
 - Country ETF nonlinear research: `docs/reports/260724-0049-01-country-etf-nonlinear-research.md`
+- Fundamental momentum research: `docs/reports/260724-0111-01-fundamental-momentum-research.md`

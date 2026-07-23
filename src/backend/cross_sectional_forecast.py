@@ -19,6 +19,7 @@ from portfolio_statistics import holm_bonferroni
 from portfolio_alpha_v2 import (
     PIT_ALPHA_FEATURES,
     factor_residual_forward_returns,
+    normalize_point_in_time_features,
     point_in_time_snapshot,
 )
 from universe_manifest import (
@@ -40,10 +41,28 @@ POOLED_FEATURE_COLUMNS = (
 PIT_MISSING_FEATURE_COLUMNS = tuple(
     f"{column}_missing" for column in PIT_ALPHA_FEATURES
 )
+PIT_CHANGE_FEATURE_COLUMNS = tuple(
+    f"{column}_change_1y" for column in PIT_ALPHA_FEATURES
+)
+PIT_CHANGE_MISSING_FEATURE_COLUMNS = tuple(
+    f"{column}_missing" for column in PIT_CHANGE_FEATURE_COLUMNS
+)
+FACTOR_PIT_FEATURE_COLUMNS = (
+    PIT_ALPHA_FEATURES
+    + PIT_MISSING_FEATURE_COLUMNS
+)
+FUNDAMENTAL_MOMENTUM_PIT_FEATURE_COLUMNS = (
+    FACTOR_PIT_FEATURE_COLUMNS
+    + PIT_CHANGE_FEATURE_COLUMNS
+    + PIT_CHANGE_MISSING_FEATURE_COLUMNS
+)
 FACTOR_POOLED_FEATURE_COLUMNS = (
     POOLED_FEATURE_COLUMNS
-    + PIT_ALPHA_FEATURES
-    + PIT_MISSING_FEATURE_COLUMNS
+    + FACTOR_PIT_FEATURE_COLUMNS
+)
+FUNDAMENTAL_MOMENTUM_POOLED_FEATURE_COLUMNS = (
+    POOLED_FEATURE_COLUMNS
+    + FUNDAMENTAL_MOMENTUM_PIT_FEATURE_COLUMNS
 )
 QUALITY_POOLED_FEATURE_COLUMNS = (
     "quality",
@@ -51,6 +70,7 @@ QUALITY_POOLED_FEATURE_COLUMNS = (
     "profitability_missing",
 )
 DEFAULT_NESTED_RIDGE_PENALTIES = (1.0, 5.0, 20.0, 100.0)
+FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS = 300
 HIST_GRADIENT_BOOSTING_SETTINGS = {
     "loss": "absolute_error",
     "learning_rate": 0.05,
@@ -66,11 +86,13 @@ FACTOR_FULL_OBJECTIVES = {
     "factor_residual_nested_ridge",
     "factor_residual_rank_nested_ridge",
     "factor_residual_market_nested_ridge",
+    "factor_residual_fundamental_momentum_nested_ridge",
 }
 NESTED_RIDGE_OBJECTIVES = {
     "factor_residual_nested_ridge",
     "factor_residual_rank_nested_ridge",
     "factor_residual_market_nested_ridge",
+    "factor_residual_fundamental_momentum_nested_ridge",
 }
 RANK_TARGET_OBJECTIVES = {
     "listwise_rank_ridge",
@@ -84,6 +106,7 @@ POOLED_OBJECTIVES = (
     "factor_residual_nested_ridge",
     "factor_residual_rank_nested_ridge",
     "factor_residual_market_nested_ridge",
+    "factor_residual_fundamental_momentum_nested_ridge",
     "factor_residual_quality_ridge",
     "pairwise_ridge",
     "listwise_rank_ridge",
@@ -183,6 +206,62 @@ def pooled_point_in_time_features(
     return features
 
 
+def pooled_point_in_time_fundamental_momentum_features(
+    point_in_time_features,
+    as_of_date,
+    tickers,
+    minimum_lag_days=FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS,
+):
+    """Add PIT-safe approximately year-over-year fundamental changes."""
+    ticker_order = [str(ticker).strip().upper() for ticker in tickers]
+    features = pooled_point_in_time_features(
+        point_in_time_features,
+        as_of_date,
+        ticker_order,
+    )
+    normalized = normalize_point_in_time_features(
+        point_in_time_features
+    )
+    eligible = normalized.loc[
+        normalized["available_date"] <= pd.Timestamp(as_of_date)
+    ]
+    raw_changes = pd.DataFrame(
+        index=ticker_order,
+        columns=PIT_CHANGE_FEATURE_COLUMNS,
+        dtype=float,
+    )
+    for ticker in ticker_order:
+        history = eligible.loc[
+            eligible["ticker"] == ticker
+        ].sort_values("available_date")
+        if history.empty:
+            continue
+        latest = history.iloc[-1]
+        prior = history.loc[
+            history["available_date"]
+            <= latest["available_date"] - pd.Timedelta(
+                days=max(1, int(minimum_lag_days))
+            )
+        ]
+        if prior.empty:
+            continue
+        prior = prior.iloc[-1]
+        for column in PIT_ALPHA_FEATURES:
+            raw_changes.loc[
+                ticker,
+                f"{column}_change_1y",
+            ] = latest[column] - prior[column]
+
+    for column in PIT_CHANGE_FEATURE_COLUMNS:
+        raw = pd.to_numeric(raw_changes[column], errors="coerce")
+        features[column] = _cross_sectional_standardize(raw).fillna(0.0)
+        features[f"{column}_missing"] = raw.isna().astype(float)
+    return features.loc[
+        :,
+        FUNDAMENTAL_MOMENTUM_PIT_FEATURE_COLUMNS,
+    ]
+
+
 def _forward_target(
     prices,
     position,
@@ -232,6 +311,7 @@ def _objective_target_kind(objective):
         "factor_residual_nested_ridge",
         "factor_residual_rank_nested_ridge",
         "factor_residual_market_nested_ridge",
+        "factor_residual_fundamental_momentum_nested_ridge",
         "factor_residual_quality_ridge",
     }:
         return "factor_residual"
@@ -585,7 +665,14 @@ def walk_forward_pooled_ridge(
         )
     )
     target_kind = _objective_target_kind(objective)
-    if objective in FACTOR_FULL_OBJECTIVES:
+    if (
+        objective
+        == "factor_residual_fundamental_momentum_nested_ridge"
+    ):
+        feature_columns = (
+            FUNDAMENTAL_MOMENTUM_POOLED_FEATURE_COLUMNS
+        )
+    elif objective in FACTOR_FULL_OBJECTIVES:
         feature_columns = FACTOR_POOLED_FEATURE_COLUMNS
     elif objective == "factor_residual_quality_ridge":
         feature_columns = QUALITY_POOLED_FEATURE_COLUMNS
@@ -638,10 +725,19 @@ def walk_forward_pooled_ridge(
         if objective in FACTOR_FULL_OBJECTIVES | {
             "factor_residual_quality_ridge",
         }:
-            pit_features = pooled_point_in_time_features(
-                point_in_time_features,
-                prices.index[position],
-                active_tickers,
+            pit_features = (
+                pooled_point_in_time_fundamental_momentum_features(
+                    point_in_time_features,
+                    prices.index[position],
+                    active_tickers,
+                )
+                if objective
+                == "factor_residual_fundamental_momentum_nested_ridge"
+                else pooled_point_in_time_features(
+                    point_in_time_features,
+                    prices.index[position],
+                    active_tickers,
+                )
             )
             features = (
                 pit_features.loc[:, QUALITY_POOLED_FEATURE_COLUMNS]
@@ -1002,6 +1098,19 @@ def walk_forward_pooled_ridge(
                 objective in FACTOR_FULL_OBJECTIVES
                 | {"factor_residual_quality_ridge"}
             ),
+            "fundamental_momentum_policy": (
+                {
+                    "change": (
+                        "latest_minus_prior_filing"
+                    ),
+                    "minimum_lag_days": (
+                        FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS
+                    ),
+                }
+                if objective
+                == "factor_residual_fundamental_momentum_nested_ridge"
+                else None
+            ),
             "separate_target_factors": (
                 target_point_in_time_features is not None
             ),
@@ -1094,6 +1203,10 @@ def compare_pooled_objectives(
         ),
         (
             "factor_residual_rank_nested_ridge",
+            "factor_residual_nested_ridge",
+        ),
+        (
+            "factor_residual_fundamental_momentum_nested_ridge",
             "factor_residual_nested_ridge",
         ),
     )

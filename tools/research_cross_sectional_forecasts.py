@@ -16,6 +16,7 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from cross_sectional_forecast import (  # noqa: E402
+    FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS,
     HIST_GRADIENT_BOOSTING_SETTINGS,
     POOLED_OBJECTIVES,
     compare_pooled_objectives,
@@ -80,6 +81,16 @@ def _research_settings(args):
         settings["relative_hist_gradient_boosting"] = dict(
             HIST_GRADIENT_BOOSTING_SETTINGS
         )
+    if (
+        "factor_residual_fundamental_momentum_nested_ridge"
+        in args.objectives
+    ):
+        settings["fundamental_momentum_policy"] = {
+            "change": "latest_minus_prior_filing",
+            "minimum_lag_days": (
+                FUNDAMENTAL_MOMENTUM_MINIMUM_LAG_DAYS
+            ),
+        }
     return settings
 
 
@@ -657,6 +668,7 @@ def main(argv=None):
             "factor_residual_nested_ridge",
             "factor_residual_rank_nested_ridge",
             "factor_residual_market_nested_ridge",
+            "factor_residual_fundamental_momentum_nested_ridge",
             "factor_residual_quality_ridge",
         }
         if factor_objectives.intersection(args.objectives) and not (
