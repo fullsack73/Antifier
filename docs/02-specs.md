@@ -69,7 +69,7 @@
 - 통화가 다른 자산은 USD 기준 변환 흐름을 유지하고, 원 통화와 표시 통화를 응답에 명확히 포함합니다.
 - 수익률은 log return, simple return, annualized return의 의미가 섞이지 않도록 함수명과 응답 필드명을 분명히 합니다.
 - 거래일 기준 연율화는 기존 `TRADING_DAYS_PER_YEAR = 252` 관례를 따릅니다.
-- 포트폴리오 최적화는 입력 데이터 길이, 결측치, 상장 기간 부족, 무효 weight를 방어해야 합니다.
+- 포트폴리오 최적화는 입력 데이터 길이, 결측치, 상장 기간 부족, 무효 weight를 방어해야 합니다. `min_history` 미만 ticker는 최적화 universe에서 제외하되 성공/오류 응답의 `data_eligibility`에 요청·적격·제외 ticker, 관측 수/커버리지/최초·최종 관측일, 제외 stage/reason을 남겨 universe 축소를 숨기지 않습니다.
 - Black-Litterman, MPT, forecast 기반 expected return은 모델 가정과 fallback 경로를 테스트 또는 문서로 남깁니다.
 - forecast 모델을 optimizer 기본값으로 승격하기 전에는 walk-forward 포트폴리오 backtest에서 equal weight, minimum variance, historical MPT/BL, inverse-vol risk parity, 6-month momentum, low-volatility tilt, market-cap weight(가능한 경우), standalone 12-1 momentum, momentum BL, signal-stack BL baseline과 거래비용/turnover-control 반영 성과를 비교합니다.
 
@@ -80,7 +80,7 @@
 - `GET /api/get-data`: ticker price, regression, future prediction, currency metadata
 - `GET /api/analyze-hedge`: 두 ticker의 pairs/correlation/regression 분석. 단정적인 hedge 성립 여부를 반환하지 않고, 상관계수, p-value, 회귀 alpha/beta/R-squared, 관측치 수, 비단정적 correlation signal을 반환합니다.
 - `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
-- `POST /api/optimize-portfolio`: 포트폴리오 최적화 job 시작. 같은 `request_id` 재요청은 기존 job 상태를 반환합니다. 선택 입력 `rebalance_band`, `max_turnover`, `current_weights`가 함께 있으면 raw optimizer 응답에 `rebalance_controls`, `pre_control_weights`, `controlled_weights`를 포함할 수 있습니다. 선택 입력 `turnover_penalty`는 `current_weights`가 있을 때 optimizer objective에 L1 turnover penalty를 더하고, `min_holding_weight`는 최적화 후 작은 long-only position을 제거한 뒤 재정규화합니다.
+- `POST /api/optimize-portfolio`: 포트폴리오 최적화 job 시작. 같은 `request_id` 재요청은 기존 job 상태를 반환합니다. 완료/데이터 오류 결과의 `data_eligibility`는 `minimum_observations`, 14일 staleness, no-leading-fill alignment 정책과 ticker별 `no_price_data`, `insufficient_history`, `stale_price`, `fx_unavailable`, `invalid_price`, `forecast_output_missing`, `alignment_missing` 사유를 제공합니다. 선택 입력 `rebalance_band`, `max_turnover`, `current_weights`가 함께 있으면 raw optimizer 응답에 `rebalance_controls`, `pre_control_weights`, `controlled_weights`를 포함할 수 있습니다. 선택 입력 `turnover_penalty`는 `current_weights`가 있을 때 optimizer objective에 L1 turnover penalty를 더하고, `min_holding_weight`는 최적화 후 작은 long-only position을 제거한 뒤 재정규화합니다.
 - `GET /api/optimization-jobs/<request_id>`: 최적화 job 상태, 진행률, 완료 결과 또는 오류 조회
 - `POST /api/optimization-jobs/<request_id>/cancel`: 실행 중인 최적화 job 취소 요청
 - `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE. 연결 시 현재 상태를 먼저 전송하고 이후 이벤트를 구독합니다.

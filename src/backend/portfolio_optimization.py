@@ -317,6 +317,161 @@ def _align_price_history_without_lookahead(data):
     return aligned.dropna(axis=1, how="any")
 
 
+def _initialize_data_eligibility(
+    price_data,
+    requested_tickers,
+    min_history,
+    end_date,
+    staleness_days=14,
+):
+    """Create a JSON-safe audit trail before any universe filtering."""
+    data = pd.DataFrame(price_data)
+    requested = list(dict.fromkeys(
+        str(ticker).strip()
+        for ticker in requested_tickers
+        if str(ticker).strip()
+    ))
+    window_rows = int(len(data.index))
+    ticker_diagnostics = {}
+    for ticker in requested:
+        series = (
+            pd.to_numeric(data[ticker], errors="coerce")
+            if ticker in data
+            else pd.Series(dtype=float)
+        )
+        valid = series.replace([np.inf, -np.inf], np.nan).dropna()
+        first = valid.first_valid_index()
+        last = valid.last_valid_index()
+        ticker_diagnostics[ticker] = {
+            "status": "pending",
+            "observation_count": int(len(valid)),
+            "window_observation_count": window_rows,
+            "coverage_rate": (
+                float(len(valid) / window_rows)
+                if window_rows
+                else 0.0
+            ),
+            "first_observation_date": (
+                None
+                if first is None
+                else pd.Timestamp(first).strftime("%Y-%m-%d")
+            ),
+            "last_observation_date": (
+                None
+                if last is None
+                else pd.Timestamp(last).strftime("%Y-%m-%d")
+            ),
+            "drop_reasons": [],
+        }
+    diagnostics = {
+        "policy": {
+            "minimum_observations": int(max(0, min_history)),
+            "staleness_days": int(max(0, staleness_days)),
+            "alignment": (
+                "latest_common_first_observation_then_forward_fill"
+            ),
+            "leading_fill": "forbidden",
+            "base_currency": BASE_CURRENCY,
+        },
+        "requested_tickers": requested,
+        "requested_count": int(len(requested)),
+        "ticker_diagnostics": ticker_diagnostics,
+    }
+    missing = [
+        ticker for ticker in requested
+        if ticker not in data or data[ticker].notna().sum() == 0
+    ]
+    _mark_data_eligibility_drop(
+        diagnostics,
+        missing,
+        reason="no_price_data",
+        stage="fetch",
+    )
+    diagnostics["requested_end_date"] = pd.Timestamp(end_date).strftime(
+        "%Y-%m-%d"
+    )
+    return diagnostics
+
+
+def _mark_data_eligibility_drop(
+    diagnostics,
+    tickers,
+    reason,
+    stage,
+):
+    for ticker in tickers:
+        item = diagnostics["ticker_diagnostics"].setdefault(
+            str(ticker),
+            {
+                "status": "pending",
+                "observation_count": 0,
+                "window_observation_count": 0,
+                "coverage_rate": 0.0,
+                "first_observation_date": None,
+                "last_observation_date": None,
+                "drop_reasons": [],
+            },
+        )
+        event = {"reason": str(reason), "stage": str(stage)}
+        if event not in item["drop_reasons"]:
+            item["drop_reasons"].append(event)
+        item["status"] = "dropped"
+
+
+def _finalize_data_eligibility(diagnostics, aligned_data):
+    aligned = pd.DataFrame(aligned_data)
+    eligible = [
+        ticker
+        for ticker in diagnostics["requested_tickers"]
+        if (
+            ticker in aligned
+            and diagnostics["ticker_diagnostics"][ticker]["status"]
+            != "dropped"
+            and not aligned[ticker]
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+            .empty
+        )
+    ]
+    eligible_set = set(eligible)
+    for ticker, item in diagnostics["ticker_diagnostics"].items():
+        if ticker in eligible_set:
+            item["status"] = "eligible"
+        elif item["status"] == "pending":
+            _mark_data_eligibility_drop(
+                diagnostics,
+                [ticker],
+                reason="alignment_missing",
+                stage="alignment",
+            )
+    dropped = [
+        ticker
+        for ticker in diagnostics["requested_tickers"]
+        if diagnostics["ticker_diagnostics"].get(
+            ticker,
+            {},
+        ).get("status") == "dropped"
+    ]
+    diagnostics.update({
+        "eligible_tickers": eligible,
+        "eligible_count": int(len(eligible)),
+        "dropped_tickers": dropped,
+        "dropped_count": int(len(dropped)),
+        "aligned_observation_count": int(len(aligned)),
+        "aligned_start_date": (
+            None
+            if aligned.empty
+            else pd.Timestamp(aligned.index.min()).strftime("%Y-%m-%d")
+        ),
+        "aligned_end_date": (
+            None
+            if aligned.empty
+            else pd.Timestamp(aligned.index.max()).strftime("%Y-%m-%d")
+        ),
+    })
+    return diagnostics
+
+
 def _latest_market_caps_are_point_in_time_compatible(
     end_date,
     reference_date=None,
@@ -1408,7 +1563,7 @@ def _pipeline_key_func(
         tickers_str = ",".join(sorted(tickers))
     else:
         tickers_str = "None"
-    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v2"
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v3_eligibility"
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
@@ -1436,6 +1591,7 @@ def data_and_forecast_pipeline(
         tickers = get_ticker_group(ticker_group)
     else:
         raise ValueError("Either ticker_group or tickers must be provided.")
+    requested_tickers = list(tickers)
 
     def _weighted_progress(stage_start, stage_end, current, total, message):
         if progress_callback and total > 0:
@@ -1450,11 +1606,21 @@ def data_and_forecast_pipeline(
         
     data = get_stock_data(tickers, start_date, end_date, progress_callback=fetch_callback, cancel_event=cancel_event)
     _raise_if_cancelled(cancel_event)
+    data_eligibility = _initialize_data_eligibility(
+        data,
+        requested_tickers,
+        min_history,
+        end_date,
+    )
     
     if data.empty:
         logger.warning("Could not fetch any valid data.")
         return {
-            "error": "Could not fetch any valid data for the given tickers and date range."
+            "error": "Could not fetch any valid data for the given tickers and date range.",
+            "data_eligibility": _finalize_data_eligibility(
+                data_eligibility,
+                data,
+            ),
         }
 
     currency_metadata = {}
@@ -1467,6 +1633,12 @@ def data_and_forecast_pipeline(
         insufficient_tickers = valid_counts[valid_counts < min_history].index.tolist()
         
         if insufficient_tickers:
+            _mark_data_eligibility_drop(
+                data_eligibility,
+                insufficient_tickers,
+                reason="insufficient_history",
+                stage="minimum_history",
+            )
             logger.info(f"Dropped {len(insufficient_tickers)} tickers due to insufficient history (<{min_history} points): {insufficient_tickers}")
             data = data.drop(columns=insufficient_tickers)
             # Update tickers list to reflect drops (though data columns are the source of truth)
@@ -1476,7 +1648,11 @@ def data_and_forecast_pipeline(
         if data.empty:
             logger.warning(f"All tickers dropped due to insufficient history (<{min_history} points).")
             return {
-                "error": f"All selected tickers have less than {min_history} days of data in the selected period."
+                "error": f"All selected tickers have less than {min_history} days of data in the selected period.",
+                "data_eligibility": _finalize_data_eligibility(
+                    data_eligibility,
+                    data,
+                ),
             }
     # --- END: MINIMUM HISTORY CHECK ---
 
@@ -1515,13 +1691,23 @@ def data_and_forecast_pipeline(
                 stale_tickers.append(ticker)
         
         if stale_tickers:
+            _mark_data_eligibility_drop(
+                data_eligibility,
+                stale_tickers,
+                reason="stale_price",
+                stage="liveness",
+            )
             data = data.drop(columns=stale_tickers)
             logger.info(f"Liveness Check: Dropped {len(stale_tickers)} stale tickers.")
 
         if data.empty:
             logger.error("No valid tickers remaining after Liveness Check.")
             return {
-                "error": f"All tickers were dropped because they stopped trading before {end_date}."
+                "error": f"All tickers were dropped because they stopped trading before {end_date}.",
+                "data_eligibility": _finalize_data_eligibility(
+                    data_eligibility,
+                    data,
+                ),
             }
     except Exception as e:
          logger.error(f"Error during Liveness Check: {e}")
@@ -1529,6 +1715,12 @@ def data_and_forecast_pipeline(
 
     data, currency_metadata, currency_conversion_failures = _convert_price_data_to_usd(data, start_date, end_date)
     if currency_conversion_failures:
+        _mark_data_eligibility_drop(
+            data_eligibility,
+            currency_conversion_failures,
+            reason="fx_unavailable",
+            stage="currency_conversion",
+        )
         logger.warning(f"Dropped tickers with unavailable FX conversion: {currency_conversion_failures}")
         if tickers:
             tickers = [t for t in tickers if t not in currency_conversion_failures]
@@ -1536,12 +1728,27 @@ def data_and_forecast_pipeline(
     if data.empty:
         logger.error("No valid tickers remaining after currency conversion.")
         return {
-            "error": "Could not convert selected non-USD prices into USD."
+            "error": "Could not convert selected non-USD prices into USD.",
+            "data_eligibility": _finalize_data_eligibility(
+                data_eligibility,
+                data,
+            ),
         }
 
     # Sanitization: Replace infinity with NaN to prevent overflow in covariance calculation
     data = data.replace([np.inf, -np.inf], np.nan)
+    pre_sanitization_columns = list(data.columns)
     data = data.dropna(axis=1, how='all')
+    _mark_data_eligibility_drop(
+        data_eligibility,
+        [
+            ticker
+            for ticker in pre_sanitization_columns
+            if ticker not in data.columns
+        ],
+        reason="invalid_price",
+        stage="sanitization",
+    )
     final_tickers = data.columns.tolist()
     
     def ml_callback(current, total, message):
@@ -1647,24 +1854,70 @@ def data_and_forecast_pipeline(
          # Sanitize annualized simple returns before optimization.
          mu_forecast = _normalize_expected_return_series(mu_forecast)
 
-    aligned_data = data[mu_forecast.index]
+    forecast_tickers = [
+        ticker for ticker in data.columns
+        if ticker in mu_forecast.index
+    ]
+    _mark_data_eligibility_drop(
+        data_eligibility,
+        [
+            ticker for ticker in data.columns
+            if ticker not in forecast_tickers
+        ],
+        reason="forecast_output_missing",
+        stage="forecast",
+    )
+    aligned_data = data[forecast_tickers]
 
     # DEBUG: Check aligned data before covariance
     logger.info(f"DEBUG: aligned_data shape: {aligned_data.shape}")
     
     # Align on the latest first-observable date and forward-fill only. Backward
     # fill would copy a future listing price into the pre-listing period.
+    pre_alignment_columns = list(aligned_data.columns)
     aligned_data = _align_price_history_without_lookahead(aligned_data)
+    _mark_data_eligibility_drop(
+        data_eligibility,
+        [
+            ticker
+            for ticker in pre_alignment_columns
+            if ticker not in aligned_data.columns
+        ],
+        reason="alignment_missing",
+        stage="alignment",
+    )
     
     # 3. Check for specific bad values
     if np.isinf(aligned_data.values).any():
          logger.error("DEBUG: aligned_data contains INF values even after cleanup!")
+         pre_inf_columns = list(aligned_data.columns)
          aligned_data = aligned_data.replace([np.inf, -np.inf], np.nan).dropna(axis=1)
+         _mark_data_eligibility_drop(
+             data_eligibility,
+             [
+                 ticker
+                 for ticker in pre_inf_columns
+                 if ticker not in aligned_data.columns
+             ],
+             reason="invalid_price",
+             stage="sanitization",
+         )
 
     # 4. Check for remaining NaNs and drop columns (tickers) that are broken
     if aligned_data.isna().any().any():
         logger.warning("DEBUG: aligned_data contains NaNs. Dropping bad columns.")
+        pre_nan_columns = list(aligned_data.columns)
         aligned_data = aligned_data.dropna(axis=1)
+        _mark_data_eligibility_drop(
+            data_eligibility,
+            [
+                ticker
+                for ticker in pre_nan_columns
+                if ticker not in aligned_data.columns
+            ],
+            reason="alignment_missing",
+            stage="alignment",
+        )
 
     # Ensure no large values in aligned_data (Price data)
     cols_to_drop = []
@@ -1674,6 +1927,12 @@ def data_and_forecast_pipeline(
             cols_to_drop.append(col)
     
     # Re-align everything based on the survived columns
+    _mark_data_eligibility_drop(
+        data_eligibility,
+        cols_to_drop,
+        reason="invalid_price",
+        stage="sanitization",
+    )
     valid_columns = [c for c in aligned_data.columns if c not in cols_to_drop]
     aligned_data = aligned_data[valid_columns]
     
@@ -1690,7 +1949,13 @@ def data_and_forecast_pipeline(
 
     if aligned_data.empty:
         logger.error("All tickers were dropped due to data quality issues.")
-        raise ValueError("No valid data remaining after sanitization.")
+        return {
+            "error": "No valid data remaining after sanitization.",
+            "data_eligibility": _finalize_data_eligibility(
+                data_eligibility,
+                aligned_data,
+            ),
+        }
 
     prior_mu = _calculate_historical_cagr(aligned_data)
     if no_view_tickers:
@@ -1718,7 +1983,11 @@ def data_and_forecast_pipeline(
         "source_currencies": {
             ticker: currency_metadata.get(ticker, {}).get("source_currency", BASE_CURRENCY)
             for ticker in final_tickers
-        }
+        },
+        "data_eligibility": _finalize_data_eligibility(
+            data_eligibility,
+            aligned_data,
+        ),
     }
 
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
@@ -1827,6 +2096,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     latest_prices = pipeline_result.get("latest_prices", {})
     price_currency = pipeline_result.get("price_currency", BASE_CURRENCY)
     source_currencies = pipeline_result.get("source_currencies", {})
+    data_eligibility = pipeline_result.get("data_eligibility")
 
     # 3. Apply Optimization Logic (BL or MPT)
     market_prior_source = "not_applicable"
@@ -2073,6 +2343,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "no_view_tickers": no_view_tickers,
             "failed_forecast_count": len(no_view_tickers),
             "market_prior_source": market_prior_source,
+            "data_eligibility": data_eligibility,
             "optimizer_controls": {
                 "solver_objective": solver_objective,
                 "l2_gamma": float(l2_gamma),

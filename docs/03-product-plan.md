@@ -109,7 +109,6 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 현재 로드맵과 TODO 기준 우선순위:
 
-- 포트폴리오 최적화에서 최소 거래일 수 미만 ticker 처리 정책 확정
 - point-in-time/factor-neutral research data로 cross-sectional alpha v2를 설계하고 새 candidate가 4-case validation을 통과한 경우에만 standard와 locked holdout을 재개
 - Stock Screener custom CSV universe 지원
 - 회귀/forecast 모델 선택 UX와 LSTM 사용 의도 재검토

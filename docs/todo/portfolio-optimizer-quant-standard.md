@@ -23,6 +23,7 @@
 - pooled research에서 signal date별 active universe 적용
 - official Fama/French daily market factors와 FRED DGS3MO historical risk-free panel
 - historical daily risk-free 기반 Sharpe/Sortino와 paired bootstrap
+- 최소 거래일, liveness, FX, sanitization, forecast, alignment 단계별 ticker eligibility 진단
 
 ## 미완료 조건
 
@@ -76,6 +77,7 @@
 - risk engine truth는 개선됐지만 default candidate 승격, validation, untouched holdout 조건은 여전히 미충족입니다.
 - fresh country-ETF research에서 compact nonlinear pooled model도 ridge 대비 paired IC/spread improvement gate를 통과하지 못했습니다.
 - baseline 개별 gate가 candidate 승격으로 오인되지 않도록 candidate-specific paired gate를 promotion 판정에 강제했습니다.
+- 최소 거래일 미달 ticker는 제외하되 성공/오류 응답에 관측 수, 커버리지, 관측일과 단계별 제외 사유를 노출해 조용한 universe 축소를 차단했습니다.
 
 ## 금지
 

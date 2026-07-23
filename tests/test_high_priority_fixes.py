@@ -302,6 +302,10 @@ def test_mpt_uses_confidence_adjusted_expected_returns(monkeypatch):
         "uncertainties": pd.Series({"AAPL": 0.20, "MSFT": 0.20}),
         "tickers": ["AAPL", "MSFT"],
         "latest_prices": {"AAPL": 150.0, "MSFT": 200.0},
+        "data_eligibility": {
+            "eligible_tickers": ["AAPL", "MSFT"],
+            "dropped_tickers": [],
+        },
     }
 
     class FakeEfficientFrontier:
@@ -337,6 +341,7 @@ def test_mpt_uses_confidence_adjusted_expected_returns(monkeypatch):
     assert captured["mu"]["MSFT"] == pytest.approx(0.08)
     assert result["return_confidence"]["AAPL"] == pytest.approx(0.5)
     assert result["adjusted_expected_returns"]["AAPL"] == pytest.approx(0.24)
+    assert result["data_eligibility"] == pipeline_result["data_eligibility"]
 
 
 def test_black_litterman_uses_confidence_adjusted_views_and_omega(monkeypatch):
@@ -432,6 +437,112 @@ def test_price_alignment_does_not_backfill_pre_listing_history():
     assert aligned.index[0] == dates[3]
     assert list(aligned["NEW"]) == [20.0, 21.0, 22.0]
     assert len(aligned) == 3
+
+
+def test_pipeline_reports_per_ticker_data_eligibility(monkeypatch):
+    dates = pd.date_range(end="2024-12-31", periods=60, freq="B")
+    prices = pd.DataFrame(
+        {
+            "AAPL": np.linspace(100.0, 120.0, len(dates)),
+            "MSFT": np.linspace(200.0, 230.0, len(dates)),
+            "NEW": [np.nan] * 40 + list(np.linspace(20.0, 25.0, 20)),
+            "STALE": list(np.linspace(30.0, 35.0, 40)) + [np.nan] * 20,
+        },
+        index=dates,
+    )
+
+    class FakeCovarianceShrinkage:
+        def __init__(self, data):
+            self.data = data
+
+        def ledoit_wolf(self):
+            tickers = list(self.data.columns)
+            return pd.DataFrame(
+                np.eye(len(tickers)),
+                index=tickers,
+                columns=tickers,
+            )
+
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "get_stock_data",
+        lambda *args, **kwargs: prices,
+    )
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "_convert_price_data_to_usd",
+        lambda data, *args: (data, {}, []),
+    )
+    monkeypatch.setattr(
+        portfolio_optimization.risk_models,
+        "CovarianceShrinkage",
+        FakeCovarianceShrinkage,
+    )
+    portfolio_optimization.get_cache().clear()
+
+    result = portfolio_optimization.data_and_forecast_pipeline(
+        start_date="2024-10-01",
+        end_date="2024-12-31",
+        ticker_group=None,
+        tickers=["AAPL", "MSFT", "NEW", "STALE"],
+        forecast_method="HISTORICAL",
+        min_history=30,
+    )
+
+    eligibility = result["data_eligibility"]
+    assert result["tickers"] == ["AAPL", "MSFT"]
+    assert eligibility["eligible_tickers"] == ["AAPL", "MSFT"]
+    assert eligibility["dropped_tickers"] == ["NEW", "STALE"]
+    assert eligibility["eligible_count"] == 2
+    assert eligibility["dropped_count"] == 2
+    assert eligibility["aligned_observation_count"] == 60
+    assert eligibility["ticker_diagnostics"]["AAPL"]["coverage_rate"] == 1.0
+    assert eligibility["ticker_diagnostics"]["NEW"]["drop_reasons"] == [
+        {
+            "reason": "insufficient_history",
+            "stage": "minimum_history",
+        }
+    ]
+    assert eligibility["ticker_diagnostics"]["STALE"]["drop_reasons"] == [
+        {"reason": "stale_price", "stage": "liveness"}
+    ]
+
+
+def test_pipeline_error_reports_missing_and_insufficient_tickers(monkeypatch):
+    dates = pd.date_range(end="2024-12-31", periods=20, freq="B")
+    prices = pd.DataFrame(
+        {"SHORT": np.linspace(10.0, 11.0, len(dates))},
+        index=dates,
+    )
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "get_stock_data",
+        lambda *args, **kwargs: prices,
+    )
+    portfolio_optimization.get_cache().clear()
+
+    result = portfolio_optimization.data_and_forecast_pipeline(
+        start_date="2024-12-01",
+        end_date="2024-12-31",
+        ticker_group=None,
+        tickers=["SHORT", "MISSING"],
+        forecast_method="HISTORICAL",
+        min_history=30,
+    )
+
+    assert "error" in result
+    eligibility = result["data_eligibility"]
+    assert eligibility["eligible_count"] == 0
+    assert eligibility["dropped_tickers"] == ["SHORT", "MISSING"]
+    assert eligibility["ticker_diagnostics"]["SHORT"]["drop_reasons"] == [
+        {
+            "reason": "insufficient_history",
+            "stage": "minimum_history",
+        }
+    ]
+    assert eligibility["ticker_diagnostics"]["MISSING"]["drop_reasons"] == [
+        {"reason": "no_price_data", "stage": "fetch"}
+    ]
 
 
 def test_historical_run_does_not_fetch_latest_market_caps(monkeypatch):
