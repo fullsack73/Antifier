@@ -1,0 +1,27 @@
+{
+  "source": "Kenneth French Data Library daily U.S. factors",
+  "retrieved_at": "2026-07-23T20:40:56.710227+00:00",
+  "official_sources": {
+    "fama_french_daily_factors": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip"
+  },
+  "availability_policy": "daily French one-month Treasury-bill return observed on each factor date",
+  "risk_free_source": "french",
+  "units": {
+    "mkt_rf": "daily decimal return",
+    "smb": "daily decimal return",
+    "hml": "daily decimal return",
+    "rf_daily": "daily decimal return"
+  },
+  "start_date": "1971-04-01",
+  "end_date": "1999-12-31",
+  "row_count": 7266,
+  "factor_file": "/Applications/react/my-app/portfolio-project/data/research/derived/us_market_factors_1971_1999_high_momentum.csv",
+  "factor_file_sha256": "3df2f8d527fa8d4306be7e1b6f39e8d5b3f25a1477951205da8336a0da725923",
+  "raw_files": {
+    "fama_french_daily_factors": {
+      "file": "/Applications/react/my-app/portfolio-project/data/research/raw/market_factors/fama_french_daily_factors.zip",
+      "sha256": "af8aec07d55c98caa15045a77b87455be68cb8847b2ee5bd03bf5c2c8a3f96e2"
+    }
+  },
+  "promotion_safe": true
+}

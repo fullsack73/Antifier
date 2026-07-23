@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-30-industry-high-momentum-research-1973-1999-v1",
+  "role": "research",
+  "evaluation_start": "1973-04-02",
+  "evaluation_end": "1999-12-31",
+  "experiment_namespace": "alpha-v11-high-momentum-industry-portfolios",
+  "objectives": [
+    "high_momentum_rank_tilt"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.1,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "portfolio_bootstrap_block_size": 21,
+    "signal_bootstrap_block_size": 4,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "high_momentum_rank_tilt",
+    "baseline": "momentum_12_1_rank_tilt",
+    "models": [
+      "equal_weight",
+      "risk_parity",
+      "momentum_12_1_rank_tilt",
+      "high_momentum_rank_tilt"
+    ],
+    "signal_policy": {
+      "momentum_lookback": 252,
+      "momentum_skip": 21,
+      "fifty_two_week_high_lookback": 252,
+      "component_weights": {
+        "momentum_12_1": 0.5,
+        "fifty_two_week_high": 0.5
+      },
+      "component_transform": "cross_sectional_rank_minus_one_to_one",
+      "blend_transform": "rerank_fixed_weight_component_average",
+      "allocator": "equal_weight_active_share_rank_tilt",
+      "target_active_share": 0.2
+    }
+  },
+  "universe_manifest_sha256": "96d33ec566e3e9e07e00acb0279590aec7d61c569fb68283bcc1a127437dc970",
+  "price_file_sha256": "b948bca2c9d48bc0adc8be031b1c40f716a3f32ff0dee50b15f21775cfaca525",
+  "factor_file_sha256": "3df2f8d527fa8d4306be7e1b6f39e8d5b3f25a1477951205da8336a0da725923",
+  "auxiliary_files": {
+    "price_provenance": "3509923d8c3d0f4a826fb4b0b1ed3856510227c790beb33101384fc78fb0fa52",
+    "risk_free_provenance": "8f054e387e9a01e62fb00e46d6f43e5a7172fda7dba98b4072bdda2f11412b6b"
+  },
+  "locked": true,
+  "manifest_sha256": "40df0616a6f28a2b3d15233f0c5a314cf2437cec740ac162b393ed1f54104e88"
+}

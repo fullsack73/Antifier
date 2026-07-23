@@ -65,15 +65,20 @@ from portfolio_risk_models import (
 from portfolio_signals import (
     ADAPTIVE_ALPHA_TARGET_ACTIVE_SHARE,
     DUAL_HORIZON_MOMENTUM_COMPONENT_WEIGHTS,
+    FIFTY_TWO_WEEK_HIGH_LOOKBACK_DAYS,
     FORECAST_RANK_VIEW_UNCERTAINTY,
+    HIGH_MOMENTUM_COMPONENT_WEIGHTS,
     MOMENTUM_VIEW_UNCERTAINTY,
     SIGNAL_STACK_VIEW_UNCERTAINTY,
     SIX_MONTH_MOMENTUM_LOOKBACK_DAYS,
     adaptive_cross_sectional_alpha,
     dual_horizon_momentum_weights,
+    fifty_two_week_high_score,
+    high_momentum_scores,
     low_volatility_tilt,
     market_cap_weight,
     momentum_bl_views,
+    momentum_12_1,
     momentum_tilt_weights,
     rank_to_unit_scores,
     risk_parity,
@@ -88,6 +93,7 @@ logger = logging.getLogger(__name__)
 
 TRADING_DAYS_PER_YEAR = 252
 LIGHTWEIGHT_RANK_TARGET_ACTIVE_SHARE = 0.20
+PRICE_SIGNAL_TARGET_ACTIVE_SHARE = 0.20
 DEFAULT_BACKTEST_MODELS = (
     "equal_weight",
     "min_variance",
@@ -132,6 +138,8 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "lightweight_rank_tilt",
     "james_stein_bl",
     "hac_historical_bl",
+    "momentum_12_1_rank_tilt",
+    "high_momentum_rank_tilt",
 )
 
 PROMOTION_BASELINE_MODELS = (
@@ -811,6 +819,58 @@ def _lightweight_rank_tilt_weights(
     }
 
 
+def _price_signal_rank_tilt_weights(
+    train_prices,
+    mode,
+    max_asset_weight,
+):
+    """Construct identical rank tilts for raw and 52-week-high momentum."""
+    tickers = list(train_prices.columns)
+    momentum_scores = momentum_12_1(
+        train_prices
+    ).reindex(tickers)
+    high_scores = fifty_two_week_high_score(
+        train_prices,
+        lookback=FIFTY_TWO_WEEK_HIGH_LOOKBACK_DAYS,
+    ).reindex(tickers)
+    if mode == "momentum_12_1":
+        scores = momentum_scores
+        component_weights = {"momentum_12_1": 1.0}
+    elif mode == "high_momentum":
+        scores = high_momentum_scores(
+            train_prices
+        ).reindex(tickers)
+        component_weights = dict(
+            HIGH_MOMENTUM_COMPONENT_WEIGHTS
+        )
+    else:
+        raise ValueError(f"Unsupported price signal mode: {mode}")
+
+    weights = signal_tilt_weights(
+        scores,
+        max_asset_weight=max_asset_weight,
+        target_active_share=PRICE_SIGNAL_TARGET_ACTIVE_SHARE,
+    )
+    return weights.to_dict(), {
+        "failed_forecast_count": int(scores.isna().sum()),
+        "avg_forecast_confidence": None,
+        "signal_scores": _finite_series_dict(scores),
+        "alpha_component_scores": {
+            "momentum_12_1": _finite_series_dict(
+                momentum_scores
+            ),
+            "fifty_two_week_high": _finite_series_dict(
+                high_scores
+            ),
+        },
+        "alpha_component_weights": component_weights,
+        "construction_method": (
+            "equal_weight_active_share_rank_tilt"
+        ),
+        "target_active_share": PRICE_SIGNAL_TARGET_ACTIVE_SHARE,
+    }
+
+
 def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate,
                    market_caps=None, point_in_time_features=None,
                    previous_target_weights=None):
@@ -1136,6 +1196,20 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             max_asset_weight=max_asset_weight,
         ).to_dict()
         return weights, {"failed_forecast_count": 0, "avg_forecast_confidence": None}
+
+    if model_name == "momentum_12_1_rank_tilt":
+        return _price_signal_rank_tilt_weights(
+            train_prices,
+            "momentum_12_1",
+            max_asset_weight,
+        )
+
+    if model_name == "high_momentum_rank_tilt":
+        return _price_signal_rank_tilt_weights(
+            train_prices,
+            "high_momentum",
+            max_asset_weight,
+        )
 
     if model_name == "adaptive_signal_tilt":
         scores, alpha_diagnostics = adaptive_cross_sectional_alpha(

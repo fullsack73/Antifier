@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: HAC historical uncertainty가 historical BL 대비 risk/turnover gate에서 탈락
+- 현재 상태: 52-week-high blend가 raw momentum 대비 signal/portfolio gate에서 탈락
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -132,6 +132,10 @@
 - Official French 35-industry locked research `2000~2014`에서 median annual standard error는 rebalance 평균 `16.26%`, forecast confidence는 `50.00%→59.65%`였습니다.
 - CAGR `7.75%→8.89%`, Sharpe `0.3872→0.4318`, P(higher Sharpe) `90.20%`로 return 측면은 개선했지만 volatility `19.45%→20.23%`, turnover `2.82%→14.36%`, P(lower volatility) `0%`, Holm p-value `1.0`으로 joint gate에서 탈락했습니다.
 - HAC lag rule, uncertainty scale, BL confidence mapping을 같은 결과에 맞춰 변경하지 않고 validation/holdout을 열지 않습니다.
+- 52-week-high proximity와 12-1 momentum의 fixed 50/50 rank blend를 raw momentum과 identical 20% active-share construction으로 비교했습니다.
+- Official French 30-industry `1973~1999`에서 candidate absolute IC/spread는 양수였지만 raw momentum 대비 paired P(higher IC/spread)는 `18.70%`/`7.90%`, P(higher return/Sharpe)는 `9.70%`/`9.25%`였습니다.
+- 52-week-high blend를 폐기합니다. 같은 split에서 component weight/lookback을 변경하지 않으며 validation/holdout을 열지 않습니다.
+- Raw 12-1 rank tilt baseline은 IC `0.1098`, spread `0.02155`, Sharpe `0.5955`로 absolute gate와 equal/risk-parity guard를 통과했습니다. 이는 즉시 승격 근거가 아니라 fresh universe에서 raw candidate를 사전 등록할 가설 근거로만 사용합니다.
 
 ## 금지
 

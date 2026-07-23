@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
-- 현재 상태: online reversal/momentum adaptation도 research paired gate에서 탈락
+- 현재 상태: 52-week-high blend도 raw momentum보다 낮아 Transformer HPO 근거 없음
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -135,6 +135,8 @@
 - Parameter-free online Hedge는 expert weight를 실제로 `41.18%~79.26%`로 이동했지만 fixed blend보다 IC가 낮고 raw momentum 대비 IC uplift 확률도 `74.40%`에 그쳤습니다.
 - Dynamic weighting 실패도 Transformer capacity 확대 근거가 아니며 target/feature ordering 병목이 계속됩니다.
 - fresh official French 12-industry 1933~1952 split에서 고정 market trend/volatility interaction을 nested ridge에 추가했지만 IC `0.0193→0.0050`, spread `0.00445→0.00286`으로 악화됐습니다.
+- Fresh official French 30-industry `1973~1999`에서 52-week-high/momentum fixed blend도 raw 12-1 momentum보다 IC와 spread가 각각 `0.01135`, `0.00522` 낮았습니다.
+- Candidate가 nonlinear model 없이도 absolute predictiveness는 보였지만 incremental ordering은 실패했습니다. 단순 raw momentum이 engineered blend보다 강한 상태에서 Transformer capacity/HPO를 확대하지 않습니다.
 - candidate의 paired P(higher IC/spread)는 `35.75%`/`40.25%`였고 계산시간은 baseline `32.68s`에서 `50.64s`로 증가했습니다. macro/regime interaction도 Transformer HPO 근거를 만들지 못했습니다.
 - 1953+ validation/holdout을 열지 않고 같은 split에서 lookback, threshold, interaction subset을 재튜닝하지 않습니다.
 

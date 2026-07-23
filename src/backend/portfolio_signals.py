@@ -12,6 +12,11 @@ DUAL_HORIZON_MOMENTUM_COMPONENT_WEIGHTS = {
     "momentum_6m": 0.50,
     "momentum_12_1": 0.50,
 }
+HIGH_MOMENTUM_COMPONENT_WEIGHTS = {
+    "momentum_12_1": 0.50,
+    "fifty_two_week_high": 0.50,
+}
+FIFTY_TWO_WEEK_HIGH_LOOKBACK_DAYS = 252
 SHORT_TERM_REVERSAL_DAYS = 21
 MOMENTUM_VIEW_UNCERTAINTY = 0.20
 SIGNAL_STACK_VIEW_UNCERTAINTY = 0.40
@@ -144,6 +149,42 @@ def momentum_rank(price_data, lookback=MOMENTUM_LOOKBACK_DAYS, skip=MOMENTUM_SKI
 def momentum_12_1(price_data, lookback=MOMENTUM_LOOKBACK_DAYS, skip=MOMENTUM_SKIP_DAYS):
     """Cross-sectional 12-1 momentum rank score in [-1, 1], excluding the latest month."""
     return momentum_rank(price_data, lookback=lookback, skip=skip)
+
+
+def fifty_two_week_high_score(
+    price_data,
+    lookback=FIFTY_TWO_WEEK_HIGH_LOOKBACK_DAYS,
+):
+    """Rank current price proximity to its trailing 52-week high."""
+    data = _clean_price_frame(price_data)
+    lookback = int(lookback)
+    if data.empty or lookback <= 1 or len(data) < lookback:
+        return pd.Series(np.nan, index=data.columns, dtype=float)
+    window = data.iloc[-lookback:]
+    trailing_high = window.max().replace(0.0, np.nan)
+    proximity = (
+        window.iloc[-1] / trailing_high
+    ).replace([np.inf, -np.inf], np.nan)
+    return rank_to_unit_scores(
+        proximity,
+        higher_is_better=True,
+    ).reindex(data.columns)
+
+
+def high_momentum_scores(price_data):
+    """Blend 12-1 momentum and 52-week-high ranks at fixed equal weight."""
+    data = _clean_price_frame(price_data)
+    momentum = momentum_12_1(data)
+    high_score = fifty_two_week_high_score(data)
+    combined = (
+        HIGH_MOMENTUM_COMPONENT_WEIGHTS["momentum_12_1"] * momentum
+        + HIGH_MOMENTUM_COMPONENT_WEIGHTS["fifty_two_week_high"]
+        * high_score
+    )
+    return rank_to_unit_scores(
+        combined.where(momentum.notna() & high_score.notna()),
+        higher_is_better=True,
+    ).reindex(data.columns)
 
 
 def profitability_momentum_scores(

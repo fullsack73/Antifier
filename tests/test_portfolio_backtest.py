@@ -44,6 +44,8 @@ from portfolio_signals import (
     drawdown_score,
     dual_horizon_momentum_weights,
     factor_residual_momentum_scores,
+    fifty_two_week_high_score,
+    high_momentum_scores,
     market_cap_weight,
     momentum_6m,
     momentum_12_1,
@@ -256,6 +258,111 @@ def test_calibrated_lightweight_bl_reports_oos_uncertainty():
     )
     assert bl_diagnostics["signal_scores"] == (
         bl_diagnostics["raw_views"]
+    )
+
+
+def test_fifty_two_week_high_signal_prefers_prices_near_prior_highs():
+    dates = pd.date_range("2020-01-02", periods=252, freq="B")
+    prices = pd.DataFrame(
+        {
+            "NEAR": np.linspace(80.0, 120.0, len(dates)),
+            "FAR": np.concatenate([
+                np.linspace(80.0, 140.0, 126),
+                np.linspace(140.0, 90.0, 126),
+            ]),
+            "MID": np.concatenate([
+                np.linspace(90.0, 110.0, 126),
+                np.linspace(110.0, 100.0, 126),
+            ]),
+        },
+        index=dates,
+    )
+
+    scores = fifty_two_week_high_score(prices)
+
+    assert scores["NEAR"] > scores["MID"] > scores["FAR"]
+
+
+def test_high_momentum_signal_and_weights_ignore_future_rows():
+    prices = _synthetic_factor_research_data(
+        rows=580,
+        ticker_count=8,
+    )[0]
+    cutoff = 503
+    changed = prices.copy()
+    changed.iloc[cutoff + 1:] *= np.linspace(
+        1.0,
+        50.0,
+        len(changed) - cutoff - 1,
+    )[:, None]
+
+    scores = high_momentum_scores(prices.iloc[:cutoff + 1])
+    repeated_scores = high_momentum_scores(
+        changed.iloc[:cutoff + 1]
+    )
+    weights, diagnostics = (
+        portfolio_backtest._price_signal_rank_tilt_weights(
+            prices.iloc[:cutoff + 1],
+            "high_momentum",
+            0.25,
+        )
+    )
+    repeated_weights, repeated_diagnostics = (
+        portfolio_backtest._price_signal_rank_tilt_weights(
+            changed.iloc[:cutoff + 1],
+            "high_momentum",
+            0.25,
+        )
+    )
+
+    pd.testing.assert_series_equal(scores, repeated_scores)
+    assert weights == pytest.approx(repeated_weights)
+    assert diagnostics == repeated_diagnostics
+    assert sum(weights.values()) == pytest.approx(1.0)
+    equal_weight = 1.0 / len(weights)
+    active_share = 0.5 * sum(
+        abs(weight - equal_weight)
+        for weight in weights.values()
+    )
+    assert active_share == pytest.approx(
+        portfolio_backtest.PRICE_SIGNAL_TARGET_ACTIVE_SHARE
+    )
+
+
+def test_high_momentum_models_are_opt_in_with_same_construction():
+    prices = _synthetic_factor_research_data(
+        rows=520,
+        ticker_count=8,
+    )[0]
+    models = (
+        "momentum_12_1_rank_tilt",
+        "high_momentum_rank_tilt",
+    )
+
+    result = portfolio_backtest.run_portfolio_model_backtest(
+        prices,
+        models=models,
+        train_window=504,
+        rebalance_frequency=8,
+        forecast_horizon=8,
+        max_asset_weight=0.25,
+    )
+
+    assert set(models).issubset(
+        portfolio_backtest.SUPPORTED_BACKTEST_MODELS
+    )
+    assert set(models).isdisjoint(
+        portfolio_backtest.DEFAULT_BACKTEST_MODELS
+    )
+    records = result["rebalance_records"]
+    assert records
+    assert all(record["signal_scores"] for record in records)
+    assert all(
+        record["active_share"]
+        == pytest.approx(
+            portfolio_backtest.PRICE_SIGNAL_TARGET_ACTIVE_SHARE
+        )
+        for record in records
     )
 
 
