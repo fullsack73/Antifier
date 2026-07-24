@@ -143,6 +143,13 @@
 - 1953+ validation/holdout을 열지 않고 같은 split에서 lookback, threshold, interaction subset을 재튜닝하지 않습니다.
 - local companyfacts의 opt-in seasonal earnings change는 94.43% coverage를 확보했지만 2018-2019 exploratory Nasdaq에서 candidate IC `-0.0376`, spread `-0.0111`로 momentum보다 악화됐습니다.
 - 두 public S&P 500 membership 원본은 과거 구성 누락이 있었고 Yahoo/Stooq는 delisted 가격 표본을 복구하지 못했습니다. delisted-inclusive PIT 가격·identity 없이는 생존 종목만으로 재평가하지 않습니다.
+- Official French long-term-reversal과 CF/P feature를 새 locked research에서 추가 검증했지만 모두 candidate absolute/paired gate를 동시에 통과하지 못했습니다.
+- CF/P 단독 신호는 absolute 예측력이 있었으나 독립 source에서 momentum 대비 incremental uplift가 95%에 미달했습니다. 이 결과도 Transformer HPO 근거로 사용하지 않습니다.
+- 다음 모델 학습은 licensed/canonical delisted-inclusive PIT price와 issuer identity가 준비된 뒤, cashflow yield 등 PIT feature를 개별주 cross-section에서 재평가하는 순서입니다.
+- `tools/import_crsp_monthly_research_data.py`에 CRSP monthly stock과 CCM/Compustat dated CIK link의 고정 입력 계약을 구현했습니다.
+- Stock export는 `permno,date,ret,dlret,prc,shrout,shrcd,exchcd,ticker`, identity export는 `permno,cik,effective_start,effective_end`가 필수입니다. CIK interval은 모든 포함 security-month를 정확히 하나로 덮어야 합니다.
+- Importer는 delisting return 결합, permanent PERMNO key, historical membership event, point-in-time CIK history와 source/output SHA를 생성합니다. 실제 licensed export가 없으므로 아직 새 모델 학습·HPO를 실행하지 않습니다.
+- 제한 데이터 production에서는 forecast family가 signal gate를 통과하지 못한 상태를 반영해 `MIN_VARIANCE`를 기본값으로 사용합니다. Lightweight/Transformer/BL/MPT는 제거하지 않고 명시적 opt-in으로 유지합니다.
 
 ## 선행조건
 

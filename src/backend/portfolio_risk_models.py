@@ -3,9 +3,17 @@
 import cvxpy as cp
 import numpy as np
 import pandas as pd
-from pypfopt import EfficientCVaR, EfficientFrontier, HRPOpt, risk_models
+from pypfopt import (
+    EfficientCDaR,
+    EfficientCVaR,
+    EfficientFrontier,
+    EfficientSemivariance,
+    HRPOpt,
+    risk_models,
+)
 from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.optimize import minimize
+from scipy.special import ndtr
 from scipy.spatial.distance import squareform
 from sklearn.covariance import LedoitWolf
 from sklearn.metrics import silhouette_score
@@ -977,6 +985,84 @@ def trend_filtered_risk_parity_weights(
         "trailing_returns": {
             str(ticker): float(value)
             for ticker, value in trailing_returns.dropna().items()
+        },
+    }
+
+
+def continuous_trend_risk_parity_weights(
+    price_data,
+    max_asset_weight=0.20,
+    trend_lookback=252,
+):
+    """Scale inverse-volatility sleeves by implied positive-return probability."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    tickers = list(prices.columns)
+    lookback = max(2, int(trend_lookback))
+    if not tickers or len(prices) < lookback:
+        raise ValueError(
+            "Continuous trend risk parity requires at least "
+            f"{lookback} complete price rows"
+        )
+
+    trailing_prices = prices.iloc[-lookback:]
+    trailing_daily_returns = (
+        trailing_prices
+        .pct_change()
+        .replace([np.inf, -np.inf], np.nan)
+        .dropna(how="any")
+    )
+    annual_volatility = (
+        trailing_daily_returns.std(ddof=0)
+        * np.sqrt(TRADING_DAYS_PER_YEAR)
+    ).replace(0.0, np.nan)
+    inverse_volatility = 1.0 / annual_volatility
+    base_weights = cap_and_normalize_weights(
+        inverse_volatility.reindex(tickers).fillna(0.0),
+        max_asset_weight=max_asset_weight,
+    )
+
+    start_prices = trailing_prices.iloc[0].replace(0.0, np.nan)
+    trailing_log_returns = np.log(
+        trailing_prices.iloc[-1] / start_prices
+    ).replace([np.inf, -np.inf], np.nan)
+    signal_to_noise = (
+        trailing_log_returns / annual_volatility
+    ).replace([np.inf, -np.inf], np.nan)
+    positive_return_probability = pd.Series(
+        ndtr(signal_to_noise.fillna(0.0).to_numpy(dtype=float)),
+        index=tickers,
+        dtype=float,
+    ).clip(lower=0.0, upper=1.0)
+    weights = base_weights * positive_return_probability
+    risky_exposure = float(np.clip(weights.sum(), 0.0, 1.0))
+
+    return weights, {
+        "method": (
+            "continuous_12m_positive_return_probability_"
+            "inverse_volatility"
+        ),
+        "allow_cash_reserve": True,
+        "target_risky_exposure": risky_exposure,
+        "target_cash_weight": float(1.0 - risky_exposure),
+        "trend_lookback": int(lookback),
+        "probability_mapping": (
+            "normal_cdf_trailing_log_return_over_annual_volatility"
+        ),
+        "positive_return_probabilities": {
+            str(ticker): float(value)
+            for ticker, value in positive_return_probability.items()
+        },
+        "signal_to_noise": {
+            str(ticker): float(value)
+            for ticker, value in signal_to_noise.dropna().items()
+        },
+        "trailing_log_returns": {
+            str(ticker): float(value)
+            for ticker, value in trailing_log_returns.dropna().items()
+        },
+        "annual_volatility": {
+            str(ticker): float(value)
+            for ticker, value in annual_volatility.dropna().items()
         },
     }
 
@@ -2200,6 +2286,113 @@ def minimum_cvar_weights(
         "in_sample_daily_var": float(-threshold),
         "in_sample_daily_cvar": (
             None if tail.empty else float(-tail.mean())
+        ),
+    }
+
+
+def minimum_semivariance_weights(
+    price_data,
+    max_asset_weight=0.20,
+    benchmark=0.0,
+):
+    """Long-only historical downside-semivariance minimization."""
+    prices = _clean_prices(price_data)
+    returns = _returns(prices).dropna(how="any")
+    tickers = list(prices.columns)
+    benchmark = float(benchmark)
+    cap = max(
+        float(max_asset_weight),
+        1.0 / max(1, len(tickers)) + 1e-9,
+    )
+    try:
+        optimizer = EfficientSemivariance(
+            pd.Series(0.0, index=tickers, dtype=float),
+            returns.reindex(columns=tickers),
+            frequency=TRADING_DAYS_PER_YEAR,
+            benchmark=benchmark,
+            weight_bounds=(0.0, min(1.0, cap)),
+        )
+        optimizer.min_semivariance()
+        raw = pd.Series(
+            optimizer.clean_weights(),
+            dtype=float,
+        ).reindex(tickers).fillna(0.0)
+        success = True
+    except Exception:
+        raw = pd.Series(1.0 / len(tickers), index=tickers, dtype=float)
+        success = False
+    weights = cap_and_normalize_weights(
+        raw,
+        max_asset_weight=max_asset_weight,
+    )
+    portfolio_returns = returns.reindex(columns=tickers).mul(
+        weights,
+        axis=1,
+    ).sum(axis=1)
+    downside = np.minimum(portfolio_returns - benchmark, 0.0)
+    annual_semivariance = float(
+        np.mean(np.square(downside)) * TRADING_DAYS_PER_YEAR
+    )
+    return weights, {
+        "method": "minimum_historical_semivariance",
+        "benchmark_daily_return": benchmark,
+        "optimizer_success": success,
+        "in_sample_annual_semivariance": annual_semivariance,
+        "in_sample_annual_semideviation": float(
+            np.sqrt(max(annual_semivariance, 0.0))
+        ),
+    }
+
+
+def minimum_cdar_weights(
+    price_data,
+    max_asset_weight=0.20,
+    beta=0.95,
+):
+    """Long-only historical conditional-drawdown-at-risk minimization."""
+    prices = _clean_prices(price_data)
+    returns = _returns(prices).dropna(how="any")
+    tickers = list(prices.columns)
+    beta = float(np.clip(beta, 0.80, 0.995))
+    cap = max(
+        float(max_asset_weight),
+        1.0 / max(1, len(tickers)) + 1e-9,
+    )
+    try:
+        optimizer = EfficientCDaR(
+            pd.Series(0.0, index=tickers, dtype=float),
+            returns.reindex(columns=tickers),
+            beta=beta,
+            weight_bounds=(0.0, min(1.0, cap)),
+        )
+        optimizer.min_cdar()
+        raw = pd.Series(
+            optimizer.clean_weights(),
+            dtype=float,
+        ).reindex(tickers).fillna(0.0)
+        success = True
+    except Exception:
+        raw = pd.Series(1.0 / len(tickers), index=tickers, dtype=float)
+        success = False
+    weights = cap_and_normalize_weights(
+        raw,
+        max_asset_weight=max_asset_weight,
+    )
+    portfolio_returns = returns.reindex(columns=tickers).mul(
+        weights,
+        axis=1,
+    ).sum(axis=1)
+    wealth = (1.0 + portfolio_returns).cumprod()
+    drawdowns = (wealth.cummax() - wealth).clip(lower=0.0)
+    threshold = float(drawdowns.quantile(beta))
+    tail = drawdowns.loc[drawdowns >= threshold]
+    return weights, {
+        "method": "minimum_historical_cdar",
+        "beta": beta,
+        "optimizer_success": success,
+        "in_sample_absolute_drawdown_at_risk": threshold,
+        "in_sample_absolute_cdar": (
+            None if tail.empty else float(tail.mean())
         ),
     }
 

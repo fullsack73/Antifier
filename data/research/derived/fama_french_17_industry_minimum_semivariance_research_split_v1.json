@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-17-industry-minimum-semivariance-research-2012-2017-v1",
+  "role": "research",
+  "evaluation_start": "2012-01-03",
+  "evaluation_end": "2017-12-29",
+  "experiment_namespace": "allocator-v1-minimum-semivariance-17-industry-2012-2017",
+  "objectives": [
+    "minimum_semivariance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "minimum_semivariance_policy": {
+      "objective": "historical_downside_semivariance",
+      "downside_order": 2,
+      "benchmark_daily_return": 0.0,
+      "frequency": 252,
+      "constraints": "long_only_capped_fully_invested",
+      "tuned_parameters": "none"
+    }
+  },
+  "universe_manifest_sha256": "fdccd88eb13c030a8990c6ac051c83ce6f584f306506a9f78da47eefbe2f7fa9",
+  "price_file_sha256": "3c251b89df06838662e2125de377922a0ceed2dddca2cc4589d21c7378a6315c",
+  "factor_file_sha256": "cd8213abe10b823047d03460ccddf76ed0e4a91fc025eb679fd9c170599071cc",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "d808378371c7dd239f29470198904543ccfc37585f0845e204e284f272031c08"
+}

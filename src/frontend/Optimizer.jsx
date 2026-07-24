@@ -14,7 +14,7 @@ const Optimizer = () => {
   const { t } = useTranslation()
   const [tickerGroup, setTickerGroup] = useState("SP500")
   const [forecastMethod, setForecastMethod] = useState("LIGHTWEIGHT")
-  const [optimizationMethod, setOptimizationMethod] = useState("BL")
+  const [optimizationMethod, setOptimizationMethod] = useState("MIN_VARIANCE")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [riskFreeRate, setRiskFreeRate] = useState("2")
@@ -631,7 +631,9 @@ const Optimizer = () => {
         portfolio_id: portfolioId,
         persist_result: true,
         load_if_available: true,
-        forecast_method: forecastMethod,
+        forecast_method: optimizationMethod === "MIN_VARIANCE"
+          ? "RISK_ONLY"
+          : forecastMethod,
         optimization_method: optimizationMethod,
         forecast_horizon: Number.parseInt(forecastHorizon),
         min_history: Number.parseInt(minHistory),
@@ -673,15 +675,22 @@ const Optimizer = () => {
     : tickerGroup === "DOW"
       ? "Dow Jones"
       : "S&P 500"
-  const forecastSummary = {
-    LIGHTWEIGHT: t("optimizer.lightweight", "Lightweight Prediction"),
-    ARIMA_TRANSFORMER: t("optimizer.ensemble", "ARIMA + Transformer"),
-    TRANSFORMER: t("optimizer.transformer", "Transformer"),
-  }[forecastMethod]
-  const methodSummary = optimizationMethod === "BL"
-    ? t("optimizer.blShort", "Black-Litterman")
-    : t("optimizer.mptShort", "Classic MPT")
-  const constraintSummary = targetReturn
+  const riskOnlyOptimization = optimizationMethod === "MIN_VARIANCE"
+  const forecastSummary = riskOnlyOptimization
+    ? t("optimizer.riskOnlyForecast", "Not used (risk-only)")
+    : {
+      LIGHTWEIGHT: t("optimizer.lightweight", "Lightweight Prediction"),
+      ARIMA_TRANSFORMER: t("optimizer.ensemble", "ARIMA + Transformer"),
+      TRANSFORMER: t("optimizer.transformer", "Transformer"),
+    }[forecastMethod]
+  const methodSummary = riskOnlyOptimization
+    ? t("optimizer.minVarianceShort", "Minimum Variance")
+    : optimizationMethod === "BL"
+      ? t("optimizer.blShort", "Black-Litterman")
+      : t("optimizer.mptShort", "Classic MPT")
+  const constraintSummary = riskOnlyOptimization
+    ? t("optimizer.minVarianceConstraint", "Global minimum variance")
+    : targetReturn
     ? t("optimizer.targetConstraintSummary", "{{value}}% target return", { value: targetReturn })
     : riskTolerance
       ? t("optimizer.riskConstraintSummary", "{{value}}% risk ceiling", { value: riskTolerance })
@@ -816,12 +825,21 @@ const Optimizer = () => {
                   <select
                     id="forecastMethod"
                     className="optimizer-select"
-                    value={forecastMethod}
+                    value={riskOnlyOptimization ? "RISK_ONLY" : forecastMethod}
                     onChange={(e) => setForecastMethod(e.target.value)}
+                    disabled={riskOnlyOptimization}
                   >
-                    <option value="LIGHTWEIGHT">{t("optimizer.lightweight", "Lightweight Prediction")}</option>
-                    <option value="ARIMA_TRANSFORMER">{t("optimizer.ensemble", "ARIMA + Transformer")}</option>
-                    <option value="TRANSFORMER">{t("optimizer.transformer", "Transformer")}</option>
+                    {riskOnlyOptimization ? (
+                      <option value="RISK_ONLY">
+                        {t("optimizer.riskOnlyForecast", "Not used (risk-only)")}
+                      </option>
+                    ) : (
+                      <>
+                        <option value="LIGHTWEIGHT">{t("optimizer.lightweight", "Lightweight Prediction")}</option>
+                        <option value="ARIMA_TRANSFORMER">{t("optimizer.ensemble", "ARIMA + Transformer")}</option>
+                        <option value="TRANSFORMER">{t("optimizer.transformer", "Transformer")}</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -831,8 +849,18 @@ const Optimizer = () => {
                     id="optimizationMethod"
                     className="optimizer-select"
                     value={optimizationMethod}
-                    onChange={(e) => setOptimizationMethod(e.target.value)}
+                    onChange={(e) => {
+                      const nextMethod = e.target.value
+                      setOptimizationMethod(nextMethod)
+                      if (nextMethod === "MIN_VARIANCE") {
+                        setTargetReturn("")
+                        setRiskTolerance("")
+                      }
+                    }}
                   >
+                    <option value="MIN_VARIANCE">
+                      {t("optimizer.minVariance", "Minimum Variance (Default)")}
+                    </option>
                     <option value="BL">{t("optimizer.bl", "Black-Litterman")}</option>
                     <option value="MPT">{t("optimizer.mpt", "Mean-Variance (MPT)")}</option>
                   </select>
@@ -944,6 +972,7 @@ const Optimizer = () => {
                               if (e.target.value) setRiskTolerance("")
                             }}
                             placeholder={t("optimizer.targetReturnPlaceholder", "e.g., 20")}
+                            disabled={riskOnlyOptimization}
                           />
                         </div>
                       </div>
@@ -961,6 +990,7 @@ const Optimizer = () => {
                               if (e.target.value) setTargetReturn("")
                             }}
                             placeholder={t("optimizer.riskTolerancePlaceholder", "e.g., 15")}
+                            disabled={riskOnlyOptimization}
                           />
                         </div>
                       </div>

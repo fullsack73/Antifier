@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-long-term-reversal-momentum-research-1983-1998-v1",
+  "role": "research",
+  "evaluation_start": "1983-01-31",
+  "evaluation_end": "1998-01-31",
+  "experiment_namespace": "alpha-v20-long-term-reversal-momentum",
+  "objectives": [
+    "long_term_reversal_momentum"
+  ],
+  "settings": {
+    "train_window": 72,
+    "horizon": 12,
+    "rebalance_step": 12,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "primary_candidate": "long_term_reversal_momentum",
+    "diagnostic_signal": "long_term_reversal",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 3,
+    "bootstrap_minimum_probability": 0.95,
+    "long_term_reversal_weight": 0.5,
+    "long_term_reversal_signal": "inverse_official_monthly_prior_13_60_return_quintile",
+    "long_term_reversal_definition": "cumulative_return_from_month_t_minus_60_through_month_t_minus_13",
+    "bucket_order_best_to_worst": [
+      "LoPRIOR",
+      "PRIOR2",
+      "PRIOR3",
+      "PRIOR4",
+      "HiPRIOR"
+    ],
+    "tuned_parameters": "none"
+  },
+  "universe_manifest_sha256": "271bc40259c9bdb51e042ec776c46310d3cacb0c1deded4fbbe330b0e32cb494",
+  "price_file_sha256": "bbe6742c563cf6e2fea6b19e823300d0bf5f9c1727bb5e9247a9a2bd98630d26",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "48368d06a42c8117fd18d19d47bd8bf907721c061911c0e32fc7c4e736cc41ef"
+}

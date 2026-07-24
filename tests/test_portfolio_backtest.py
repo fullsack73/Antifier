@@ -851,6 +851,101 @@ def test_optimizer_maps_no_view_to_prior_only_expected_return(monkeypatch):
     assert result["return_confidence"]["AAA"] == pytest.approx(portfolio_optimization.MIN_FORECAST_CONFIDENCE)
 
 
+def test_optimizer_min_variance_bypasses_forecast_and_uses_ledoit_gmv(
+    monkeypatch,
+):
+    captured = {"forecast_method": None, "min_volatility_calls": 0}
+    tickers = ["AAA", "BBB"]
+    pipeline_result = {
+        "mu": pd.Series({"AAA": 0.10, "BBB": 0.08}),
+        "prior_mu": pd.Series({"AAA": 0.09, "BBB": 0.07}),
+        "S": pd.DataFrame(
+            [[0.04, 0.005], [0.005, 0.03]],
+            index=tickers,
+            columns=tickers,
+        ),
+        "uncertainties": pd.Series({"AAA": 0.20, "BBB": 0.20}),
+        "no_view_tickers": [],
+        "tickers": tickers,
+        "latest_prices": {"AAA": 100.0, "BBB": 80.0},
+    }
+
+    def fake_pipeline(*args, **kwargs):
+        captured["forecast_method"] = args[4]
+        return pipeline_result
+
+    class FakeEfficientFrontier:
+        def __init__(self, mu, covariance, weight_bounds=None):
+            captured["mu"] = mu.copy()
+            captured["covariance"] = covariance.copy()
+
+        def add_objective(self, *args, **kwargs):
+            pass
+
+        def min_volatility(self):
+            captured["min_volatility_calls"] += 1
+
+        def max_sharpe(self, risk_free_rate=0.0):
+            raise AssertionError("Risk-only default must not maximize Sharpe")
+
+        def clean_weights(self):
+            return {"AAA": 0.40, "BBB": 0.60}
+
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "data_and_forecast_pipeline",
+        fake_pipeline,
+    )
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "EfficientFrontier",
+        FakeEfficientFrontier,
+    )
+    monkeypatch.setattr(
+        portfolio_optimization,
+        "get_asset_names",
+        lambda selected: {ticker: ticker for ticker in selected},
+    )
+
+    result = portfolio_optimization.optimize_portfolio(
+        start_date="2024-01-01",
+        end_date="2024-12-31",
+        risk_free_rate=0.02,
+        tickers=tickers,
+        forecast_method="TRANSFORMER",
+        max_asset_weight=1.0,
+    )
+
+    assert captured["forecast_method"] == "RISK_ONLY"
+    assert captured["min_volatility_calls"] == 1
+    assert result["weights"] == pytest.approx(
+        {"AAA": 0.40, "BBB": 0.60}
+    )
+    assert result["optimization_method"] == "MIN_VARIANCE"
+    assert result["forecast_method_requested"] == "TRANSFORMER"
+    assert result["forecast_method_effective"] == "RISK_ONLY"
+    assert result["forecast_bypassed"] is True
+    assert result["expected_return_role"] == (
+        "historical_diagnostic_not_optimization_input"
+    )
+    assert result["optimizer_controls"]["solver_objective"] == (
+        "ledoit_wolf_minimum_variance"
+    )
+
+
+def test_optimizer_min_variance_rejects_return_or_risk_target():
+    result = portfolio_optimization.optimize_portfolio(
+        start_date="2024-01-01",
+        end_date="2024-12-31",
+        risk_free_rate=0.02,
+        tickers=["AAA", "BBB"],
+        optimization_method="MIN_VARIANCE",
+        target_return=0.08,
+    )
+
+    assert "global minimum variance" in result["error"]
+
+
 def test_optimizer_min_holding_output_preserves_asset_cap(monkeypatch):
     tickers = ["AAA", "BBB", "CCC"]
     pipeline_result = {

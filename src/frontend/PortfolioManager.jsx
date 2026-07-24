@@ -26,7 +26,7 @@ const PortfolioManager = () => {
 
   // Configuration mirrored from Optimizer
   const [forecastMethod, setForecastMethod] = useState("LIGHTWEIGHT")
-  const [optimizationMethod, setOptimizationMethod] = useState("BL")
+  const [optimizationMethod, setOptimizationMethod] = useState("MIN_VARIANCE")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [riskFreeRate, setRiskFreeRate] = useState("2")
@@ -61,6 +61,7 @@ const PortfolioManager = () => {
   const [spaceUploadFileName, setSpaceUploadFileName] = useState("")
   const [uploadError, setUploadError] = useState(null)
   const [spaceUploadError, setSpaceUploadError] = useState(null)
+  const riskOnlyOptimization = optimizationMethod === "MIN_VARIANCE"
 
   useEffect(() => {
     try {
@@ -206,7 +207,9 @@ const PortfolioManager = () => {
       setHoldings(savedHoldings.length > 0 ? savedHoldings : DEFAULT_HOLDINGS)
       setCashInjection(String(parsed.cashInjection || ""))
       setForecastMethod(parsed.forecastMethod || "LIGHTWEIGHT")
-      setOptimizationMethod(parsed.optimizationMethod || "BL")
+      setOptimizationMethod(
+        parsed.optimizationMethod || "MIN_VARIANCE"
+      )
       setStartDate(String(parsed.startDate || ""))
       setEndDate(String(parsed.endDate || ""))
       setRiskFreeRate(String(parsed.riskFreeRate || "2"))
@@ -315,7 +318,9 @@ const PortfolioManager = () => {
     start_date: startDate,
     end_date: endDate,
     risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
-    forecast_method: forecastMethod,
+    forecast_method: optimizationMethod === "MIN_VARIANCE"
+      ? "RISK_ONLY"
+      : forecastMethod,
     optimization_method: optimizationMethod,
     forecast_horizon: Number.parseInt(forecastHorizon),
     min_history: Number.parseInt(minHistory),
@@ -402,7 +407,9 @@ const PortfolioManager = () => {
         start_date: startDate,
         end_date: endDate,
         risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
-        forecast_method: forecastMethod,
+        forecast_method: optimizationMethod === "MIN_VARIANCE"
+          ? "RISK_ONLY"
+          : forecastMethod,
         optimization_method: optimizationMethod,
         forecast_horizon: Number.parseInt(forecastHorizon),
         min_history: Number.parseInt(minHistory),
@@ -779,18 +786,27 @@ const PortfolioManager = () => {
             <select
               id="mgr-forecastMethod"
               className="optimizer-select"
-              value={forecastMethod}
+              value={riskOnlyOptimization ? "RISK_ONLY" : forecastMethod}
               onChange={(e) => setForecastMethod(e.target.value)}
+              disabled={riskOnlyOptimization}
             >
-              <option value="LIGHTWEIGHT">
-                {t("optimizer.lightweight", "Lightweight Prediction")}
-              </option>
-              <option value="ARIMA_TRANSFORMER">
-                {t("optimizer.ensemble", "ARIMA + Transformer")}
-              </option>
-              <option value="TRANSFORMER">
-                {t("optimizer.transformer", "Transformer")}
-              </option>
+              {riskOnlyOptimization ? (
+                <option value="RISK_ONLY">
+                  {t("optimizer.riskOnlyForecast", "Not used (risk-only)")}
+                </option>
+              ) : (
+                <>
+                  <option value="LIGHTWEIGHT">
+                    {t("optimizer.lightweight", "Lightweight Prediction")}
+                  </option>
+                  <option value="ARIMA_TRANSFORMER">
+                    {t("optimizer.ensemble", "ARIMA + Transformer")}
+                  </option>
+                  <option value="TRANSFORMER">
+                    {t("optimizer.transformer", "Transformer")}
+                  </option>
+                </>
+              )}
             </select>
           </div>
 
@@ -804,6 +820,9 @@ const PortfolioManager = () => {
               value={optimizationMethod}
               onChange={(e) => setOptimizationMethod(e.target.value)}
             >
+              <option value="MIN_VARIANCE">
+                {t("optimizer.minVariance", "Minimum Variance (Default)")}
+              </option>
               <option value="BL">
                 {t("optimizer.bl", "Black-Litterman")}
               </option>

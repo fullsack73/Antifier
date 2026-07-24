@@ -3,7 +3,7 @@
 - 등록 일시: 2026-07-23 21:21 (KST)
 - 작성자: Codex
 - 에이전트: Codex
-- 현재 상태: exact turnover-constrained minvar도 closest-baseline statistical gate 탈락
+- 현재 상태: 제한 데이터 production 기본은 Ledoit-Wolf GMV로 개선, full quant-standard alpha 승격은 미완료
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -24,6 +24,7 @@
 - official Fama/French daily market factors와 FRED DGS3MO historical risk-free panel
 - historical daily risk-free 기반 Sharpe/Sortino와 paired bootstrap
 - 최소 거래일, liveness, FX, sanitization, forecast, alignment 단계별 ticker eligibility 진단
+- production 기본값을 unvalidated lightweight/BL max-Sharpe에서 risk-only Ledoit-Wolf global minimum variance로 변경
 
 ## 미완료 조건
 
@@ -189,6 +190,24 @@
 - 실패 응답은 필수/누락 ticker와 실제 coverage 비율을 반환합니다. 2개 필수 ticker 중 기존 보유 `OLD` 가격만 누락된 재현은 coverage `50%`, HTTP 400이며 buy/sell list를 생성하지 않습니다.
 - Production portfolio manager에도 backtest와 같은 transaction-cost funding helper를 연결했습니다. 기본 10bps를 실제 gross traded value에 적용하고 기존 현금으로 부족한 비용만 매수 주문에서 축소하며 매도 주문은 숨겨서 늘리지 않습니다.
 - Cash-only fractional, 전량 교체, integer-share 재현 모두 `target holdings + cost + remaining cash = total target value`를 통과했습니다. UI/CSV도 비용 전 optimizer weight 대신 `execution_target_weights`를 표시하며 거래비용과 잔여현금을 노출합니다.
+- Continuous trend-risk-parity는 risk를 크게 낮췄지만 Sharpe가 악화됐고, plain minvar 독립 복제도 closest-baseline Sharpe 유의성을 재현하지 못했습니다.
+- Minimum-semivariance는 두 독립 French industry 표본에서 minvar보다 평균 Sharpe/drawdown을 개선했지만 P(higher Sharpe) `74.40%`/`69.35%`로 95% gate를 통과하지 못했습니다.
+- Official long-term-reversal 50/50 momentum 후보는 baseline 대비 IC가 낮아 탈락했습니다.
+- Official CF/P 50/50 momentum은 momentum 대비 paired uplift는 통과했지만 candidate absolute P(IC>0/spread>0)가 `83.15%`/`75.55%`여서 탈락했습니다.
+- Pure CF/P는 독립 2×3 source에서 absolute bootstrap이 양호했지만 높은 tie rate와 momentum 대비 paired P(higher IC/spread) `80.05%`/`76.60%`로 탈락했습니다.
+- 무료 official portfolio source에서 사전 고정한 새 후보군도 default 승격 근거를 만들지 못했습니다. 다음 alpha 단계는 canonical delisted-inclusive PIT price/issuer identity 없이는 진행하지 않습니다.
+- Historical CDaR `95%`를 직접 최소화하는 long-only capped 후보를 official French 25 B/M×investment `2000~2011` fresh split에서 검증했습니다.
+- Minimum-CDaR volatility/Sharpe/drawdown `20.74%/0.2381/-56.73%`는 minvar `19.70%/0.3525/-55.88%`보다 모두 열위였습니다. P(lower volatility/higher Sharpe)는 `0%`/`1.55%`여서 즉시 폐기하고 beta/cap/window를 재튜닝하지 않습니다.
+- WRDS CRSP monthly stock export와 CCM/Compustat dated CIK link export를 promotion-safe panel로 변환하는 importer를 추가했습니다.
+- 입력은 stock `permno,date,ret,dlret,prc,shrout,shrcd,exchcd,ticker`와 identity `permno,cik,effective_start,effective_end`입니다. Common share `SHRCD 10/11`, primary exchange `EXCHCD 1/2/3`, permanent `PERMNO` key, `(1+RET)(1+DLRET)-1` delisting return, non-overlapping PIT CIK interval을 강제합니다.
+- 출력은 monthly return/wealth-price/market-cap panel, 날짜별 universe events, SEC-compatible security master, SHA provenance입니다. 선행 결측을 채우거나 delisted security를 현재 ticker로 대체하지 않습니다.
+- Importer와 회귀 테스트는 준비됐지만 licensed CRSP/CCM 원본은 로컬에 없습니다. 실제 개별주 alpha research와 새 immutable split은 두 export를 받은 뒤에만 시작합니다.
+- 제한 데이터 목표에서는 검증 실패한 expected-return forecast를 기본값으로 유지하는 위험이 더 크다고 판단해 Ledoit-Wolf global minimum variance를 production 기본으로 승격했습니다.
+- Official French 10-industry `2000~2011` locked research에서 GMV는 이전 lightweight/default 대비 volatility `20.00%→17.34%`, Sharpe `0.1834→0.3254`, drawdown `-51.69%→-43.19%`였고 P(lower volatility/higher Sharpe)는 `100%/97.95%`였습니다.
+- 독립 French 35-industry `2012~2017`에서도 Sharpe 방향은 `1.2177→1.2318`로 양수였지만 paired 확률은 `52.05%`였습니다. 따라서 universal quant-standard 성능 주장이 아니라 제한 데이터에서 더 방어적인 production default 결정입니다.
+- `MIN_VARIANCE`는 forecast를 `RISK_ONLY`로 우회하고 Ledoit-Wolf covariance의 capped global minimum variance만 풉니다. BL/MPT max-Sharpe와 Transformer 계열은 명시적 opt-in으로 유지합니다.
+- 보고서: `docs/reports/260724-1121-01-allocator-feature-gate-audit.md`
+- 제한 데이터 기본값 보고서: `docs/reports/260724-1645-01-minimum-variance-production-default.md`
 
 ## 금지
 

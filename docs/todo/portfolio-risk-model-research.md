@@ -229,3 +229,27 @@
 - Replication에서 rebalance-band cash leak를 발견해 execution control을 수정했습니다.
 - 이미 결과를 본 split을 post-fix promotion에 재사용하지 않습니다.
 - 보고서: `docs/reports/260724-0716-01-rebalance-band-cash-leak.md`
+
+## 2026-07-24 continuous trend and minvar replication
+
+- Standard-normal CDF로 252일 추세 강도를 continuous risky exposure로 바꾸는 parameter-free risk-parity 후보를 fresh French 35-industry `2000~2011`에서 검증했습니다.
+- Volatility `21.05%→11.24%`, drawdown `-56.90%→-20.96%`였지만 Sharpe `0.3041→0.2987`, P(higher Sharpe) `45.35%`로 탈락했습니다.
+- Unchanged plain Ledoit-Wolf minvar를 French 35-industry `2012~2017`에서 독립 복제했습니다. Deterministic gate는 통과했지만 lightweight/risk-parity 대비 P(higher Sharpe)가 `52.05%`/`53.60%`여서 승격하지 않습니다.
+- 같은 split에서 trend mapping, minvar cap/window/covariance를 재튜닝하지 않습니다.
+
+## 2026-07-24 minimum-semivariance research
+
+- Historical downside semivariance, daily benchmark `0`, long-only capped fully-invested 사양을 parameter-free candidate로 고정했습니다.
+- French 17-industry `2012~2017`에서 semivariance Sharpe/drawdown `1.3485/-9.90%`는 minvar `1.3311/-10.01%`보다 평균 개선했지만 P(lower volatility/higher Sharpe)는 `52.25%`/`74.40%`였습니다.
+- Unchanged French 30-industry `2000~2011` 복제에서도 semivariance Sharpe/drawdown `0.4397/-38.10%`는 minvar `0.4297/-38.73%`보다 개선했습니다.
+- 복제 P(lower volatility)는 `100%`였지만 P(higher Sharpe)는 `69.35%`, Holm-adjusted p-value는 `0.3065`였습니다.
+- 두 독립 결과 모두 deterministic 방향은 같지만 95% closest-baseline Sharpe gate를 통과하지 못했습니다. 후보를 폐기하고 추가 튜닝/validation/holdout을 금지합니다.
+- 보고서: `docs/reports/260724-1121-01-allocator-feature-gate-audit.md`
+
+## 2026-07-24 minimum-CDaR research
+
+- Historical CDaR `95%`를 직접 최소화하는 long-only capped fully-invested 후보를 고정했습니다.
+- Official French 25 B/M×investment `2000~2011`에서 candidate volatility/Sharpe/drawdown은 `20.74%/0.2381/-56.73%`, closest minvar baseline은 `19.70%/0.3525/-55.88%`였습니다.
+- Minvar 대비 P(lower volatility/higher Sharpe)는 `0%/1.55%`였습니다. Deterministic/statistical/Holm gate가 모두 실패했습니다.
+- 후보를 폐기하고 beta, cap, window를 같은 split에서 재튜닝하지 않습니다. Validation/holdout을 열지 않습니다.
+- 보고서: `docs/reports/260724-1121-01-allocator-feature-gate-audit.md`

@@ -173,6 +173,9 @@ Backend-only research tool:
   - 여러 candidate를 같은 research split에서 비교하면 Holm-Bonferroni correction으로 family-wise error를 제어합니다.
   - historical price/FX alignment는 forward-fill만 허용하며 미래 첫 관측값을 leading missing period에 backward-fill하지 않습니다.
   - forecast 실패는 임의 양의 expected return을 주입하지 않고 explicit no-view와 maximum uncertainty로 prior-only 처리합니다.
+  - production 기본 최적화는 `MIN_VARIANCE`입니다. Ledoit-Wolf shrinkage covariance로 long-only capped global minimum variance를 풀며 expected-return forecast와 max-Sharpe objective를 사용하지 않습니다.
+  - `MIN_VARIANCE` 요청은 pipeline의 forecast 단계를 `RISK_ONLY` historical diagnostic 경로로 대체합니다. 응답과 저장 metadata에 requested/effective forecast, `forecast_bypassed`, optimization method, solver objective를 기록합니다.
+  - Black-Litterman과 classic MPT max-Sharpe는 명시적 opt-in입니다. `MIN_VARIANCE`에는 의미가 충돌하는 `target_return`과 `risk_tolerance`를 허용하지 않습니다.
   - historical backtest에서 static market cap은 as-of date가 없으면 사용하지 않습니다. historical market-cap 모델은 date-indexed point-in-time snapshot만 사용합니다.
   - max-Sharpe에 L2/turnover penalty가 있으면 변환된 단일 max-Sharpe 문제에 objective를 직접 붙이지 않고 convex efficient-return target grid를 비교합니다.
   - optimizer 응답의 return/risk/Sharpe는 threshold와 turnover control 이후 실제 반환 weight 기준으로 계산합니다.

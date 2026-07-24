@@ -45,7 +45,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
 - 재무제표, 주요 재무 지표, 규칙 기반 투자 신호 대시보드 조회
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
-- MPT/Black-Litterman 포트폴리오 최적화
+- Ledoit-Wolf global minimum-variance 기본 최적화와 opt-in MPT/Black-Litterman
 - forecast method 선택과 expected return 기반 optimization
 - rolling rebalance portfolio backtest CLI와 risk parity, 6-month momentum, low-volatility, market-cap, standalone 12-1 momentum, signal-stack baseline을 포함한 보수적 model promotion gate
 - signal/portfolio construction/execution을 분리하는 alpha diagnostics와 training-window IC calibration 기반 `adaptive_signal_tilt` research candidate
@@ -75,6 +75,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 ### 2. Portfolio Optimization
 
 - 사용자는 ticker group 또는 개별 ticker를 입력할 수 있어야 합니다.
+- 검증된 cross-sectional alpha가 없는 제한 데이터 환경의 production 기본값은 expected-return forecast를 사용하지 않는 Ledoit-Wolf global minimum variance입니다.
+- Black-Litterman과 classic MPT max-Sharpe는 사용자가 명시적으로 선택할 수 있지만 기본값으로 사용하지 않습니다.
 - forecast method는 historical CAGR, lightweight ensemble, ARIMA + Transformer, Transformer 등 기존 선택지를 유지합니다.
 - ARIMA + Transformer와 Transformer가 유효한 forecast를 만들지 못하면 임의의 양의 기대수익률을 넣지 않고 no-view로 처리해 prior-only view가 되도록 합니다.
 - forecast 모델 기본값 변경은 거래비용과 turnover control을 포함한 walk-forward backtest에서 equal weight, minimum variance, historical BL/MPT, inverse-vol risk parity, 6-month momentum, low-volatility tilt, market-cap weight(가능한 경우), standalone 12-1 momentum, momentum BL, signal-stack BL baseline을 이긴 경우에만 검토합니다.

@@ -76,6 +76,80 @@ def test_short_term_reversal_inverts_prior_month_quintiles():
     assert result.tolist() == [5.0, 5.0, 4.0, 3.0, 2.0, 1.0, 1.0]
 
 
+def test_long_term_reversal_inverts_prior_13_60_quintiles():
+    labels = [
+        "SMALL LoPRIOR",
+        "ME2 PRIOR1",
+        "ME3 PRIOR2",
+        "ME3 PRIOR3",
+        "ME4 PRIOR4",
+        "ME5 PRIOR5",
+        "BIG HiPRIOR",
+    ]
+
+    result = RESEARCH.long_term_reversal_buckets(labels)
+
+    assert result.tolist() == [5.0, 5.0, 4.0, 3.0, 2.0, 1.0, 1.0]
+
+
+def test_cashflow_yield_orders_official_deciles():
+    labels = [
+        "Lo 10",
+        "2-Dec",
+        "3-Dec",
+        "4-Dec",
+        "5-Dec",
+        "6-Dec",
+        "7-Dec",
+        "8-Dec",
+        "9-Dec",
+        "Hi 10",
+    ]
+
+    result = RESEARCH.cashflow_yield_buckets(labels)
+
+    assert result.tolist() == list(map(float, range(1, 11)))
+
+
+def test_cashflow_yield_orders_size_by_cfp_terciles():
+    labels = [
+        "SMALL LoCFP",
+        "ME1 CFP2",
+        "SMALL HiCFP",
+        "BIG LoCFP",
+        "ME2 CFP2",
+        "BIG HiCFP",
+    ]
+
+    result = RESEARCH.cashflow_yield_buckets(labels)
+
+    assert result.tolist() == [1.0, 2.0, 3.0, 1.0, 2.0, 3.0]
+
+
+def test_cashflow_yield_only_freezes_zero_momentum_weight():
+    args = type(
+        "Args",
+        (),
+        {
+            "signal_kind": "cashflow_yield_only",
+            "train_window": 72,
+            "horizon": 12,
+            "rebalance_step": 12,
+            "momentum_lookback": 12,
+            "momentum_skip": 1,
+            "bootstrap_samples": 2000,
+            "bootstrap_block_size": 3,
+            "bootstrap_minimum_probability": 0.95,
+        },
+    )()
+
+    settings = RESEARCH._settings(args)
+
+    assert settings["momentum_weight"] == 0.0
+    assert settings["cashflow_yield_weight"] == 1.0
+    assert settings["tuned_parameters"] == "none"
+
+
 def test_accrual_research_uses_only_pre_signal_momentum_prices():
     dates = pd.date_range("2000-01-31", periods=18, freq="ME")
     prices = pd.DataFrame(

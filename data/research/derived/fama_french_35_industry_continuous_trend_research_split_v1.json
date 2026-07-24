@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "split_id": "fama_french_35_industry_continuous_trend_research_v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2011-12-30",
+  "experiment_namespace": "continuous_trend_risk_parity_v1",
+  "objectives": [
+    "continuous_trend_risk_parity"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "continuous_trend_risk_parity_policy": {
+      "trend_measure": "trailing_log_return_over_annualized_realized_volatility",
+      "trend_lookback": 252,
+      "exposure_mapping": "standard_normal_cdf",
+      "inactive_allocation": "historical_risk_free_cash",
+      "base_allocator": "inverse_volatility",
+      "tuned_parameters": "none"
+    }
+  },
+  "universe_manifest_sha256": "5bd009e368f260a90d5d7e8eaba29260e5a0745e45dddcc3226d2aec3c50fbe7",
+  "price_file_sha256": "e48c1f2bcabb84e028fa65b39aebd706c1ebf7aae5dbbcf20d1007a69c7774e5",
+  "factor_file_sha256": "ec66ea8c568369a6dc14cad574a143897af95c0b0cea9bd5fd15e23a9fb70cbc",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "b9484bdc49cbcf646875ba191fc54cf5afe0bf7fefa31efa7681a198a08d64f7"
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-cashflow-yield-momentum-research-1969-1998-v1",
+  "role": "research",
+  "evaluation_start": "1969-01-31",
+  "evaluation_end": "1998-01-31",
+  "experiment_namespace": "alpha-v21-cashflow-yield-momentum",
+  "objectives": [
+    "cashflow_yield_momentum"
+  ],
+  "settings": {
+    "train_window": 72,
+    "horizon": 12,
+    "rebalance_step": 12,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.5,
+    "primary_candidate": "cashflow_yield_momentum",
+    "diagnostic_signal": "cashflow_yield",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 3,
+    "bootstrap_minimum_probability": 0.95,
+    "cashflow_yield_weight": 0.5,
+    "cashflow_yield_signal": "official_annual_cashflow_to_market_equity_decile",
+    "cashflow_yield_definition": "earnings_before_extraordinary_items_plus_depreciation_plus_deferred_taxes_if_available_over_prior_december_market_equity",
+    "bucket_order_worst_to_best": [
+      "Lo 10",
+      "2-Dec",
+      "3-Dec",
+      "4-Dec",
+      "5-Dec",
+      "6-Dec",
+      "7-Dec",
+      "8-Dec",
+      "9-Dec",
+      "Hi 10"
+    ],
+    "tuned_parameters": "none"
+  },
+  "universe_manifest_sha256": "aa83638bc03f53a0db597178575ff8fb75ffa819330cf20c1ffc0b439e4cdb80",
+  "price_file_sha256": "f44bb71765507b99b2edd7d7c4a511578f213821fee49d69c33530d750f147a1",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "5400730a2a6fef1bd0bd23fc9931d062fa3b699a3e072c9de7477e1c566ccf61"
+}

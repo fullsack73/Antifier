@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-35-industry-minvar-replication-2012-2017-v1",
+  "role": "research",
+  "evaluation_start": "2012-01-03",
+  "evaluation_end": "2017-12-29",
+  "experiment_namespace": "allocator-v1-minvar-independent-replication-35-industry-2012-2017",
+  "objectives": [
+    "min_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "min_variance",
+    "statistical_baselines": [
+      "lightweight_bl",
+      "risk_parity"
+    ],
+    "guard_baselines": [
+      "equal_weight",
+      "historical_bl"
+    ],
+    "models": [
+      "equal_weight",
+      "historical_bl",
+      "lightweight_bl",
+      "risk_parity",
+      "min_variance"
+    ],
+    "candidate_policy": {
+      "objective": "long_only_minimum_variance",
+      "covariance": "ledoit_wolf_constant_variance",
+      "expected_returns": "unused",
+      "forecast_model": "unused"
+    },
+    "replication_policy": {
+      "prior_split_id": "fama-french-10-industry-minvar-promotion-research-2000-2011-v1",
+      "candidate_specification": "unchanged",
+      "prior_requirement": "deterministic_gate_passed",
+      "replication_requirement": "deterministic_statistical_and_holm_gates_passed"
+    }
+  },
+  "universe_manifest_sha256": "5bd009e368f260a90d5d7e8eaba29260e5a0745e45dddcc3226d2aec3c50fbe7",
+  "price_file_sha256": "1c945b3bac6490cfe6c167bdf9806bb9acde81cbcdb91edb1a3d3508b392e197",
+  "factor_file_sha256": "cd8213abe10b823047d03460ccddf76ed0e4a91fc025eb679fd9c170599071cc",
+  "auxiliary_files": {
+    "price_provenance": "99fad7d70c55f76b965cff2b459ec7e2b559b2234ef09bce839596c36818e1fd",
+    "risk_free_provenance": "3077f1ac65fab522efa046524e8396f2d8a942f0f7583fc536b0d311bcae88d9",
+    "prior_result": "d0ff351fe190bfade3069948309da373020ee771bf4b7696f87ede58c7da6289"
+  },
+  "locked": true,
+  "manifest_sha256": "5207c576c3c5b1f83fb1b835a5129cedf2a64b1855ac10af35b10675e3e72f55"
+}

@@ -756,6 +756,74 @@ def test_optimize_portfolio_request_id_is_idempotent(monkeypatch):
     assert second.get_json()["status"] == "completed"
 
 
+def test_optimize_portfolio_endpoint_defaults_to_minimum_variance(
+    monkeypatch,
+):
+    _reset_optimization_jobs()
+    app_module.app.config["TESTING"] = True
+    monkeypatch.setattr(
+        app_module,
+        "start_optimization_reaper_once",
+        lambda: None,
+    )
+    calls = []
+
+    def fake_optimize_portfolio(**kwargs):
+        calls.append(kwargs)
+        return {
+            "weights": {"AAPL": 1.0},
+            "return": 0.1,
+            "risk": 0.2,
+            "sharpe_ratio": 0.5,
+            "prices": {"AAPL": 100.0},
+        }
+
+    class ImmediateThread:
+        def __init__(self, target=None, args=(), daemon=None):
+            self.target = target
+            self.args = args
+
+        def start(self):
+            self.target(*self.args)
+
+    monkeypatch.setattr(
+        app_module,
+        "optimize_portfolio",
+        fake_optimize_portfolio,
+    )
+    monkeypatch.setattr(
+        app_module.threading,
+        "Thread",
+        ImmediateThread,
+    )
+    payload = _optimization_payload("minvar-default-job")
+    payload.pop("optimization_method")
+
+    response = app_module.app.test_client().post(
+        "/api/optimize-portfolio",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0]["optimization_method"] == "MIN_VARIANCE"
+
+
+def test_optimize_portfolio_endpoint_rejects_minvar_return_target():
+    _reset_optimization_jobs()
+    payload = _optimization_payload("minvar-target-job")
+    payload["optimization_method"] = "MIN_VARIANCE"
+    payload["target_return"] = 0.10
+
+    response = app_module.app.test_client().post(
+        "/api/optimize-portfolio",
+        json=payload,
+    )
+
+    assert response.status_code == 400
+    assert "unavailable for MIN_VARIANCE" in response.get_json()["error"]
+
+
 def test_optimization_job_status_reflects_latest_progress(monkeypatch):
     _reset_optimization_jobs()
     monkeypatch.setattr(app_module, "start_optimization_reaper_once", lambda: None)

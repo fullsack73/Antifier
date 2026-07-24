@@ -40,6 +40,11 @@ RESIDUAL_VARIANCE_CANDIDATE = "low_residual_variance_momentum"
 RESIDUAL_VARIANCE_DIAGNOSTIC = "low_residual_variance"
 SHORT_TERM_REVERSAL_CANDIDATE = "short_term_reversal_momentum"
 SHORT_TERM_REVERSAL_DIAGNOSTIC = "short_term_reversal"
+LONG_TERM_REVERSAL_CANDIDATE = "long_term_reversal_momentum"
+LONG_TERM_REVERSAL_DIAGNOSTIC = "long_term_reversal"
+CASHFLOW_YIELD_CANDIDATE = "cashflow_yield_momentum"
+CASHFLOW_YIELD_DIAGNOSTIC = "cashflow_yield"
+CASHFLOW_YIELD_ONLY_CANDIDATE = "cashflow_yield_only"
 MOMENTUM_WEIGHT = 0.50
 
 
@@ -135,8 +140,47 @@ def short_term_reversal_buckets(tickers):
     return pd.Series(values, dtype=float)
 
 
+def long_term_reversal_buckets(tickers):
+    """Parse inverse prior 13-to-60-month return quintiles."""
+    return short_term_reversal_buckets(tickers)
+
+
+def cashflow_yield_buckets(tickers):
+    """Parse official cashflow-to-price deciles, higher is better."""
+    values = {}
+    for ticker in tickers:
+        label = str(ticker).strip()
+        if label == "Lo 10":
+            bucket = 1
+        elif label == "Hi 10":
+            bucket = 10
+        elif "LoCFP" in label:
+            bucket = 1
+        elif "HiCFP" in label:
+            bucket = 3
+        elif "CFP2" in label:
+            bucket = 2
+        else:
+            match = re.fullmatch(r"([2-9])-Dec", label)
+            if match is None:
+                raise ValueError(
+                    f"Cannot parse cashflow-yield decile: {label}"
+                )
+            bucket = int(match.group(1))
+        values[label] = float(bucket)
+    return pd.Series(values, dtype=float)
+
+
 def _signal_kind(args):
     return str(getattr(args, "signal_kind", "accrual"))
+
+
+def _momentum_weight(args):
+    return (
+        0.0
+        if _signal_kind(args) == "cashflow_yield_only"
+        else MOMENTUM_WEIGHT
+    )
 
 
 def _candidate_name(args):
@@ -145,6 +189,9 @@ def _candidate_name(args):
         "net_issuance": NET_ISSUANCE_CANDIDATE,
         "residual_variance": RESIDUAL_VARIANCE_CANDIDATE,
         "short_term_reversal": SHORT_TERM_REVERSAL_CANDIDATE,
+        "long_term_reversal": LONG_TERM_REVERSAL_CANDIDATE,
+        "cashflow_yield": CASHFLOW_YIELD_CANDIDATE,
+        "cashflow_yield_only": CASHFLOW_YIELD_ONLY_CANDIDATE,
     }[_signal_kind(args)]
 
 
@@ -154,17 +201,21 @@ def _diagnostic_name(args):
         "net_issuance": NET_ISSUANCE_DIAGNOSTIC,
         "residual_variance": RESIDUAL_VARIANCE_DIAGNOSTIC,
         "short_term_reversal": SHORT_TERM_REVERSAL_DIAGNOSTIC,
+        "long_term_reversal": LONG_TERM_REVERSAL_DIAGNOSTIC,
+        "cashflow_yield": CASHFLOW_YIELD_DIAGNOSTIC,
+        "cashflow_yield_only": CASHFLOW_YIELD_DIAGNOSTIC,
     }[_signal_kind(args)]
 
 
 def _settings(args):
+    momentum_weight = _momentum_weight(args)
     settings = {
         "train_window": int(args.train_window),
         "horizon": int(args.horizon),
         "rebalance_step": int(args.rebalance_step),
         "momentum_lookback": int(args.momentum_lookback),
         "momentum_skip": int(args.momentum_skip),
-        "momentum_weight": MOMENTUM_WEIGHT,
+        "momentum_weight": momentum_weight,
         "primary_candidate": _candidate_name(args),
         "diagnostic_signal": _diagnostic_name(args),
         "baseline": BASELINE,
@@ -229,6 +280,59 @@ def _settings(args):
                 "PRIOR4",
                 "HiPRIOR",
             ],
+        })
+    elif _signal_kind(args) == "long_term_reversal":
+        settings.update({
+            "long_term_reversal_weight": 1.0 - MOMENTUM_WEIGHT,
+            "long_term_reversal_signal": (
+                "inverse_official_monthly_prior_13_60_return_quintile"
+            ),
+            "long_term_reversal_definition": (
+                "cumulative_return_from_month_t_minus_60_through_"
+                "month_t_minus_13"
+            ),
+            "bucket_order_best_to_worst": [
+                "LoPRIOR",
+                "PRIOR2",
+                "PRIOR3",
+                "PRIOR4",
+                "HiPRIOR",
+            ],
+            "tuned_parameters": "none",
+        })
+    elif _signal_kind(args) in {
+        "cashflow_yield",
+        "cashflow_yield_only",
+    }:
+        cashflow_only = _signal_kind(args) == "cashflow_yield_only"
+        settings.update({
+            "cashflow_yield_weight": 1.0 - momentum_weight,
+            "cashflow_yield_signal": (
+                "official_annual_cashflow_to_market_equity_"
+                + ("tercile" if cashflow_only else "decile")
+            ),
+            "cashflow_yield_definition": (
+                "earnings_before_extraordinary_items_plus_depreciation_"
+                "plus_deferred_taxes_if_available_over_prior_december_"
+                "market_equity"
+            ),
+            "bucket_order_worst_to_best": (
+                ["LoCFP", "CFP2", "HiCFP"]
+                if cashflow_only
+                else [
+                    "Lo 10",
+                    "2-Dec",
+                    "3-Dec",
+                    "4-Dec",
+                    "5-Dec",
+                    "6-Dec",
+                    "7-Dec",
+                    "8-Dec",
+                    "9-Dec",
+                    "Hi 10",
+                ]
+            ),
+            "tuned_parameters": "none",
         })
     else:
         settings.update({
@@ -325,6 +429,7 @@ def _evaluation_positions(prices, args):
 
 
 def _run_periods(prices, accrual_quality, args):
+    momentum_weight = _momentum_weight(args)
     candidate_periods = []
     diagnostic_periods = []
     baseline_periods = []
@@ -342,8 +447,8 @@ def _run_periods(prices, accrual_quality, args):
             higher_is_better=True,
         ).reindex(prices.columns)
         combined = rank_to_unit_scores(
-            MOMENTUM_WEIGHT * momentum
-            + (1.0 - MOMENTUM_WEIGHT) * accrual,
+            momentum_weight * momentum
+            + (1.0 - momentum_weight) * accrual,
             higher_is_better=True,
         ).reindex(prices.columns)
         realized = (
@@ -443,12 +548,23 @@ def _write_report(payload, output_path):
     short_term_reversal = (
         payload["feature_kind"] == "short_term_reversal"
     )
+    long_term_reversal = (
+        payload["feature_kind"] == "long_term_reversal"
+    )
+    cashflow_yield = payload["feature_kind"] in {
+        "cashflow_yield",
+        "cashflow_yield_only",
+    }
     if net_issuance:
         title = "# Net-Issuance Quality Momentum Research"
     elif residual_variance:
         title = "# Low Residual-Variance Momentum Research"
     elif short_term_reversal:
         title = "# Short-Term Reversal Momentum Research"
+    elif long_term_reversal:
+        title = "# Long-Term Reversal Momentum Research"
+    elif cashflow_yield:
+        title = "# Cashflow-Yield Momentum Research"
     else:
         title = "# Accrual-Quality Momentum Research"
     lines = [
@@ -458,7 +574,13 @@ def _write_report(payload, output_path):
         f"- Promotion eligible: `{payload['promotion_eligible']}`",
         *(
             []
-            if net_issuance or residual_variance or short_term_reversal
+            if (
+                net_issuance
+                or residual_variance
+                or short_term_reversal
+                or long_term_reversal
+                or cashflow_yield
+            )
             else [
                 (
                     "- Economic benchmark only: French working-capital "
@@ -548,6 +670,9 @@ def main(argv=None):
             "net_issuance",
             "residual_variance",
             "short_term_reversal",
+            "long_term_reversal",
+            "cashflow_yield",
+            "cashflow_yield_only",
         ),
         default="accrual",
     )
@@ -575,6 +700,9 @@ def main(argv=None):
             "net_issuance": net_issuance_quality_buckets,
             "residual_variance": residual_variance_quality_buckets,
             "short_term_reversal": short_term_reversal_buckets,
+            "long_term_reversal": long_term_reversal_buckets,
+            "cashflow_yield": cashflow_yield_buckets,
+            "cashflow_yield_only": cashflow_yield_buckets,
         }[args.signal_kind]
         quality = quality_loader(prices.columns)
         candidate_name = _candidate_name(args)
@@ -664,6 +792,15 @@ def main(argv=None):
                     ),
                     "short_term_reversal": (
                         "portfolio_short_term_reversal_buckets"
+                    ),
+                    "long_term_reversal": (
+                        "portfolio_long_term_reversal_buckets"
+                    ),
+                    "cashflow_yield": (
+                        "portfolio_cashflow_yield_buckets"
+                    ),
+                    "cashflow_yield_only": (
+                        "portfolio_cashflow_yield_buckets"
                     ),
                 }[args.signal_kind]: {
                     ticker: int(value)

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-6-size-cashflow-yield-only-research-2000-2011-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-31",
+  "evaluation_end": "2011-01-31",
+  "experiment_namespace": "alpha-v22-cashflow-yield-only",
+  "objectives": [
+    "cashflow_yield_only"
+  ],
+  "settings": {
+    "train_window": 72,
+    "horizon": 12,
+    "rebalance_step": 12,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.0,
+    "primary_candidate": "cashflow_yield_only",
+    "diagnostic_signal": "cashflow_yield",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 3,
+    "bootstrap_minimum_probability": 0.95,
+    "cashflow_yield_weight": 1.0,
+    "cashflow_yield_signal": "official_annual_cashflow_to_market_equity_tercile",
+    "cashflow_yield_definition": "earnings_before_extraordinary_items_plus_depreciation_plus_deferred_taxes_if_available_over_prior_december_market_equity",
+    "bucket_order_worst_to_best": [
+      "LoCFP",
+      "CFP2",
+      "HiCFP"
+    ],
+    "tuned_parameters": "none"
+  },
+  "universe_manifest_sha256": "4dbb90be73234a11638ccd611648b536323f61ae15c9c03eb13fb52378a6a832",
+  "price_file_sha256": "abe554cd956815a889737e7c0b69275aeea51a4d0bd8178b85ce0f2e1759cdf4",
+  "factor_file_sha256": null,
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "0faccf7e733f2f1a6c37b04a05c2311d7dda35c76259a1de13fb408cda49e70b"
+}

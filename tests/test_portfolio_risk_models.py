@@ -15,6 +15,7 @@ import portfolio_backtest  # noqa: E402
 from portfolio_signals import risk_managed_momentum_weights  # noqa: E402
 from portfolio_risk_models import (  # noqa: E402
     constant_correlation_minimum_variance_weights,
+    continuous_trend_risk_parity_weights,
     covariance_diagnostics,
     covariance_forecast_loss,
     covariance_stress_diagnostics,
@@ -25,7 +26,9 @@ from portfolio_risk_models import (  # noqa: E402
     forecast_ensemble_minimum_variance_weights,
     hierarchical_risk_parity_weights,
     maximum_diversification_weights,
+    minimum_cdar_weights,
     minimum_cvar_weights,
+    minimum_semivariance_weights,
     nested_clustered_minimum_variance_weights,
     nested_blended_minimum_variance_weights,
     online_allocator_ensemble_weights,
@@ -118,7 +121,9 @@ def test_constant_correlation_minvar_reports_shrinkage_target():
         equal_risk_contribution_weights,
         hierarchical_risk_parity_weights,
         regime_minimum_variance_weights,
+        minimum_cdar_weights,
         minimum_cvar_weights,
+        minimum_semivariance_weights,
         nested_clustered_minimum_variance_weights,
         cross_validated_minimum_variance_weights,
         forecast_ensemble_minimum_variance_weights,
@@ -413,6 +418,46 @@ def test_trend_filtered_risk_parity_moves_negative_trends_to_cash():
     assert diagnostics["active_trend_count"] == 3
 
 
+def test_continuous_trend_risk_parity_scales_exposure_without_binary_switch():
+    dates = pd.date_range("2020-01-02", periods=300, freq="B")
+    common_noise = np.random.default_rng(19).normal(
+        0.0,
+        0.01,
+        len(dates),
+    )
+    daily_drifts = {
+        "STRONG_UP": 0.0020,
+        "WEAK_UP": 0.0003,
+        "FLAT": 0.0,
+        "WEAK_DOWN": -0.0003,
+        "STRONG_DOWN": -0.0020,
+    }
+    prices = pd.DataFrame({
+        ticker: 100.0 * np.exp(np.cumsum(common_noise + drift))
+        for ticker, drift in daily_drifts.items()
+    }, index=dates)
+
+    weights, diagnostics = continuous_trend_risk_parity_weights(
+        prices,
+        max_asset_weight=0.40,
+    )
+    probabilities = diagnostics["positive_return_probabilities"]
+
+    assert 0.0 < weights.sum() < 1.0
+    assert probabilities["STRONG_UP"] > probabilities["WEAK_UP"]
+    assert probabilities["WEAK_UP"] > probabilities["WEAK_DOWN"]
+    assert probabilities["WEAK_DOWN"] > probabilities["STRONG_DOWN"]
+    assert 0.0 < probabilities["STRONG_DOWN"] < 0.5
+    assert 0.5 < probabilities["STRONG_UP"] < 1.0
+    assert diagnostics["target_risky_exposure"] == pytest.approx(
+        weights.sum()
+    )
+    assert diagnostics["target_cash_weight"] == pytest.approx(
+        1.0 - weights.sum()
+    )
+    assert diagnostics["allow_cash_reserve"] is True
+
+
 def test_backtest_cash_path_accrues_point_in_time_risk_free_returns():
     dates = pd.date_range("2020-01-01", periods=4, freq="B")
     risk_free = pd.Series(
@@ -468,12 +513,15 @@ def test_backtest_runs_robust_risk_allocator_family():
             "hierarchical_risk_parity",
             "regime_minimum_variance",
             "minimum_cvar",
+            "minimum_cdar",
+            "minimum_semivariance",
             "forecast_ensemble_min_variance",
             "stability_regularized_min_variance",
             "nested_blended_min_variance",
             "resampled_min_variance",
             "scenario_robust_min_variance",
             "volatility_targeted_min_variance",
+            "continuous_trend_risk_parity",
             "random_matrix_minimum_variance",
             "maximum_diversification",
             "online_allocator_ensemble",
@@ -490,12 +538,15 @@ def test_backtest_runs_robust_risk_allocator_family():
         "hierarchical_risk_parity",
         "regime_minimum_variance",
         "minimum_cvar",
+        "minimum_cdar",
+        "minimum_semivariance",
         "forecast_ensemble_min_variance",
         "stability_regularized_min_variance",
         "nested_blended_min_variance",
         "resampled_min_variance",
         "scenario_robust_min_variance",
         "volatility_targeted_min_variance",
+        "continuous_trend_risk_parity",
         "random_matrix_minimum_variance",
         "maximum_diversification",
         "online_allocator_ensemble",

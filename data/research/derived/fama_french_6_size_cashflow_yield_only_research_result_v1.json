@@ -1,0 +1,1045 @@
+{
+  "research_split": "fama-french-6-size-cashflow-yield-only-research-2000-2011-v1",
+  "experiment_namespace": "alpha-v22-cashflow-yield-only",
+  "feature_kind": "cashflow_yield_only",
+  "split": {
+    "schema_version": 1,
+    "split_id": "fama-french-6-size-cashflow-yield-only-research-2000-2011-v1",
+    "role": "research",
+    "evaluation_start": "2000-01-31",
+    "evaluation_end": "2011-01-31",
+    "experiment_namespace": "alpha-v22-cashflow-yield-only",
+    "objectives": [
+      "cashflow_yield_only"
+    ],
+    "settings": {
+      "train_window": 72,
+      "horizon": 12,
+      "rebalance_step": 12,
+      "momentum_lookback": 12,
+      "momentum_skip": 1,
+      "momentum_weight": 0.0,
+      "primary_candidate": "cashflow_yield_only",
+      "diagnostic_signal": "cashflow_yield",
+      "baseline": "momentum_12_1",
+      "bootstrap_samples": 2000,
+      "bootstrap_block_size": 3,
+      "bootstrap_minimum_probability": 0.95,
+      "cashflow_yield_weight": 1.0,
+      "cashflow_yield_signal": "official_annual_cashflow_to_market_equity_tercile",
+      "cashflow_yield_definition": "earnings_before_extraordinary_items_plus_depreciation_plus_deferred_taxes_if_available_over_prior_december_market_equity",
+      "bucket_order_worst_to_best": [
+        "LoCFP",
+        "CFP2",
+        "HiCFP"
+      ],
+      "tuned_parameters": "none"
+    },
+    "universe_manifest_sha256": "4dbb90be73234a11638ccd611648b536323f61ae15c9c03eb13fb52378a6a832",
+    "price_file_sha256": "abe554cd956815a889737e7c0b69275aeea51a4d0bd8178b85ce0f2e1759cdf4",
+    "factor_file_sha256": null,
+    "auxiliary_files": {},
+    "locked": true,
+    "manifest_sha256": "0faccf7e733f2f1a6c37b04a05c2311d7dda35c76259a1de13fb408cda49e70b",
+    "promotion_safe": true,
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_6_size_cashflow_yield_only_research_split_v1.json",
+    "file_sha256": "b77c79a2ab2c69f5c4525949970048bee97e6a3eb15d8c53a0cfc7faec5468c9"
+  },
+  "data": {
+    "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_6_size_cashflow_yield_prices_1994_2012.csv",
+    "price_provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_6_size_cashflow_yield_prices_1994_2012.provenance.json",
+    "row_count": 228,
+    "ticker_count": 6,
+    "portfolio_cashflow_yield_buckets": {
+      "SMALL LoCFP": 1,
+      "ME1 CFP2": 2,
+      "SMALL HiCFP": 3,
+      "BIG LoCFP": 1,
+      "ME2 CFP2": 2,
+      "BIG HiCFP": 3
+    }
+  },
+  "settings": {
+    "train_window": 72,
+    "horizon": 12,
+    "rebalance_step": 12,
+    "momentum_lookback": 12,
+    "momentum_skip": 1,
+    "momentum_weight": 0.0,
+    "primary_candidate": "cashflow_yield_only",
+    "diagnostic_signal": "cashflow_yield",
+    "baseline": "momentum_12_1",
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 3,
+    "bootstrap_minimum_probability": 0.95,
+    "cashflow_yield_weight": 1.0,
+    "cashflow_yield_signal": "official_annual_cashflow_to_market_equity_tercile",
+    "cashflow_yield_definition": "earnings_before_extraordinary_items_plus_depreciation_plus_deferred_taxes_if_available_over_prior_december_market_equity",
+    "bucket_order_worst_to_best": [
+      "LoCFP",
+      "CFP2",
+      "HiCFP"
+    ],
+    "tuned_parameters": "none"
+  },
+  "candidate": {
+    "name": "cashflow_yield_only",
+    "rank_diagnostics": {
+      "period_count": 12,
+      "mean_rank_ic": 0.3286878675669583,
+      "positive_rank_ic_rate": 0.6666666666666666,
+      "mean_top_bottom_spread": 0.06808353943801337,
+      "mean_coverage_rate": 1.0
+    },
+    "distribution_diagnostics": {
+      "prediction_count": 72,
+      "valid_count": 72,
+      "coverage_rate": 1.0,
+      "active_universe_coverage_rate": 1.0,
+      "boundary_saturation_rate": null,
+      "tie_rate": 0.5
+    },
+    "bootstrap": {
+      "status": "ok",
+      "observation_count": 12,
+      "block_size": 3,
+      "samples": 2000,
+      "seed": 42,
+      "observed": {
+        "mean_rank_ic": 0.3286878675669583,
+        "mean_top_bottom_spread": 0.06808353943801337
+      },
+      "probability": {
+        "positive_mean_rank_ic": 1.0,
+        "positive_mean_top_bottom_spread": 1.0
+      },
+      "interval": {
+        "mean_rank_ic": {
+          "lower_95": 0.12923409338428132,
+          "median": 0.3286878675669583,
+          "upper_95": 0.5478131126115972
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": 0.03023655516833686,
+          "median": 0.06619383678976729,
+          "upper_95": 0.11554835315117551
+        }
+      }
+    },
+    "gate": {
+      "status": "rejected",
+      "reasons": [
+        "Forecast tie rate is too high."
+      ],
+      "minimum_bootstrap_probability": 0.95
+    },
+    "periods": [
+      {
+        "period_id": "2000-01-31",
+        "as_of_date": "2000-01-31",
+        "forward_end_date": "2001-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.029436500656055964,
+          "ME1 CFP2": 0.3476966752998851,
+          "SMALL HiCFP": 0.2517524721477231,
+          "BIG LoCFP": -0.012486729045269374,
+          "ME2 CFP2": 0.1829579398083141,
+          "BIG HiCFP": 0.17487494067818865
+        }
+      },
+      {
+        "period_id": "2001-01-31",
+        "as_of_date": "2001-01-31",
+        "forward_end_date": "2002-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.010710982887497167,
+          "ME1 CFP2": 0.154453719342192,
+          "SMALL HiCFP": 0.20204028020183373,
+          "BIG LoCFP": -0.18106639283990655,
+          "ME2 CFP2": -0.0135534125233574,
+          "BIG HiCFP": -0.00390691658278608
+        }
+      },
+      {
+        "period_id": "2002-01-31",
+        "as_of_date": "2002-01-31",
+        "forward_end_date": "2003-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.2219203129459022,
+          "ME1 CFP2": -0.06981878695381605,
+          "SMALL HiCFP": -0.09136150310027258,
+          "BIG LoCFP": -0.23144823012364069,
+          "ME2 CFP2": -0.19051589432088045,
+          "BIG HiCFP": -0.2244175157749405
+        }
+      },
+      {
+        "period_id": "2003-01-31",
+        "as_of_date": "2003-01-31",
+        "forward_end_date": "2004-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.5909816232638763,
+          "ME1 CFP2": 0.47638127732415225,
+          "SMALL HiCFP": 0.5525991084318964,
+          "BIG LoCFP": 0.3415620198195246,
+          "ME2 CFP2": 0.34149136694433513,
+          "BIG HiCFP": 0.3311537940382985
+        }
+      },
+      {
+        "period_id": "2004-01-31",
+        "as_of_date": "2004-01-31",
+        "forward_end_date": "2005-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.06337265507915824,
+          "ME1 CFP2": 0.19225147267999465,
+          "SMALL HiCFP": 0.23520453447178546,
+          "BIG LoCFP": 0.01960451949537778,
+          "ME2 CFP2": 0.08404873740060936,
+          "BIG HiCFP": 0.1583692703997186
+        }
+      },
+      {
+        "period_id": "2005-01-31",
+        "as_of_date": "2005-01-31",
+        "forward_end_date": "2006-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.1749654614834968,
+          "ME1 CFP2": 0.19181887833644784,
+          "SMALL HiCFP": 0.24260554324877304,
+          "BIG LoCFP": 0.1051791385443499,
+          "ME2 CFP2": 0.07843114535728324,
+          "BIG HiCFP": 0.23739694589078497
+        }
+      },
+      {
+        "period_id": "2006-01-31",
+        "as_of_date": "2006-01-31",
+        "forward_end_date": "2007-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.08252254487426369,
+          "ME1 CFP2": 0.12688727938932254,
+          "SMALL HiCFP": 0.15886393122561882,
+          "BIG LoCFP": 0.11473719005395178,
+          "ME2 CFP2": 0.16120243105904164,
+          "BIG HiCFP": 0.15443573669964406
+        }
+      },
+      {
+        "period_id": "2007-01-31",
+        "as_of_date": "2007-01-31",
+        "forward_end_date": "2008-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.05300156323650185,
+          "ME1 CFP2": -0.10267594054784934,
+          "SMALL HiCFP": -0.14090296257377477,
+          "BIG LoCFP": -0.008231292968968296,
+          "ME2 CFP2": -0.036657607668629355,
+          "BIG HiCFP": 0.032821777422448406
+        }
+      },
+      {
+        "period_id": "2008-01-31",
+        "as_of_date": "2008-01-31",
+        "forward_end_date": "2009-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.3871237330507954,
+          "ME1 CFP2": -0.332948165820503,
+          "SMALL HiCFP": -0.3063439065369882,
+          "BIG LoCFP": -0.3497926473767816,
+          "ME2 CFP2": -0.413733586349053,
+          "BIG HiCFP": -0.37219276429479664
+        }
+      },
+      {
+        "period_id": "2009-01-31",
+        "as_of_date": "2009-01-31",
+        "forward_end_date": "2010-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.4052339881021776,
+          "ME1 CFP2": 0.36186854354412046,
+          "SMALL HiCFP": 0.5442558836683398,
+          "BIG LoCFP": 0.3500364717248867,
+          "ME2 CFP2": 0.3038700227036475,
+          "BIG HiCFP": 0.3391447257932585
+        }
+      },
+      {
+        "period_id": "2010-01-31",
+        "as_of_date": "2010-01-31",
+        "forward_end_date": "2011-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.3291801212772496,
+          "ME1 CFP2": 0.30764558057606317,
+          "SMALL HiCFP": 0.29163371457072884,
+          "BIG LoCFP": 0.2643063890596997,
+          "ME2 CFP2": 0.19452776560287544,
+          "BIG HiCFP": 0.22669734739455993
+        }
+      },
+      {
+        "period_id": "2011-01-31",
+        "as_of_date": "2011-01-31",
+        "forward_end_date": "2012-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.004896843927927552,
+          "ME1 CFP2": 0.06844928215228108,
+          "SMALL HiCFP": 0.04431321353784079,
+          "BIG LoCFP": 0.03956593954632681,
+          "ME2 CFP2": 0.06808541222049103,
+          "BIG HiCFP": 0.05476681798749805
+        }
+      }
+    ]
+  },
+  "diagnostic": {
+    "name": "cashflow_yield",
+    "rank_diagnostics": {
+      "period_count": 12,
+      "mean_rank_ic": 0.3286878675669583,
+      "positive_rank_ic_rate": 0.6666666666666666,
+      "mean_top_bottom_spread": 0.06808353943801337,
+      "mean_coverage_rate": 1.0
+    },
+    "distribution_diagnostics": {
+      "prediction_count": 72,
+      "valid_count": 72,
+      "coverage_rate": 1.0,
+      "active_universe_coverage_rate": 1.0,
+      "boundary_saturation_rate": null,
+      "tie_rate": 0.5
+    },
+    "bootstrap": {
+      "status": "ok",
+      "observation_count": 12,
+      "block_size": 3,
+      "samples": 2000,
+      "seed": 43,
+      "observed": {
+        "mean_rank_ic": 0.3286878675669583,
+        "mean_top_bottom_spread": 0.06808353943801337
+      },
+      "probability": {
+        "positive_mean_rank_ic": 1.0,
+        "positive_mean_top_bottom_spread": 1.0
+      },
+      "interval": {
+        "mean_rank_ic": {
+          "lower_95": 0.12923409338428132,
+          "median": 0.3286878675669583,
+          "upper_95": 0.5577733510227171
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": 0.026152390984166496,
+          "median": 0.06790259555097362,
+          "upper_95": 0.11696593215900364
+        }
+      }
+    },
+    "gate": {
+      "status": "rejected",
+      "reasons": [
+        "Forecast tie rate is too high."
+      ],
+      "minimum_bootstrap_probability": 0.95
+    },
+    "periods": [
+      {
+        "period_id": "2000-01-31",
+        "as_of_date": "2000-01-31",
+        "forward_end_date": "2001-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.029436500656055964,
+          "ME1 CFP2": 0.3476966752998851,
+          "SMALL HiCFP": 0.2517524721477231,
+          "BIG LoCFP": -0.012486729045269374,
+          "ME2 CFP2": 0.1829579398083141,
+          "BIG HiCFP": 0.17487494067818865
+        }
+      },
+      {
+        "period_id": "2001-01-31",
+        "as_of_date": "2001-01-31",
+        "forward_end_date": "2002-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.010710982887497167,
+          "ME1 CFP2": 0.154453719342192,
+          "SMALL HiCFP": 0.20204028020183373,
+          "BIG LoCFP": -0.18106639283990655,
+          "ME2 CFP2": -0.0135534125233574,
+          "BIG HiCFP": -0.00390691658278608
+        }
+      },
+      {
+        "period_id": "2002-01-31",
+        "as_of_date": "2002-01-31",
+        "forward_end_date": "2003-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.2219203129459022,
+          "ME1 CFP2": -0.06981878695381605,
+          "SMALL HiCFP": -0.09136150310027258,
+          "BIG LoCFP": -0.23144823012364069,
+          "ME2 CFP2": -0.19051589432088045,
+          "BIG HiCFP": -0.2244175157749405
+        }
+      },
+      {
+        "period_id": "2003-01-31",
+        "as_of_date": "2003-01-31",
+        "forward_end_date": "2004-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.5909816232638763,
+          "ME1 CFP2": 0.47638127732415225,
+          "SMALL HiCFP": 0.5525991084318964,
+          "BIG LoCFP": 0.3415620198195246,
+          "ME2 CFP2": 0.34149136694433513,
+          "BIG HiCFP": 0.3311537940382985
+        }
+      },
+      {
+        "period_id": "2004-01-31",
+        "as_of_date": "2004-01-31",
+        "forward_end_date": "2005-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.06337265507915824,
+          "ME1 CFP2": 0.19225147267999465,
+          "SMALL HiCFP": 0.23520453447178546,
+          "BIG LoCFP": 0.01960451949537778,
+          "ME2 CFP2": 0.08404873740060936,
+          "BIG HiCFP": 0.1583692703997186
+        }
+      },
+      {
+        "period_id": "2005-01-31",
+        "as_of_date": "2005-01-31",
+        "forward_end_date": "2006-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.1749654614834968,
+          "ME1 CFP2": 0.19181887833644784,
+          "SMALL HiCFP": 0.24260554324877304,
+          "BIG LoCFP": 0.1051791385443499,
+          "ME2 CFP2": 0.07843114535728324,
+          "BIG HiCFP": 0.23739694589078497
+        }
+      },
+      {
+        "period_id": "2006-01-31",
+        "as_of_date": "2006-01-31",
+        "forward_end_date": "2007-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.08252254487426369,
+          "ME1 CFP2": 0.12688727938932254,
+          "SMALL HiCFP": 0.15886393122561882,
+          "BIG LoCFP": 0.11473719005395178,
+          "ME2 CFP2": 0.16120243105904164,
+          "BIG HiCFP": 0.15443573669964406
+        }
+      },
+      {
+        "period_id": "2007-01-31",
+        "as_of_date": "2007-01-31",
+        "forward_end_date": "2008-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.05300156323650185,
+          "ME1 CFP2": -0.10267594054784934,
+          "SMALL HiCFP": -0.14090296257377477,
+          "BIG LoCFP": -0.008231292968968296,
+          "ME2 CFP2": -0.036657607668629355,
+          "BIG HiCFP": 0.032821777422448406
+        }
+      },
+      {
+        "period_id": "2008-01-31",
+        "as_of_date": "2008-01-31",
+        "forward_end_date": "2009-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.3871237330507954,
+          "ME1 CFP2": -0.332948165820503,
+          "SMALL HiCFP": -0.3063439065369882,
+          "BIG LoCFP": -0.3497926473767816,
+          "ME2 CFP2": -0.413733586349053,
+          "BIG HiCFP": -0.37219276429479664
+        }
+      },
+      {
+        "period_id": "2009-01-31",
+        "as_of_date": "2009-01-31",
+        "forward_end_date": "2010-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.4052339881021776,
+          "ME1 CFP2": 0.36186854354412046,
+          "SMALL HiCFP": 0.5442558836683398,
+          "BIG LoCFP": 0.3500364717248867,
+          "ME2 CFP2": 0.3038700227036475,
+          "BIG HiCFP": 0.3391447257932585
+        }
+      },
+      {
+        "period_id": "2010-01-31",
+        "as_of_date": "2010-01-31",
+        "forward_end_date": "2011-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.3291801212772496,
+          "ME1 CFP2": 0.30764558057606317,
+          "SMALL HiCFP": 0.29163371457072884,
+          "BIG LoCFP": 0.2643063890596997,
+          "ME2 CFP2": 0.19452776560287544,
+          "BIG HiCFP": 0.22669734739455993
+        }
+      },
+      {
+        "period_id": "2011-01-31",
+        "as_of_date": "2011-01-31",
+        "forward_end_date": "2012-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.0,
+          "SMALL HiCFP": 0.9999999999999997,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": 0.0,
+          "BIG HiCFP": 0.9999999999999997
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.004896843927927552,
+          "ME1 CFP2": 0.06844928215228108,
+          "SMALL HiCFP": 0.04431321353784079,
+          "BIG LoCFP": 0.03956593954632681,
+          "ME2 CFP2": 0.06808541222049103,
+          "BIG HiCFP": 0.05476681798749805
+        }
+      }
+    ]
+  },
+  "baseline": {
+    "name": "momentum_12_1",
+    "rank_diagnostics": {
+      "period_count": 12,
+      "mean_rank_ic": 0.1952380952380953,
+      "positive_rank_ic_rate": 0.75,
+      "mean_top_bottom_spread": 0.03744635850823196,
+      "mean_coverage_rate": 1.0
+    },
+    "distribution_diagnostics": {
+      "prediction_count": 72,
+      "valid_count": 72,
+      "coverage_rate": 1.0,
+      "active_universe_coverage_rate": 1.0,
+      "boundary_saturation_rate": null,
+      "tie_rate": 0.0
+    },
+    "bootstrap": {
+      "status": "ok",
+      "observation_count": 12,
+      "block_size": 3,
+      "samples": 2000,
+      "seed": 44,
+      "observed": {
+        "mean_rank_ic": 0.1952380952380953,
+        "mean_top_bottom_spread": 0.03744635850823196
+      },
+      "probability": {
+        "positive_mean_rank_ic": 0.9485,
+        "positive_mean_top_bottom_spread": 0.9315
+      },
+      "interval": {
+        "mean_rank_ic": {
+          "lower_95": -0.03809523809523808,
+          "median": 0.19999999999999996,
+          "upper_95": 0.4190476190476191
+        },
+        "mean_top_bottom_spread": {
+          "lower_95": -0.009687300814333789,
+          "median": 0.03912105800832093,
+          "upper_95": 0.08376748724390733
+        }
+      }
+    },
+    "gate": {
+      "status": "rejected",
+      "reasons": [
+        "Positive mean rank-IC bootstrap probability is below 95%.",
+        "Positive mean top-minus-bottom bootstrap probability is below 95%."
+      ],
+      "minimum_bootstrap_probability": 0.95
+    },
+    "periods": [
+      {
+        "period_id": "2000-01-31",
+        "as_of_date": "2000-01-31",
+        "forward_end_date": "2001-01-31",
+        "scores": {
+          "SMALL LoCFP": 1.0,
+          "ME1 CFP2": -0.1999999999999998,
+          "SMALL HiCFP": -0.5999999999999998,
+          "BIG LoCFP": 0.6000000000000002,
+          "ME2 CFP2": -0.9999999999999998,
+          "BIG HiCFP": 0.20000000000000007
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.029436500656055964,
+          "ME1 CFP2": 0.3476966752998851,
+          "SMALL HiCFP": 0.2517524721477231,
+          "BIG LoCFP": -0.012486729045269374,
+          "ME2 CFP2": 0.1829579398083141,
+          "BIG HiCFP": 0.17487494067818865
+        }
+      },
+      {
+        "period_id": "2001-01-31",
+        "as_of_date": "2001-01-31",
+        "forward_end_date": "2002-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": 0.9999999999999998,
+          "SMALL HiCFP": 0.1999999999999998,
+          "BIG LoCFP": -0.6,
+          "ME2 CFP2": 0.5999999999999999,
+          "BIG HiCFP": -0.20000000000000007
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.010710982887497167,
+          "ME1 CFP2": 0.154453719342192,
+          "SMALL HiCFP": 0.20204028020183373,
+          "BIG LoCFP": -0.18106639283990655,
+          "ME2 CFP2": -0.0135534125233574,
+          "BIG HiCFP": -0.00390691658278608
+        }
+      },
+      {
+        "period_id": "2002-01-31",
+        "as_of_date": "2002-01-31",
+        "forward_end_date": "2003-01-31",
+        "scores": {
+          "SMALL LoCFP": -0.6,
+          "ME1 CFP2": 0.5999999999999999,
+          "SMALL HiCFP": 0.9999999999999998,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": -0.20000000000000007,
+          "BIG HiCFP": 0.1999999999999998
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.2219203129459022,
+          "ME1 CFP2": -0.06981878695381605,
+          "SMALL HiCFP": -0.09136150310027258,
+          "BIG LoCFP": -0.23144823012364069,
+          "ME2 CFP2": -0.19051589432088045,
+          "BIG HiCFP": -0.2244175157749405
+        }
+      },
+      {
+        "period_id": "2003-01-31",
+        "as_of_date": "2003-01-31",
+        "forward_end_date": "2004-01-31",
+        "scores": {
+          "SMALL LoCFP": -0.5999999999999998,
+          "ME1 CFP2": 1.0,
+          "SMALL HiCFP": 0.6000000000000002,
+          "BIG LoCFP": -0.1999999999999998,
+          "ME2 CFP2": 0.20000000000000007,
+          "BIG HiCFP": -0.9999999999999998
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.5909816232638763,
+          "ME1 CFP2": 0.47638127732415225,
+          "SMALL HiCFP": 0.5525991084318964,
+          "BIG LoCFP": 0.3415620198195246,
+          "ME2 CFP2": 0.34149136694433513,
+          "BIG HiCFP": 0.3311537940382985
+        }
+      },
+      {
+        "period_id": "2004-01-31",
+        "as_of_date": "2004-01-31",
+        "forward_end_date": "2005-01-31",
+        "scores": {
+          "SMALL LoCFP": 0.9999999999999998,
+          "ME1 CFP2": 0.1999999999999998,
+          "SMALL HiCFP": 0.5999999999999999,
+          "BIG LoCFP": -0.6,
+          "ME2 CFP2": -0.20000000000000007,
+          "BIG HiCFP": -1.0
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.06337265507915824,
+          "ME1 CFP2": 0.19225147267999465,
+          "SMALL HiCFP": 0.23520453447178546,
+          "BIG LoCFP": 0.01960451949537778,
+          "ME2 CFP2": 0.08404873740060936,
+          "BIG HiCFP": 0.1583692703997186
+        }
+      },
+      {
+        "period_id": "2005-01-31",
+        "as_of_date": "2005-01-31",
+        "forward_end_date": "2006-01-31",
+        "scores": {
+          "SMALL LoCFP": -0.20000000000000007,
+          "ME1 CFP2": 0.5999999999999999,
+          "SMALL HiCFP": 0.9999999999999998,
+          "BIG LoCFP": -1.0,
+          "ME2 CFP2": -0.6,
+          "BIG HiCFP": 0.1999999999999998
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.1749654614834968,
+          "ME1 CFP2": 0.19181887833644784,
+          "SMALL HiCFP": 0.24260554324877304,
+          "BIG LoCFP": 0.1051791385443499,
+          "ME2 CFP2": 0.07843114535728324,
+          "BIG HiCFP": 0.23739694589078497
+        }
+      },
+      {
+        "period_id": "2006-01-31",
+        "as_of_date": "2006-01-31",
+        "forward_end_date": "2007-01-31",
+        "scores": {
+          "SMALL LoCFP": -0.20000000000000007,
+          "ME1 CFP2": 0.1999999999999998,
+          "SMALL HiCFP": 0.5999999999999999,
+          "BIG LoCFP": -0.6,
+          "ME2 CFP2": -1.0,
+          "BIG HiCFP": 0.9999999999999998
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.08252254487426369,
+          "ME1 CFP2": 0.12688727938932254,
+          "SMALL HiCFP": 0.15886393122561882,
+          "BIG LoCFP": 0.11473719005395178,
+          "ME2 CFP2": 0.16120243105904164,
+          "BIG HiCFP": 0.15443573669964406
+        }
+      },
+      {
+        "period_id": "2007-01-31",
+        "as_of_date": "2007-01-31",
+        "forward_end_date": "2008-01-31",
+        "scores": {
+          "SMALL LoCFP": -1.0,
+          "ME1 CFP2": -0.20000000000000007,
+          "SMALL HiCFP": 0.1999999999999998,
+          "BIG LoCFP": -0.6,
+          "ME2 CFP2": 0.5999999999999999,
+          "BIG HiCFP": 0.9999999999999998
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.05300156323650185,
+          "ME1 CFP2": -0.10267594054784934,
+          "SMALL HiCFP": -0.14090296257377477,
+          "BIG LoCFP": -0.008231292968968296,
+          "ME2 CFP2": -0.036657607668629355,
+          "BIG HiCFP": 0.032821777422448406
+        }
+      },
+      {
+        "period_id": "2008-01-31",
+        "as_of_date": "2008-01-31",
+        "forward_end_date": "2009-01-31",
+        "scores": {
+          "SMALL LoCFP": 0.1999999999999998,
+          "ME1 CFP2": -0.6,
+          "SMALL HiCFP": -1.0,
+          "BIG LoCFP": 0.9999999999999998,
+          "ME2 CFP2": -0.20000000000000007,
+          "BIG HiCFP": 0.5999999999999999
+        },
+        "realized_returns": {
+          "SMALL LoCFP": -0.3871237330507954,
+          "ME1 CFP2": -0.332948165820503,
+          "SMALL HiCFP": -0.3063439065369882,
+          "BIG LoCFP": -0.3497926473767816,
+          "ME2 CFP2": -0.413733586349053,
+          "BIG HiCFP": -0.37219276429479664
+        }
+      },
+      {
+        "period_id": "2009-01-31",
+        "as_of_date": "2009-01-31",
+        "forward_end_date": "2010-01-31",
+        "scores": {
+          "SMALL LoCFP": -0.5999999999999998,
+          "ME1 CFP2": 1.0,
+          "SMALL HiCFP": 0.6000000000000002,
+          "BIG LoCFP": -0.1999999999999998,
+          "ME2 CFP2": -0.9999999999999998,
+          "BIG HiCFP": 0.20000000000000007
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.4052339881021776,
+          "ME1 CFP2": 0.36186854354412046,
+          "SMALL HiCFP": 0.5442558836683398,
+          "BIG LoCFP": 0.3500364717248867,
+          "ME2 CFP2": 0.3038700227036475,
+          "BIG HiCFP": 0.3391447257932585
+        }
+      },
+      {
+        "period_id": "2010-01-31",
+        "as_of_date": "2010-01-31",
+        "forward_end_date": "2011-01-31",
+        "scores": {
+          "SMALL LoCFP": 0.1999999999999998,
+          "ME1 CFP2": -1.0,
+          "SMALL HiCFP": 0.9999999999999998,
+          "BIG LoCFP": 0.5999999999999999,
+          "ME2 CFP2": -0.6,
+          "BIG HiCFP": -0.20000000000000007
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.3291801212772496,
+          "ME1 CFP2": 0.30764558057606317,
+          "SMALL HiCFP": 0.29163371457072884,
+          "BIG LoCFP": 0.2643063890596997,
+          "ME2 CFP2": 0.19452776560287544,
+          "BIG HiCFP": 0.22669734739455993
+        }
+      },
+      {
+        "period_id": "2011-01-31",
+        "as_of_date": "2011-01-31",
+        "forward_end_date": "2012-01-31",
+        "scores": {
+          "SMALL LoCFP": 0.5999999999999999,
+          "ME1 CFP2": 0.9999999999999998,
+          "SMALL HiCFP": 0.1999999999999998,
+          "BIG LoCFP": -0.20000000000000007,
+          "ME2 CFP2": -1.0,
+          "BIG HiCFP": -0.6
+        },
+        "realized_returns": {
+          "SMALL LoCFP": 0.004896843927927552,
+          "ME1 CFP2": 0.06844928215228108,
+          "SMALL HiCFP": 0.04431321353784079,
+          "BIG LoCFP": 0.03956593954632681,
+          "ME2 CFP2": 0.06808541222049103,
+          "BIG HiCFP": 0.05476681798749805
+        }
+      }
+    ]
+  },
+  "paired_bootstrap": {
+    "status": "ok",
+    "observation_count": 12,
+    "block_size": 3,
+    "samples": 2000,
+    "seed": 45,
+    "observed_difference": {
+      "mean_rank_ic": 0.13344977232886304,
+      "mean_top_bottom_spread": 0.030637180929781408
+    },
+    "probability": {
+      "higher_mean_rank_ic": 0.8005,
+      "higher_mean_top_bottom_spread": 0.766
+    },
+    "difference_interval": {
+      "mean_rank_ic": {
+        "lower_95": -0.1480702467937992,
+        "median": 0.13305215644006252,
+        "upper_95": 0.4148822250572853
+      },
+      "mean_top_bottom_spread": {
+        "lower_95": -0.021254119551930552,
+        "median": 0.02833258809174256,
+        "upper_95": 0.10211912689838153
+      }
+    }
+  },
+  "paired_holm": {
+    "raw_p_value": 0.23399999999999999,
+    "adjusted_p_value": 0.23399999999999999,
+    "significant": false
+  },
+  "paired_gate": {
+    "status": "rejected",
+    "reasons": [
+      "Paired rank-IC improvement probability is below 95%.",
+      "Paired spread improvement probability is below 95%.",
+      "Paired improvement is not significant after Holm correction."
+    ]
+  },
+  "promotion_eligible": false
+}

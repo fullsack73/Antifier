@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-30-industry-minimum-semivariance-replication-2000-2011-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2011-12-30",
+  "experiment_namespace": "allocator-v1-minimum-semivariance-independent-replication-30-industry-2000-2011",
+  "objectives": [
+    "minimum_semivariance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "replication_policy": {
+      "prior_split_id": "fama-french-17-industry-minimum-semivariance-research-2012-2017-v1",
+      "candidate_specification": "unchanged",
+      "prior_requirement": "deterministic_gate_passed",
+      "replication_requirement": "deterministic_statistical_and_holm_gates_passed"
+    },
+    "minimum_semivariance_policy": {
+      "objective": "historical_downside_semivariance",
+      "downside_order": 2,
+      "benchmark_daily_return": 0.0,
+      "frequency": 252,
+      "constraints": "long_only_capped_fully_invested",
+      "tuned_parameters": "none"
+    }
+  },
+  "universe_manifest_sha256": "96d33ec566e3e9e07e00acb0279590aec7d61c569fb68283bcc1a127437dc970",
+  "price_file_sha256": "92de86cda8ef0c7b3b24b86128ddd3194c8e1b88bff200539644e4c0ff379514",
+  "factor_file_sha256": "ec66ea8c568369a6dc14cad574a143897af95c0b0cea9bd5fd15e23a9fb70cbc",
+  "auxiliary_files": {
+    "prior_result": "d56e7ccaed94644b489957f77955f5103e4b9a136ef2c1a63a179227d619a2a9"
+  },
+  "locked": true,
+  "manifest_sha256": "ef9705bb83f174384c50b173b86f9741b8cef9e8759fd1427b7d66fbf29eafd8"
+}

@@ -26,8 +26,10 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from financial_statement import get_financial_dashboard, get_financial_statements
 from portfolio_optimization import (
     DEFAULT_MAX_TURNOVER,
+    DEFAULT_OPTIMIZATION_METHOD,
     DEFAULT_REBALANCE_BAND,
     DEFAULT_TRANSACTION_COST_BPS,
+    normalize_optimization_method,
     optimize_portfolio,
     OptimizationCancelled,
     load_portfolio_result,
@@ -1251,7 +1253,10 @@ def background_optimization(req_id, params):
             load_if_available=params['load_if_available'],
             progress_callback=progress_adapter,
             forecast_method=params.get('forecast_method', 'LIGHTWEIGHT'),
-            optimization_method=params.get('optimization_method', 'BL'),
+            optimization_method=params.get(
+                'optimization_method',
+                DEFAULT_OPTIMIZATION_METHOD,
+            ),
             forecast_horizon=params.get('forecast_horizon', 63),
             min_history=params.get('min_history', 504),
             bl_tau=params.get('bl_tau', 0.05),
@@ -1313,11 +1318,17 @@ def optimize_portfolio_endpoint():
     load_if_available = bool(data.get('load_if_available'))
     request_id = data.get('request_id')
     forecast_method = data.get('forecast_method', 'LIGHTWEIGHT')
-    optimization_method = data.get('optimization_method', 'BL')
+    optimization_method = data.get(
+        'optimization_method',
+        DEFAULT_OPTIMIZATION_METHOD,
+    )
     
     try:
         validate_date_range(start_date, end_date)
         risk_free_rate = parse_float_param(risk_free_rate, "risk_free_rate")
+        optimization_method = normalize_optimization_method(
+            optimization_method
+        )
         if target_return is not None:
             target_return = parse_float_param(target_return, "target_return", required=False)
         if risk_tolerance is not None:
@@ -1381,6 +1392,13 @@ def optimize_portfolio_endpoint():
             raise ValueError('turnover_penalty must be non-negative')
         if min_holding_weight < 0:
             raise ValueError('min_holding_weight must be non-negative')
+        if optimization_method == "MIN_VARIANCE" and (
+            target_return is not None or risk_tolerance is not None
+        ):
+            raise ValueError(
+                "target_return and risk_tolerance are unavailable for "
+                "MIN_VARIANCE"
+            )
         if current_weights is not None:
             if not isinstance(current_weights, dict):
                 raise ValueError('current_weights must be an object')
@@ -1577,7 +1595,10 @@ def manage_portfolio_endpoint():
         end_date_str = data.get('end_date')
         
         forecast_method = data.get('forecast_method', 'LIGHTWEIGHT')
-        optimization_method = data.get('optimization_method', 'BL')
+        optimization_method = data.get(
+            'optimization_method',
+            DEFAULT_OPTIMIZATION_METHOD,
+        )
         ticker_group = data.get('ticker_group')
         
         target_return = data.get('target_return')
@@ -1606,6 +1627,9 @@ def manage_portfolio_endpoint():
                 'risk_free_rate',
                 required=False,
                 default=0.0
+            )
+            optimization_method = normalize_optimization_method(
+                optimization_method
             )
             forecast_horizon = parse_int_param(
                 data.get('forecast_horizon', 63),
@@ -1682,6 +1706,13 @@ def manage_portfolio_endpoint():
                 raise ValueError('turnover_penalty must be non-negative')
             if min_holding_weight < 0:
                 raise ValueError('min_holding_weight must be non-negative')
+            if optimization_method == "MIN_VARIANCE" and (
+                target_return is not None or risk_tolerance is not None
+            ):
+                raise ValueError(
+                    "target_return and risk_tolerance are unavailable for "
+                    "MIN_VARIANCE"
+                )
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
 

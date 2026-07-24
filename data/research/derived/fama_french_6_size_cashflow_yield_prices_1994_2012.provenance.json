@@ -1,0 +1,39 @@
+{
+  "source": "Kenneth R. French Data Library",
+  "source_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/6_Portfolios_ME_CFP_2x3_CSV.zip",
+  "source_section": "Value Weight Average Returns -- Monthly",
+  "source_portfolio_policy": "6 annual size by cashflow-to-price portfolios (2x3) using NYSE breakpoints",
+  "return_weighting": "value_weighted",
+  "frequency": "monthly",
+  "date_semantics": "calendar_month_end",
+  "retrieved_at": "2026-07-24T02:19:53.947419+00:00",
+  "raw_archive": "/Applications/react/my-app/portfolio-project/data/research/raw/market_factors/6_Portfolios_ME_CFP_2x3_CSV.zip",
+  "raw_archive_sha256": "32b7a2ef7fc536050359bf0477343fb637d9bbcc4fd2eb7eff3c68597745231b",
+  "start_date": "1994-01-31",
+  "end_date": "2012-12-31",
+  "row_count": 228,
+  "source_ticker_count": 6,
+  "ticker_count": 6,
+  "selected_source_tickers": [
+    "SMALL LoCFP",
+    "ME1 CFP2",
+    "SMALL HiCFP",
+    "BIG LoCFP",
+    "ME2 CFP2",
+    "BIG HiCFP"
+  ],
+  "tickers": [
+    "SMALL LoCFP",
+    "ME1 CFP2",
+    "SMALL HiCFP",
+    "BIG LoCFP",
+    "ME2 CFP2",
+    "BIG HiCFP"
+  ],
+  "column_selection_policy": "all_source_columns",
+  "basket_manifest_sha256": "4dbb90be73234a11638ccd611648b536323f61ae15c9c03eb13fb52378a6a832",
+  "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_6_size_cashflow_yield_prices_1994_2012.csv",
+  "price_file_sha256": "abe554cd956815a889737e7c0b69275aeea51a4d0bd8178b85ce0f2e1759cdf4",
+  "survivorship_policy": "source portfolios include eligible NYSE, AMEX, and NASDAQ firms through time",
+  "promotion_safe": true
+}

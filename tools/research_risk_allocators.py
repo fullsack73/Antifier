@@ -40,6 +40,8 @@ RISK_RESEARCH_MODELS = (
     "hierarchical_risk_parity",
     "regime_minimum_variance",
     "minimum_cvar",
+    "minimum_cdar",
+    "minimum_semivariance",
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
     "stability_regularized_min_variance",
@@ -52,6 +54,7 @@ RISK_RESEARCH_MODELS = (
     "dual_horizon_momentum",
     "trend_filtered_minimum_variance",
     "trend_filtered_risk_parity",
+    "continuous_trend_risk_parity",
     "maximum_diversification",
     "online_allocator_ensemble",
     "historical_bl",
@@ -63,6 +66,8 @@ RISK_CANDIDATES = (
     "hierarchical_risk_parity",
     "regime_minimum_variance",
     "minimum_cvar",
+    "minimum_cdar",
+    "minimum_semivariance",
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
     "stability_regularized_min_variance",
@@ -75,6 +80,7 @@ RISK_CANDIDATES = (
     "dual_horizon_momentum",
     "trend_filtered_minimum_variance",
     "trend_filtered_risk_parity",
+    "continuous_trend_risk_parity",
     "maximum_diversification",
     "online_allocator_ensemble",
     "hac_historical_bl",
@@ -151,6 +157,34 @@ def _research_settings(args):
             "trend_lookback": 252,
             "inactive_allocation": "historical_risk_free_cash",
             "base_allocator": "inverse_volatility",
+        }
+    if "continuous_trend_risk_parity" in args.candidates:
+        settings["continuous_trend_risk_parity_policy"] = {
+            "trend_measure": (
+                "trailing_log_return_over_annualized_realized_volatility"
+            ),
+            "trend_lookback": 252,
+            "exposure_mapping": "standard_normal_cdf",
+            "inactive_allocation": "historical_risk_free_cash",
+            "base_allocator": "inverse_volatility",
+            "tuned_parameters": "none",
+        }
+    if "minimum_semivariance" in args.candidates:
+        settings["minimum_semivariance_policy"] = {
+            "objective": "historical_downside_semivariance",
+            "downside_order": 2,
+            "benchmark_daily_return": 0.0,
+            "frequency": 252,
+            "constraints": "long_only_capped_fully_invested",
+            "tuned_parameters": "none",
+        }
+    if "minimum_cdar" in args.candidates:
+        settings["minimum_cdar_policy"] = {
+            "objective": "historical_conditional_drawdown_at_risk",
+            "beta": 0.95,
+            "drawdown_path": "cumulative_uncompounded_returns",
+            "constraints": "long_only_capped_fully_invested",
+            "tuned_parameters": "none",
         }
     if "maximum_diversification" in args.candidates:
         settings["maximum_diversification_policy"] = {
@@ -352,6 +386,8 @@ def _risk_gate(summary, candidate_name):
                 "robust_min_variance",
                 "regime_minimum_variance",
                 "minimum_cvar",
+                "minimum_cdar",
+                "minimum_semivariance",
                 "cross_validated_min_variance",
                 "forecast_ensemble_min_variance",
                 "stability_regularized_min_variance",

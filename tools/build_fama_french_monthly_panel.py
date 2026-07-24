@@ -32,7 +32,10 @@ def _basket_digest(tickers):
     ).hexdigest()
 
 
-def parse_value_weighted_monthly_returns(zip_path):
+def parse_value_weighted_monthly_returns(
+    zip_path,
+    section_label=SECTION_LABEL,
+):
     """Parse the first average value-weighted monthly return section."""
     with zipfile.ZipFile(zip_path) as archive:
         members = archive.namelist()
@@ -44,7 +47,7 @@ def parse_value_weighted_monthly_returns(zip_path):
         section_index = next(
             index
             for index, line in enumerate(lines)
-            if SECTION_LABEL in line
+            if section_label in line
         )
     except StopIteration as exc:
         raise ValueError(
@@ -89,6 +92,20 @@ def main(argv=None):
         required=True,
         help="Portfolio construction policy recorded in provenance",
     )
+    parser.add_argument(
+        "--section-label",
+        default=SECTION_LABEL,
+        help="Exact monthly return section label recorded in provenance",
+    )
+    parser.add_argument(
+        "--include-columns",
+        nargs="*",
+        default=[],
+        help=(
+            "Exact source columns retained in declared order; "
+            "recorded in provenance"
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -97,12 +114,29 @@ def main(argv=None):
         if start > end:
             raise ValueError("--start must be on or before --end")
         archive_path = Path(args.archive).expanduser().resolve()
-        returns = parse_value_weighted_monthly_returns(archive_path)
+        returns = parse_value_weighted_monthly_returns(
+            archive_path,
+            section_label=args.section_label,
+        )
         returns = returns.loc[
             (returns.index >= start) & (returns.index <= end)
         ]
         if returns.empty:
             raise ValueError("No French monthly rows in requested interval")
+        source_columns = list(returns.columns)
+        selected_columns = list(dict.fromkeys(args.include_columns))
+        if selected_columns:
+            unknown = [
+                column
+                for column in selected_columns
+                if column not in returns.columns
+            ]
+            if unknown:
+                raise ValueError(
+                    "Unknown French monthly columns: "
+                    + ", ".join(unknown)
+                )
+            returns = returns.loc[:, selected_columns]
         missing = {
             column: int(returns[column].isna().sum())
             for column in returns.columns
@@ -123,7 +157,7 @@ def main(argv=None):
                 {
                     "source": "Kenneth R. French Data Library",
                     "source_url": args.source_url,
-                    "source_section": SECTION_LABEL,
+                    "source_section": args.section_label,
                     "source_portfolio_policy": args.portfolio_policy,
                     "return_weighting": "value_weighted",
                     "frequency": "monthly",
@@ -136,8 +170,15 @@ def main(argv=None):
                     "start_date": prices.index.min().strftime("%Y-%m-%d"),
                     "end_date": prices.index.max().strftime("%Y-%m-%d"),
                     "row_count": int(len(prices)),
+                    "source_ticker_count": int(len(source_columns)),
                     "ticker_count": int(len(prices.columns)),
+                    "selected_source_tickers": list(prices.columns),
                     "tickers": list(prices.columns),
+                    "column_selection_policy": (
+                        "exact_declared_source_columns"
+                        if selected_columns
+                        else "all_source_columns"
+                    ),
                     "basket_manifest_sha256": _basket_digest(
                         prices.columns
                     ),

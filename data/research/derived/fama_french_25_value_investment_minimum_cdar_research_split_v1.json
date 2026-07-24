@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-25-value-investment-minimum-cdar-research-2000-2011-v1",
+  "role": "research",
+  "evaluation_start": "2000-01-03",
+  "evaluation_end": "2011-12-30",
+  "experiment_namespace": "allocator-v1-minimum-cdar-value-investment-2000-2011",
+  "objectives": [
+    "minimum_cdar"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "minimum_cdar_policy": {
+      "objective": "historical_conditional_drawdown_at_risk",
+      "beta": 0.95,
+      "drawdown_path": "cumulative_uncompounded_returns",
+      "constraints": "long_only_capped_fully_invested",
+      "tuned_parameters": "none"
+    }
+  },
+  "universe_manifest_sha256": "7d9df7f2463668d6c1b731c727eed9cba369c62a7970bdcc88509e0b256a93bd",
+  "price_file_sha256": "3c7cd0ac118746f295b13507b5170f16e50ee2f4dc7b5c3f7301f77637a468b3",
+  "factor_file_sha256": "ec66ea8c568369a6dc14cad574a143897af95c0b0cea9bd5fd15e23a9fb70cbc",
+  "auxiliary_files": {},
+  "locked": true,
+  "manifest_sha256": "d8e4549392f2f601b60ada7d8e89d80ea46f702fb65e78fe5a44893efa4bfc83"
+}

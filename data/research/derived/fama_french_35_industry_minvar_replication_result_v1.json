@@ -1,0 +1,838 @@
+{
+  "research_split": "fama-french-35-industry-minvar-replication-2012-2017-v1",
+  "experiment_namespace": "allocator-v1-minvar-independent-replication-35-industry-2012-2017",
+  "split": {
+    "schema_version": 1,
+    "split_id": "fama-french-35-industry-minvar-replication-2012-2017-v1",
+    "role": "research",
+    "evaluation_start": "2012-01-03",
+    "evaluation_end": "2017-12-29",
+    "experiment_namespace": "allocator-v1-minvar-independent-replication-35-industry-2012-2017",
+    "objectives": [
+      "min_variance"
+    ],
+    "settings": {
+      "train_window": 504,
+      "rebalance_frequency": 63,
+      "forecast_horizon": 63,
+      "transaction_cost_bps": 10.0,
+      "max_asset_weight": 0.2,
+      "rebalance_band": 0.02,
+      "max_turnover": 0.35,
+      "bootstrap_samples": 2000,
+      "bootstrap_block_size": 21,
+      "bootstrap_minimum_probability": 0.95,
+      "candidate": "min_variance",
+      "statistical_baselines": [
+        "lightweight_bl",
+        "risk_parity"
+      ],
+      "guard_baselines": [
+        "equal_weight",
+        "historical_bl"
+      ],
+      "models": [
+        "equal_weight",
+        "historical_bl",
+        "lightweight_bl",
+        "risk_parity",
+        "min_variance"
+      ],
+      "candidate_policy": {
+        "objective": "long_only_minimum_variance",
+        "covariance": "ledoit_wolf_constant_variance",
+        "expected_returns": "unused",
+        "forecast_model": "unused"
+      },
+      "replication_policy": {
+        "prior_split_id": "fama-french-10-industry-minvar-promotion-research-2000-2011-v1",
+        "candidate_specification": "unchanged",
+        "prior_requirement": "deterministic_gate_passed",
+        "replication_requirement": "deterministic_statistical_and_holm_gates_passed"
+      }
+    },
+    "universe_manifest_sha256": "5bd009e368f260a90d5d7e8eaba29260e5a0745e45dddcc3226d2aec3c50fbe7",
+    "price_file_sha256": "1c945b3bac6490cfe6c167bdf9806bb9acde81cbcdb91edb1a3d3508b392e197",
+    "factor_file_sha256": "cd8213abe10b823047d03460ccddf76ed0e4a91fc025eb679fd9c170599071cc",
+    "auxiliary_files": {
+      "price_provenance": "99fad7d70c55f76b965cff2b459ec7e2b559b2234ef09bce839596c36818e1fd",
+      "risk_free_provenance": "3077f1ac65fab522efa046524e8396f2d8a942f0f7583fc536b0d311bcae88d9",
+      "prior_result": "d0ff351fe190bfade3069948309da373020ee771bf4b7696f87ede58c7da6289"
+    },
+    "locked": true,
+    "manifest_sha256": "5207c576c3c5b1f83fb1b835a5129cedf2a64b1855ac10af35b10675e3e72f55",
+    "promotion_safe": true,
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_35_industry_minvar_replication_split_v1.json",
+    "file_sha256": "7454e43e6d9f43fc40187fa0246a044ca2861fcf00c0f6058f87e8ed64a7af76"
+  },
+  "data": {
+    "price_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_35_industry_prices_2010_2017_minvar_replication.csv",
+    "price_provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_35_industry_prices_2010_2017_minvar_replication.provenance.json",
+    "risk_free_file": "/Applications/react/my-app/portfolio-project/data/research/derived/us_market_factors_2009_2017.csv",
+    "risk_free_provenance_file": "/Applications/react/my-app/portfolio-project/data/research/derived/us_market_factors_2009_2017.provenance.json",
+    "row_count": 2013,
+    "ticker_count": 35,
+    "tickers": [
+      "Agric",
+      "Mines",
+      "Oil",
+      "Stone",
+      "Cnstr",
+      "Food",
+      "Smoke",
+      "Txtls",
+      "Apprl",
+      "Wood",
+      "Chair",
+      "Paper",
+      "Print",
+      "Chems",
+      "Ptrlm",
+      "Rubbr",
+      "Lethr",
+      "Glass",
+      "Metal",
+      "MtlPr",
+      "Machn",
+      "Elctr",
+      "Cars",
+      "Instr",
+      "Manuf",
+      "Trans",
+      "Phone",
+      "TV",
+      "Utils",
+      "Garbg",
+      "Whlsl",
+      "Rtail",
+      "Money",
+      "Srvc",
+      "Other"
+    ]
+  },
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "candidate": "min_variance",
+    "statistical_baselines": [
+      "lightweight_bl",
+      "risk_parity"
+    ],
+    "guard_baselines": [
+      "equal_weight",
+      "historical_bl"
+    ],
+    "models": [
+      "equal_weight",
+      "historical_bl",
+      "lightweight_bl",
+      "risk_parity",
+      "min_variance"
+    ],
+    "candidate_policy": {
+      "objective": "long_only_minimum_variance",
+      "covariance": "ledoit_wolf_constant_variance",
+      "expected_returns": "unused",
+      "forecast_model": "unused"
+    },
+    "replication_policy": {
+      "prior_split_id": "fama-french-10-industry-minvar-promotion-research-2000-2011-v1",
+      "candidate_specification": "unchanged",
+      "prior_requirement": "deterministic_gate_passed",
+      "replication_requirement": "deterministic_statistical_and_holm_gates_passed"
+    }
+  },
+  "replication": {
+    "prior_split_id": "fama-french-10-industry-minvar-promotion-research-2000-2011-v1",
+    "prior_result_file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_10_industry_minvar_promotion_research_result_v1.json",
+    "prior_result_sha256": "d0ff351fe190bfade3069948309da373020ee771bf4b7696f87ede58c7da6289",
+    "candidate_specification": "unchanged",
+    "prior_deterministic_gate": "passed"
+  },
+  "paired_bootstrap": {
+    "lightweight_bl": {
+      "status": "ok",
+      "observation_count": 1508,
+      "block_size": 21,
+      "samples": 2000,
+      "seed": 81,
+      "observed": {
+        "candidate": {
+          "annualized_return": 0.12466154993079108,
+          "annualized_excess_return": 0.12466154993079108,
+          "annualized_volatility": 0.10106429255189996,
+          "sharpe": 1.2334875828351852
+        },
+        "baseline": {
+          "annualized_return": 0.15715300977038113,
+          "annualized_excess_return": 0.15715300977038113,
+          "annualized_volatility": 0.12892397447269802,
+          "sharpe": 1.2189587732858882
+        },
+        "difference": {
+          "annualized_return": -0.03249145983959005,
+          "annualized_excess_return": -0.03249145983959005,
+          "annualized_volatility": -0.02785968192079806,
+          "sharpe": 0.014528809549297028
+        }
+      },
+      "probability": {
+        "lower_volatility": 1.0,
+        "higher_return": 0.1505,
+        "higher_sharpe": 0.5205
+      },
+      "difference_interval": {
+        "annualized_volatility": {
+          "lower_95": -0.03330943505289516,
+          "median": -0.02776231286900857,
+          "upper_95": -0.02261903620642592
+        },
+        "annualized_return": {
+          "lower_95": -0.09044896122571262,
+          "median": -0.033048788186504564,
+          "upper_95": 0.029728392053744505
+        },
+        "sharpe": {
+          "lower_95": -0.5063727747687874,
+          "median": 0.01506261356757621,
+          "upper_95": 0.5373499643963299
+        }
+      }
+    },
+    "risk_parity": {
+      "status": "ok",
+      "observation_count": 1508,
+      "block_size": 21,
+      "samples": 2000,
+      "seed": 82,
+      "observed": {
+        "candidate": {
+          "annualized_return": 0.12466154993079108,
+          "annualized_excess_return": 0.12466154993079108,
+          "annualized_volatility": 0.10106429255189996,
+          "sharpe": 1.2334875828351852
+        },
+        "baseline": {
+          "annualized_return": 0.14960060035668957,
+          "annualized_excess_return": 0.14960060035668957,
+          "annualized_volatility": 0.12379107595294882,
+          "sharpe": 1.2084926090597239
+        },
+        "difference": {
+          "annualized_return": -0.024939050425898487,
+          "annualized_excess_return": -0.024939050425898487,
+          "annualized_volatility": -0.02272678340104886,
+          "sharpe": 0.024994973775461338
+        }
+      },
+      "probability": {
+        "lower_volatility": 1.0,
+        "higher_return": 0.1985,
+        "higher_sharpe": 0.536
+      },
+      "difference_interval": {
+        "annualized_volatility": {
+          "lower_95": -0.02778633766482696,
+          "median": -0.022708681055087457,
+          "upper_95": -0.01794134118714186
+        },
+        "annualized_return": {
+          "lower_95": -0.07928384201337281,
+          "median": -0.025410363250115246,
+          "upper_95": 0.030642571205543458
+        },
+        "sharpe": {
+          "lower_95": -0.4882597134417269,
+          "median": 0.025222861664336738,
+          "upper_95": 0.5135606010163125
+        }
+      }
+    }
+  },
+  "holm_gate": {
+    "lightweight_bl:lower_volatility": {
+      "raw_p_value": 0.0,
+      "adjusted_p_value": 0.0,
+      "significant": true
+    },
+    "lightweight_bl:higher_sharpe": {
+      "raw_p_value": 0.47950000000000004,
+      "adjusted_p_value": 0.9279999999999999,
+      "significant": false
+    },
+    "risk_parity:lower_volatility": {
+      "raw_p_value": 0.0,
+      "adjusted_p_value": 0.0,
+      "significant": true
+    },
+    "risk_parity:higher_sharpe": {
+      "raw_p_value": 0.46399999999999997,
+      "adjusted_p_value": 0.9279999999999999,
+      "significant": false
+    }
+  },
+  "promotion_gate": {
+    "status": "rejected",
+    "reasons": [
+      "lightweight_bl:higher_sharpe probability is below 95%.",
+      "risk_parity:higher_sharpe probability is below 95%.",
+      "lightweight_bl:higher_sharpe fails Holm correction.",
+      "risk_parity:higher_sharpe fails Holm correction."
+    ],
+    "deterministic": {
+      "status": "passed",
+      "reasons": []
+    },
+    "statistical": {
+      "status": "rejected",
+      "reasons": [
+        "lightweight_bl:higher_sharpe probability is below 95%.",
+        "risk_parity:higher_sharpe probability is below 95%.",
+        "lightweight_bl:higher_sharpe fails Holm correction.",
+        "risk_parity:higher_sharpe fails Holm correction."
+      ],
+      "hypothesis_probabilities": {
+        "lightweight_bl:lower_volatility": 1.0,
+        "lightweight_bl:higher_sharpe": 0.5205,
+        "risk_parity:lower_volatility": 1.0,
+        "risk_parity:higher_sharpe": 0.536
+      }
+    }
+  },
+  "promotion_eligible": false,
+  "candidate_risk_diagnostics": null,
+  "result": {
+    "settings": {
+      "start_date": "2010-01-04",
+      "end_date": "2017-12-29",
+      "train_window": 504,
+      "rebalance_frequency": 63,
+      "forecast_horizon": 63,
+      "transaction_cost_bps": 10.0,
+      "max_asset_weight": 0.2,
+      "rebalance_band": 0.02,
+      "max_turnover": 0.35,
+      "min_holding_weight": 0.0,
+      "risk_free_rate": 0.02,
+      "risk_free_rate_source": "historical_daily_series",
+      "initial_value": 10000.0,
+      "reused_rebalance_targets": false,
+      "price_digest": "8414369c24c2a7c76d47ea5ee7a0062f"
+    },
+    "models": [
+      "equal_weight",
+      "historical_bl",
+      "lightweight_bl",
+      "risk_parity",
+      "min_variance"
+    ],
+    "summary_by_model": {
+      "equal_weight": {
+        "cagr": 0.15448063914237453,
+        "annual_volatility": 0.13118158107336753,
+        "annualized_excess_return": 0.1523080515797735,
+        "annualized_risk_free_return": 0.0,
+        "risk_free_observation_coverage": 1.0,
+        "annual_downside_deviation": 0.09135902481146455,
+        "sharpe": 1.1610475368077042,
+        "sortino": 1.6671374491363937,
+        "calmar": 0.9844699941371656,
+        "omega": 1.2175358128862561,
+        "daily_var_95": 0.013439014602813291,
+        "daily_cvar_95": 0.01919576999101257,
+        "max_drawdown": -0.15691756992326455,
+        "final_value": 23622.706838935326,
+        "turnover": 4.137560676255004,
+        "avg_turnover": 0.17239836151062515,
+        "controlled_turnover": 1.0858299327074927,
+        "avg_controlled_turnover": 0.0452429138628122,
+        "skipped_trade_count": 764,
+        "turnover_cap_hit_count": 0,
+        "avg_risky_exposure": 0.999954757086137,
+        "avg_cash_weight": 4.524291386298618e-05,
+        "transaction_costs": 11.394197164392796,
+        "rebalance_count": 24,
+        "failed_forecast_count": 0,
+        "avg_forecast_confidence": null,
+        "avg_signal_rank_ic": null,
+        "median_signal_rank_ic": null,
+        "positive_signal_rank_ic_rate": null,
+        "signal_rank_ic_count": 0,
+        "avg_forecast_rank_ic": null,
+        "median_forecast_rank_ic": null,
+        "positive_forecast_rank_ic_rate": null,
+        "forecast_rank_ic_count": 0,
+        "avg_top_bottom_spread": null,
+        "top_bottom_direction_hit_rate": null,
+        "avg_signal_weight_rank_correlation": null,
+        "avg_signal_persistence": null,
+        "horizon_rank_ic": {},
+        "avg_active_share": 0.0,
+        "avg_controlled_active_share": 0.06355728393863384,
+        "avg_execution_signal_retention": null,
+        "avg_execution_weight_l1": 0.1271145678772677,
+        "avg_concentration_hhi": 0.028571428571428567,
+        "avg_predicted_annual_volatility": 0.16247571331989516,
+        "avg_execution_predicted_annual_volatility": 0.16249046563864725,
+        "avg_realized_period_annual_volatility": 0.12574736448300486,
+        "risk_forecast_bias": -0.03674310115564242,
+        "risk_forecast_mae": 0.05324451659860868,
+        "avg_risk_forecast_ratio": 0.8133478937134989,
+        "avg_signal_coverage_rate": null,
+        "avg_view_signal_retention": null,
+        "gross_cumulative_return": 1.3648461943612227,
+        "net_cumulative_return": 1.3622706838935317,
+        "transaction_cost_return_drag": 0.002575510467691,
+        "market_cap_available_count": 0
+      },
+      "historical_bl": {
+        "cagr": 0.15036100179676426,
+        "annual_volatility": 0.12584405204360383,
+        "annualized_excess_return": 0.14804460921607612,
+        "annualized_risk_free_return": 0.0,
+        "risk_free_observation_coverage": 1.0,
+        "annual_downside_deviation": 0.08777272990276921,
+        "sharpe": 1.176413241722223,
+        "sortino": 1.6866811523359642,
+        "calmar": 1.0334009278572618,
+        "omega": 1.2218596670735484,
+        "daily_var_95": 0.012790411015344049,
+        "daily_cvar_95": 0.018533318098458578,
+        "max_drawdown": -0.14550112908117385,
+        "final_value": 23122.73918845514,
+        "turnover": 4.734440235264844,
+        "avg_turnover": 0.19726834313603517,
+        "controlled_turnover": 1.1623309151875652,
+        "avg_controlled_turnover": 0.04843045479948188,
+        "skipped_trade_count": 731,
+        "turnover_cap_hit_count": 0,
+        "avg_risky_exposure": 0.9999515695452005,
+        "avg_cash_weight": 4.843045479951957e-05,
+        "transaction_costs": 12.923988750421671,
+        "rebalance_count": 24,
+        "failed_forecast_count": 0,
+        "avg_forecast_confidence": 0.5,
+        "avg_signal_rank_ic": -0.003256302521008401,
+        "median_signal_rank_ic": 0.010224089635854344,
+        "positive_signal_rank_ic_rate": 0.5,
+        "signal_rank_ic_count": 24,
+        "avg_forecast_rank_ic": -0.003256302521008401,
+        "median_forecast_rank_ic": 0.010224089635854344,
+        "positive_forecast_rank_ic_rate": 0.5,
+        "forecast_rank_ic_count": 24,
+        "avg_top_bottom_spread": 0.0011901142767136129,
+        "top_bottom_direction_hit_rate": 0.5,
+        "avg_signal_weight_rank_correlation": 0.9775704251071805,
+        "avg_signal_persistence": 0.8477773718182925,
+        "horizon_rank_ic": {
+          "21": {
+            "mean": -0.02298085901027078,
+            "median": -0.025770308123249305,
+            "positive_rate": 0.5,
+            "count": 24
+          },
+          "63": {
+            "mean": -0.0013396663013031205,
+            "median": 0.028571428571428574,
+            "positive_rate": 0.5217391304347826,
+            "count": 23
+          }
+        },
+        "avg_active_share": 0.08061132353134508,
+        "avg_controlled_active_share": 0.11369011774651837,
+        "avg_execution_signal_retention": 1.4511245863255031,
+        "avg_execution_weight_l1": 0.14879730244135994,
+        "avg_concentration_hhi": 0.029934118038184843,
+        "avg_predicted_annual_volatility": 0.15879281663509323,
+        "avg_execution_predicted_annual_volatility": 0.156035213663954,
+        "avg_realized_period_annual_volatility": 0.12053563087343296,
+        "risk_forecast_bias": -0.03549958279052104,
+        "risk_forecast_mae": 0.0514189278250173,
+        "avg_risk_forecast_ratio": 0.8113620716891395,
+        "avg_signal_coverage_rate": null,
+        "avg_view_signal_retention": 0.5,
+        "gross_cumulative_return": 1.3149488691499291,
+        "net_cumulative_return": 1.3122739188455133,
+        "transaction_cost_return_drag": 0.0026749503044158907,
+        "market_cap_available_count": 0
+      },
+      "lightweight_bl": {
+        "cagr": 0.16022816865580713,
+        "annual_volatility": 0.12892406303711684,
+        "annualized_excess_return": 0.15698589183602538,
+        "annualized_risk_free_return": 0.0,
+        "risk_free_observation_coverage": 1.0,
+        "annual_downside_deviation": 0.09028208941226616,
+        "sharpe": 1.2176616850093347,
+        "sortino": 1.738837601765744,
+        "calmar": 1.147034555511663,
+        "omega": 1.2297897688607853,
+        "daily_var_95": 0.013486778393463211,
+        "daily_cvar_95": 0.019084142207828458,
+        "max_drawdown": -0.1396890511152329,
+        "final_value": 24335.25678671108,
+        "turnover": 8.810513183256788,
+        "avg_turnover": 0.3671047159690328,
+        "controlled_turnover": 4.490553240559893,
+        "avg_controlled_turnover": 0.18710638502332888,
+        "skipped_trade_count": 315,
+        "turnover_cap_hit_count": 1,
+        "avg_risky_exposure": 0.9998128936149767,
+        "avg_cash_weight": 0.00018710638502328347,
+        "transaction_costs": 67.37434402111076,
+        "rebalance_count": 24,
+        "failed_forecast_count": 0,
+        "avg_forecast_confidence": 0.5,
+        "avg_signal_rank_ic": 0.0390406162464986,
+        "median_signal_rank_ic": 0.04733893557422969,
+        "positive_signal_rank_ic_rate": 0.5833333333333334,
+        "signal_rank_ic_count": 24,
+        "avg_forecast_rank_ic": 0.0390406162464986,
+        "median_forecast_rank_ic": 0.04733893557422969,
+        "positive_forecast_rank_ic_rate": 0.5833333333333334,
+        "forecast_rank_ic_count": 24,
+        "avg_top_bottom_spread": 0.00902396713481448,
+        "top_bottom_direction_hit_rate": 0.6666666666666666,
+        "avg_signal_weight_rank_correlation": 0.9794861042558551,
+        "avg_signal_persistence": 0.21874314943368658,
+        "horizon_rank_ic": {
+          "21": {
+            "mean": 0.025268440709617163,
+            "median": 0.10378151260504201,
+            "positive_rate": 0.625,
+            "count": 24
+          },
+          "63": {
+            "mean": 0.031104615759347233,
+            "median": 0.038375350140056025,
+            "positive_rate": 0.5652173913043478,
+            "count": 23
+          }
+        },
+        "avg_active_share": 0.15677220195009178,
+        "avg_controlled_active_share": 0.13717729039953133,
+        "avg_execution_signal_retention": 0.91139279588475,
+        "avg_execution_weight_l1": 0.1799553135948495,
+        "avg_concentration_hhi": 0.033604566092859084,
+        "avg_predicted_annual_volatility": 0.1600509767535834,
+        "avg_execution_predicted_annual_volatility": 0.1600209185931479,
+        "avg_realized_period_annual_volatility": 0.12363944330409678,
+        "risk_forecast_bias": -0.036381475289051106,
+        "risk_forecast_mae": 0.052012018195328656,
+        "avg_risk_forecast_ratio": 0.8108360600148609,
+        "avg_signal_coverage_rate": null,
+        "avg_view_signal_retention": 0.5,
+        "gross_cumulative_return": 1.4445448497452404,
+        "net_cumulative_return": 1.4335256786711073,
+        "transaction_cost_return_drag": 0.011019171074133194,
+        "market_cap_available_count": 0
+      },
+      "risk_parity": {
+        "cagr": 0.15225553271709247,
+        "annual_volatility": 0.1237907062875504,
+        "annualized_excess_return": 0.14943343029476402,
+        "annualized_risk_free_return": 0.0,
+        "risk_free_observation_coverage": 1.0,
+        "annual_downside_deviation": 0.08605195774199942,
+        "sharpe": 1.2071457928969949,
+        "sortino": 1.736548873679256,
+        "calmar": 1.086293181559272,
+        "omega": 1.2289795068277305,
+        "daily_var_95": 0.012748759357742244,
+        "daily_cvar_95": 0.018193694224588396,
+        "max_drawdown": -0.14016062634080417,
+        "final_value": 23351.55724469051,
+        "turnover": 4.1464594006643525,
+        "avg_turnover": 0.172769141694348,
+        "controlled_turnover": 1.0418161090043974,
+        "avg_controlled_turnover": 0.04340900454184989,
+        "skipped_trade_count": 787,
+        "turnover_cap_hit_count": 0,
+        "avg_risky_exposure": 0.9999565909954579,
+        "avg_cash_weight": 4.3409004542138696e-05,
+        "transaction_costs": 10.748215736797572,
+        "rebalance_count": 24,
+        "failed_forecast_count": 0,
+        "avg_forecast_confidence": null,
+        "avg_signal_rank_ic": null,
+        "median_signal_rank_ic": null,
+        "positive_signal_rank_ic_rate": null,
+        "signal_rank_ic_count": 0,
+        "avg_forecast_rank_ic": null,
+        "median_forecast_rank_ic": null,
+        "positive_forecast_rank_ic_rate": null,
+        "forecast_rank_ic_count": 0,
+        "avg_top_bottom_spread": null,
+        "top_bottom_direction_hit_rate": null,
+        "avg_signal_weight_rank_correlation": null,
+        "avg_signal_persistence": null,
+        "horizon_rank_ic": {},
+        "avg_active_share": 0.09476685366158337,
+        "avg_controlled_active_share": 0.12542853736350904,
+        "avg_execution_signal_retention": 1.3636377528523618,
+        "avg_execution_weight_l1": 0.12931891369168277,
+        "avg_concentration_hhi": 0.030175800693830936,
+        "avg_predicted_annual_volatility": 0.15362036814943392,
+        "avg_execution_predicted_annual_volatility": 0.15290289056343356,
+        "avg_realized_period_annual_volatility": 0.11850475104884271,
+        "risk_forecast_bias": -0.03439813951459084,
+        "risk_forecast_mae": 0.0502599556050213,
+        "avg_risk_forecast_ratio": 0.8126624269407628,
+        "avg_signal_coverage_rate": null,
+        "avg_view_signal_retention": null,
+        "gross_cumulative_return": 1.3375876125147745,
+        "net_cumulative_return": 1.3351557244690517,
+        "transaction_cost_return_drag": 0.0024318880457228076,
+        "market_cap_available_count": 0
+      },
+      "min_variance": {
+        "cagr": 0.126770459076478,
+        "annual_volatility": 0.10107099335706148,
+        "annualized_excess_return": 0.12449512178404923,
+        "annualized_risk_free_return": 0.0,
+        "risk_free_observation_coverage": 1.0,
+        "annual_downside_deviation": 0.06920186493955258,
+        "sharpe": 1.2317591590718366,
+        "sortino": 1.7990139701118602,
+        "calmar": 1.3976803948336942,
+        "omega": 1.2339502126565067,
+        "daily_var_95": 0.009930012317651338,
+        "daily_cvar_95": 0.014437646943743826,
+        "max_drawdown": -0.09070060619370857,
+        "final_value": 20426.310510304018,
+        "turnover": 4.737480398384422,
+        "avg_turnover": 0.1973950165993509,
+        "controlled_turnover": 3.915434783734568,
+        "avg_controlled_turnover": 0.16314311598894035,
+        "skipped_trade_count": 63,
+        "turnover_cap_hit_count": 2,
+        "avg_risky_exposure": 0.999836856884011,
+        "avg_cash_weight": 0.0001631431159889729,
+        "transaction_costs": 57.2505942173692,
+        "rebalance_count": 24,
+        "failed_forecast_count": 0,
+        "avg_forecast_confidence": null,
+        "avg_signal_rank_ic": null,
+        "median_signal_rank_ic": null,
+        "positive_signal_rank_ic_rate": null,
+        "signal_rank_ic_count": 0,
+        "avg_forecast_rank_ic": null,
+        "median_forecast_rank_ic": null,
+        "positive_forecast_rank_ic_rate": null,
+        "forecast_rank_ic_count": 0,
+        "avg_top_bottom_spread": null,
+        "top_bottom_direction_hit_rate": null,
+        "avg_signal_weight_rank_correlation": null,
+        "avg_signal_persistence": null,
+        "horizon_rank_ic": {},
+        "avg_active_share": 0.7861684445777266,
+        "avg_controlled_active_share": 0.786441184845391,
+        "avg_execution_signal_retention": 1.0004518931088648,
+        "avg_execution_weight_l1": 0.034223153643175235,
+        "avg_concentration_hhi": 0.1640833911189921,
+        "avg_predicted_annual_volatility": 0.11448605547785962,
+        "avg_execution_predicted_annual_volatility": 0.1144834618455769,
+        "avg_realized_period_annual_volatility": 0.09666792076641391,
+        "risk_forecast_bias": -0.017815541079162982,
+        "risk_forecast_mae": 0.031399422043116576,
+        "avg_risk_forecast_ratio": 0.8678860900878531,
+        "avg_signal_coverage_rate": null,
+        "avg_view_signal_retention": null,
+        "gross_cumulative_return": 1.0505655355205685,
+        "net_cumulative_return": 1.0426310510304009,
+        "transaction_cost_return_drag": 0.007934484490167648,
+        "market_cap_available_count": 0
+      }
+    },
+    "alpha_diagnostics": {
+      "equal_weight": {
+        "signal": {
+          "mean_rank_ic": null,
+          "median_rank_ic": null,
+          "positive_rank_ic_rate": null,
+          "top_bottom_spread": null,
+          "top_bottom_direction_hit_rate": null,
+          "horizon_rank_ic": {},
+          "persistence": null,
+          "coverage_rate": null
+        },
+        "construction": {
+          "signal_weight_rank_correlation": null,
+          "active_share": 0.0,
+          "view_signal_retention": null,
+          "concentration_hhi": 0.028571428571428567,
+          "predicted_annual_volatility": 0.16247571331989516
+        },
+        "execution": {
+          "raw_turnover": 4.137560676255004,
+          "controlled_turnover": 1.0858299327074927,
+          "controlled_active_share": 0.06355728393863384,
+          "signal_retention": null,
+          "weight_l1_loss": 0.1271145678772677,
+          "gross_cumulative_return": 1.3648461943612227,
+          "net_cumulative_return": 1.3622706838935317,
+          "transaction_cost_return_drag": 0.002575510467691
+        }
+      },
+      "historical_bl": {
+        "signal": {
+          "mean_rank_ic": -0.003256302521008401,
+          "median_rank_ic": 0.010224089635854344,
+          "positive_rank_ic_rate": 0.5,
+          "top_bottom_spread": 0.0011901142767136129,
+          "top_bottom_direction_hit_rate": 0.5,
+          "horizon_rank_ic": {
+            "21": {
+              "mean": -0.02298085901027078,
+              "median": -0.025770308123249305,
+              "positive_rate": 0.5,
+              "count": 24
+            },
+            "63": {
+              "mean": -0.0013396663013031205,
+              "median": 0.028571428571428574,
+              "positive_rate": 0.5217391304347826,
+              "count": 23
+            }
+          },
+          "persistence": 0.8477773718182925,
+          "coverage_rate": null
+        },
+        "construction": {
+          "signal_weight_rank_correlation": 0.9775704251071805,
+          "active_share": 0.08061132353134508,
+          "view_signal_retention": 0.5,
+          "concentration_hhi": 0.029934118038184843,
+          "predicted_annual_volatility": 0.15879281663509323
+        },
+        "execution": {
+          "raw_turnover": 4.734440235264844,
+          "controlled_turnover": 1.1623309151875652,
+          "controlled_active_share": 0.11369011774651837,
+          "signal_retention": 1.4511245863255031,
+          "weight_l1_loss": 0.14879730244135994,
+          "gross_cumulative_return": 1.3149488691499291,
+          "net_cumulative_return": 1.3122739188455133,
+          "transaction_cost_return_drag": 0.0026749503044158907
+        }
+      },
+      "lightweight_bl": {
+        "signal": {
+          "mean_rank_ic": 0.0390406162464986,
+          "median_rank_ic": 0.04733893557422969,
+          "positive_rank_ic_rate": 0.5833333333333334,
+          "top_bottom_spread": 0.00902396713481448,
+          "top_bottom_direction_hit_rate": 0.6666666666666666,
+          "horizon_rank_ic": {
+            "21": {
+              "mean": 0.025268440709617163,
+              "median": 0.10378151260504201,
+              "positive_rate": 0.625,
+              "count": 24
+            },
+            "63": {
+              "mean": 0.031104615759347233,
+              "median": 0.038375350140056025,
+              "positive_rate": 0.5652173913043478,
+              "count": 23
+            }
+          },
+          "persistence": 0.21874314943368658,
+          "coverage_rate": null
+        },
+        "construction": {
+          "signal_weight_rank_correlation": 0.9794861042558551,
+          "active_share": 0.15677220195009178,
+          "view_signal_retention": 0.5,
+          "concentration_hhi": 0.033604566092859084,
+          "predicted_annual_volatility": 0.1600509767535834
+        },
+        "execution": {
+          "raw_turnover": 8.810513183256788,
+          "controlled_turnover": 4.490553240559893,
+          "controlled_active_share": 0.13717729039953133,
+          "signal_retention": 0.91139279588475,
+          "weight_l1_loss": 0.1799553135948495,
+          "gross_cumulative_return": 1.4445448497452404,
+          "net_cumulative_return": 1.4335256786711073,
+          "transaction_cost_return_drag": 0.011019171074133194
+        }
+      },
+      "risk_parity": {
+        "signal": {
+          "mean_rank_ic": null,
+          "median_rank_ic": null,
+          "positive_rank_ic_rate": null,
+          "top_bottom_spread": null,
+          "top_bottom_direction_hit_rate": null,
+          "horizon_rank_ic": {},
+          "persistence": null,
+          "coverage_rate": null
+        },
+        "construction": {
+          "signal_weight_rank_correlation": null,
+          "active_share": 0.09476685366158337,
+          "view_signal_retention": null,
+          "concentration_hhi": 0.030175800693830936,
+          "predicted_annual_volatility": 0.15362036814943392
+        },
+        "execution": {
+          "raw_turnover": 4.1464594006643525,
+          "controlled_turnover": 1.0418161090043974,
+          "controlled_active_share": 0.12542853736350904,
+          "signal_retention": 1.3636377528523618,
+          "weight_l1_loss": 0.12931891369168277,
+          "gross_cumulative_return": 1.3375876125147745,
+          "net_cumulative_return": 1.3351557244690517,
+          "transaction_cost_return_drag": 0.0024318880457228076
+        }
+      },
+      "min_variance": {
+        "signal": {
+          "mean_rank_ic": null,
+          "median_rank_ic": null,
+          "positive_rank_ic_rate": null,
+          "top_bottom_spread": null,
+          "top_bottom_direction_hit_rate": null,
+          "horizon_rank_ic": {},
+          "persistence": null,
+          "coverage_rate": null
+        },
+        "construction": {
+          "signal_weight_rank_correlation": null,
+          "active_share": 0.7861684445777266,
+          "view_signal_retention": null,
+          "concentration_hhi": 0.1640833911189921,
+          "predicted_annual_volatility": 0.11448605547785962
+        },
+        "execution": {
+          "raw_turnover": 4.737480398384422,
+          "controlled_turnover": 3.915434783734568,
+          "controlled_active_share": 0.786441184845391,
+          "signal_retention": 1.0004518931088648,
+          "weight_l1_loss": 0.034223153643175235,
+          "gross_cumulative_return": 1.0505655355205685,
+          "net_cumulative_return": 1.0426310510304009,
+          "transaction_cost_return_drag": 0.007934484490167648
+        }
+      }
+    },
+    "promotion_decision": {
+      "candidate_model": "factor_neutral_alpha_tilt",
+      "status": "not_promoted",
+      "reasons": [
+        "Candidate model factor_neutral_alpha_tilt is missing.",
+        "Required comparison models are missing: momentum_bl, momentum_6m, low_volatility, momentum_12_1."
+      ]
+    },
+    "warnings": []
+  }
+}

@@ -54,6 +54,7 @@ MAX_FORECAST_UNCERTAINTY = 5.0
 DEFAULT_REBALANCE_BAND = 0.02
 DEFAULT_MAX_TURNOVER = 0.35
 DEFAULT_TRANSACTION_COST_BPS = 10.0
+DEFAULT_OPTIMIZATION_METHOD = "MIN_VARIANCE"
 TRADING_DAYS_PER_YEAR = 252
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
@@ -98,6 +99,30 @@ def worker_initializer():
 
 class OptimizationCancelled(RuntimeError):
     """Raised when a long-running optimization job is cancelled cooperatively."""
+
+
+def normalize_optimization_method(value):
+    """Return the canonical supported production optimization method."""
+    key = str(value or DEFAULT_OPTIMIZATION_METHOD).strip().upper()
+    aliases = {
+        "MIN_VARIANCE": "MIN_VARIANCE",
+        "MINIMUM_VARIANCE": "MIN_VARIANCE",
+        "GLOBAL_MINIMUM_VARIANCE": "MIN_VARIANCE",
+        "GMV": "MIN_VARIANCE",
+        "BL": "BL",
+        "BLACK-LITTERMAN": "BL",
+        "BLACK_LITTERMAN": "BL",
+        "MPT": "MPT",
+        "MEAN-VARIANCE": "MPT",
+        "MEAN_VARIANCE": "MPT",
+        "CLASSIC MPT": "MPT",
+    }
+    if key not in aliases:
+        raise ValueError(
+            "optimization_method must be one of "
+            "MIN_VARIANCE, BL, or MPT"
+        )
+    return aliases[key]
 
 
 def _raise_if_cancelled(cancel_event):
@@ -2182,7 +2207,12 @@ def data_and_forecast_pipeline(
     uncertainties = None
     no_view_tickers = []
     
-    if forecast_method in ["HISTORICAL", "MPT", "CLASSIC_MPT"]:
+    if forecast_method in [
+        "HISTORICAL",
+        "MPT",
+        "CLASSIC_MPT",
+        "RISK_ONLY",
+    ]:
         logger.info("Using Historical CAGR for Forecasting")
         mu_forecast = _calculate_historical_cagr(data[final_tickers])
         uncertainties = pd.Series({t: DEFAULT_FORECAST_UNCERTAINTY for t in final_tickers})
@@ -2418,13 +2448,35 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        target_return=None, risk_tolerance=None, portfolio_id=None,
                        persist_result=False, load_if_available=False, progress_callback=None,
                        l2_gamma=0.0, max_asset_weight=0.2,
-                       forecast_method="LIGHTWEIGHT", optimization_method="BL",
+                       forecast_method="LIGHTWEIGHT",
+                       optimization_method=DEFAULT_OPTIMIZATION_METHOD,
                        forecast_horizon=63, min_history=504, bl_tau=0.05,
                        current_weights=None, rebalance_band=None, max_turnover=None,
                        turnover_penalty=0.0, min_holding_weight=0.0,
                        cancel_event=None):
     """Optimize portfolio and optionally persist or reuse saved results."""
     _raise_if_cancelled(cancel_event)
+    try:
+        optimization_method = normalize_optimization_method(
+            optimization_method
+        )
+    except ValueError as exc:
+        return {"error": str(exc)}
+    risk_only_optimization = optimization_method == "MIN_VARIANCE"
+    if risk_only_optimization and (
+        target_return is not None or risk_tolerance is not None
+    ):
+        return {
+            "error": (
+                "target_return and risk_tolerance are unavailable for "
+                "MIN_VARIANCE because its objective is global minimum "
+                "variance"
+            )
+        }
+    requested_forecast_method = forecast_method
+    effective_forecast_method = (
+        "RISK_ONLY" if risk_only_optimization else forecast_method
+    )
 
     # Resolve ticker source as early as possible so we can sanitize/de-duplicate once.
     if not tickers and ticker_group:
@@ -2479,12 +2531,21 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             return saved_result
 
     # 1. Determine Forecast Method (User Choice Respected)
-    logger.info(f"Executing: Forecast={forecast_method}, Optimization={optimization_method}")
+    logger.info(
+        "Executing: Forecast=%s (effective=%s), Optimization=%s",
+        requested_forecast_method,
+        effective_forecast_method,
+        optimization_method,
+    )
 
     # 2. Run Cached Pipeline (Data & Forecasting)
     try:
         pipeline_result = data_and_forecast_pipeline(
-            start_date, end_date, ticker_group, tickers, forecast_method, 
+            start_date,
+            end_date,
+            ticker_group,
+            tickers,
+            effective_forecast_method,
             forecast_horizon=forecast_horizon,
             min_history=min_history,
             progress_callback=progress_callback,
@@ -2586,6 +2647,10 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     elif optimization_method in ["MPT", "Mean-Variance", "Classic MPT"]:
         logger.info("Applying Mean-Variance Optimization")
         pass
+    elif optimization_method == "MIN_VARIANCE":
+        logger.info(
+            "Applying risk-only Ledoit-Wolf global minimum variance"
+        )
 
     # 4. Efficient Frontier Optimization
     try:
@@ -2647,7 +2712,15 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         _raise_if_cancelled(cancel_event)
         solver_objective = None
         ef = build_frontier()
-        if target_return is not None:
+        if risk_only_optimization:
+            ef.min_volatility()
+            weights = ef.clean_weights()
+            solver_objective = (
+                "regularized_ledoit_wolf_minimum_variance"
+                if l2_gamma > 0 or current_weight_vector is not None
+                else "ledoit_wolf_minimum_variance"
+            )
+        elif target_return is not None:
             ef.efficient_return(target_return)
             weights = ef.clean_weights()
             solver_objective = "efficient_return"
@@ -2830,6 +2903,15 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "no_view_tickers": no_view_tickers,
             "failed_forecast_count": len(no_view_tickers),
             "market_prior_source": market_prior_source,
+            "optimization_method": optimization_method,
+            "forecast_method_requested": requested_forecast_method,
+            "forecast_method_effective": effective_forecast_method,
+            "forecast_bypassed": bool(risk_only_optimization),
+            "expected_return_role": (
+                "historical_diagnostic_not_optimization_input"
+                if risk_only_optimization
+                else "optimization_input"
+            ),
             "data_eligibility": data_eligibility,
             "optimizer_controls": {
                 "solver_objective": solver_objective,
@@ -2862,6 +2944,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 "risk_tolerance": risk_tolerance,
                 "l2_gamma": l2_gamma,
                 "max_asset_weight": max_asset_weight,
+                "optimization_method": optimization_method,
+                "forecast_method_requested": requested_forecast_method,
+                "forecast_method_effective": effective_forecast_method,
                 "turnover_penalty": turnover_penalty,
                 "min_holding_weight": min_holding_weight,
             }
@@ -3204,7 +3289,8 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
     return result
 
 def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_date, risk_free_rate, 
-                           forecast_method="LIGHTWEIGHT", optimization_method="BL",
+                           forecast_method="LIGHTWEIGHT",
+                           optimization_method=DEFAULT_OPTIMIZATION_METHOD,
                            ticker_group=None,
                            tickers=None, allow_fractional=True, fractional_overrides=None,
                            rebalance_band=DEFAULT_REBALANCE_BAND,

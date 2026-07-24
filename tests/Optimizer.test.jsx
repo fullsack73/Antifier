@@ -23,6 +23,9 @@ const translations = {
   "optimizer.lightweight": "Lightweight Prediction",
   "optimizer.ensemble": "ARIMA + Transformer",
   "optimizer.transformer": "Transformer",
+  "optimizer.minVariance": "Minimum Variance (Default)",
+  "optimizer.minVarianceShort": "Minimum Variance",
+  "optimizer.riskOnlyForecast": "Not used (risk-only)",
   "optimizer.bl": "Black-Litterman",
   "optimizer.mpt": "Mean-Variance (MPT)",
   "optimizer.startDate": "Start Date",
@@ -137,6 +140,8 @@ describe("Optimizer job lifecycle", () => {
     expect(payload.portfolio_id).toBe(payload.request_id)
     expect(payload.persist_result).toBe(true)
     expect(payload.load_if_available).toBe(true)
+    expect(payload.optimization_method).toBe("MIN_VARIANCE")
+    expect(payload.forecast_method).toBe("RISK_ONLY")
 
     const stored = JSON.parse(window.localStorage.getItem(OPTIMIZER_JOB_STORAGE_KEY))
     expect(stored.requestId).toBe(payload.request_id)
