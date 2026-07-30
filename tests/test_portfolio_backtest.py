@@ -2,6 +2,8 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import Future
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -526,6 +528,52 @@ def test_minvar_momentum_blend_is_opt_in_and_ignores_future_rows():
     assert weights == pytest.approx(repeated)
     assert diagnostics == repeated_diagnostics
     assert sum(weights.values()) == pytest.approx(1.0)
+
+
+def test_conditional_volatility_minvar_reuses_arima_transformer_path(
+    monkeypatch,
+):
+    prices = _synthetic_factor_research_data(
+        rows=520,
+        ticker_count=8,
+    )[0].iloc[:504]
+    calls = []
+
+    def fake_forecast(ticker, history, horizon):
+        calls.append((ticker, len(history), horizon))
+        return {
+            "expected_return": 0.0,
+            "uncertainty": 0.1,
+            "source": "arima_transformer",
+        }
+
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "forecast_single_ticker_with_arima_transformer",
+        fake_forecast,
+    )
+    portfolio_backtest.configure_forecast_rank_cache(
+        namespace="conditional-volatility-test",
+    )
+    weights, diagnostics = portfolio_backtest._model_weights(
+        "conditional_volatility_minimum_variance",
+        prices,
+        63,
+        0.25,
+        0.02,
+    )
+
+    assert len(calls) == len(prices.columns)
+    assert sum(weights.values()) == pytest.approx(1.0)
+    assert max(weights.values()) <= 0.25 + 1e-9
+    assert diagnostics["failed_forecast_count"] == 0
+    assert diagnostics["risk_model"]["forecast_coverage_rate"] == 1.0
+    assert "conditional_volatility_minimum_variance" in (
+        portfolio_backtest.SUPPORTED_BACKTEST_MODELS
+    )
+    assert "conditional_volatility_minimum_variance" not in (
+        portfolio_backtest.DEFAULT_BACKTEST_MODELS
+    )
 
 
 def test_james_stein_expected_returns_reduce_cross_sectional_dispersion():
@@ -2118,6 +2166,305 @@ def test_forecast_rank_views_reuse_same_train_window_predictions(monkeypatch):
     portfolio_backtest._forecast_rank_views(prices, "transformer_rank", forecast_horizon=5)
 
     assert calls["count"] == len(prices.columns)
+
+
+class _ImmediateForecastExecutor:
+    def __init__(self):
+        self.submissions = []
+
+    def submit(self, function, *args):
+        self.submissions.append(args)
+        future = Future()
+        try:
+            future.set_result(function(*args))
+        except Exception as exc:
+            future.set_exception(exc)
+        return future
+
+
+def _deterministic_rank_prediction(ticker, _prices, _method, _horizon):
+    expected_returns = {
+        "AAA": 0.03,
+        "BBB": 0.02,
+        "CCC": 0.01,
+    }
+    return {
+        "expected_return": expected_returns[ticker],
+        "uncertainty": 0.20,
+        "source": "test",
+    }
+
+
+def test_forecast_rank_parallel_submits_only_cache_misses(monkeypatch):
+    prices = _synthetic_prices(140)
+    executor = _ImmediateForecastExecutor()
+    portfolio_backtest.configure_forecast_rank_cache(None)
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_forecast_rank_prediction_worker",
+        _deterministic_rank_prediction,
+    )
+    cached_key = portfolio_backtest._forecast_rank_cache_key(
+        "AAA",
+        prices["AAA"],
+        "transformer_rank",
+        5,
+    )
+    portfolio_backtest._FORECAST_RANK_CACHE[cached_key] = (
+        _deterministic_rank_prediction(
+            "AAA",
+            prices["AAA"],
+            "transformer_rank",
+            5,
+        )
+    )
+
+    portfolio_backtest._forecast_rank_views(
+        prices,
+        "transformer_rank",
+        forecast_horizon=5,
+        forecast_executor=executor,
+    )
+
+    submitted_tickers = [args[0] for args in executor.submissions]
+    assert submitted_tickers == ["BBB", "CCC"]
+    assert portfolio_backtest._FORECAST_RANK_CACHE_STATS["memory_hits"] == 1
+    assert portfolio_backtest._FORECAST_RANK_CACHE_STATS["misses"] == 2
+
+
+def test_conditional_volatility_predictions_share_parallel_cache(
+    monkeypatch,
+):
+    prices = _synthetic_prices(140)
+    executor = _ImmediateForecastExecutor()
+    portfolio_backtest.configure_forecast_rank_cache(None)
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_forecast_rank_prediction_worker",
+        _deterministic_rank_prediction,
+    )
+
+    predictions = portfolio_backtest._cached_forecast_predictions(
+        {
+            ticker: prices[ticker]
+            for ticker in prices.columns
+        },
+        "arima_transformer_volatility",
+        63,
+        forecast_executor=executor,
+    )
+
+    assert set(predictions) == set(prices.columns)
+    assert len(executor.submissions) == len(prices.columns)
+    assert portfolio_backtest.forecast_rank_cache_stats()["memory_entries"] == (
+        len(prices.columns)
+    )
+
+
+def test_forecast_rank_parallel_writes_sqlite_from_parent_only(
+    monkeypatch,
+    tmp_path,
+):
+    prices = _synthetic_prices(140)
+    executor = _ImmediateForecastExecutor()
+    cache_path = tmp_path / "parent-cache.sqlite3"
+    portfolio_backtest.configure_forecast_rank_cache(cache_path)
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_forecast_rank_prediction_worker",
+        _deterministic_rank_prediction,
+    )
+    cache = portfolio_backtest._FORECAST_RANK_PERSISTENT_CACHE
+    original_set = cache.set
+    write_pids = []
+
+    def recording_set(key, prediction):
+        write_pids.append(os.getpid())
+        original_set(key, prediction)
+
+    monkeypatch.setattr(cache, "set", recording_set)
+    try:
+        portfolio_backtest._forecast_rank_views(
+            prices,
+            "transformer_rank",
+            forecast_horizon=5,
+            forecast_executor=executor,
+        )
+
+        assert write_pids == [os.getpid()] * len(prices.columns)
+        assert cache.count() == len(prices.columns)
+    finally:
+        portfolio_backtest.configure_forecast_rank_cache(None)
+
+
+def test_forecast_rank_parallel_worker_failure_becomes_no_view(
+    monkeypatch,
+    tmp_path,
+):
+    prices = _synthetic_prices(140)
+    executor = _ImmediateForecastExecutor()
+    cache_path = tmp_path / "worker-failure.sqlite3"
+    portfolio_backtest.configure_forecast_rank_cache(cache_path)
+
+    def failing_worker(ticker, ticker_prices, method, horizon):
+        if ticker == "BBB":
+            raise RuntimeError("synthetic worker crash")
+        return _deterministic_rank_prediction(
+            ticker,
+            ticker_prices,
+            method,
+            horizon,
+        )
+
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_forecast_rank_prediction_worker",
+        failing_worker,
+    )
+    try:
+        _, _, failed, diagnostics = portfolio_backtest._forecast_rank_views(
+            prices,
+            "transformer_rank",
+            forecast_horizon=5,
+            forecast_executor=executor,
+        )
+
+        failed_key = portfolio_backtest._forecast_rank_cache_key(
+            "BBB",
+            prices["BBB"],
+            "transformer_rank",
+            5,
+        )
+        cached_failure = portfolio_backtest._FORECAST_RANK_PERSISTENT_CACHE.get(
+            failed_key
+        )
+        assert failed == 1
+        assert "BBB" not in diagnostics["raw_forecasts"]
+        assert cached_failure["source"] == "no_view"
+        assert "synthetic worker crash" in cached_failure["reason"]
+    finally:
+        portfolio_backtest.configure_forecast_rank_cache(None)
+
+
+def test_forecast_rank_worker_default_cap_is_two(monkeypatch):
+    monkeypatch.delenv("ANTIFIER_ML_MAX_WORKERS", raising=False)
+    assert portfolio_backtest._forecast_rank_worker_count(10) == 2
+    assert portfolio_backtest._forecast_rank_worker_count(1) == 1
+
+    monkeypatch.setenv("ANTIFIER_ML_MAX_WORKERS", "4")
+    assert portfolio_backtest._forecast_rank_worker_count(10) == 4
+
+
+def test_forecast_rank_sequential_and_parallel_result_structure_match(
+    monkeypatch,
+):
+    prices = _synthetic_prices(140)
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_forecast_rank_prediction_worker",
+        _deterministic_rank_prediction,
+    )
+    portfolio_backtest.configure_forecast_rank_cache(None)
+    sequential = portfolio_backtest._forecast_rank_views(
+        prices,
+        "transformer_rank",
+        forecast_horizon=5,
+    )
+
+    portfolio_backtest.configure_forecast_rank_cache(None)
+    parallel = portfolio_backtest._forecast_rank_views(
+        prices,
+        "transformer_rank",
+        forecast_horizon=5,
+        forecast_executor=_ImmediateForecastExecutor(),
+    )
+
+    pd.testing.assert_series_equal(sequential[0], parallel[0])
+    pd.testing.assert_series_equal(sequential[1], parallel[1])
+    assert sequential[2:] == parallel[2:]
+
+
+def test_build_rebalance_targets_reuses_one_forecast_executor(
+    monkeypatch,
+):
+    prices = _synthetic_prices(80)
+    executor_token = object()
+    executor_context_entries = []
+    observed_executors = []
+
+    @contextmanager
+    def fake_executor_context(models, ticker_count):
+        executor_context_entries.append((tuple(models), ticker_count))
+        yield executor_token
+
+    def fake_model_weights(
+        model_name,
+        train_prices,
+        forecast_horizon,
+        max_asset_weight,
+        risk_free_rate,
+        **kwargs,
+    ):
+        observed_executors.append(kwargs.get("forecast_executor"))
+        return {"AAA": 0.5, "BBB": 0.3, "CCC": 0.2}, {
+            "failed_forecast_count": 0,
+            "avg_forecast_confidence": None,
+        }
+
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_forecast_rank_executor",
+        fake_executor_context,
+    )
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_model_weights",
+        fake_model_weights,
+    )
+
+    targets = portfolio_backtest.build_rebalance_targets(
+        prices,
+        models=("transformer_rank_bl",),
+        train_window=20,
+        rebalance_frequency=10,
+        forecast_horizon=5,
+    )
+
+    assert len(targets["records"]) > 1
+    assert len(executor_context_entries) == 1
+    assert observed_executors
+    assert all(executor is executor_token for executor in observed_executors)
+
+
+def test_forecast_rank_real_process_pool_smoke_uses_parent_cache(
+    monkeypatch,
+    tmp_path,
+):
+    prices = _synthetic_prices(20)
+    cache_path = tmp_path / "process-pool.sqlite3"
+    monkeypatch.setenv("ANTIFIER_ML_MAX_WORKERS", "2")
+    portfolio_backtest.configure_forecast_rank_cache(cache_path)
+    try:
+        with portfolio_backtest._forecast_rank_executor(
+            ("transformer_rank_bl",),
+            len(prices.columns),
+        ) as executor:
+            _, _, failed, _ = portfolio_backtest._forecast_rank_views(
+                prices,
+                "transformer_rank",
+                forecast_horizon=5,
+                forecast_executor=executor,
+            )
+
+        assert failed == len(prices.columns)
+        assert portfolio_backtest.forecast_rank_cache_stats()["writes"] == len(
+            prices.columns
+        )
+        assert portfolio_backtest._FORECAST_RANK_PERSISTENT_CACHE.count() == len(
+            prices.columns
+        )
+    finally:
+        portfolio_backtest.configure_forecast_rank_cache(None)
 
 
 def test_forecast_rank_views_reuse_persistent_predictions_after_memory_clear(monkeypatch, tmp_path):

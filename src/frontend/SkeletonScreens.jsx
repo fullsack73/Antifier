@@ -173,14 +173,20 @@ export const OptimizerSkeleton = () => (
 export const BenchmarkSkeleton = () => (
   <section className="benchmark-results skeleton-screen" role="status" aria-live="polite">
     <SkeletonStatus i18nKey="skeleton.loadingBenchmarkResults" />
-    <SkeletonLine className="skeleton-title-line" width="14rem" />
-    <div className="charts-container">
-      <div className="chart-wrapper skeleton-chart-card">
+    <div className="benchmark-results-heading">
+      <SkeletonLine width="7rem" />
+      <SkeletonLine className="skeleton-title-line" width="14rem" />
+      <SkeletonLine width="24rem" />
+    </div>
+    <div className="benchmark-chart-panel">
+      <div className="benchmark-chart-heading">
         <SkeletonLine width="12rem" />
+      </div>
+      <div className="benchmark-chart-frame skeleton-chart-card">
         <div className="skeleton-chart-body skeleton-shimmer" />
       </div>
     </div>
-    <div className="benchmark-table-container">
+    <div className="benchmark-summary-panel">
       <GenericTableSkeleton rows={3} columns={5} i18nKey="skeleton.loadingBenchmarkTable" />
     </div>
   </section>

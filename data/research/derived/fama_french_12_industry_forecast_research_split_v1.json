@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-12-industry-forecast-research-2022-2025-v1",
+  "role": "research",
+  "evaluation_start": "2022-01-03",
+  "evaluation_end": "2025-09-30",
+  "experiment_namespace": "forecast-v1-fresh-industry-portfolios",
+  "objectives": [
+    "relative_ridge",
+    "relative_nested_ridge"
+  ],
+  "settings": {
+    "horizon": 63,
+    "rebalance_step": 63,
+    "minimum_feature_history": 253,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 12,
+    "minimum_observations": 40,
+    "ridge_penalty": 5.0,
+    "nested_ridge_penalties": [
+      1.0,
+      5.0,
+      20.0,
+      100.0
+    ],
+    "nested_validation_periods": 3,
+    "nominal_uncertainty_coverage": 0.8
+  },
+  "universe_manifest_sha256": "409362fc5d4e9cd778d93684172cf5b36bd9323518090d3bc8d12d1c131e343f",
+  "price_file_sha256": "26d3efcbd6711e072d3ba89959dea45aa92d122f7c92808479e66594d33a392d",
+  "factor_file_sha256": null,
+  "locked": true,
+  "manifest_sha256": "87ee1e67fc675dce7c43277727ee571d2ca7cd6f8c619f0ea5e89cf685c4093f"
+}

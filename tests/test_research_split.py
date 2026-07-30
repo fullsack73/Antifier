@@ -3,6 +3,7 @@ import pytest
 from research_split import (
     normalize_research_split_manifest,
     research_split_digest,
+    validate_comparison_execution_settings,
     validate_research_split_run,
 )
 
@@ -137,3 +138,23 @@ def test_locked_validation_split_is_promotion_safe():
     )
 
     assert result["promotion_safe"] is True
+
+
+def test_comparison_contract_rejects_execution_drift():
+    common = {
+        "eligible_universe_sha256": "a" * 64,
+        "rebalance_dates": ["2024-03-31", "2024-06-30"],
+        "horizon": 63,
+        "rebalance_step": 63,
+        "max_asset_weight": 0.20,
+        "rebalance_band": 0.02,
+        "max_turnover": 0.35,
+        "transaction_cost_bps": 10,
+        "risk_free_sha256": "b" * 64,
+    }
+    candidate = {**common, "transaction_cost_bps": 20}
+
+    with pytest.raises(ValueError, match="transaction_cost_bps"):
+        validate_comparison_execution_settings(common, candidate)
+
+    assert validate_comparison_execution_settings(common, common) == common

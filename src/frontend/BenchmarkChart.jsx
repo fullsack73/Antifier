@@ -46,34 +46,43 @@ function BenchmarkChart({ portfolioData, sp500Data, riskfreeData }) {
       ]}
       layout={{
         autosize: true,
-        title: {
-          text: t("benchmark.chartTitle"),
-          font: { color: chartText, size: 18, family: "Outfit, Pretendard, sans-serif" },
+        paper_bgcolor: "rgba(0, 0, 0, 0)",
+        plot_bgcolor: "rgba(0, 0, 0, 0)",
+        font: {
+          color: chartMuted,
+          family: "Outfit, Pretendard, sans-serif",
+          size: 12,
         },
-        paper_bgcolor: "rgba(17, 22, 17, 0.64)",
-        plot_bgcolor: "rgba(8, 11, 8, 0.24)",
+        hovermode: "x unified",
         xaxis: {
-          title: { text: t("benchmark.date"), font: { color: chartMuted } },
-          tickangle: 45,
+          title: { text: t("benchmark.date"), font: { color: chartMuted, size: 11 } },
+          tickangle: 0,
           tickformat: "%Y-%m-%d",
           color: chartMuted,
           gridcolor: chartGrid,
+          zeroline: false,
+          automargin: true,
         },
         yaxis: {
-          title: { text: t("benchmark.portfolioValue"), font: { color: chartMuted } },
+          title: { text: t("benchmark.portfolioValue"), font: { color: chartMuted, size: 11 } },
           color: chartMuted,
           gridcolor: chartGrid,
+          zeroline: false,
+          tickprefix: "$",
+          automargin: true,
         },
-        margin: { t: 50, b: 100, l: 70, r: 50 },
+        margin: { t: 58, b: 58, l: 72, r: 24 },
         showlegend: true,
         legend: {
           x: 0,
-          y: 1,
+          y: 1.12,
           xanchor: "left",
           yanchor: "top",
+          orientation: "h",
           font: { color: chartText },
-          bgcolor: "rgba(17, 22, 17, 0.82)",
+          bgcolor: "rgba(0, 0, 0, 0)",
         },
+        uirevision: "benchmark-series",
       }}
       style={{ width: "100%", height: "100%" }}
       useResizeHandler={true}

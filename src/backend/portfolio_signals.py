@@ -784,6 +784,62 @@ def signal_tilt_weights(
     return cap_and_normalize_weights(tilted, max_asset_weight=max_asset_weight)
 
 
+def confidence_gated_gmv_overlay(
+    gmv_weights,
+    signal_scores,
+    gate_result,
+    *,
+    max_asset_weight=0.20,
+    target_active_share=0.05,
+):
+    """Add a fixed rank sleeve to GMV; rejected gates return exact GMV."""
+    baseline = cap_and_normalize_weights(
+        gmv_weights,
+        max_asset_weight=max_asset_weight,
+    )
+    if not bool(dict(gate_result or {}).get("active", False)):
+        return baseline, {
+            "active": False,
+            "strength": 0.0,
+            "target_active_share": float(target_active_share),
+            "realized_active_share": 0.0,
+        }
+
+    scores = rank_to_unit_scores(
+        pd.Series(signal_scores, dtype=float).reindex(baseline.index),
+        higher_is_better=True,
+    )
+    centered = scores.fillna(0.0) - float(scores.fillna(0.0).mean())
+    absolute_total = float(centered.abs().sum())
+    if absolute_total <= 0:
+        return baseline, {
+            "active": False,
+            "strength": 0.0,
+            "target_active_share": float(target_active_share),
+            "realized_active_share": 0.0,
+            "reason": "invalid_signal",
+        }
+
+    strength = float(np.clip(gate_result.get("strength", 0.0), 0.0, 1.0))
+    active_share = min(0.49, max(0.0, float(target_active_share))) * strength
+    raw = (
+        baseline
+        + centered / absolute_total * (2.0 * active_share)
+    ).clip(lower=0.0)
+    weights = cap_and_normalize_weights(
+        raw,
+        max_asset_weight=max_asset_weight,
+    )
+    return weights, {
+        "active": bool(strength > 0.0),
+        "strength": strength,
+        "target_active_share": float(target_active_share),
+        "realized_active_share": float(
+            0.5 * (weights - baseline).abs().sum()
+        ),
+    }
+
+
 def risk_momentum_blend_weights(
     price_data,
     max_asset_weight=0.2,

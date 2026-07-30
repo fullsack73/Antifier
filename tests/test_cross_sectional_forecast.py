@@ -520,6 +520,26 @@ def test_nested_factor_ridge_selects_penalty_from_completed_inner_folds():
         )
 
 
+def test_relative_nested_ridge_has_closest_baseline_paired_gate():
+    prices = _research_prices()
+    comparison = compare_pooled_objectives(
+        prices,
+        objectives=("relative_ridge", "relative_nested_ridge"),
+        horizon=21,
+        rebalance_step=21,
+        minimum_training_periods=6,
+        maximum_training_periods=8,
+        minimum_observations=20,
+        nested_ridge_penalties=[1.0, 10.0],
+        nested_validation_periods=2,
+    )
+
+    assert (
+        "relative_nested_ridge_vs_relative_ridge"
+        in comparison["paired_improvement"]
+    )
+
+
 def test_rank_target_nested_factor_ridge_uses_completed_inner_folds():
     prices = _research_prices()
     result = walk_forward_pooled_ridge(

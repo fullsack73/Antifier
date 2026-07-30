@@ -16,6 +16,7 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from portfolio_backtest import (  # noqa: E402
+    configure_forecast_rank_cache,
     fetch_backtest_price_data,
     run_portfolio_model_backtest,
 )
@@ -44,6 +45,7 @@ RISK_RESEARCH_MODELS = (
     "minimum_semivariance",
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
+    "conditional_volatility_minimum_variance",
     "stability_regularized_min_variance",
     "nested_blended_min_variance",
     "resampled_min_variance",
@@ -70,6 +72,7 @@ RISK_CANDIDATES = (
     "minimum_semivariance",
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
+    "conditional_volatility_minimum_variance",
     "stability_regularized_min_variance",
     "nested_blended_min_variance",
     "resampled_min_variance",
@@ -131,6 +134,14 @@ def _research_settings(args):
         settings["random_matrix_policy"] = {
             "correlation": "marchenko_pastur_noise_eigenvalue_mean",
             "variance": "ledoit_wolf_diagonal",
+        }
+    if "conditional_volatility_minimum_variance" in args.candidates:
+        settings["conditional_volatility_policy"] = {
+            "target": "rolling_21d_annualized_realized_volatility",
+            "forecast": "arima_transformer_annual_log_change",
+            "correlation": "ledoit_wolf",
+            "covariance": "diag_forecast_vol_correlation_diag_forecast_vol",
+            "invalid_forecast": "ledoit_wolf_historical_volatility",
         }
     if "dual_horizon_momentum" in args.candidates:
         settings["dual_horizon_momentum_policy"] = {
@@ -390,6 +401,7 @@ def _risk_gate(summary, candidate_name):
                 "minimum_semivariance",
                 "cross_validated_min_variance",
                 "forecast_ensemble_min_variance",
+                "conditional_volatility_minimum_variance",
                 "stability_regularized_min_variance",
                 "nested_blended_min_variance",
                 "resampled_min_variance",
@@ -560,6 +572,7 @@ def main(argv=None):
         default=0.95,
     )
     parser.add_argument("--output", required=True)
+    parser.add_argument("--forecast-cache")
     parser.add_argument(
         "--candidates",
         nargs="+",
@@ -574,6 +587,10 @@ def main(argv=None):
             raise ValueError(
                 "Reserved validation/holdout split cannot be used for research"
             )
+        configure_forecast_rank_cache(
+            args.forecast_cache,
+            namespace=args.experiment_namespace,
+        )
         prices = _load_prices(args)
         risk_free_daily, risk_free_provenance = _load_risk_free_data(args)
         candidates = list(dict.fromkeys(args.candidates))
