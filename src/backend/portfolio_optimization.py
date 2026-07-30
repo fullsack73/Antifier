@@ -1,8 +1,11 @@
 import json
 import logging
 import hashlib
+import os
 import re
+import threading
 import warnings
+from contextlib import contextmanager
 from pathlib import Path
 import time
 from datetime import datetime, timedelta
@@ -14,15 +17,17 @@ configure_native_threading()
 warnings.filterwarnings("ignore", message=".*Protobuf gencode version.*")
 
 import yfinance as yf
+import certifi
 import pandas as pd
 import numpy as np
+from curl_cffi import requests as curl_requests
+from platformdirs import user_cache_dir
 try:
     import cvxpy as cp
 except Exception:  # pragma: no cover - PyPortfolioOpt normally provides cvxpy.
     cp = None
 from pypfopt import EfficientFrontier, risk_models, objective_functions, BlackLittermanModel, black_litterman
 from pypfopt.exceptions import OptimizationError
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 import gc
 from cache_manager import (
     get_cache, cached
@@ -56,6 +61,12 @@ DEFAULT_MAX_TURNOVER = 0.35
 DEFAULT_TRANSACTION_COST_BPS = 10.0
 DEFAULT_OPTIMIZATION_METHOD = "MIN_VARIANCE"
 TRADING_DAYS_PER_YEAR = 252
+YFINANCE_REQUEST_TIMEOUT_SECONDS = 15
+YFINANCE_INDIVIDUAL_RETRY_ATTEMPTS = 2
+YFINANCE_RETRY_BACKOFF_SECONDS = 1.0
+
+_YFINANCE_RUNTIME_LOCK = threading.Lock()
+_YFINANCE_RUNTIME_CONFIGURED = False
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
@@ -88,6 +99,50 @@ TICKER_SUFFIX_CURRENCIES = {
     ".MX": "MXN",
     ".JO": "ZAR",
 }
+
+
+def _configure_yfinance_runtime():
+    """Configure a writable process-local cache location before Yahoo requests."""
+    global _YFINANCE_RUNTIME_CONFIGURED
+    if _YFINANCE_RUNTIME_CONFIGURED:
+        return
+
+    with _YFINANCE_RUNTIME_LOCK:
+        if _YFINANCE_RUNTIME_CONFIGURED:
+            return
+
+        configured_path = os.environ.get("ANTIFIER_YFINANCE_CACHE_DIR")
+        cache_dir = (
+            Path(configured_path).expanduser()
+            if configured_path
+            else Path(user_cache_dir("Antifier")) / "yfinance"
+        )
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        yf.set_tz_cache_location(str(cache_dir))
+        _YFINANCE_RUNTIME_CONFIGURED = True
+        logger.info(f"YFINANCE: Cache location configured at {cache_dir}")
+
+
+def _create_yfinance_session():
+    """Create a bounded-lifetime curl session with an explicit CA bundle."""
+    return curl_requests.Session(
+        impersonate="chrome",
+        verify=certifi.where(),
+    )
+
+
+@contextmanager
+def _managed_yfinance_session():
+    """Close Yahoo sockets after one logical fetch instead of leaking them across a long run."""
+    _configure_yfinance_runtime()
+    session = _create_yfinance_session()
+    try:
+        yield session
+    finally:
+        try:
+            session.close()
+        except Exception as exc:
+            logger.warning(f"YFINANCE: Failed to close download session: {exc}")
 
 
 def worker_initializer():
@@ -1407,115 +1462,173 @@ def list_saved_portfolios():
 
 def _stock_data_key_func(tickers, start_date, end_date, progress_callback=None, cancel_event=None):
     tickers_str = ",".join(tickers or [])
-    key_str = f"{tickers_str}|{start_date}|{end_date}|stock_data_v2"
+    key_str = f"{tickers_str}|{start_date}|{end_date}|stock_data_v3"
     return f"stock_data_{hashlib.md5(key_str.encode()).hexdigest()}"
+
+
+def _extract_yfinance_close_frame(raw_data, requested_tickers):
+    """Return usable Close columns only, excluding yfinance's all-NaN failure placeholders."""
+    requested_tickers = list(requested_tickers or [])
+    if raw_data is None or not isinstance(raw_data, pd.DataFrame) or raw_data.empty:
+        return pd.DataFrame()
+
+    if isinstance(raw_data.columns, pd.MultiIndex):
+        if "Close" in raw_data.columns.get_level_values(0):
+            close_data = raw_data["Close"]
+        elif "Close" in raw_data.columns.get_level_values(-1):
+            close_data = raw_data.xs("Close", level=-1, axis=1)
+        else:
+            return pd.DataFrame()
+    elif "Close" in raw_data.columns:
+        close_data = raw_data["Close"]
+    else:
+        requested_lookup = {str(ticker).upper() for ticker in requested_tickers}
+        matching_columns = [
+            column
+            for column in raw_data.columns
+            if str(column).upper() in requested_lookup
+        ]
+        if not matching_columns:
+            return pd.DataFrame()
+        close_data = raw_data[matching_columns]
+
+    if isinstance(close_data, pd.Series):
+        if len(requested_tickers) != 1:
+            return pd.DataFrame()
+        close_frame = close_data.to_frame(name=requested_tickers[0])
+    else:
+        close_frame = pd.DataFrame(close_data).copy()
+
+    if len(requested_tickers) == 1 and close_frame.shape[1] == 1:
+        close_frame.columns = [requested_tickers[0]]
+    else:
+        canonical_tickers = {
+            str(ticker).upper(): ticker
+            for ticker in requested_tickers
+        }
+        close_frame = close_frame.rename(
+            columns=lambda column: canonical_tickers.get(str(column).upper(), column)
+        )
+
+    close_frame = close_frame.apply(pd.to_numeric, errors="coerce")
+    close_frame = close_frame.replace([np.inf, -np.inf], np.nan)
+    close_frame = close_frame.ffill().dropna(how="all").dropna(axis=1, how="all")
+    ordered_columns = [
+        ticker
+        for ticker in requested_tickers
+        if ticker in close_frame.columns
+    ]
+    return close_frame.loc[:, ordered_columns]
+
+
+def _download_yfinance_close(tickers, start_date, end_date, session, threads):
+    raw_data = yf.download(
+        tickers,
+        start=start_date,
+        end=end_date,
+        progress=False,
+        auto_adjust=True,
+        threads=threads,
+        timeout=YFINANCE_REQUEST_TIMEOUT_SECONDS,
+        session=session,
+    )
+    return _extract_yfinance_close_frame(raw_data, tickers)
 
 
 @cached(l1_ttl=900, l2_ttl=14400, key_func=_stock_data_key_func)  # 15 min L1, 4 hour L2 cache
 def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel_event=None):
-    """Fetch stock data for given tickers and date range using chunked batch processing."""
+    """Fetch stock data with bounded Yahoo concurrency and explicit missing-ticker retries."""
     _raise_if_cancelled(cancel_event)
     logger.info(f"GET_STOCK_DATA: Starting fetch for {len(tickers)} tickers")
-    
+
     all_series = []
-    
+
     # Process in chunks to prevent one bad ticker from blocking the whole batch
     BATCH_SIZE = 50
-    
+
     # Helper to chunk list
     def chunked_iterable(iterable, size):
         for i in range(0, len(iterable), size):
             yield iterable[i:i + size]
 
-    for chunk_idx, chunk in enumerate(chunked_iterable(tickers, BATCH_SIZE)):
-        _raise_if_cancelled(cancel_event)
-        if progress_callback:
-            progress_callback(chunk_idx * BATCH_SIZE, len(tickers), f"Fetching data for tickers {chunk_idx * BATCH_SIZE + 1}-{min((chunk_idx + 1) * BATCH_SIZE, len(tickers))}")
-        
-        logger.info(f"GET_STOCK_DATA: Processing chunk {chunk_idx+1} ({len(chunk)} tickers)")
-        chunk_data = pd.DataFrame()
-        
-        # Try batch download for this chunk
-        try:
-            def _download_chunk():
-                return yf.download(chunk, start=start_date, end=end_date, progress=False, auto_adjust=True, threads=True)
+    with _managed_yfinance_session() as session:
+        for chunk_idx, chunk in enumerate(chunked_iterable(tickers, BATCH_SIZE)):
+            _raise_if_cancelled(cancel_event)
+            if progress_callback:
+                progress_callback(
+                    chunk_idx * BATCH_SIZE,
+                    len(tickers),
+                    f"Fetching data for tickers {chunk_idx * BATCH_SIZE + 1}-"
+                    f"{min((chunk_idx + 1) * BATCH_SIZE, len(tickers))}",
+                )
 
-            executor = ThreadPoolExecutor(max_workers=1)
-            future = executor.submit(_download_chunk)
-            wait_for_shutdown = True
+            logger.info(f"GET_STOCK_DATA: Processing chunk {chunk_idx+1} ({len(chunk)} tickers)")
+            chunk_data = pd.DataFrame()
+
+            # Serial yfinance download avoids a 30-thread/socket burst in multi-day runs.
             try:
-                # 20 seconds timeout for a chunk of 50
-                raw_data = future.result(timeout=20)
+                chunk_data = _download_yfinance_close(
+                    chunk,
+                    start_date,
+                    end_date,
+                    session=session,
+                    threads=False,
+                )
+            except Exception as exc:
+                logger.warning(f"GET_STOCK_DATA: Chunk {chunk_idx+1} batch failed: {exc}")
 
-                # Extract Close data logic
-                if len(chunk) == 1:
-                    if isinstance(raw_data.columns, pd.MultiIndex):
-                        c_data = raw_data['Close'] if 'Close' in raw_data.columns.get_level_values(0) else raw_data
-                    else:
-                        c_data = raw_data['Close'] if 'Close' in raw_data.columns else raw_data
-                    c_data.name = chunk[0]
-                    chunk_data = pd.DataFrame(c_data)
-                else:
-                    if isinstance(raw_data.columns, pd.MultiIndex):
-                        if 'Close' in raw_data.columns.get_level_values(0):
-                            chunk_data = raw_data['Close']
-                        else:
-                            chunk_data = raw_data
-                    else:
-                        chunk_data = raw_data
-
-                chunk_data = chunk_data.ffill().dropna(how='all')
-
-            except FuturesTimeoutError:
-                wait_for_shutdown = False
-                future.cancel()
-                logger.warning(f"GET_STOCK_DATA: Chunk {chunk_idx+1} timed out")
-            except Exception as e:
-                logger.warning(f"GET_STOCK_DATA: Chunk {chunk_idx+1} failed: {e}")
-            finally:
-                executor.shutdown(wait=wait_for_shutdown, cancel_futures=not wait_for_shutdown)
-
-        except Exception as e:
-            logger.error(f"GET_STOCK_DATA: Chunk wrapper failed: {e}")
-
-        # Fallback for this chunk if batch failed or resulted in empty data
-        if chunk_data.empty:
-            logger.info(f"GET_STOCK_DATA: Fallback to individual fetch for chunk {chunk_idx+1}")
-            individual_data = {}
-            max_workers = min(32, len(chunk))
-            
-            def _fetch_single_safe(ticker):
+            missing_tickers = [
+                ticker
+                for ticker in chunk
+                if ticker not in chunk_data.columns
+            ]
+            for attempt in range(1, YFINANCE_INDIVIDUAL_RETRY_ATTEMPTS + 1):
+                if not missing_tickers:
+                    break
                 _raise_if_cancelled(cancel_event)
-                try:
-                    data = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
-                    if not data.empty and 'Close' in data.columns:
-                        val = data['Close']
-                        if isinstance(val, (int, float, np.number)):
-                             val = pd.Series([val], index=data.index)
-                        return ticker, val
-                except Exception:
-                    pass
-                return ticker, None
-
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_ticker = {executor.submit(_fetch_single_safe, t): t for t in chunk}
-                for future in as_completed(future_to_ticker):
+                logger.warning(
+                    f"GET_STOCK_DATA: Retrying {len(missing_tickers)} missing tickers "
+                    f"from chunk {chunk_idx+1} (attempt {attempt}/{YFINANCE_INDIVIDUAL_RETRY_ATTEMPTS})"
+                )
+                recovered = []
+                for ticker in missing_tickers:
                     _raise_if_cancelled(cancel_event)
-                    t = future_to_ticker[future]
                     try:
-                        r_tick, r_val = future.result(timeout=5)
-                        if r_val is not None:
-                            if isinstance(r_val, (int, float, str, bool, np.number)):
-                                continue
-                            individual_data[r_tick] = r_val
-                    except Exception:
-                        pass
-            
-            if individual_data:
-                chunk_data = pd.DataFrame(individual_data).ffill().dropna(how='all')
+                        ticker_data = _download_yfinance_close(
+                            [ticker],
+                            start_date,
+                            end_date,
+                            session=session,
+                            threads=False,
+                        )
+                    except Exception as exc:
+                        logger.warning(f"GET_STOCK_DATA: Retry failed for {ticker}: {exc}")
+                        continue
+                    if ticker in ticker_data.columns:
+                        chunk_data = pd.concat([chunk_data, ticker_data], axis=1)
+                        recovered.append(ticker)
 
-        if not chunk_data.empty:
-             all_series.append(chunk_data)
+                missing_tickers = [
+                    ticker
+                    for ticker in missing_tickers
+                    if ticker not in recovered
+                ]
+                if missing_tickers and attempt < YFINANCE_INDIVIDUAL_RETRY_ATTEMPTS:
+                    time.sleep(YFINANCE_RETRY_BACKOFF_SECONDS * attempt)
+
+            if missing_tickers:
+                logger.error(
+                    f"GET_STOCK_DATA: Missing {len(missing_tickers)} tickers after retries: "
+                    f"{', '.join(missing_tickers)}"
+                )
+
+            if not chunk_data.empty:
+                ordered_columns = [
+                    ticker
+                    for ticker in chunk
+                    if ticker in chunk_data.columns
+                ]
+                all_series.append(chunk_data.loc[:, ordered_columns])
 
     # Combine all chunks
     if not all_series:
@@ -1525,8 +1638,16 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
     logger.info(f"GET_STOCK_DATA: Combining {len(all_series)} chunks")
     try:
         final_data = pd.concat(all_series, axis=1)
-        final_data = final_data.ffill().dropna(how='all')
-        logger.info(f"GET_STOCK_DATA: Final shape: {final_data.shape}")
+        final_data = final_data.ffill().dropna(how='all').dropna(axis=1, how='all')
+        missing_tickers = [ticker for ticker in tickers if ticker not in final_data.columns]
+        logger.info(
+            f"GET_STOCK_DATA: Final shape: {final_data.shape}; "
+            f"coverage={len(final_data.columns)}/{len(tickers)}"
+        )
+        if missing_tickers:
+            logger.warning(
+                f"GET_STOCK_DATA: Final missing tickers: {', '.join(missing_tickers)}"
+            )
         return final_data
     except Exception as e:
         logger.error(f"GET_STOCK_DATA: Error combining chunks: {e}")

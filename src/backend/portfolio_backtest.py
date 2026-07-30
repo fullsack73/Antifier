@@ -3,8 +3,13 @@
 import hashlib
 import json
 import logging
+import multiprocessing as mp
+import os
+import random
 import sqlite3
 from collections import OrderedDict
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
@@ -96,6 +101,7 @@ from portfolio_signals import (
     signal_stack_bl_views,
 )
 from ticker_lists import get_ticker_group
+from native_threading import configure_native_threading
 
 
 logger = logging.getLogger(__name__)
@@ -192,6 +198,11 @@ _FORECAST_RANK_CACHE_STATS = {
 _FORECAST_RANK_PERSISTENT_CACHE = None
 _FORECAST_RANK_CACHE_NAMESPACE = "default"
 FORECAST_RANK_CACHE_SCHEMA_VERSION = "2026-07-23-v2-diagnostics"
+DEFAULT_FORECAST_RANK_WORKERS = 2
+FORECAST_RANK_DETERMINISTIC_SEED = 42
+FORECAST_RANK_MODELS = frozenset(
+    ("arima_transformer_rank_bl", "transformer_rank_bl")
+)
 
 
 def _json_default(value):
@@ -305,6 +316,91 @@ def forecast_rank_cache_stats():
         "namespace": _FORECAST_RANK_CACHE_NAMESPACE,
         "schema_version": FORECAST_RANK_CACHE_SCHEMA_VERSION,
     }
+
+
+def _forecast_rank_worker_count(ticker_count):
+    """Return a conservative process count, adjustable through the shared ML cap."""
+    ticker_count = max(0, int(ticker_count))
+    if ticker_count <= 1:
+        return ticker_count
+    configured = os.environ.get("ANTIFIER_ML_MAX_WORKERS")
+    if configured is None:
+        worker_limit = DEFAULT_FORECAST_RANK_WORKERS
+    else:
+        try:
+            worker_limit = max(1, int(configured))
+        except ValueError:
+            worker_limit = DEFAULT_FORECAST_RANK_WORKERS
+    return min(ticker_count, worker_limit)
+
+
+def _forecast_rank_worker_initializer():
+    """Keep native libraries bounded in persistent forecast workers."""
+    configure_native_threading(force=True)
+    os.environ.setdefault("TF_DETERMINISTIC_OPS", "1")
+
+
+def _set_forecast_rank_deterministic_seed():
+    """Reset per-task RNG state so process scheduling cannot change predictions."""
+    random.seed(FORECAST_RANK_DETERMINISTIC_SEED)
+    np.random.seed(FORECAST_RANK_DETERMINISTIC_SEED)
+
+
+def _forecast_rank_no_view(reason):
+    return {
+        "expected_return": None,
+        "uncertainty": MAX_FORECAST_UNCERTAINTY,
+        "components": {},
+        "source": "no_view",
+        "reason": str(reason),
+    }
+
+
+def _forecast_rank_prediction_worker(ticker, prices, method, horizon):
+    """Compute one forecast without reading or writing parent-owned caches."""
+    _set_forecast_rank_deterministic_seed()
+    predictor = (
+        forecast_single_ticker_with_arima_transformer
+        if method == "arima_transformer_rank"
+        else forecast_single_ticker_with_transformer
+    )
+    try:
+        prediction = predictor(
+            ticker,
+            pd.Series(prices).dropna(),
+            horizon=int(horizon),
+        )
+    except Exception as exc:
+        return _forecast_rank_no_view(
+            f"{method} worker failed for {ticker}: {exc}"
+        )
+    if not isinstance(prediction, dict):
+        return _forecast_rank_no_view(
+            f"{method} worker returned no prediction for {ticker}"
+        )
+    return prediction
+
+
+@contextmanager
+def _forecast_rank_executor(models, ticker_count):
+    """Reuse one spawn-based pool for all rank forecasts in a scenario."""
+    models = tuple(models or ())
+    worker_count = _forecast_rank_worker_count(ticker_count)
+    if not FORECAST_RANK_MODELS.intersection(models) or worker_count <= 1:
+        yield None
+        return
+
+    logger.info(
+        "FORECAST_RANK: Starting scenario executor with %d workers",
+        worker_count,
+    )
+    context = mp.get_context("spawn")
+    with ProcessPoolExecutor(
+        max_workers=worker_count,
+        mp_context=context,
+        initializer=_forecast_rank_worker_initializer,
+    ) as executor:
+        yield executor
 
 
 def _to_float(value, default=0.0):
@@ -507,49 +603,141 @@ def _forecast_rank_cache_key(ticker, prices, method, horizon):
     )
 
 
-def _cached_forecast_rank_prediction(ticker, prices, method, horizon, predictor):
+def _lookup_forecast_rank_prediction(ticker, prices, method, horizon):
+    """Look up a forecast in parent memory/SQLite without running a model."""
     key = _forecast_rank_cache_key(ticker, prices, method, horizon)
     if key in _FORECAST_RANK_CACHE:
         _FORECAST_RANK_CACHE_STATS["memory_hits"] += 1
-    else:
-        persistent_prediction = None
-        if _FORECAST_RANK_PERSISTENT_CACHE is not None:
-            persistent_prediction = _FORECAST_RANK_PERSISTENT_CACHE.get(key)
-        if persistent_prediction is not None:
-            _FORECAST_RANK_CACHE_STATS["persistent_hits"] += 1
-            _FORECAST_RANK_CACHE[key] = persistent_prediction
-        else:
-            _FORECAST_RANK_CACHE_STATS["misses"] += 1
+        prediction = _FORECAST_RANK_CACHE[key]
+        return key, (
+            dict(prediction) if isinstance(prediction, dict) else prediction
+        ), "memory"
+
+    persistent_prediction = None
+    if _FORECAST_RANK_PERSISTENT_CACHE is not None:
+        persistent_prediction = _FORECAST_RANK_PERSISTENT_CACHE.get(key)
+    if persistent_prediction is not None:
+        _FORECAST_RANK_CACHE_STATS["persistent_hits"] += 1
+        _FORECAST_RANK_CACHE[key] = persistent_prediction
+        return key, (
+            dict(persistent_prediction)
+            if isinstance(persistent_prediction, dict)
+            else persistent_prediction
+        ), "persistent"
+
+    _FORECAST_RANK_CACHE_STATS["misses"] += 1
+    return key, None, None
+
+
+def _store_forecast_rank_prediction(key, prediction):
+    """Store a worker result from the parent process only."""
+    _FORECAST_RANK_CACHE[key] = prediction
+    if _FORECAST_RANK_PERSISTENT_CACHE is not None:
+        _FORECAST_RANK_PERSISTENT_CACHE.set(key, prediction)
+        _FORECAST_RANK_CACHE_STATS["writes"] += 1
+
+
+def _cached_forecast_rank_prediction(ticker, prices, method, horizon, predictor):
+    """Backward-compatible sequential cache helper."""
+    key, prediction, cache_source = _lookup_forecast_rank_prediction(
+        ticker,
+        prices,
+        method,
+        horizon,
+    )
+    if cache_source is None:
+        try:
             prediction = predictor(ticker, prices, horizon=horizon)
-            _FORECAST_RANK_CACHE[key] = prediction
-            if _FORECAST_RANK_PERSISTENT_CACHE is not None:
-                _FORECAST_RANK_PERSISTENT_CACHE.set(key, prediction)
-                _FORECAST_RANK_CACHE_STATS["writes"] += 1
-    prediction = _FORECAST_RANK_CACHE[key]
+        except Exception as exc:
+            prediction = _forecast_rank_no_view(
+                f"{method} worker failed for {ticker}: {exc}"
+            )
+        _store_forecast_rank_prediction(key, prediction)
     return dict(prediction) if isinstance(prediction, dict) else prediction
 
 
-def _forecast_rank_views(train_prices, method, forecast_horizon):
+def _forecast_rank_views(
+    train_prices,
+    method,
+    forecast_horizon,
+    forecast_executor=None,
+):
     tickers = list(train_prices.columns)
     forecasts = {}
     uncertainties = {}
     prediction_diagnostics = []
-    failed = 0
-    predictor = (
-        forecast_single_ticker_with_arima_transformer
-        if method == "arima_transformer_rank"
-        else forecast_single_ticker_with_transformer
-    )
+    predictions = {}
+    misses = []
+    memory_hits = 0
+    persistent_hits = 0
 
     for ticker in tickers:
         prices = train_prices[ticker].dropna()
-        prediction = _cached_forecast_rank_prediction(
+        key, prediction, cache_source = _lookup_forecast_rank_prediction(
             ticker,
             prices,
             method,
             forecast_horizon,
-            predictor,
         )
+        if cache_source == "memory":
+            memory_hits += 1
+            predictions[ticker] = prediction
+        elif cache_source == "persistent":
+            persistent_hits += 1
+            predictions[ticker] = prediction
+        else:
+            misses.append((ticker, prices, key))
+
+    logger.info(
+        "FORECAST_RANK: method=%s tickers=%d memory_hits=%d "
+        "persistent_hits=%d misses=%d parallel_workers=%d",
+        method,
+        len(tickers),
+        memory_hits,
+        persistent_hits,
+        len(misses),
+        (
+            0
+            if forecast_executor is None
+            else _forecast_rank_worker_count(len(misses))
+        ),
+    )
+
+    if forecast_executor is None:
+        for ticker, prices, key in misses:
+            prediction = _forecast_rank_prediction_worker(
+                ticker,
+                prices,
+                method,
+                forecast_horizon,
+            )
+            predictions[ticker] = prediction
+            _store_forecast_rank_prediction(key, prediction)
+    else:
+        future_metadata = {
+            forecast_executor.submit(
+                _forecast_rank_prediction_worker,
+                ticker,
+                prices,
+                method,
+                forecast_horizon,
+            ): (ticker, key)
+            for ticker, prices, key in misses
+        }
+        for future in as_completed(future_metadata):
+            ticker, key = future_metadata[future]
+            try:
+                prediction = future.result()
+            except Exception as exc:
+                prediction = _forecast_rank_no_view(
+                    f"{method} worker failed for {ticker}: {exc}"
+                )
+            predictions[ticker] = prediction
+            _store_forecast_rank_prediction(key, prediction)
+
+    failed = 0
+    for ticker in tickers:
+        prediction = predictions.get(ticker)
         prediction_diagnostics.append(
             prediction if isinstance(prediction, dict) else {}
         )
@@ -590,7 +778,12 @@ def _forecast_rank_views(train_prices, method, forecast_horizon):
     }
 
 
-def _forecast_views(train_prices, method, forecast_horizon):
+def _forecast_views(
+    train_prices,
+    method,
+    forecast_horizon,
+    forecast_executor=None,
+):
     tickers = list(train_prices.columns)
     views = {}
     uncertainties = {}
@@ -659,7 +852,12 @@ def _forecast_views(train_prices, method, forecast_horizon):
         )
 
     if method in ("arima_transformer_rank", "transformer_rank"):
-        return _forecast_rank_views(train_prices, method, forecast_horizon)
+        return _forecast_rank_views(
+            train_prices,
+            method,
+            forecast_horizon,
+            forecast_executor=forecast_executor,
+        )
 
     for ticker in tickers:
         prices = train_prices[ticker].dropna()
@@ -721,13 +919,21 @@ def _forecast_views(train_prices, method, forecast_horizon):
     )
 
 
-def _black_litterman_weights(train_prices, view_method, forecast_horizon, max_asset_weight, risk_free_rate):
+def _black_litterman_weights(
+    train_prices,
+    view_method,
+    forecast_horizon,
+    max_asset_weight,
+    risk_free_rate,
+    forecast_executor=None,
+):
     tickers = list(train_prices.columns)
     covariance = _safe_covariance(train_prices)
     views, uncertainties, failed, forecast_diagnostics = _forecast_views(
         train_prices,
         view_method,
         forecast_horizon,
+        forecast_executor=forecast_executor,
     )
     prior = _calculate_historical_cagr(train_prices)
 
@@ -895,7 +1101,8 @@ def _price_signal_rank_tilt_weights(
 def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight, risk_free_rate,
                    market_caps=None, point_in_time_features=None,
                    previous_target_weights=None,
-                   target_turnover_limit=DEFAULT_MAX_TURNOVER):
+                   target_turnover_limit=DEFAULT_MAX_TURNOVER,
+                   forecast_executor=None):
     tickers = list(train_prices.columns)
     if model_name == "equal_weight":
         return _equal_weights(tickers), {"failed_forecast_count": 0, "avg_forecast_confidence": None}
@@ -1496,6 +1703,7 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             forecast_horizon,
             max_asset_weight,
             risk_free_rate,
+            forecast_executor=forecast_executor,
         )
 
     raise ValueError(f"Unsupported backtest model: {model_name}")
@@ -2050,6 +2258,7 @@ def _build_rebalance_targets_for_data(
     market_caps_as_of_date,
     point_in_time_market_caps,
     target_turnover_limit=DEFAULT_MAX_TURNOVER,
+    forecast_executor=None,
 ):
     records = []
     warnings = []
@@ -2085,6 +2294,7 @@ def _build_rebalance_targets_for_data(
                 point_in_time_features=point_in_time_features,
                 previous_target_weights=previous_target_weights.get(model),
                 target_turnover_limit=target_turnover_limit,
+                forecast_executor=forecast_executor,
             )
             allow_cash_reserve = bool(
                 diagnostics.get("allow_cash_reserve", False)
@@ -2197,21 +2407,23 @@ def build_rebalance_targets(
         end_date=end_date,
         train_window=train_window,
     )
-    return _build_rebalance_targets_for_data(
-        data,
-        models,
-        train_window,
-        rebalance_frequency,
-        int(forecast_horizon),
-        max_asset_weight,
-        min_holding_weight,
-        market_caps,
-        risk_free_rate,
-        point_in_time_features,
-        market_caps_as_of_date,
-        point_in_time_market_caps,
-        target_turnover_limit,
-    )
+    with _forecast_rank_executor(models, len(data.columns)) as forecast_executor:
+        return _build_rebalance_targets_for_data(
+            data,
+            models,
+            train_window,
+            rebalance_frequency,
+            int(forecast_horizon),
+            max_asset_weight,
+            min_holding_weight,
+            market_caps,
+            risk_free_rate,
+            point_in_time_features,
+            market_caps_as_of_date,
+            point_in_time_market_caps,
+            target_turnover_limit,
+            forecast_executor=forecast_executor,
+        )
 
 
 def run_portfolio_model_backtest(
