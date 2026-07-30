@@ -152,6 +152,7 @@ tools/
 ├─ backtest_portfolio_models.py
 ├─ compare_forecast_models.py
 ├─ diagnose_forecast_signals.py       # persistent forecast cache 포화/tie/coverage 진단
+├─ benchmark_kronos_forecasts.py       # pinned Kronos-small과 기존 ML rank signal 비교
 ├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
 ├─ build_sec_pit_features.py          # SEC 공시일 기준 PIT factor/provenance 생성
 ├─ build_ticker_cik_map.py             # 제한된 ticker 집합의 Yahoo SEC metadata 기반 CIK map

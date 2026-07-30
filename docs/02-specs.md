@@ -60,6 +60,8 @@
 - Optimizer job은 `running`, `completed`, `failed`, `cancelled` 상태를 가지며, 페이지 새로고침/화면 이동 뒤에도 상태 조회와 SSE 재연결이 가능해야 합니다.
 - 클라이언트가 명시 취소하거나 일정 시간 동안 heartbeat/SSE 재연결이 없으면 backend는 cancellation event를 설정하고 계산 루프의 체크포인트에서 협력적으로 중단합니다.
 - 계산 비용이 큰 ML 모델은 cache, batch size, worker/thread 제한을 고려합니다.
+- 장시간 실행의 yfinance download는 fetch 단위로 닫는 curl session, 명시적 CA bundle, writable cache 경로를 사용합니다. all-NaN ticker 열은 성공으로 계산하지 않고 제한된 개별 재시도 후 최종 coverage와 누락 ticker를 기록합니다. cache 경로는 `ANTIFIER_YFINANCE_CACHE_DIR`로 재정의할 수 있습니다.
+- gauntlet의 ARIMA/Transformer rank forecast는 scenario target-generation 전체에서 재사용하는 process pool에 cache miss ticker만 제출합니다. 기본 worker는 2개이며 `ANTIFIER_ML_MAX_WORKERS`로 조정합니다. SQLite forecast cache 조회·write·commit은 부모 프로세스에서만 직렬 수행하고 cache key/schema 및 checkpoint signature는 worker 수와 무관하게 유지합니다.
 - ARIMA + Transformer와 Transformer forecast가 학습 실패, 미학습, 데이터 부족 등으로 유효한 예측을 만들지 못하면 `expected_return: null`, 최대 uncertainty, `source: "no_view"`를 반환하고 optimizer는 해당 ticker를 prior-only view로 취급합니다.
 - `requirements-ci.txt`는 CI용 경량 의존성입니다. 무거운 런타임 의존성을 CI에 추가할 때는 필요성을 분명히 합니다.
 
@@ -118,6 +120,7 @@ Backend-only research tool:
   - v2 target은 완료된 training-window forward return에서 cross-sectional market beta, sector, log market-cap 노출을 제거합니다. alpha ridge coefficient는 최소 관측 수 gate와 feature별 절대 weight cap을 적용합니다.
   - forecast rank cache schema `2026-07-23-v2-diagnostics`부터 Transformer 응답은 daily clip hit, annual clip 전후 값, uncertainty source를 기록합니다. 기존 schema cache는 진단 메타데이터가 없으므로 새 research 실행에 재사용하지 않습니다.
   - `tools/diagnose_forecast_signals.py`는 SQLite forecast cache를 재학습 없이 읽어 coverage, `±0.69` boundary saturation, unique-value/tie 비율, component 분포를 JSON/Markdown으로 기록합니다.
+  - `tools/benchmark_kronos_forecasts.py`는 candidate 4-case의 날짜·universe만 기존 cache에서 고정하고, 같은 current OHLC에서 ARIMA+Transformer와 Transformer를 별도 namespace로 재계산한 뒤 pinned Kronos-small zero-shot과 signal-only 비교합니다. Kronos repo/model/tokenizer revision, OHLC/cache SHA, device, sampling 설정, runtime과 checkpoint를 기록하며 `requirements-kronos-research.txt` 의존성은 production/installer/CI 기본 환경에 포함하지 않습니다.
   - `forecast_signal_research.py`의 empirical uncertainty calibration은 동일 단위의 완료된 OOS prediction/realized return 최소 20개를 요구합니다. in-sample training RMSE를 OOS-calibrated uncertainty로 표시하지 않습니다.
   - research target builder는 명시한 training cutoff 안에서 forward horizon이 완료된 row만 만들며 `absolute`, cross-sectional median-adjusted `relative`, PIT beta/sector/size `factor_residual` target을 지원합니다.
   - forecast 후보는 portfolio construction 전에 signal-only gate에서 OOS rank IC, positive IC rate, top-minus-bottom spread, coverage, saturation, tie 기준을 통과해야 합니다.

@@ -4,7 +4,7 @@
 - 작성자: Codex
 - 에이전트: Codex
 - 진행 시점: ARIMA/Transformer 계열을 portfolio alpha feature로 다시 검토하기 전
-- 현재 상태: lightweight는 약하지만 raw momentum도 replacement signal gate에서 탈락
+- 현재 상태: Kronos-small absolute 4-case signal gate 통과; ARIMA/Transformer 대비 paired 95% uplift 미확인
 
 > 완료된 TODO는 이 파일을 삭제하고, `docs/reports/`에 작업 기록을 남깁니다.
 
@@ -150,6 +150,30 @@
 - Stock export는 `permno,date,ret,dlret,prc,shrout,shrcd,exchcd,ticker`, identity export는 `permno,cik,effective_start,effective_end`가 필수입니다. CIK interval은 모든 포함 security-month를 정확히 하나로 덮어야 합니다.
 - Importer는 delisting return 결합, permanent PERMNO key, historical membership event, point-in-time CIK history와 source/output SHA를 생성합니다. 실제 licensed export가 없으므로 아직 새 모델 학습·HPO를 실행하지 않습니다.
 - 제한 데이터 production에서는 forecast family가 signal gate를 통과하지 못한 상태를 반영해 `MIN_VARIANCE`를 기본값으로 사용합니다. Lightweight/Transformer/BL/MPT는 제거하지 않고 명시적 opt-in으로 유지합니다.
+
+## 2026-07-27 Kronos 벤치마크 후속
+
+- 다음 full gauntlet 벤치마크 매트릭스에 기존 `arima_transformer_rank_bl`, `transformer_rank_bl`과 [Kronos](https://github.com/shiyu-coder/Kronos) 기반 후보를 함께 넣습니다.
+- Kronos 후보는 먼저 같은 4-case signal-only gate를 거칩니다. 비교 목적의 full 결과는 남기되, 승격 순서는 research → validation → locked holdout을 유지하고 gate 미통과 후보는 production 후보로 해석하지 않습니다.
+- 최초 후보 모델과 checkpoint는 실행 전에 고정합니다. 기본 검토 대상은 공개된 `Kronos-small`이며, `mini`/`base`, context 길이, sampling 수·temperature·top-p를 같은 validation/holdout 결과에 맞춰 선택하지 않습니다.
+- Kronos는 OHLC가 필수이고 volume/amount는 선택 입력입니다. close-only 자료에서 OHLCV를 합성하지 않으며, point-in-time OHLC와 정확한 timestamp alignment를 확보한 universe만 비교합니다.
+- 세 후보는 동일한 universe, research/train 기간, 63일 horizon, rebalance date, 거래비용, turnover/weight 제약, no-view 규칙으로 평가합니다. Kronos 출력도 직접 기대수익률로 주입하지 않고 동일한 cross-sectional rank feature로 변환합니다.
+- 공통 지표는 rank IC, positive IC rate, top-minus-bottom spread, coverage/no-view, rank tie, CAGR, volatility, Sharpe, max drawdown, turnover, 비용입니다. elapsed time, 예측 throughput, peak memory, cache hit/miss, CPU/GPU device도 함께 기록합니다.
+- pretrained zero-shot와 fine-tuned Kronos는 별도 후보·cache namespace로 취급합니다. Fine-tuning은 signal date 이전 자료만 사용하며, checkpoint/model/tokenizer ID와 hash, repository commit, dtype/device, context/horizon, sampling 설정, input-data digest를 결과에 고정 기록합니다.
+- Python/PyTorch/Hugging Face/`qlib` 의존성, model weight 용량, CPU/MPS/CUDA별 실행시간과 메모리를 먼저 측정합니다. Kronos는 research optional dependency로 격리하고 검증 전 production/installer/CI 기본 의존성에는 넣지 않습니다.
+
+## 2026-07-30 Kronos signal-only 결과
+
+- standard gauntlet은 `180/180`을 완료했지만 `adaptive_signal_tilt` survival이 `1/180`이어서 미승격했습니다.
+- 다음 단계의 최소 gate로 candidate 4개 universe, 24개 origin, 63일 horizon, 총 216개 forecast를 비교했습니다.
+- 2026-07-23 cache의 adjusted-close digest 216개가 현재 yfinance OHLC와 모두 달라 과거 prediction을 재사용하지 않았습니다. 기존 cache는 날짜·universe template로만 사용하고 ARIMA+Transformer/Transformer를 current OHLC에서 새 namespace로 재계산했습니다.
+- `Kronos-small` repo/model/tokenizer revision, OHLC/cache SHA, `T=1.0`, `top_p=0.9`, `sample_count=1`, seed 42를 고정했습니다. MPS에서 216개 prediction은 약 `694.7s`, model/tokenizer download는 약 `114.8MB`였습니다.
+- mean rank IC / positive IC rate / top-bottom spread는 ARIMA+Transformer `0.0112 / 50.0% / -0.0012`, Transformer `0.0173 / 50.0% / 0.0040`, Kronos `0.1176 / 66.7% / 0.0446`이었습니다.
+- Kronos absolute bootstrap P(IC>0/spread>0)는 `99.70% / 99.85%`였고 네 universe 기본 gate를 모두 통과했습니다.
+- 그러나 paired uplift는 ARIMA+Transformer 대비 `83.75% / 91.10%`, Transformer 대비 `82.20% / 90.05%`로 95% 기준에 못 미쳤습니다.
+- 결론은 `signal_passed_incremental_unconfirmed`입니다. validation 결과에 맞춰 sampling/model size를 바꾸지 않으며 production/installer/default gauntlet 모델에 Kronos를 추가하지 않습니다.
+- 새 untouched split 또는 licensed delisted-inclusive PIT OHLC가 준비되기 전 core portfolio integration과 locked holdout을 보류합니다.
+- 구현/결과: `tools/benchmark_kronos_forecasts.py`, `docs/reports/260730-1638-01-kronos-signal-benchmark.md`.
 
 ## 선행조건
 
