@@ -52,10 +52,13 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - point-in-time factor 입력 계약, beta/sector/size residual target, regularized/capped coefficient를 사용하는 research-only `factor_neutral_alpha_tilt` 기반 구조
 - Transformer clip 전후 출력, forecast 분포/tie, OOS uncertainty와 signal-only gate를 분리 진단하는 forecast research 기반 구조
 - ticker별 재학습 없이 absolute/relative/pairwise/listwise objective를 비교하는 pooled cross-sectional walk-forward baseline
+- completed-OOS record만 사용하는 deterministic confidence gate와 gate 실패 시 exact-GMV fallback을 보장하는 research overlay
+- 기존 ARIMA + Transformer를 21일 실현 변동성 변화 예측에 재사용하고 Ledoit-Wolf correlation과 결합하는 conditional-risk research 경로
 - SEC filing-date PIT fundamental loader와 날짜별 universe membership을 적용하는 survivorship-safe research data foundation
 - shrinkage/nested covariance conditioning, exact equal-risk-contribution, hierarchical risk parity, regime/minimum-CVaR, completed-feedback online allocator ensemble과 capped-simplex 제약을 검증하는 risk allocator research 경로
 - point-in-time market-cap enforcement, no-lookahead price/FX alignment, paired block bootstrap와 Holm multiple-testing correction을 포함한 quant-standard validation guardrail
 - candidate 4-case validation 후 standard 180-case와 별도 2024-2025 locked holdout으로 이어지는 staged gauntlet, basket/regime별 target 재사용, SQLite forecast cache, case checkpoint/resume
+- 2019-2025 French 12-industry fresh research에서 pooled relative-return 후보와 conditional-volatility GMV가 각각 signal/risk gate를 통과하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소
 - 저장된 portfolio result 조회
 - 포트폴리오 benchmark와 리밸런싱 계산
@@ -111,7 +114,6 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 현재 로드맵과 TODO 기준 우선순위:
 
-- point-in-time/factor-neutral research data로 cross-sectional alpha v2를 설계하고 새 candidate가 4-case validation을 통과한 경우에만 standard와 locked holdout을 재개
 - Stock Screener custom CSV universe 지원
 - 회귀/forecast 모델 선택 UX와 LSTM 사용 의도 재검토
 - 사용자 인증과 저장된 portfolio/watchlist/screening criteria

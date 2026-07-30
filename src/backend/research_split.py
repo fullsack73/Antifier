@@ -7,6 +7,17 @@ import pandas as pd
 
 
 SPLIT_ROLES = {"research", "validation", "locked_holdout"}
+COMPARISON_EXECUTION_FIELDS = (
+    "eligible_universe_sha256",
+    "rebalance_dates",
+    "horizon",
+    "rebalance_step",
+    "max_asset_weight",
+    "rebalance_band",
+    "max_turnover",
+    "transaction_cost_bps",
+    "risk_free_sha256",
+)
 REQUIRED_FIELDS = {
     "schema_version",
     "split_id",
@@ -196,4 +207,38 @@ def validate_research_split_run(
             }
             and normalized["locked"]
         ),
+    }
+
+
+def validate_comparison_execution_settings(
+    baseline_settings,
+    candidate_settings,
+    required_fields=COMPARISON_EXECUTION_FIELDS,
+):
+    """Require baseline and candidate to share every execution condition."""
+    baseline = dict(baseline_settings or {})
+    candidate = dict(candidate_settings or {})
+    missing = [
+        field
+        for field in required_fields
+        if field not in baseline or field not in candidate
+    ]
+    if missing:
+        raise ValueError(
+            "Comparison settings are missing required fields: "
+            + ", ".join(missing)
+        )
+    mismatches = [
+        field
+        for field in required_fields
+        if baseline[field] != candidate[field]
+    ]
+    if mismatches:
+        raise ValueError(
+            "Baseline and candidate execution settings differ: "
+            + ", ".join(mismatches)
+        )
+    return {
+        field: baseline[field]
+        for field in required_fields
     }

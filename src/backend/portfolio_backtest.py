@@ -50,9 +50,11 @@ from portfolio_alpha_v2 import (
 )
 from forecast_signal_research import prediction_distribution_diagnostics
 from portfolio_risk_models import (
+    conditional_volatility_minimum_variance_weights,
     constant_correlation_minimum_variance_weights,
     cross_validated_minimum_variance_weights,
     equal_risk_contribution_weights,
+    forecast_conditional_volatilities,
     forecast_ensemble_minimum_variance_weights,
     hierarchical_risk_parity_weights,
     maximum_diversification_weights,
@@ -146,6 +148,7 @@ SUPPORTED_BACKTEST_MODELS = DEFAULT_BACKTEST_MODELS + (
     "minimum_semivariance",
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
+    "conditional_volatility_minimum_variance",
     "stability_regularized_min_variance",
     "turnover_constrained_minimum_variance",
     "nested_blended_min_variance",
@@ -201,7 +204,11 @@ FORECAST_RANK_CACHE_SCHEMA_VERSION = "2026-07-23-v2-diagnostics"
 DEFAULT_FORECAST_RANK_WORKERS = 2
 FORECAST_RANK_DETERMINISTIC_SEED = 42
 FORECAST_RANK_MODELS = frozenset(
-    ("arima_transformer_rank_bl", "transformer_rank_bl")
+    (
+        "arima_transformer_rank_bl",
+        "transformer_rank_bl",
+        "conditional_volatility_minimum_variance",
+    )
 )
 
 
@@ -361,7 +368,7 @@ def _forecast_rank_prediction_worker(ticker, prices, method, horizon):
     _set_forecast_rank_deterministic_seed()
     predictor = (
         forecast_single_ticker_with_arima_transformer
-        if method == "arima_transformer_rank"
+        if method.startswith("arima_transformer")
         else forecast_single_ticker_with_transformer
     )
     try:
@@ -654,6 +661,62 @@ def _cached_forecast_rank_prediction(ticker, prices, method, horizon, predictor)
             )
         _store_forecast_rank_prediction(key, prediction)
     return dict(prediction) if isinstance(prediction, dict) else prediction
+
+
+def _cached_forecast_predictions(
+    histories,
+    method,
+    horizon,
+    forecast_executor=None,
+):
+    """Load cached forecasts and compute misses in the shared worker pool."""
+    predictions = {}
+    misses = []
+    for ticker, history in histories.items():
+        key, prediction, cache_source = _lookup_forecast_rank_prediction(
+            ticker,
+            history,
+            method,
+            horizon,
+        )
+        if cache_source is None:
+            misses.append((ticker, history, key))
+        else:
+            predictions[ticker] = prediction
+
+    if forecast_executor is None:
+        for ticker, history, key in misses:
+            prediction = _forecast_rank_prediction_worker(
+                ticker,
+                history,
+                method,
+                horizon,
+            )
+            predictions[ticker] = prediction
+            _store_forecast_rank_prediction(key, prediction)
+        return predictions
+
+    futures = {
+        forecast_executor.submit(
+            _forecast_rank_prediction_worker,
+            ticker,
+            history,
+            method,
+            horizon,
+        ): (ticker, key)
+        for ticker, history, key in misses
+    }
+    for future in as_completed(futures):
+        ticker, key = futures[future]
+        try:
+            prediction = future.result()
+        except Exception as exc:
+            prediction = _forecast_rank_no_view(
+                f"{method} worker failed for {ticker}: {exc}"
+            )
+        predictions[ticker] = prediction
+        _store_forecast_rank_prediction(key, prediction)
+    return predictions
 
 
 def _forecast_rank_views(
@@ -1179,6 +1242,47 @@ def _model_weights(model_name, train_prices, forecast_horizon, max_asset_weight,
             "failed_forecast_count": 0,
             "avg_forecast_confidence": None,
             "risk_model": risk_diagnostics,
+        }
+
+    if model_name == "conditional_volatility_minimum_variance":
+        realized = (
+            train_prices.pct_change(fill_method=None)
+            .rolling(21)
+            .std(ddof=0)
+            * np.sqrt(TRADING_DAYS_PER_YEAR)
+        )
+        histories = {
+            ticker: realized[ticker].dropna()
+            for ticker in train_prices.columns
+        }
+        predictions = _cached_forecast_predictions(
+            histories,
+            "arima_transformer_volatility",
+            forecast_horizon,
+            forecast_executor=forecast_executor,
+        )
+
+        forecast_volatilities, forecast_diagnostics = (
+            forecast_conditional_volatilities(
+                train_prices,
+                lambda ticker, _history, horizon: predictions[ticker],
+                horizon=forecast_horizon,
+            )
+        )
+        weights, risk_diagnostics = (
+            conditional_volatility_minimum_variance_weights(
+                train_prices,
+                forecast_volatilities,
+                max_asset_weight=max_asset_weight,
+            )
+        )
+        return weights.to_dict(), {
+            "failed_forecast_count": int(
+                forecast_volatilities.isna().sum()
+            ),
+            "avg_forecast_confidence": None,
+            "risk_model": risk_diagnostics,
+            "volatility_forecasts": forecast_diagnostics,
         }
 
     if model_name == "stability_regularized_min_variance":
@@ -2475,21 +2579,30 @@ def run_portfolio_model_backtest(
     )
     reused_rebalance_targets = rebalance_targets is not None
     if rebalance_targets is None:
-        rebalance_targets = _build_rebalance_targets_for_data(
-            data,
-            models,
-            train_window,
-            rebalance_frequency,
-            int(forecast_horizon),
-            max_asset_weight,
-            min_holding_weight,
-            market_caps,
-            risk_free_rate,
-            point_in_time_features,
-            market_caps_as_of_date,
-            point_in_time_market_caps,
-            max_turnover,
-        )
+        with _forecast_rank_executor(
+            (
+                ("conditional_volatility_minimum_variance",)
+                if "conditional_volatility_minimum_variance" in models
+                else ()
+            ),
+            len(data.columns),
+        ) as forecast_executor:
+            rebalance_targets = _build_rebalance_targets_for_data(
+                data,
+                models,
+                train_window,
+                rebalance_frequency,
+                int(forecast_horizon),
+                max_asset_weight,
+                min_holding_weight,
+                market_caps,
+                risk_free_rate,
+                point_in_time_features,
+                market_caps_as_of_date,
+                point_in_time_market_caps,
+                max_turnover,
+                forecast_executor=forecast_executor,
+            )
     elif rebalance_targets.get("signature") != expected_target_signature:
         raise ValueError("rebalance_targets do not match the requested backtest data or model settings")
     target_records = {

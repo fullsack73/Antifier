@@ -530,6 +530,52 @@ def test_minvar_momentum_blend_is_opt_in_and_ignores_future_rows():
     assert sum(weights.values()) == pytest.approx(1.0)
 
 
+def test_conditional_volatility_minvar_reuses_arima_transformer_path(
+    monkeypatch,
+):
+    prices = _synthetic_factor_research_data(
+        rows=520,
+        ticker_count=8,
+    )[0].iloc[:504]
+    calls = []
+
+    def fake_forecast(ticker, history, horizon):
+        calls.append((ticker, len(history), horizon))
+        return {
+            "expected_return": 0.0,
+            "uncertainty": 0.1,
+            "source": "arima_transformer",
+        }
+
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "forecast_single_ticker_with_arima_transformer",
+        fake_forecast,
+    )
+    portfolio_backtest.configure_forecast_rank_cache(
+        namespace="conditional-volatility-test",
+    )
+    weights, diagnostics = portfolio_backtest._model_weights(
+        "conditional_volatility_minimum_variance",
+        prices,
+        63,
+        0.25,
+        0.02,
+    )
+
+    assert len(calls) == len(prices.columns)
+    assert sum(weights.values()) == pytest.approx(1.0)
+    assert max(weights.values()) <= 0.25 + 1e-9
+    assert diagnostics["failed_forecast_count"] == 0
+    assert diagnostics["risk_model"]["forecast_coverage_rate"] == 1.0
+    assert "conditional_volatility_minimum_variance" in (
+        portfolio_backtest.SUPPORTED_BACKTEST_MODELS
+    )
+    assert "conditional_volatility_minimum_variance" not in (
+        portfolio_backtest.DEFAULT_BACKTEST_MODELS
+    )
+
+
 def test_james_stein_expected_returns_reduce_cross_sectional_dispersion():
     dates = pd.date_range("2020-01-02", periods=400, freq="B")
     rng = np.random.default_rng(42)
@@ -2184,6 +2230,35 @@ def test_forecast_rank_parallel_submits_only_cache_misses(monkeypatch):
     assert submitted_tickers == ["BBB", "CCC"]
     assert portfolio_backtest._FORECAST_RANK_CACHE_STATS["memory_hits"] == 1
     assert portfolio_backtest._FORECAST_RANK_CACHE_STATS["misses"] == 2
+
+
+def test_conditional_volatility_predictions_share_parallel_cache(
+    monkeypatch,
+):
+    prices = _synthetic_prices(140)
+    executor = _ImmediateForecastExecutor()
+    portfolio_backtest.configure_forecast_rank_cache(None)
+    monkeypatch.setattr(
+        portfolio_backtest,
+        "_forecast_rank_prediction_worker",
+        _deterministic_rank_prediction,
+    )
+
+    predictions = portfolio_backtest._cached_forecast_predictions(
+        {
+            ticker: prices[ticker]
+            for ticker in prices.columns
+        },
+        "arima_transformer_volatility",
+        63,
+        forecast_executor=executor,
+    )
+
+    assert set(predictions) == set(prices.columns)
+    assert len(executor.submissions) == len(prices.columns)
+    assert portfolio_backtest.forecast_rank_cache_stats()["memory_entries"] == (
+        len(prices.columns)
+    )
 
 
 def test_forecast_rank_parallel_writes_sqlite_from_parent_only(

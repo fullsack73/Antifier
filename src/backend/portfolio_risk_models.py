@@ -198,6 +198,126 @@ def robust_minimum_variance_weights(
     return weights, diagnostics
 
 
+def forecast_conditional_volatilities(
+    price_data,
+    forecast_function,
+    *,
+    horizon=63,
+    realized_volatility_window=21,
+):
+    """Forecast next-horizon volatility through an existing return forecaster."""
+    prices = _clean_prices(price_data)
+    returns = prices.pct_change(fill_method=None)
+    realized = (
+        returns.rolling(max(2, int(realized_volatility_window))).std(ddof=0)
+        * np.sqrt(TRADING_DAYS_PER_YEAR)
+    )
+    forecasts = {}
+    details = {}
+    for ticker in prices.columns:
+        history = realized[ticker].dropna()
+        prediction = forecast_function(ticker, history, horizon=int(horizon))
+        expected_return = (
+            None
+            if not isinstance(prediction, dict)
+            else prediction.get("expected_return")
+        )
+        try:
+            expected_return = float(expected_return)
+        except (TypeError, ValueError):
+            expected_return = np.nan
+        latest = float(history.iloc[-1]) if not history.empty else np.nan
+        forecast = (
+            latest
+            * np.exp(expected_return * int(horizon) / TRADING_DAYS_PER_YEAR)
+            if np.isfinite(latest) and np.isfinite(expected_return)
+            else np.nan
+        )
+        forecasts[ticker] = forecast
+        details[ticker] = {
+            "latest_realized_volatility": (
+                None if not np.isfinite(latest) else latest
+            ),
+            "forecast_annual_log_change": (
+                None if not np.isfinite(expected_return) else expected_return
+            ),
+            "forecast_volatility": (
+                None if not np.isfinite(forecast) else float(forecast)
+            ),
+            "source": (
+                None
+                if not isinstance(prediction, dict)
+                else prediction.get("source")
+            ),
+        }
+    return pd.Series(forecasts, dtype=float), details
+
+
+def conditional_volatility_covariance(
+    price_data,
+    forecast_volatilities,
+):
+    """Combine forecast volatilities with Ledoit-Wolf correlation, preserving PSD."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    tickers = list(prices.columns)
+    baseline = (
+        risk_models.CovarianceShrinkage(prices)
+        .ledoit_wolf()
+        .reindex(index=tickers, columns=tickers)
+    )
+    matrix = baseline.to_numpy(dtype=float)
+    historical_volatility = np.sqrt(np.clip(np.diag(matrix), 0.0, None))
+    denominator = np.outer(historical_volatility, historical_volatility)
+    correlation = np.divide(
+        matrix,
+        denominator,
+        out=np.eye(len(tickers)),
+        where=denominator > 0.0,
+    )
+    requested = pd.Series(forecast_volatilities, dtype=float).reindex(tickers)
+    valid = np.isfinite(requested) & (requested > 0.0)
+    used = requested.where(valid, pd.Series(historical_volatility, index=tickers))
+    covariance = pd.DataFrame(
+        np.diag(used) @ correlation @ np.diag(used),
+        index=tickers,
+        columns=tickers,
+    )
+    covariance = risk_models.fix_nonpositive_semidefinite(
+        covariance,
+        fix_method="spectral",
+    )
+    return covariance, {
+        "method": "forecast_volatility_ledoit_wolf_correlation",
+        "forecast_coverage_rate": float(valid.mean()) if len(valid) else 0.0,
+        "fallback_tickers": list(requested.index[~valid]),
+        "forecast_volatilities": {
+            ticker: float(value)
+            for ticker, value in used.items()
+        },
+        "covariance": covariance_diagnostics(covariance),
+    }
+
+
+def conditional_volatility_minimum_variance_weights(
+    price_data,
+    forecast_volatilities,
+    *,
+    max_asset_weight=0.20,
+):
+    """Long-only capped GMV using forecast volatility and Ledoit correlation."""
+    covariance, diagnostics = conditional_volatility_covariance(
+        price_data,
+        forecast_volatilities,
+    )
+    weights, success = _minimum_variance_from_covariance(
+        covariance,
+        covariance.columns,
+        max_asset_weight,
+    )
+    diagnostics["optimizer_success"] = bool(success)
+    return weights, diagnostics
+
+
 def constant_correlation_minimum_variance_weights(
     price_data,
     max_asset_weight=0.20,

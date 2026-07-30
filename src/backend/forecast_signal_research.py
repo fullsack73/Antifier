@@ -444,43 +444,52 @@ def signal_only_gate(
 ):
     """Reject weak forecast signals before portfolio construction."""
     reasons = []
+    reason_codes = []
     if int(rank_diagnostics.get("period_count", 0)) < int(minimum_periods):
         reasons.append("Insufficient completed OOS signal periods.")
+        reason_codes.append("insufficient_completed_periods")
     if (
         rank_diagnostics.get("mean_rank_ic") is None
         or rank_diagnostics["mean_rank_ic"] <= 0.0
     ):
         reasons.append("Mean OOS cross-sectional rank IC is not positive.")
+        reason_codes.append("nonpositive_rank_ic")
     if (
         rank_diagnostics.get("positive_rank_ic_rate") is None
         or rank_diagnostics["positive_rank_ic_rate"] < 0.50
     ):
         reasons.append("Positive OOS rank IC rate is below 50%.")
+        reason_codes.append("low_positive_rank_ic_rate")
     if (
         rank_diagnostics.get("mean_top_bottom_spread") is None
         or rank_diagnostics["mean_top_bottom_spread"] <= 0.0
     ):
         reasons.append("Mean OOS top-minus-bottom spread is not positive.")
+        reason_codes.append("nonpositive_top_bottom_spread")
     coverage_rate = distribution_diagnostics.get(
         "active_universe_coverage_rate",
         distribution_diagnostics.get("coverage_rate", 0.0),
     )
     if coverage_rate < float(minimum_coverage):
         reasons.append("Forecast coverage is below the configured minimum.")
+        reason_codes.append("low_coverage")
     saturation_rate = distribution_diagnostics.get("boundary_saturation_rate")
     if (
         saturation_rate is not None
         and saturation_rate > float(maximum_saturation_rate)
     ):
         reasons.append("Forecast boundary saturation is too high.")
+        reason_codes.append("high_saturation")
     tie_rate = distribution_diagnostics.get("tie_rate")
     if tie_rate is not None and tie_rate > float(maximum_tie_rate):
         reasons.append("Forecast tie rate is too high.")
+        reason_codes.append("high_tie_rate")
     if rank_bootstrap is not None:
         if rank_bootstrap.get("status") != "ok":
             reasons.append(
                 "Insufficient data for dependent-period signal bootstrap."
             )
+            reason_codes.append("insufficient_bootstrap_data")
         else:
             probability = rank_bootstrap["probability"]
             if (
@@ -491,6 +500,7 @@ def signal_only_gate(
                     "Positive mean rank-IC bootstrap probability is below "
                     f"{float(minimum_bootstrap_probability):.0%}."
                 )
+                reason_codes.append("low_rank_ic_probability")
             if (
                 probability["positive_mean_top_bottom_spread"]
                 < float(minimum_bootstrap_probability)
@@ -499,12 +509,104 @@ def signal_only_gate(
                     "Positive mean top-minus-bottom bootstrap probability "
                     f"is below {float(minimum_bootstrap_probability):.0%}."
                 )
+                reason_codes.append("low_spread_probability")
     return {
         "status": "passed" if not reasons else "rejected",
         "reasons": reasons,
+        "reason_codes": reason_codes,
         "minimum_bootstrap_probability": (
             None
             if rank_bootstrap is None
             else float(minimum_bootstrap_probability)
         ),
+    }
+
+
+def sequential_forecast_confidence_gate(
+    completed_periods,
+    current_predictions,
+    signal_date,
+    *,
+    minimum_periods=8,
+    minimum_coverage=0.80,
+    maximum_saturation_rate=0.10,
+    maximum_tie_rate=0.25,
+    minimum_uncertainty_coverage=0.80,
+    maximum_mean_uncertainty=0.50,
+    minimum_bootstrap_probability=0.95,
+    bootstrap_samples=2000,
+    seed=42,
+):
+    """Activate a forecast only from outcomes completed by ``signal_date``."""
+    signal_date = pd.Timestamp(signal_date)
+    eligible = [
+        period
+        for period in list(completed_periods or [])
+        if pd.notna(pd.to_datetime(period.get("forward_end_date"), errors="coerce"))
+        and pd.Timestamp(period["forward_end_date"]) <= signal_date
+    ]
+    predictions = list(current_predictions or [])
+    distribution = prediction_distribution_diagnostics(predictions)
+    valid_count = int(distribution["valid_count"])
+    uncertainty_count = int(distribution["uncertainty_count"])
+    distribution["uncertainty_coverage_rate"] = (
+        float(uncertainty_count / valid_count) if valid_count else 0.0
+    )
+    rank = cross_sectional_rank_diagnostics(eligible)
+    bootstrap = rank_signal_block_bootstrap(
+        eligible,
+        samples=bootstrap_samples,
+        seed=seed,
+    )
+    gate = signal_only_gate(
+        rank,
+        distribution,
+        rank_bootstrap=bootstrap,
+        minimum_periods=minimum_periods,
+        minimum_coverage=minimum_coverage,
+        maximum_saturation_rate=maximum_saturation_rate,
+        maximum_tie_rate=maximum_tie_rate,
+        minimum_bootstrap_probability=minimum_bootstrap_probability,
+    )
+    reason_codes = list(gate["reason_codes"])
+    reasons = list(gate["reasons"])
+    if (
+        distribution["uncertainty_coverage_rate"]
+        < float(minimum_uncertainty_coverage)
+    ):
+        reason_codes.append("low_uncertainty_coverage")
+        reasons.append("Forecast uncertainty coverage is below the configured minimum.")
+    mean_uncertainty = distribution["mean_reported_uncertainty"]
+    if (
+        mean_uncertainty is None
+        or mean_uncertainty > float(maximum_mean_uncertainty)
+    ):
+        reason_codes.append("high_uncertainty")
+        reasons.append("Mean forecast uncertainty exceeds the configured maximum.")
+
+    active = not reason_codes
+    return {
+        "status": "passed" if active else "rejected",
+        "active": active,
+        "strength": 1.0 if active else 0.0,
+        "reason_codes": reason_codes,
+        "reasons": reasons,
+        "signal_date": signal_date.strftime("%Y-%m-%d"),
+        "completed_period_count": int(len(eligible)),
+        "rank_diagnostics": rank,
+        "distribution_diagnostics": distribution,
+        "bootstrap": bootstrap,
+        "policy": {
+            "minimum_periods": int(minimum_periods),
+            "minimum_coverage": float(minimum_coverage),
+            "maximum_saturation_rate": float(maximum_saturation_rate),
+            "maximum_tie_rate": float(maximum_tie_rate),
+            "minimum_uncertainty_coverage": float(
+                minimum_uncertainty_coverage
+            ),
+            "maximum_mean_uncertainty": float(maximum_mean_uncertainty),
+            "minimum_bootstrap_probability": float(
+                minimum_bootstrap_probability
+            ),
+        },
     }

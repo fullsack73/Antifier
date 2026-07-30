@@ -55,15 +55,15 @@ docs/
 src/backend/
 ├─ app.py                            # Flask 앱, REST endpoint, request/response orchestration
 ├─ portfolio_optimization.py         # 데이터 수집, 예측 수익률, MPT/Black-Litterman 최적화
-├─ portfolio_backtest.py             # walk-forward backtest, signal/construction/execution 진단, promotion gate
-├─ portfolio_signals.py              # risk parity, momentum rank, adaptive cross-sectional alpha helper
+├─ portfolio_backtest.py             # walk-forward backtest, forecast cache/process pool, promotion gate
+├─ portfolio_signals.py              # risk parity, momentum rank, confidence-gated GMV overlay helper
 ├─ portfolio_alpha_v2.py             # point-in-time factor 계약, factor-residual target, regularized alpha
-├─ forecast_signal_research.py        # forecast 분포/OOS uncertainty/signal-only gate 진단
+├─ forecast_signal_research.py        # forecast 분포와 completed-OOS sequential confidence gate
 ├─ cross_sectional_forecast.py        # pooled linear/ranking/nonlinear walk-forward research
-├─ portfolio_risk_models.py           # OOS covariance ensemble/stress, robust/nested covariance, ERC, HRP, CVaR
+├─ portfolio_risk_models.py           # robust risk model과 conditional-volatility covariance 연구
 ├─ portfolio_statistics.py            # paired block bootstrap와 multiple-testing gate
 ├─ sec_point_in_time.py               # SEC filing-date 기준 PIT 재무 factor 생성
-├─ research_split.py                   # research/validation/holdout split hash와 실행 계약 검증
+├─ research_split.py                   # split hash와 baseline/candidate 공통 실행 계약 검증
 ├─ universe_manifest.py               # 날짜별 universe membership와 생존편향 정책 검증
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback

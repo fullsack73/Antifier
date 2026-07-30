@@ -69,7 +69,7 @@ portfolio research backtest를 signal, portfolio construction, execution 3계층
 - `logs/portfolio_gauntlet_candidate_adaptive_20260723.json`
 - `logs/portfolio_gauntlet_candidate_adaptive_20260723.md`
 - `logs/portfolio_gauntlet_candidate_adaptive_20260723.json.checkpoint.jsonl`
-- `docs/todo/portfolio-alpha-v2-research.md`
+- 후속 종료 기록: `docs/reports/260731-0121-01-portfolio-alpha-v2-closure.md`
 
 ## Verification
 

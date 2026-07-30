@@ -10,6 +10,7 @@ import { BenchmarkSkeleton } from "./SkeletonScreens.jsx"
 const PortfolioBenchmark = () => {
   const { t } = useTranslation()
   const [portfolio, setPortfolio] = useState(null)
+  const [portfolioFileName, setPortfolioFileName] = useState("")
   const [budget, setBudget] = useState("")
   const [riskFreeRate, setRiskFreeRate] = useState("4")
   const [startDate, setStartDate] = useState("")
@@ -38,15 +39,18 @@ const PortfolioBenchmark = () => {
         }
 
         setPortfolio(parsed)
+        setPortfolioFileName(file.name)
         setError(null)
       } catch (err) {
         setError(err.message || t("benchmark.uploadError"))
         setPortfolio(null)
+        setPortfolioFileName("")
       }
     }
     reader.onerror = () => {
       setError(t("benchmark.readError"))
       setPortfolio(null)
+      setPortfolioFileName("")
     }
     reader.readAsText(file)
 
@@ -104,98 +108,157 @@ const PortfolioBenchmark = () => {
     }
   }
 
-  return (
-    <div className="optimizer-container">
-      <div className="optimizer-header page-title-block">
-        <span className="page-kicker">{t("benchmark.kicker")}</span>
-        <h1 className="page-header">{t("benchmark.title")}</h1>
-      </div>
+  const portfolioName =
+    portfolio?.portfolio_id || portfolioFileName || t("benchmark.portfolioLoaded")
+  const assetCount = portfolio?.weights ? Object.keys(portfolio.weights).length : 0
+  const isReady = Boolean(portfolio && budget && startDate && endDate)
 
-      <form className="optimizer-form" onSubmit={handleSubmit}>
-        {/* Portfolio Upload */}
-        <div className="optimizer-form-group">
-          <label className="optimizer-label">{t("benchmark.uploadPortfolio")}</label>
+  return (
+    <section
+      className="benchmark-page"
+      aria-busy={loading}
+      aria-labelledby="benchmark-page-title"
+    >
+      <header className="benchmark-hero" aria-labelledby="benchmark-page-title">
+        <div className="benchmark-hero-copy">
+          <span className="page-kicker">{t("benchmark.kicker")}</span>
+          <h1 id="benchmark-page-title">{t("benchmark.title")}</h1>
+          <p>{t("benchmark.subtitle")}</p>
+        </div>
+        <dl className="benchmark-comparison-set" aria-label={t("benchmark.comparisonSet")}>
+          <div>
+            <dt>{t("benchmark.primarySeries")}</dt>
+            <dd>{t("benchmark.portfolio")}</dd>
+          </div>
+          <div>
+            <dt>{t("benchmark.marketReference")}</dt>
+            <dd>{t("benchmark.sp500")}</dd>
+          </div>
+          <div>
+            <dt>{t("benchmark.baseline")}</dt>
+            <dd>{t("benchmark.riskFree")}</dd>
+          </div>
+        </dl>
+      </header>
+
+      <form className="benchmark-workbench" onSubmit={handleSubmit}>
+        <section className="benchmark-source-panel" aria-labelledby="benchmark-source-title">
+          <div className="benchmark-panel-heading">
+            <h2 id="benchmark-source-title">{t("benchmark.sourceTitle")}</h2>
+            <p>{t("benchmark.sourceDescription")}</p>
+          </div>
           <input
             ref={fileInputRef}
+            id="benchmark-portfolio-file"
             type="file"
-            accept=".json"
+            accept=".json,application/json"
             onChange={handleFileUpload}
             className="hidden-file-input"
           />
           <button
             type="button"
             onClick={triggerFileUpload}
-            className="optimizer-input optimizer-file-button"
+            className={`benchmark-file-drop${portfolio ? " is-loaded" : ""}`}
+            aria-describedby="benchmark-file-help"
           >
-            {portfolio
-              ? `✓ ${portfolio.portfolio_id || t("benchmark.portfolioLoaded")}`
-              : t("benchmark.chooseFile")}
+            <span>{portfolio ? t("benchmark.portfolioLoaded") : t("benchmark.uploadPortfolio")}</span>
+            <strong>{portfolio ? portfolioName : t("benchmark.chooseFile")}</strong>
+            <small id="benchmark-file-help">
+              {portfolio
+                ? t("benchmark.assetsReady", { count: assetCount })
+                : t("benchmark.fileFormat")}
+            </small>
           </button>
-        </div>
+          <div className="benchmark-source-note">
+            <span>{t("benchmark.sourceNoteLabel")}</span>
+            <p>{t("benchmark.sourceNote")}</p>
+          </div>
+        </section>
 
-        {/* Budget Input */}
-        <div className="optimizer-form-group">
-          <label className="optimizer-label">{t("benchmark.budget")}</label>
-          <input
-            type="number"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
-            placeholder="10000"
-            className="optimizer-input"
-            step="0.01"
-            min="0"
-          />
-        </div>
+        <section className="benchmark-parameters-panel" aria-labelledby="benchmark-parameters-title">
+          <div className="benchmark-panel-heading">
+            <h2 id="benchmark-parameters-title">{t("benchmark.parametersTitle")}</h2>
+            <p>{t("benchmark.parametersDescription")}</p>
+          </div>
 
-        {/* Date Range */}
-        <div className="optimizer-form-group">
-          <DateInput onDateRangeChange={handleDateRangeChange} inputIdPrefix="benchmark-date" />
-        </div>
+          <div className="benchmark-fields">
+            <div className="benchmark-field">
+              <label htmlFor="benchmark-budget">{t("benchmark.budget")}</label>
+              <input
+                id="benchmark-budget"
+                type="number"
+                value={budget}
+                onChange={(e) => setBudget(e.target.value)}
+                placeholder="10000"
+                step="0.01"
+                min="0"
+                inputMode="decimal"
+                aria-describedby="benchmark-budget-help"
+              />
+              <small id="benchmark-budget-help">{t("benchmark.budgetHint")}</small>
+            </div>
 
-        {/* Risk-Free Rate */}
-        <div className="optimizer-form-group">
-          <label className="optimizer-label">{t("benchmark.riskFreeRate")}</label>
-          <input
-            type="number"
-            value={riskFreeRate}
-            onChange={(e) => setRiskFreeRate(e.target.value)}
-            placeholder="4"
-            className="optimizer-input"
-            step="0.01"
-            min="0"
-            max="100"
-          />
-        </div>
+            <div className="benchmark-field">
+              <label htmlFor="benchmark-risk-free-rate">{t("benchmark.riskFreeRate")}</label>
+              <input
+                id="benchmark-risk-free-rate"
+                type="number"
+                value={riskFreeRate}
+                onChange={(e) => setRiskFreeRate(e.target.value)}
+                placeholder="4"
+                step="0.01"
+                min="0"
+                max="100"
+                inputMode="decimal"
+                aria-describedby="benchmark-rate-help"
+              />
+              <small id="benchmark-rate-help">{t("benchmark.riskFreeHint")}</small>
+            </div>
 
-        {/* Submit Button */}
-        <div className="optimizer-submit-row">
-          <button
-            type="submit"
-            className="optimizer-submit-button"
-            disabled={loading || !portfolio || !budget || !startDate || !endDate}
-          >
-            {loading ? t("common.loading") : t("benchmark.analyze")}
-          </button>
-        </div>
+            <div className="benchmark-date-field">
+              <DateInput onDateRangeChange={handleDateRangeChange} inputIdPrefix="benchmark-date" />
+            </div>
+          </div>
+
+          <footer className="benchmark-submit-panel">
+            <div>
+              <strong>{isReady ? t("benchmark.readyTitle") : t("benchmark.notReadyTitle")}</strong>
+              <span>{isReady ? t("benchmark.readyHint") : t("benchmark.notReadyHint")}</span>
+            </div>
+            <button
+              type="submit"
+              className="benchmark-submit-button"
+              disabled={loading || !isReady}
+            >
+              {loading ? t("common.loading") : t("benchmark.analyze")}
+            </button>
+          </footer>
+        </section>
       </form>
 
-      {/* Error Display */}
       {error && (
-        <div className="optimizer-error">
+        <div className="benchmark-error" role="alert">
+          <strong>{t("benchmark.errorTitle")}</strong>
           <p>{error}</p>
         </div>
       )}
 
       {loading && <BenchmarkSkeleton />}
 
-      {/* Results Display */}
       {benchmarkData && !loading && (
-        <div className="benchmark-results">
-          <h2 className="optimizer-section-title">{t("benchmark.resultsTitle")}</h2>
+        <section className="benchmark-results" aria-labelledby="benchmark-results-title">
+          <div className="benchmark-results-heading">
+            <span>{t("benchmark.resultsLabel")}</span>
+            <h2 id="benchmark-results-title">{t("benchmark.resultsTitle")}</h2>
+            <p>{t("benchmark.resultsDescription")}</p>
+          </div>
 
-          {/* Chart */}
-          <div className="charts-container">
-            <div className="chart-wrapper">
+          <div className="benchmark-chart-panel">
+            <div className="benchmark-chart-heading">
+              <h3>{t("benchmark.chartTitle")}</h3>
+              <p>{t("benchmark.chartDescription")}</p>
+            </div>
+            <div className="benchmark-chart-frame">
               <BenchmarkChart
                 portfolioData={benchmarkData.portfolio_timeline}
                 sp500Data={benchmarkData.sp500_timeline}
@@ -204,11 +267,10 @@ const PortfolioBenchmark = () => {
             </div>
           </div>
 
-          {/* Summary Table */}
           <BenchmarkResultsTable summary={benchmarkData.summary} />
-        </div>
+        </section>
       )}
-    </div>
+    </section>
   )
 }
 

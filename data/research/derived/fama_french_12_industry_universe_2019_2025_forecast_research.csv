@@ -1,0 +1,13 @@
+effective_date,ticker,in_universe
+2019-01-02,NODUR,true
+2019-01-02,DURBL,true
+2019-01-02,MANUF,true
+2019-01-02,ENRGY,true
+2019-01-02,CHEMS,true
+2019-01-02,BUSEQ,true
+2019-01-02,TELCM,true
+2019-01-02,UTILS,true
+2019-01-02,SHOPS,true
+2019-01-02,HLTH,true
+2019-01-02,MONEY,true
+2019-01-02,OTHER,true

@@ -141,6 +141,8 @@ Backend-only research tool:
   - promotion-safe pooled research와 locked holdout은 `--split-manifest`를 필수로 사용합니다. split role/ID, evaluation interval, namespace, objective family, universe/price/factor SHA-256을 self-hash contract로 잠그고 어느 하나라도 drift하면 실행을 거부합니다.
   - 최종 `promotion_eligible`은 data provenance safe, immutable research split locked, signal-only statistical gate passed 세 조건이 모두 true일 때만 true입니다. 단순히 데이터 hash가 맞다는 이유로 탈락 모델을 승격 가능으로 표시하지 않습니다.
   - signal-only gate는 시점 의존성을 보존한 circular block bootstrap에서 mean rank IC와 mean top-minus-bottom spread가 양수일 확률을 각각 95% 이상 요구합니다. 동시 비교 objective는 Holm-Bonferroni로 보정합니다.
+  - sequential confidence gate는 현재 signal date까지 outcome이 완료된 OOS record만 사용합니다. coverage, completed sample, uncertainty, saturation, tie, rank IC가 사전 고정 기준 중 하나라도 실패하면 `active=false`, `strength=0`과 안정적인 reason code를 반환합니다.
+  - confidence-gated GMV overlay는 Ledoit-Wolf GMV에 centered rank signal의 고정 소형 sleeve만 더합니다. gate 실패·invalid signal에서는 GMV weight와 정확히 같고, 통과 시에도 기존 long-only cap과 합계 1 불변식을 유지합니다.
   - 선택적 universe manifest는 `effective_date`, `ticker`, `in_universe` event 열을 요구합니다. 각 signal date에는 그 날짜까지 발생한 마지막 membership event만 적용하고 미래 편입 종목은 cross-sectional 표준화, target, prediction에서 제외합니다.
   - universe provenance는 `source`, `retrieved_at`, `universe_policy`, `survivorship_policy`를 요구합니다. promotion-safe 실행은 `historical_constituents`, `point_in_time_membership`, `survivorship_safe` 정책만 허용합니다.
   - full constituent snapshot은 `snapshots_to_membership_events`로 편입/퇴출 event를 재구성하고 모든 source date에서 원 snapshot과 동일한 membership인지 검증합니다.
@@ -164,6 +166,9 @@ Backend-only research tool:
   - research-only `random_matrix_minimum_variance`는 sample correlation의 Marchenko-Pastur noise band eigenvalue를 평균화하고 Ledoit-Wolf diagonal variance로 재조합합니다. RMT threshold, variance source, noise/signal eigenvalue 수를 diagnostics와 locked split에 기록합니다.
   - `nested_blended_min_variance`는 Ledoit-Wolf minimum-variance와 inverse-volatility weight 사이 shrinkage를 완료된 252/63 inner OOS realized variance만으로 선택합니다. `train_window < 315`이면 research CLI가 실행을 거부합니다.
   - risk allocator research도 price SHA, 명시적 universe manifest SHA 또는 legacy ordered basket hash, 모든 실행 설정과 candidate family를 split manifest로 잠급니다. 낮은 변동성만으로 승격하지 않고 closest baseline 대비 Sharpe, drawdown, turnover와 paired block bootstrap를 함께 통과해야 합니다.
+  - baseline/candidate 비교는 eligible-universe hash, rebalance dates, horizon/step, asset cap, rebalance band, turnover cap, transaction cost와 risk-free hash가 모두 동일해야 합니다. 하나라도 다르면 비교 실행을 거부합니다.
+  - research-only `conditional_volatility_minimum_variance`는 21일 연율 실현 변동성의 다음 63일 log-change를 기존 ARIMA+Transformer로 예측하고 `D_forecast @ R_ledoit_wolf @ D_forecast` covariance를 사용합니다. invalid 종목은 Ledoit-Wolf historical volatility로 fallback하고 PSD repair와 covariance 진단을 기록합니다.
+  - conditional-volatility forecast cache는 split의 experiment namespace를 사용하며, backtest의 기존 spawn process pool에서 cache miss만 계산합니다. SQLite read/write는 부모 프로세스가 맡아 worker 수와 무관한 결과를 보장합니다.
   - cross-validated covariance 후보는 outer rebalance의 train window 안에서만 252일 inner train/63일 validation walk-forward를 수행하고 realized portfolio variance로 estimator를 선택합니다. 이 후보도 research-only이며 높은 turnover 또는 Sharpe 저하 시 승격하지 않습니다.
   - covariance forecast ensemble은 완료된 inner OOS window에서 relative Frobenius error, correlation RMSE, equal/inverse-vol portfolio log-variance calibration error를 측정합니다. estimator를 hard-select하지 않고 inverse-loss weight를 50% equal-weight prior로 shrink해 결합합니다.
   - covariance stress 진단은 PSD를 보존하는 correlation-to-one shock와 volatility shock에서 portfolio volatility amplification, effective asset count, maximum weight를 기록합니다.

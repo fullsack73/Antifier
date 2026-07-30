@@ -1411,6 +1411,10 @@ def compare_pooled_objectives(
     paired_improvement = {}
     paired_comparisons = (
         (
+            "relative_nested_ridge",
+            "relative_ridge",
+        ),
+        (
             "relative_market_regime_nested_ridge",
             "relative_nested_ridge",
         ),

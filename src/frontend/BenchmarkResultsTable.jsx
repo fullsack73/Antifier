@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next"
 function BenchmarkResultsTable({ summary }) {
   const { t } = useTranslation()
 
-  // Helper function to format currency
   const formatCurrency = (value) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -13,12 +12,10 @@ function BenchmarkResultsTable({ summary }) {
     }).format(value)
   }
 
-  // Helper function to format percentage
   const formatPercent = (value) => {
     return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
   }
 
-  // Helper function to get color class based on value
   const getColorClass = (value) => {
     return value >= 0 ? "positive" : "negative"
   }
@@ -38,54 +35,70 @@ function BenchmarkResultsTable({ summary }) {
     },
   ]
 
-  return (
-    <div className="benchmark-table-container">
-      <table className="benchmark-table">
-        <thead>
-          <tr>
-            <th>{t("benchmark.investmentType")}</th>
-            <th>{t("benchmark.initialValue")}</th>
-            <th>{t("benchmark.finalValue")}</th>
-            <th>{t("benchmark.profitLoss")}</th>
-            <th>{t("benchmark.returnPercent")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={index}>
-              <td className="benchmark-name">{row.name}</td>
-              <td>{formatCurrency(row.data.initial_value)}</td>
-              <td>{formatCurrency(row.data.final_value)}</td>
-              <td className={getColorClass(row.data.profit_loss)}>
-                {formatCurrency(row.data.profit_loss)}
-              </td>
-              <td className={getColorClass(row.data.return_pct)}>
-                {formatPercent(row.data.return_pct)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+  const sp500Delta = summary.portfolio.return_pct - summary.sp500_benchmark.return_pct
+  const riskFreeDelta = summary.portfolio.return_pct - summary.risk_free_asset.return_pct
 
-      {/* Comparison Section */}
-      <div className="benchmark-comparison">
-        <h3>{t("benchmark.comparison")}</h3>
-        <div className="comparison-grid">
-          <div className="comparison-item">
-            <span className="comparison-label">{t("benchmark.vssp500")}:</span>
-            <span className={getColorClass(summary.portfolio.return_pct - summary.sp500_benchmark.return_pct)}>
-              {formatPercent(summary.portfolio.return_pct - summary.sp500_benchmark.return_pct)}
-            </span>
+  return (
+    <section className="benchmark-summary-panel" aria-labelledby="benchmark-summary-title">
+      <div className="benchmark-summary-heading">
+        <div>
+          <h3 id="benchmark-summary-title">{t("benchmark.comparison")}</h3>
+          <p>{t("benchmark.comparisonDescription")}</p>
+        </div>
+        <div className="benchmark-delta-grid">
+          <div>
+            <span>{t("benchmark.vssp500")}</span>
+            <strong className={getColorClass(sp500Delta)}>{formatPercent(sp500Delta)}</strong>
           </div>
-          <div className="comparison-item">
-            <span className="comparison-label">{t("benchmark.vsRiskFree")}:</span>
-            <span className={getColorClass(summary.portfolio.return_pct - summary.risk_free_asset.return_pct)}>
-              {formatPercent(summary.portfolio.return_pct - summary.risk_free_asset.return_pct)}
-            </span>
+          <div>
+            <span>{t("benchmark.vsRiskFree")}</span>
+            <strong className={getColorClass(riskFreeDelta)}>{formatPercent(riskFreeDelta)}</strong>
           </div>
         </div>
       </div>
-    </div>
+
+      <div className="benchmark-table-scroll">
+        <table className="benchmark-table">
+          <caption>{t("benchmark.tableCaption")}</caption>
+          <thead>
+            <tr>
+              <th>{t("benchmark.investmentType")}</th>
+              <th>{t("benchmark.initialValue")}</th>
+              <th>{t("benchmark.finalValue")}</th>
+              <th>{t("benchmark.profitLoss")}</th>
+              <th>{t("benchmark.returnPercent")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.name}>
+                <th scope="row" className="benchmark-name">
+                  {row.name}
+                </th>
+                <td data-label={t("benchmark.initialValue")}>
+                  {formatCurrency(row.data.initial_value)}
+                </td>
+                <td data-label={t("benchmark.finalValue")}>
+                  {formatCurrency(row.data.final_value)}
+                </td>
+                <td
+                  data-label={t("benchmark.profitLoss")}
+                  className={getColorClass(row.data.profit_loss)}
+                >
+                  {formatCurrency(row.data.profit_loss)}
+                </td>
+                <td
+                  data-label={t("benchmark.returnPercent")}
+                  className={getColorClass(row.data.return_pct)}
+                >
+                  {formatPercent(row.data.return_pct)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   )
 }
 
