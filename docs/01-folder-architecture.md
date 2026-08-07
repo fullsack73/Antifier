@@ -60,6 +60,7 @@ src/backend/
 ├─ portfolio_alpha_v2.py             # point-in-time factor 계약, factor-residual target, regularized alpha
 ├─ forecast_signal_research.py        # forecast 분포와 completed-OOS sequential confidence gate
 ├─ cross_sectional_forecast.py        # pooled linear/ranking/nonlinear walk-forward research
+├─ pooled_patch_transformer.py        # research-only pooled Patch Transformer, Kronos context, direct-horizon gate
 ├─ portfolio_risk_models.py           # robust risk model과 conditional-volatility covariance 연구
 ├─ portfolio_statistics.py            # paired block bootstrap와 multiple-testing gate
 ├─ sec_point_in_time.py               # SEC filing-date 기준 PIT 재무 factor 생성
@@ -154,6 +155,7 @@ tools/
 ├─ diagnose_forecast_signals.py       # persistent forecast cache 포화/tie/coverage 진단
 ├─ benchmark_kronos_forecasts.py       # pinned Kronos-small과 기존 ML rank signal 비교
 ├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
+├─ research_pooled_patch_transformer.py # frozen origin 기반 Patch/ARIMA/Transformer signal과 GMV tilt 비교
 ├─ build_sec_pit_features.py          # SEC 공시일 기준 PIT factor/provenance 생성
 ├─ build_ticker_cik_map.py             # 제한된 ticker 집합의 Yahoo SEC metadata 기반 CIK map
 ├─ build_dow_universe_manifest.py       # pinned DJIA snapshot을 dated membership event로 변환
