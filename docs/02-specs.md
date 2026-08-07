@@ -121,6 +121,7 @@ Backend-only research tool:
   - forecast rank cache schema `2026-07-23-v2-diagnostics`부터 Transformer 응답은 daily clip hit, annual clip 전후 값, uncertainty source를 기록합니다. 기존 schema cache는 진단 메타데이터가 없으므로 새 research 실행에 재사용하지 않습니다.
   - `tools/diagnose_forecast_signals.py`는 SQLite forecast cache를 재학습 없이 읽어 coverage, `±0.69` boundary saturation, unique-value/tie 비율, component 분포를 JSON/Markdown으로 기록합니다.
   - `tools/benchmark_kronos_forecasts.py`는 candidate 4-case의 날짜·universe만 기존 cache에서 고정하고, 같은 current OHLC에서 ARIMA+Transformer와 Transformer를 별도 namespace로 재계산한 뒤 pinned Kronos-small zero-shot과 signal-only 비교합니다. Kronos repo/model/tokenizer revision, OHLC/cache SHA, device, sampling 설정, runtime과 checkpoint를 기록하며 `requirements-kronos-research.txt` 의존성은 production/installer/CI 기본 환경에 포함하지 않습니다.
+  - `pooled_patch_transformer.py`와 `tools/research_pooled_patch_transformer.py`는 production과 분리된 research-only 경로입니다. OHLCV를 순서가 보존되는 patch token으로 만들고 명시적 position embedding, date×ticker pooled 학습, 21/63일 direct multi-horizon relative/factor-residual target, price/PIT context와 선택적 frozen Kronos score, completed-OOS uncertainty/signal gate를 사용합니다. Kronos checkpoint signature와 horizon을 검증하며, consumed validation 실행은 명시적 acknowledgement와 `promotion_safe=false`를 강제합니다.
   - `forecast_signal_research.py`의 empirical uncertainty calibration은 동일 단위의 완료된 OOS prediction/realized return 최소 20개를 요구합니다. in-sample training RMSE를 OOS-calibrated uncertainty로 표시하지 않습니다.
   - research target builder는 명시한 training cutoff 안에서 forward horizon이 완료된 row만 만들며 `absolute`, cross-sectional median-adjusted `relative`, PIT beta/sector/size `factor_residual` target을 지원합니다.
   - forecast 후보는 portfolio construction 전에 signal-only gate에서 OOS rank IC, positive IC rate, top-minus-bottom spread, coverage, saturation, tie 기준을 통과해야 합니다.
@@ -143,6 +144,7 @@ Backend-only research tool:
   - signal-only gate는 시점 의존성을 보존한 circular block bootstrap에서 mean rank IC와 mean top-minus-bottom spread가 양수일 확률을 각각 95% 이상 요구합니다. 동시 비교 objective는 Holm-Bonferroni로 보정합니다.
   - sequential confidence gate는 현재 signal date까지 outcome이 완료된 OOS record만 사용합니다. coverage, completed sample, uncertainty, saturation, tie, rank IC가 사전 고정 기준 중 하나라도 실패하면 `active=false`, `strength=0`과 안정적인 reason code를 반환합니다.
   - confidence-gated GMV overlay는 Ledoit-Wolf GMV에 centered rank signal의 고정 소형 sleeve만 더합니다. gate 실패·invalid signal에서는 GMV weight와 정확히 같고, 통과 시에도 기존 long-only cap과 합계 1 불변식을 유지합니다.
+  - fixed-gamma portfolio diagnostic은 `w=project_capped_simplex(w_GMV+gamma*alpha_tilt)`를 사용합니다. `alpha_tilt`은 횡단면 rank를 중심화해 L1 norm 2로 정규화하고, consumed validation에서는 gamma를 `0.025`로 한 번만 고정해 10 bps 비용, 2% rebalance band, 35% turnover cap이 포함된 plain GMV와 paired block bootstrap으로 비교합니다. 동일 frozen cache의 ARIMA, Transformer, ARIMA+Transformer와 Kronos/Patch 후보를 같은 origin에서 비교하되, 이 결과로 모델이나 gamma를 선택하거나 production을 변경하지 않습니다.
   - 선택적 universe manifest는 `effective_date`, `ticker`, `in_universe` event 열을 요구합니다. 각 signal date에는 그 날짜까지 발생한 마지막 membership event만 적용하고 미래 편입 종목은 cross-sectional 표준화, target, prediction에서 제외합니다.
   - universe provenance는 `source`, `retrieved_at`, `universe_policy`, `survivorship_policy`를 요구합니다. promotion-safe 실행은 `historical_constituents`, `point_in_time_membership`, `survivorship_safe` 정책만 허용합니다.
   - full constituent snapshot은 `snapshots_to_membership_events`로 편입/퇴출 event를 재구성하고 모든 source date에서 원 snapshot과 동일한 membership인지 검증합니다.
@@ -155,6 +157,7 @@ Backend-only research tool:
   - 로컬 archive 모드는 선택적 `--submissions-dir`의 `CIK##########.json` 파일에서 SIC를 읽습니다. 이를 제공하지 않으면 sector는 `Unknown`이며 sector-neutral 성능을 주장하거나 후보를 승격할 수 없습니다.
   - SEC 수집은 연락처 email 또는 project URL을 포함한 `SEC_USER_AGENT`를 요구하고, 캐시와 최소 0.10초 요청 간격을 적용합니다. 결과 CSV와 provenance JSON에는 endpoint, 수집 시각, 실패 ticker, universe 정책, SHA-256을 기록합니다.
   - pooled candidate는 ticker별 모델을 반복 학습하지 않고 date × ticker observation을 한 모델로 학습합니다. 각 evaluation date의 training set은 그 날짜까지 forward horizon이 완료된 target만 포함합니다.
+  - pooled Patch Transformer는 signal date별 전체 sample weight가 같도록 universe 크기를 보정하고, chronological validation period만 early stopping에 사용합니다. 위치 인코딩 없는 attention, recursive one-step roll-forward, in-sample RMSE uncertainty를 research 후보에 사용하지 않습니다.
   - paired baseline이 있는 pooled candidate는 개별 bootstrap과 Holm correction뿐 아니라 baseline 대비 paired IC/spread 95% gate를 모두 통과해야 승격 대상이 됩니다.
   - nested ridge는 outer evaluation보다 먼저 완료된 target만 inner fold에 사용합니다. overlapping rebalance에서도 inner validation date까지 forward outcome이 완료되지 않은 row는 penalty 선택에서 제외합니다.
   - nested candidate와 fixed-penalty baseline의 period별 rank IC와 top-bottom spread 차이는 paired circular block bootstrap으로 별도 검증합니다.
