@@ -61,6 +61,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - candidate 4-case validation 후 standard 180-case와 별도 2024-2025 locked holdout으로 이어지는 staged gauntlet, basket/regime별 target 재사용, SQLite forecast cache, case checkpoint/resume
 - 2019-2025 French 12-industry fresh research에서 pooled relative-return 후보와 conditional-volatility GMV가 각각 signal/risk gate를 통과하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 이미 소비된 Kronos 4-case origin diagnostic에서 pooled Patch Transformer가 rank IC는 개선했지만 tail-spread/paired 95% gate를 통과하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
+- 2024-2025 promotion-safe Nasdaq-100 PIT universe/OHLCV fresh validation에서 frozen pooled Patch Transformer가 absolute 및 paired 95% signal gate를 통과하지 못해 GMV overlay를 실행하지 않고 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 같은 consumed origin에서 고정 gamma 2.5%의 GMV + Patch Transformer/Kronos alpha tilt가 수익률·Sharpe를 소폭 높였지만 변동성과 paired 95% gate를 개선하지 못해 diagnostic-only로 유지한 기록
 - 동일 고정 gamma에서 Transformer 단독, ARIMA+Transformer, ARIMA 단독, Kronos/Patch 계열 6개 signal을 비교했으나 모두 plain GMV 대비 변동성이 증가하고 95% gate를 통과하지 못해 모델 선택을 보류한 기록
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소

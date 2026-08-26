@@ -9,6 +9,7 @@ import pytest
 from pooled_patch_transformer import (
     PatchTransformerConfig,
     PooledPatchTransformerRegressor,
+    compare_patch_transformer_runs,
     load_kronos_checkpoint,
     make_patch_tokens,
     walk_forward_pooled_patch_transformer,
@@ -17,6 +18,7 @@ from tools.research_pooled_patch_transformer import (
     _cached_forecast_signal_candidates,
     _fixed_gamma_gmv_experiment,
 )
+from tools.validate_pooled_patch_transformer import _origin_inputs
 
 
 def _prices(rows=420):
@@ -169,6 +171,40 @@ def test_walk_forward_patch_transformer_uses_only_completed_training_targets():
         )
 
 
+def test_walk_forward_patch_transformer_limits_evaluation_and_reports_missing_universe():
+    prices = _prices()
+    origins = list(prices.index[260:381:10])
+    evaluation_start = origins[-3]
+    requested = {
+        date: list(prices.columns) + ["MISSING"] for date in origins
+    }
+
+    result = walk_forward_pooled_patch_transformer(
+        prices,
+        config=PatchTransformerConfig(
+            lookback=60,
+            patch_size=5,
+            horizons=(3, 5),
+            epochs=1,
+        ),
+        include_kronos=False,
+        origin_dates=origins,
+        origin_universes=requested,
+        evaluation_start=evaluation_start,
+        evaluation_end=origins[-1],
+        minimum_training_periods=3,
+        maximum_training_periods=5,
+        minimum_observations=10,
+        regressor_factory=_fake_factory,
+    )
+
+    assert result["fit_count"] == 3
+    assert result["evaluation_start"] == evaluation_start.strftime("%Y-%m-%d")
+    assert all(record["requested_universe_size"] == 6 for record in result["records"])
+    assert all(record["coverage_rate"] == pytest.approx(5 / 6) for record in result["records"])
+    assert all(record["missing_active_tickers"] == ["MISSING"] for record in result["records"])
+
+
 def test_tensorflow_model_declares_position_embedding_and_direct_head():
     tensorflow = pytest.importorskip("tensorflow")
     if not isinstance(tensorflow, types.ModuleType):
@@ -312,3 +348,37 @@ def test_cached_forecast_candidates_recover_arima_and_transformer_components(
         "A"
     ] == pytest.approx(0.2)
     assert metadata["row_count"] == 6
+
+
+def test_fresh_origin_inputs_keep_only_frozen_training_window():
+    prices = _prices(rows=1800)
+    universe = pd.DataFrame({
+        "effective_date": [prices.index[0]] * len(prices.columns),
+        "ticker": list(prices.columns),
+        "in_universe": [True] * len(prices.columns),
+    })
+    split = {
+        "evaluation_start": "2024-01-01",
+        "evaluation_end": "2025-12-31",
+    }
+
+    positions, dates, universes = _origin_inputs(prices, universe, split)
+    evaluation_count = sum(date >= pd.Timestamp("2024-01-01") for date in dates)
+
+    assert len(positions) - evaluation_count <= 12
+    assert len(positions) - evaluation_count >= 8
+    assert all(universes[date] == list(prices.columns) for date in dates)
+
+
+def test_patch_comparison_accepts_ridge_records_with_as_of_date():
+    record = {
+        "as_of_date": "2024-01-08",
+        "scores": {"A": 0.1, "B": -0.1},
+        "realized_returns": {"A": 0.2, "B": -0.2},
+    }
+    candidate = {"records": [{"period_id": "2024-01-08", **record}]}
+    baseline = {"records": [record]}
+
+    result = compare_patch_transformer_runs(candidate, baseline)
+
+    assert result["gate"]["status"] == "rejected"

@@ -1,0 +1,50 @@
+{
+  "source": "Yahoo Finance adjusted OHLCV history",
+  "retrieved_at": "2026-08-12T00:54:34+09:00",
+  "start_date": "2017-01-01",
+  "end_date": "2026-04-14",
+  "auto_adjust": true,
+  "price_file": "data/research/derived/nasdaq100_ohlcv_2017_2026.csv",
+  "price_file_sha256": "1fc401ce21707b384398c932b93dbd11d5c0accd748802903779578cb5339896",
+  "row_count": 342988,
+  "requested_ticker_count": 179,
+  "downloaded_ticker_count": 157,
+  "missing_tickers": [
+    "ALXN",
+    "ANSS",
+    "ATVI",
+    "CA",
+    "CELG",
+    "CERN",
+    "CTXS",
+    "DISCA",
+    "DISCK",
+    "DISH",
+    "FI",
+    "HOLX",
+    "MXIM",
+    "MYL",
+    "NLOK",
+    "QRTEA",
+    "SGEN",
+    "SPLK",
+    "VIAB",
+    "WBA",
+    "XLNX",
+    "YHOO"
+  ],
+  "universe": {
+    "manifest_file": "data/research/derived/nasdaq100_membership_events_2016_2025.csv",
+    "manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+    "universe_policy": "current Nasdaq-100 snapshot reverse-reconstructed with dated component changes",
+    "survivorship_policy": "historical_constituents",
+    "promotion_safe": true
+  },
+  "validation_coverage": {
+    "evaluation_start": "2024-01-01",
+    "evaluation_end": "2025-12-31",
+    "origin_count": 8,
+    "minimum_active_universe_coverage": 0.9504950495049505
+  },
+  "promotion_safe": true
+}

@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "experiment_id": "fama-french-49-industry-dfl-covariance-reproduction-2010-2023-v1",
+  "role": "paper_reproduction_diagnostic",
+  "locked": true,
+  "promotion_safe": false,
+  "promotion_safety_reasons": [
+    "The paper's original data archive vintage is unavailable; the pinned official archive was retrieved on 2026-07-23.",
+    "The published test interval overlaps a previously consumed 2018-2021 validation slice from the same 49-industry archive.",
+    "The experiment intentionally reuses the paper reproduction split and cannot be fresh promotion evidence."
+  ],
+  "paper": {
+    "title": "Estimating Covariance for Global Minimum Variance Portfolio: A Decision-Focused Learning Approach",
+    "file": "/Users/anarchytoast/Desktop/3768292.3770378.pdf",
+    "sha256": "01e0e06461a881dae355d959ddee2c075a584d5b8f45a8e6513e8e02fd3d8d9c",
+    "published_setup": {
+      "universe": "Kenneth R. French 49 Industry Portfolios",
+      "input_horizon": 21,
+      "output_horizon": 63,
+      "train_validation_test_ratio": "6:2:2",
+      "train_interval": [
+        "2010-01-05",
+        "2018-05-24"
+      ],
+      "validation_interval": [
+        "2018-05-25",
+        "2021-03-12"
+      ],
+      "test_interval": [
+        "2021-03-15",
+        "2023-12-29"
+      ],
+      "train_validation_step": 1,
+      "test_step": 63
+    }
+  },
+  "data": {
+    "source": "Kenneth R. French Data Library",
+    "source_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/49_Industry_Portfolios_daily_CSV.zip",
+    "source_section": "Average Value Weighted Returns -- Daily",
+    "source_file": "/Applications/react/my-app/portfolio-project/data/research/raw/market_factors/49_Industry_Portfolios_daily_CSV.zip",
+    "source_file_sha256": "e214c54a41f058c03ed4a4e582b2126e04120d2a84bc19c023bd2a4251f77097",
+    "retrieved_at": "2026-07-23T16:28:21.326308+00:00",
+    "available_start": "1926-07-01",
+    "available_end": "2026-05-29",
+    "available_row_count": 26253,
+    "requested_paper_data_start": "2010-01-01",
+    "requested_paper_data_end": "2024-12-31",
+    "missing_values_in_requested_interval": 0,
+    "returns_unit": "daily_percent",
+    "risk_free_file": "/Applications/react/my-app/portfolio-project/data/research/derived/us_market_factors_2007_2025.csv",
+    "risk_free_file_sha256": "015a593a033b3dab0662ef40017956acb85589ce2abd1d8014e4f16e550decd3",
+    "risk_free_column_for_checkpoint_2": "rf_daily_dgs3mo"
+  },
+  "universe": {
+    "ordered_tickers": [
+      "Agric",
+      "Food",
+      "Soda",
+      "Beer",
+      "Smoke",
+      "Toys",
+      "Fun",
+      "Books",
+      "Hshld",
+      "Clths",
+      "Hlth",
+      "MedEq",
+      "Drugs",
+      "Chems",
+      "Rubbr",
+      "Txtls",
+      "BldMt",
+      "Cnstr",
+      "Steel",
+      "FabPr",
+      "Mach",
+      "ElcEq",
+      "Autos",
+      "Aero",
+      "Ships",
+      "Guns",
+      "Gold",
+      "Mines",
+      "Coal",
+      "Oil",
+      "Util",
+      "Telcm",
+      "PerSv",
+      "BusSv",
+      "Hardw",
+      "Softw",
+      "Chips",
+      "LabEq",
+      "Paper",
+      "Boxes",
+      "Trans",
+      "Whlsl",
+      "Rtail",
+      "Meals",
+      "Banks",
+      "Insur",
+      "RlEst",
+      "Fin",
+      "Other"
+    ],
+    "ordered_tickers_sha256": "cad36f71a324c4cf9a24bde8f184f792bc2c499b6be218b9de1ec943848b4ad9",
+    "ticker_count": 49,
+    "portfolio_policy": "49 SIC industry portfolios reconstituted annually by the source"
+  },
+  "sample_contract": {
+    "feature_rows_end_at_signal_date": true,
+    "label_rows_start_strictly_after_signal_date": true,
+    "label_rows_must_end_inside_partition": true,
+    "train_feature_rows_must_start_inside_train_partition": true,
+    "validation_and_test_may_use_only_earlier_partition_rows_as_feature_context": true,
+    "train": {
+      "partition_start": "2010-01-05",
+      "partition_end": "2018-05-24",
+      "sample_count": 2029,
+      "first_signal_date": "2010-02-03",
+      "last_signal_date": "2018-02-23",
+      "last_label_date": "2018-05-24",
+      "step": 1
+    },
+    "validation": {
+      "partition_start": "2018-05-25",
+      "partition_end": "2021-03-12",
+      "sample_count": 641,
+      "first_signal_date": "2018-05-25",
+      "last_signal_date": "2020-12-09",
+      "last_label_date": "2021-03-12",
+      "step": 1
+    },
+    "test": {
+      "partition_start": "2021-03-15",
+      "partition_end": "2023-12-29",
+      "sample_count": 11,
+      "first_signal_date": "2021-03-15",
+      "last_signal_date": "2023-09-14",
+      "last_label_date": "2023-12-13",
+      "step": 63
+    }
+  },
+  "configuration": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_49_industry_dfl_covariance_config_v1.json",
+    "file_sha256": "f3b98bb184ee9ecf826d592aae68c35fae0e00e310226b179fb7a37f6a38df4b"
+  },
+  "prior_consumed_splits": [
+    {
+      "split_id": "fama-french-49-industry-rmt-research-2000-2010-v1",
+      "evaluation_start": "2000-01-03",
+      "evaluation_end": "2010-12-31",
+      "manifest_sha256": "75c6132c828a86ebe696b31051c41d2dbf33e728f2a1432f2d1e489139c196f5"
+    },
+    {
+      "split_id": "fama-french-49-industry-dual-momentum-research-2011-2017-v1",
+      "evaluation_start": "2011-01-03",
+      "evaluation_end": "2017-12-29",
+      "manifest_sha256": "cd6f5c4ba5757c5350f2a26969fb0f2e64df03ad143a547be5678c197a76b716"
+    },
+    {
+      "split_id": "fama-french-49-industry-trend-risk-parity-validation-2018-2021-v1",
+      "evaluation_start": "2018-01-03",
+      "evaluation_end": "2021-12-31",
+      "manifest_sha256": "2abc8b96abd559c6998fd0e3ae132323b6a2f0918aa3a629287855df79e7b44e"
+    }
+  ],
+  "paper_deviations_locked_before_training": [
+    "The original paper data vintage and authors' source code are unavailable; the closest pinned official 49-industry archive is used.",
+    "The paper says returns extend through 2024 but publishes a test partition ending 2023-12-29; the explicit published partitions govern and 2024 is unused.",
+    "The paper does not fully specify the DLinear-to-Cholesky head; the minimal architecture in the locked configuration is used for both arms.",
+    "Validation and test feature windows may use earlier known returns across a partition boundary, but every label is strictly later than its signal and contained in its own partition.",
+    "The objective-required covariance jitter is included directly in the predicted covariance rather than only at the inversion step."
+  ],
+  "gate_definitions": {
+    "checkpoint_1": "DFL five-seed mean test-period annualized realized volatility must be lower than both identical-backbone PFL and the lowest-volatility shrinkage baseline, with zero lookahead violations, all five seeds complete, and zero model numerical fallbacks.",
+    "checkpoint_2": "Run only after checkpoint 1 passes, then apply the exact practical and bootstrap gate frozen in the configuration.",
+    "terminal_decision": "PASS only if every opened gate passes; otherwise REJECT and skip unopened expensive stages."
+  },
+  "manifest_sha256": "5c45e052a05b1d72f7b8f22ebbf43af5499cacd3b5e0e355d7a5c7440f0423d8"
+}

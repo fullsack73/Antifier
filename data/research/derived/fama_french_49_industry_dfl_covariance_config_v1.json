@@ -1,0 +1,139 @@
+{
+  "schema_version": 1,
+  "experiment_id": "fama-french-49-industry-dfl-covariance-reproduction-2010-2023-v1",
+  "research_only": true,
+  "production_defaults_must_remain_unchanged": true,
+  "returns_unit": "daily_percent",
+  "covariance_unit": "daily_percent_squared",
+  "input_horizon": 21,
+  "output_horizon": 63,
+  "sample_covariance_ddof": 1,
+  "partition_policy": {
+    "train": {
+      "start": "2010-01-05",
+      "end": "2018-05-24",
+      "step": 1,
+      "feature_window_must_be_inside_partition": true,
+      "future_window_must_be_inside_partition": true
+    },
+    "validation": {
+      "start": "2018-05-25",
+      "end": "2021-03-12",
+      "step": 1,
+      "feature_window_must_be_inside_partition": false,
+      "future_window_must_be_inside_partition": true
+    },
+    "test": {
+      "start": "2021-03-15",
+      "end": "2023-12-29",
+      "step": 63,
+      "feature_window_must_be_inside_partition": false,
+      "future_window_must_be_inside_partition": true
+    }
+  },
+  "model": {
+    "backbone": "dlinear_style_moving_average_decomposition",
+    "moving_average_kernel": 7,
+    "hidden_dimension": 128,
+    "hidden_activation": "relu",
+    "input_projection": "flatten_concatenated_trend_and_seasonal_components",
+    "output": "lower_triangular_entries_of_L",
+    "covariance_construction": "L @ L.T + 1e-5 * I",
+    "covariance_jitter": 1e-05,
+    "optimizer": "adam",
+    "learning_rate": 0.0001,
+    "batch_size": 32,
+    "maximum_epochs": 50,
+    "early_stopping_patience": 7,
+    "early_stopping_monitor": "validation_loss",
+    "restore_best_weights": true,
+    "feature_scaling": "none",
+    "weight_solver": "linear_solve_not_inverse"
+  },
+  "arms": {
+    "pfl": "mean_squared_error_over_all_covariance_entries",
+    "dfl": "predicted_unconstrained_gmv_variance_under_future_covariance"
+  },
+  "seeds": [
+    7,
+    19,
+    42,
+    73,
+    101
+  ],
+  "determinism": {
+    "tensorflow_deterministic_ops": true,
+    "inter_op_threads": 1,
+    "intra_op_threads": 1,
+    "shuffle": true,
+    "seed_controls_python_numpy_tensorflow": true
+  },
+  "unconstrained_baselines": [
+    "equal_weight",
+    "historical_sample_covariance_gmv",
+    "ledoit_wolf_constant_variance_gmv",
+    "ledoit_wolf_constant_correlation_gmv",
+    "oas_gmv",
+    "pfl",
+    "dfl"
+  ],
+  "unconstrained_solver": {
+    "covariance_jitter": 1e-05,
+    "failure_policy": "explicit_failure_no_arbitrary_weights",
+    "test_rebalance_step": 63
+  },
+  "checkpoint_1_gate": {
+    "primary_metric": "mean_test_period_annualized_realized_volatility",
+    "dfl_must_be_lower_than_identical_backbone_pfl": true,
+    "dfl_must_be_lower_than_strongest_shrinkage_baseline": true,
+    "all_five_seeds_required": true,
+    "lookahead_violations_allowed": 0,
+    "model_numerical_fallbacks_allowed": 0,
+    "failure_action": "reject_and_skip_checkpoint_2"
+  },
+  "checkpoint_2": {
+    "run_only_if_checkpoint_1_passes": true,
+    "retrain_or_retune": false,
+    "prediction_aggregation": "arithmetic_mean_covariance_across_five_predefined_seeds",
+    "pfl_prediction_aggregation": "arithmetic_mean_covariance_across_five_predefined_seeds",
+    "ledoit_wolf_lookback": "same_21_day_feature_window",
+    "long_only": true,
+    "max_asset_weight": 0.2,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "rebalance_band": 0.02,
+    "maximum_turnover": 0.35,
+    "initial_capital": 10000.0,
+    "primary_baseline": "ledoit_wolf_long_only_capped_gmv",
+    "secondary_baselines": [
+      "pfl_long_only_capped_gmv",
+      "equal_weight",
+      "inverse_volatility_risk_parity"
+    ],
+    "bootstrap": {
+      "method": "paired_21_day_circular_block",
+      "samples": 2000,
+      "seed": 42,
+      "minimum_probability": 0.95,
+      "multiple_testing": "holm_bonferroni"
+    },
+    "practical_gate": {
+      "annualized_volatility_lower_than_primary_baseline": true,
+      "probability_lower_volatility_at_least": 0.95,
+      "sharpe_higher_than_primary_baseline": true,
+      "probability_higher_sharpe_at_least": 0.95,
+      "maximum_drawdown_no_worse": true,
+      "average_controlled_turnover_limit": "max(0.50, 2 * baseline_average_controlled_turnover)",
+      "valid_covariance_coverage": 1.0,
+      "holm_correction_required": true
+    }
+  },
+  "reporting": {
+    "annualized_trading_days": 252,
+    "period_volatility_ddof": 0,
+    "frobenius_error_is_diagnostic_only": true,
+    "gross_turnover_definition": "sum_absolute_weight_change",
+    "concentration_definition": "sum_squared_weights",
+    "peak_memory_definition": "peak_python_allocations_via_tracemalloc"
+  }
+}

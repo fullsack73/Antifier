@@ -156,6 +156,7 @@ tools/
 ├─ benchmark_kronos_forecasts.py       # pinned Kronos-small과 기존 ML rank signal 비교
 ├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
 ├─ research_pooled_patch_transformer.py # frozen origin 기반 Patch/ARIMA/Transformer signal과 GMV tilt 비교
+├─ validate_pooled_patch_transformer.py # locked PIT OHLCV split의 Patch/Kronos/ridge/GMV 최종 검증
 ├─ build_sec_pit_features.py          # SEC 공시일 기준 PIT factor/provenance 생성
 ├─ build_ticker_cik_map.py             # 제한된 ticker 집합의 Yahoo SEC metadata 기반 CIK map
 ├─ build_dow_universe_manifest.py       # pinned DJIA snapshot을 dated membership event로 변환
