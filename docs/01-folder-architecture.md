@@ -55,6 +55,7 @@ docs/
 src/backend/
 ├─ app.py                            # Flask 앱, REST endpoint, request/response orchestration
 ├─ portfolio_optimization.py         # 데이터 수집, 예측 수익률, MPT/Black-Litterman 최적화
+├─ portfolio_constraints.py          # production hard constraint 정규화, feasibility, solver 적용, 사후 진단
 ├─ portfolio_backtest.py             # walk-forward backtest, forecast cache/process pool, promotion gate
 ├─ portfolio_signals.py              # risk parity, momentum rank, confidence-gated GMV overlay helper
 ├─ portfolio_alpha_v2.py             # point-in-time factor 계약, factor-residual target, regularized alpha

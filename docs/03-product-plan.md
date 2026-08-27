@@ -46,6 +46,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 재무제표, 주요 재무 지표, 규칙 기반 투자 신호 대시보드 조회
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - Ledoit-Wolf global minimum-variance 기본 최적화와 opt-in MPT/Black-Litterman
+- 종목별 및 sector/industry/country별 최소·최대 비중 hard constraint, 사전 feasibility 검사, 구조화된 오류
+- 최종 실행 weight 기준 risk contribution, 집중도, covariance, 분류 exposure와 constraint slack 진단
 - forecast method 선택과 expected return 기반 optimization
 - rolling rebalance portfolio backtest CLI와 risk parity, 6-month momentum, low-volatility, market-cap, standalone 12-1 momentum, signal-stack baseline을 포함한 보수적 model promotion gate
 - signal/portfolio construction/execution을 분리하는 alpha diagnostics와 training-window IC calibration 기반 `adaptive_signal_tilt` research candidate
@@ -96,6 +98,10 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 결과는 저장/조회 가능해야 하고, 진행률은 SSE로 확인 가능해야 합니다.
 - 장시간 최적화는 페이지를 떠났다가 돌아와도 진행률 또는 완료 결과를 복구할 수 있어야 합니다.
 - 사용자는 실행 중인 최적화를 명시적으로 취소할 수 있어야 하며, 클라이언트가 닫혀 장시간 재연결되지 않는 job은 backend가 협력적으로 중단해야 합니다.
+- Optimizer 고급 설정은 전체 종목 cap, L2, 최소 보유 비중, 종목별 override, 그룹별 최소/최대 비중을 제공하고, 현재 portfolio weight가 있을 때만 turnover penalty/band/cap을 활성화합니다. UI percent와 API decimal 단위를 혼동하지 않게 표시합니다.
+- Portfolio Manager는 실제 보유 포트폴리오에 의미 있는 rebalance band, turnover cap, turnover penalty, 최소 보유 비중을 노출합니다.
+- hard constraint는 최적화 solver와 threshold/turnover 이후 실제 반환 weight 모두에서 검증하며, 결과 UI는 충족, binding, metadata 부족, 계산 불가를 구분합니다.
+- 그룹 제약은 현재 시점 yfinance 분류 coverage가 완전할 때만 지원합니다. point-in-time 분류가 없는 historical 실행에는 최신 분류를 소급 적용하지 않습니다.
 
 ### 3. Screening / Financial Statement
 
@@ -125,6 +131,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 실시간 또는 준실시간 가격 데이터 연동
 - alert/notification system
 - RSI, MACD, Bollinger Bands, Moving Average 등 technical indicator 확장
+- point-in-time factor hedge 및 ADV/liquidity constraint 연구
+- 단위가 보정된 soft constraint priority와 mixed-integer exact cardinality 검증
 
 ## G. 비범위
 
