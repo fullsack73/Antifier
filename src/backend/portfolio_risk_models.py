@@ -119,6 +119,115 @@ def covariance_diagnostics(covariance):
     }
 
 
+def portfolio_risk_diagnostics(weights, covariance, classification_metadata=None):
+    """Describe risk and concentration for the weights returned to the user."""
+    weight_series = (
+        pd.Series(weights, dtype=float)
+        .replace([np.inf, -np.inf], np.nan)
+        .fillna(0.0)
+        .clip(lower=0.0)
+    )
+    risky_exposure = float(weight_series.sum())
+    cash_weight = max(0.0, 1.0 - risky_exposure)
+    concentration_components = np.append(weight_series.values, cash_weight)
+    hhi = float(np.square(concentration_components).sum())
+    concentration = {
+        "hhi": hhi,
+        "effective_number_of_holdings": None if hhi <= 0.0 else float(1.0 / hhi),
+        "maximum_asset_weight": float(weight_series.max()) if not weight_series.empty else 0.0,
+        "risky_exposure": risky_exposure,
+        "cash_weight": cash_weight,
+    }
+
+    covariance_frame = pd.DataFrame(covariance, dtype=float)
+    modeled = [ticker for ticker in covariance_frame.index if ticker in weight_series.index]
+    unmodeled = [
+        str(ticker)
+        for ticker, weight in weight_series.items()
+        if weight > 1e-10 and ticker not in modeled
+    ]
+    modeled_exposure = float(weight_series.reindex(modeled).fillna(0.0).sum())
+    coverage = 1.0 if risky_exposure <= 1e-12 else min(1.0, modeled_exposure / risky_exposure)
+    covariance_payload = covariance_diagnostics(
+        covariance_frame.reindex(index=modeled, columns=modeled)
+    ) if modeled else {
+        "asset_count": 0,
+        "minimum_eigenvalue": None,
+        "maximum_eigenvalue": None,
+        "condition_number": None,
+        "effective_rank": None,
+        "average_pairwise_correlation": None,
+    }
+
+    risk_contributions = {}
+    portfolio_risk = None
+    contribution_sum = None
+    percentage_sum = None
+    status = "complete"
+    reason = None
+    if unmodeled:
+        status = "unavailable_unmodeled_exposure"
+        reason = "Final weights include assets outside the covariance universe."
+    elif modeled:
+        aligned = weight_series.reindex(modeled).fillna(0.0).values
+        matrix = covariance_frame.reindex(index=modeled, columns=modeled).values
+        variance = float(aligned @ matrix @ aligned)
+        if np.isfinite(variance) and variance > 1e-16:
+            portfolio_risk = float(np.sqrt(variance))
+            marginal = matrix @ aligned / portfolio_risk
+            component = aligned * marginal
+            percentage = component / portfolio_risk
+            contribution_sum = float(component.sum())
+            percentage_sum = float(percentage.sum())
+            risk_contributions = {
+                ticker: {
+                    "marginal_risk_contribution": float(marginal[index]),
+                    "component_risk_contribution": float(component[index]),
+                    "percentage_risk_contribution": float(percentage[index]),
+                }
+                for index, ticker in enumerate(modeled)
+            }
+        else:
+            status = "unavailable_invalid_covariance"
+            reason = "Portfolio variance is not positive and finite."
+    else:
+        status = "unavailable_no_covariance_coverage"
+        reason = "No returned asset is covered by the covariance matrix."
+
+    metadata = classification_metadata or {}
+    securities = metadata.get("securities", {}) if isinstance(metadata, dict) else {}
+    exposures = {}
+    exposure_coverage = {}
+    for dimension in ("sector", "industry", "country"):
+        covered_weight = 0.0
+        values = {}
+        for ticker, weight in weight_series.items():
+            label = str(securities.get(ticker, {}).get(dimension) or "").strip()
+            if not label:
+                continue
+            covered_weight += float(weight)
+            values[label] = values.get(label, 0.0) + float(weight)
+        exposures[dimension] = {key: float(value) for key, value in sorted(values.items())}
+        exposure_coverage[dimension] = (
+            1.0 if risky_exposure <= 1e-12 else min(1.0, covered_weight / risky_exposure)
+        )
+
+    return {
+        "status": status,
+        "reason": reason,
+        "calculation_coverage": float(coverage),
+        "unmodeled_tickers": unmodeled,
+        "portfolio_risk": portfolio_risk,
+        "risk_contributions": risk_contributions,
+        "component_risk_contribution_sum": contribution_sum,
+        "percentage_risk_contribution_sum": percentage_sum,
+        "concentration": concentration,
+        "covariance": covariance_payload,
+        "classification_exposures": exposures,
+        "classification_exposure_coverage": exposure_coverage,
+    }
+
+
 def robust_covariance(
     price_data,
     ledoit_weight=0.50,

@@ -41,6 +41,18 @@ from forecast_models import (
 )
 from lightweight_forecast import lightweight_ensemble_forecast
 from portfolio_signals import cap_and_normalize_weights
+from portfolio_constraints import (
+    ConstraintValidationError,
+    add_group_constraints,
+    ensure_constraints_satisfied,
+    normalize_asset_constraints,
+    normalize_current_weights,
+    normalize_group_constraints,
+    prepare_constraint_model,
+    project_thresholded_weights,
+    solver_weight_bounds,
+)
+from portfolio_risk_models import portfolio_risk_diagnostics
 
 # Configure logging for this module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -1216,6 +1228,77 @@ def get_asset_names(tickers):
     for ticker in cleaned_tickers:
         names.setdefault(ticker, ticker)
     return names
+
+
+@cached(l1_ttl=86400, l2_ttl=604800)
+def get_asset_metadata(tickers):
+    """Fetch current display and classification metadata from yfinance."""
+    def clean_text(value):
+        if value is None:
+            return None
+        try:
+            if pd.isna(value):
+                return None
+        except (TypeError, ValueError):
+            return None
+        text = str(value).strip()
+        return text or None
+
+    cleaned_tickers = _dedupe_tickers(tickers)
+    securities = {}
+    failures = []
+    for batch_start in range(0, len(cleaned_tickers), 50):
+        batch = cleaned_tickers[batch_start:batch_start + 50]
+        try:
+            yf_tickers = yf.Tickers(" ".join(batch))
+        except Exception:
+            failures.extend(batch)
+            continue
+        for ticker in batch:
+            try:
+                info = yf_tickers.tickers[ticker].info or {}
+                name = clean_text(
+                    info.get("longName")
+                    or info.get("shortName")
+                    or info.get("displayName")
+                )
+                securities[ticker] = {
+                    "name": name or ticker,
+                    "sector": clean_text(info.get("sector")),
+                    "industry": clean_text(info.get("industry")),
+                    "country": clean_text(info.get("country")),
+                }
+            except Exception:
+                failures.append(ticker)
+
+    dimension_coverage = {}
+    for dimension in ("sector", "industry", "country"):
+        covered = sum(
+            1
+            for ticker in cleaned_tickers
+            if str(securities.get(ticker, {}).get(dimension) or "").strip()
+        )
+        dimension_coverage[dimension] = {
+            "covered_count": int(covered),
+            "requested_count": int(len(cleaned_tickers)),
+            "coverage_rate": (
+                1.0 if not cleaned_tickers else float(covered / len(cleaned_tickers))
+            ),
+        }
+    missing = sorted(set(cleaned_tickers) - set(securities))
+    return {
+        "source": "yfinance.info",
+        "as_of": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "status": (
+            "complete"
+            if not missing
+            else "unavailable" if len(missing) == len(cleaned_tickers) else "partial"
+        ),
+        "requested_tickers": cleaned_tickers,
+        "securities": securities,
+        "missing_tickers": sorted(set(missing) | set(failures)),
+        "coverage": dimension_coverage,
+    }
 
 
 def _normalize_currency(currency):
@@ -2568,21 +2651,49 @@ def data_and_forecast_pipeline(
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
                        target_return=None, risk_tolerance=None, portfolio_id=None,
                        persist_result=False, load_if_available=False, progress_callback=None,
-                       l2_gamma=0.0, max_asset_weight=0.2,
+                       l2_gamma=0.0, max_asset_weight=None,
                        forecast_method="LIGHTWEIGHT",
                        optimization_method=DEFAULT_OPTIMIZATION_METHOD,
                        forecast_horizon=63, min_history=504, bl_tau=0.05,
                        current_weights=None, rebalance_band=None, max_turnover=None,
                        turnover_penalty=0.0, min_holding_weight=0.0,
+                       asset_constraints=None, group_constraints=None,
+                       current_holdings=None,
                        cancel_event=None):
     """Optimize portfolio and optionally persist or reuse saved results."""
     _raise_if_cancelled(cancel_event)
+    classification_metadata = {
+        "source": "yfinance.info",
+        "as_of": None,
+        "status": "not_requested",
+        "requested_dimensions": [],
+        "requested_tickers": [],
+        "securities": {},
+        "missing_tickers": [],
+        "coverage": {},
+    }
     try:
         optimization_method = normalize_optimization_method(
             optimization_method
         )
+        asset_constraints = normalize_asset_constraints(asset_constraints)
+        group_constraints = normalize_group_constraints(group_constraints)
+        current_weights = normalize_current_weights(current_weights)
+    except ConstraintValidationError as exc:
+        return exc.to_dict()
     except ValueError as exc:
         return {"error": str(exc)}
+    turnover_controls_requested = (
+        rebalance_band is not None
+        or max_turnover is not None
+        or _safe_float(turnover_penalty, 0.0) > 0.0
+    )
+    if turnover_controls_requested and not current_weights and not current_holdings:
+        return ConstraintValidationError(
+            "CURRENT_WEIGHTS_REQUIRED",
+            "current_weights are required for turnover controls",
+            constraint="current_weights",
+        ).to_dict()
     risk_only_optimization = optimization_method == "MIN_VARIANCE"
     if risk_only_optimization and (
         target_return is not None or risk_tolerance is not None
@@ -2674,9 +2785,12 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         )
     except OptimizationCancelled:
         raise
-    except Exception as e:
-        logger.error(f"Pipeline execution failed: {e}")
-        return {"error": f"Pipeline execution failed: {str(e)}"}
+    except Exception:
+        logger.exception("Pipeline execution failed")
+        return {
+            "error": "Market data and forecast preparation failed.",
+            "error_code": "PIPELINE_FAILED",
+        }
 
     if "error" in pipeline_result:
         return pipeline_result
@@ -2703,6 +2817,43 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     price_currency = pipeline_result.get("price_currency", BASE_CURRENCY)
     source_currencies = pipeline_result.get("source_currencies", {})
     data_eligibility = pipeline_result.get("data_eligibility")
+
+    if current_weights is None and current_holdings:
+        holding_values = {}
+        try:
+            for ticker, quantity in current_holdings.items():
+                normalized_ticker = str(ticker).strip().upper()
+                quantity = float(quantity)
+                price = float(latest_prices.get(normalized_ticker, np.nan))
+                if not np.isfinite(quantity) or quantity < 0.0:
+                    raise ValueError(normalized_ticker)
+                if quantity > 0.0 and (not np.isfinite(price) or price <= 0.0):
+                    raise ConstraintValidationError(
+                        "CURRENT_WEIGHT_PRICE_UNAVAILABLE",
+                        f"A current weight cannot be derived for {normalized_ticker} without a valid price",
+                        constraint="current_weights",
+                        affected_tickers=[normalized_ticker],
+                    )
+                holding_values[normalized_ticker] = quantity * price if quantity > 0.0 else 0.0
+            total_holding_value = float(sum(holding_values.values()))
+            current_weights = (
+                normalize_current_weights({
+                    ticker: value / total_holding_value
+                    for ticker, value in holding_values.items()
+                    if value > 0.0
+                })
+                if total_holding_value > 0.0
+                else None
+            )
+        except ConstraintValidationError as exc:
+            return exc.to_dict()
+        except (TypeError, ValueError):
+            return ConstraintValidationError(
+                "INVALID_CURRENT_WEIGHTS",
+                "current holdings must contain finite non-negative quantities",
+                constraint="current_weights",
+                affected_tickers=list(current_holdings),
+            ).to_dict()
 
     # 3. Apply Optimization Logic (BL or MPT)
     market_prior_source = "not_applicable"
@@ -2780,21 +2931,71 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         if asset_count == 0:
             return {"error": "No valid assets remained after data preparation."}
 
-        effective_max_asset_weight = max_asset_weight
-        if (
-            effective_max_asset_weight is not None
-            and effective_max_asset_weight > 0
-            and asset_count * effective_max_asset_weight < 1
-        ):
-            effective_max_asset_weight = min(1.0, (1.0 / asset_count) + 1e-6)
-            logger.info(
-                "Relaxed max_asset_weight to %.6f for %d assets so weights can sum to 1.",
-                effective_max_asset_weight,
-                asset_count,
+        requested_dimensions = sorted({item["dimension"] for item in group_constraints})
+        classification_metadata["requested_dimensions"] = requested_dimensions
+        classification_metadata["requested_tickers"] = list(mu.index)
+        near_live_metadata = _latest_market_caps_are_point_in_time_compatible(end_date)
+        if group_constraints and not near_live_metadata:
+            classification_metadata.update({
+                "status": "point_in_time_unavailable",
+                "reason": "Latest classifications are not valid point-in-time metadata for this historical end date.",
+            })
+            error = ConstraintValidationError(
+                "POINT_IN_TIME_METADATA_REQUIRED",
+                "Historical group constraints require point-in-time classification metadata",
+                constraint="group_constraints",
+                affected_groups=[
+                    f"{item['dimension']}:{item['group']}"
+                    for item in group_constraints
+                ],
+            ).to_dict()
+            error["classification_metadata"] = classification_metadata
+            return error
+        if near_live_metadata:
+            classification_metadata = dict(
+                get_asset_metadata(list(mu.index))
             )
+            classification_metadata["requested_dimensions"] = requested_dimensions
+        else:
+            classification_metadata.update({
+                "status": "point_in_time_unavailable",
+                "reason": "Current classifications are not applied to a historical optimization.",
+            })
 
-        l2_gamma = max(0.0, _safe_float(l2_gamma, 0.0))
-        turnover_penalty = max(0.0, _safe_float(turnover_penalty, 0.0))
+        constraint_model = prepare_constraint_model(
+            list(mu.index),
+            max_asset_weight=max_asset_weight,
+            asset_constraints=asset_constraints,
+            group_constraints=group_constraints,
+            classifications=classification_metadata.get("securities", {}),
+            expected_returns=mu,
+            covariance=S,
+            target_return=target_return,
+            risk_tolerance=risk_tolerance,
+            min_holding_weight=min_holding_weight,
+            current_weights=current_weights,
+            max_turnover=max_turnover,
+        )
+        effective_max_asset_weight = constraint_model["max_asset_weight"]
+
+        l2_gamma = _safe_float(l2_gamma, np.nan)
+        turnover_penalty = _safe_float(turnover_penalty, np.nan)
+        if not np.isfinite(l2_gamma) or l2_gamma < 0.0:
+            raise ConstraintValidationError(
+                "INVALID_CONSTRAINT",
+                "l2_gamma must be finite and non-negative",
+                constraint="l2_gamma",
+                requested_value=l2_gamma,
+                feasible_bound={"minimum": 0.0},
+            )
+        if not np.isfinite(turnover_penalty) or turnover_penalty < 0.0:
+            raise ConstraintValidationError(
+                "INVALID_CONSTRAINT",
+                "turnover_penalty must be finite and non-negative",
+                constraint="turnover_penalty",
+                requested_value=turnover_penalty,
+                feasible_bound={"minimum": 0.0},
+            )
         current_weight_vector = None
         if turnover_penalty > 0 and current_weights:
             current_weight_vector = _sanitize_value_series(
@@ -2814,8 +3015,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             frontier = EfficientFrontier(
                 mu,
                 S,
-                weight_bounds=(0, effective_max_asset_weight),
+                weight_bounds=solver_weight_bounds(constraint_model),
             )
+            add_group_constraints(frontier, constraint_model)
             if l2_gamma > 0:
                 frontier.add_objective(
                     objective_functions.L2_reg,
@@ -2829,13 +3031,21 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 )
             return frontier
 
+        def extract_weights(frontier):
+            if asset_constraints or group_constraints:
+                try:
+                    return frontier.clean_weights(cutoff=0.0, rounding=16)
+                except TypeError:
+                    pass
+            return frontier.clean_weights()
+
         # Set optimization objective
         _raise_if_cancelled(cancel_event)
         solver_objective = None
         ef = build_frontier()
         if risk_only_optimization:
             ef.min_volatility()
-            weights = ef.clean_weights()
+            weights = extract_weights(ef)
             solver_objective = (
                 "regularized_ledoit_wolf_minimum_variance"
                 if l2_gamma > 0 or current_weight_vector is not None
@@ -2843,11 +3053,11 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             )
         elif target_return is not None:
             ef.efficient_return(target_return)
-            weights = ef.clean_weights()
+            weights = extract_weights(ef)
             solver_objective = "efficient_return"
         elif risk_tolerance is not None:
             ef.efficient_risk(risk_tolerance)
-            weights = ef.clean_weights()
+            weights = extract_weights(ef)
             solver_objective = "efficient_risk"
         elif l2_gamma > 0 or current_weight_vector is not None:
             minimum_target = max(
@@ -2869,7 +3079,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                             float(candidate_target)
                         )
                         candidate_weights = (
-                            candidate_frontier.clean_weights()
+                            extract_weights(candidate_frontier)
                         )
                         candidate_performance = _performance_for_weights(
                             candidate_weights,
@@ -2891,30 +3101,36 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             if best is None:
                 ef = build_frontier()
                 ef.min_volatility()
-                weights = ef.clean_weights()
+                weights = extract_weights(ef)
                 solver_objective = "regularized_min_volatility_fallback"
             else:
                 _, weights, ef = best
                 solver_objective = "regularized_max_sharpe_grid"
         else:
             ef.max_sharpe(risk_free_rate=risk_free_rate)
-            weights = ef.clean_weights()
+            weights = extract_weights(ef)
             solver_objective = "max_sharpe"
 
-        thresholded_weights = apply_min_holding_threshold(
-            weights,
-            max(
-                1e-4,
-                max(0.0, _safe_float(min_holding_weight, 0.0)),
-            ),
-            max_asset_weight=effective_max_asset_weight,
-        )
+        if asset_constraints or group_constraints:
+            thresholded_weights = project_thresholded_weights(
+                weights,
+                constraint_model,
+            )
+        else:
+            thresholded_weights = apply_min_holding_threshold(
+                weights,
+                max(
+                    1e-4,
+                    max(0.0, _safe_float(min_holding_weight, 0.0)),
+                ),
+                max_asset_weight=effective_max_asset_weight,
+            )
         
         # Filter out assets with near-zero weight
         final_weights = {
             ticker: weight
             for ticker, weight in thresholded_weights.items()
-            if weight > 0.0
+            if weight > 1e-10
         }
         control_payload = {}
         controls_requested = rebalance_band is not None or max_turnover is not None
@@ -2959,6 +3175,11 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             max(0.0, float(sum(final_weights.values()))),
         )
         cash_weight = max(0.0, 1.0 - risky_exposure)
+        constraint_diagnostics_payload = ensure_constraints_satisfied(
+            final_weights,
+            constraint_model,
+            cash_weight=cash_weight,
+        )
         modeled_tickers = set(mu.index)
         unmodeled_weights = {
             str(ticker): float(weight)
@@ -2997,6 +3218,20 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         
         # Filter prices
         final_prices = {t: latest_prices.get(t, 0.0) for t in final_tickers}
+        risk_diagnostics_payload = portfolio_risk_diagnostics(
+            final_weights,
+            S,
+            classification_metadata=classification_metadata,
+        )
+        metadata_names = {
+            ticker: classification_metadata.get("securities", {}).get(ticker, {}).get("name", ticker)
+            for ticker in final_weights
+        }
+        asset_names = (
+            metadata_names
+            if classification_metadata.get("securities")
+            else get_asset_names(final_weights.keys())
+        )
 
         result_payload = {
             "weights": final_weights,
@@ -3012,7 +3247,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "performance_status": performance_status,
             "performance_warning": performance_warning,
             "prices": final_prices,
-            "asset_names": get_asset_names(final_weights.keys()),
+            "asset_names": asset_names,
             "price_currency": price_currency,
             "source_currencies": {t: source_currencies.get(t, BASE_CURRENCY) for t in final_tickers},
             "raw_expected_returns": _series_to_float_dict(raw_mu),
@@ -3034,6 +3269,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 else "optimization_input"
             ),
             "data_eligibility": data_eligibility,
+            "classification_metadata": classification_metadata,
+            "risk_diagnostics": risk_diagnostics_payload,
+            "constraint_diagnostics": constraint_diagnostics_payload,
             "optimizer_controls": {
                 "solver_objective": solver_objective,
                 "l2_gamma": float(l2_gamma),
@@ -3049,6 +3287,8 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                     if effective_max_asset_weight is None
                     else float(effective_max_asset_weight)
                 ),
+                "asset_constraints": asset_constraints,
+                "group_constraints": group_constraints,
             },
         }
         result_payload.update(control_payload)
@@ -3070,12 +3310,20 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 "forecast_method_effective": effective_forecast_method,
                 "turnover_penalty": turnover_penalty,
                 "min_holding_weight": min_holding_weight,
+                "rebalance_band": rebalance_band,
+                "max_turnover": max_turnover,
+                "asset_constraints": asset_constraints,
+                "group_constraints": group_constraints,
             }
             save_portfolio_result(portfolio_id, result_payload, metadata)
             result_payload["portfolio_id"] = portfolio_id
         
         return result_payload
 
+    except ConstraintValidationError as e:
+        payload = e.to_dict()
+        payload["classification_metadata"] = classification_metadata
+        return payload
     except OptimizationError as e:
         logger.warning(f"pypfopt OptimizationError: {e}")
         if target_return:
@@ -3084,16 +3332,26 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             error_message = "Infeasible constraints. The portfolio cannot achieve the requested risk target with the current constraints."
         else:
             error_message = "Infeasible constraints. The optimizer could not solve a max-Sharpe allocation with the current asset universe and constraints."
-        return {
-            "error": error_message,
-            "details": str(e)
-        }
+        return ConstraintValidationError(
+            "OPTIMIZATION_INFEASIBLE",
+            error_message,
+            constraint=(
+                "target_return"
+                if target_return is not None
+                else "risk_tolerance" if risk_tolerance is not None else "hard_constraints"
+            ),
+            requested_value=(
+                target_return if target_return is not None else risk_tolerance
+            ),
+            affected_tickers=list(mu.index),
+        ).to_dict()
     except OptimizationCancelled:
         raise
     except Exception as e:
         logger.error(f"General Optimization Exception: {e}")
         return {
-            "error": f"Optimization failed: {str(e)}"
+            "error": "Optimization failed because the requested allocation could not be completed.",
+            "error_code": "OPTIMIZATION_FAILED",
         }
 
 def iteratively_solve_max_sharpe(mu, S, risk_free_rate, max_asset_weight=0.2):
@@ -3435,6 +3693,7 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
         tickers=tickers,
         forecast_method=forecast_method,
         optimization_method=optimization_method,
+        current_holdings=current_holdings,
         **kwargs
     )
     

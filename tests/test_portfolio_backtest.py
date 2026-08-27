@@ -1122,24 +1122,11 @@ def test_optimizer_min_holding_output_preserves_asset_cap(monkeypatch):
         max_turnover=0.20,
     )
 
-    assert unmodeled["weights"] == pytest.approx(
-        {"AAA": 0.1625, "BBB": 0.1375, "OLD": 0.70}
+    assert unmodeled["error_code"] == (
+        "POST_CONTROL_CONSTRAINT_VIOLATION"
     )
-    assert unmodeled["risky_exposure"] == pytest.approx(1.0)
-    assert unmodeled["cash_weight"] == pytest.approx(0.0)
-    assert unmodeled["modeled_risky_exposure"] == pytest.approx(0.30)
-    assert unmodeled["unmodeled_risky_exposure"] == pytest.approx(0.70)
-    assert unmodeled["unmodeled_weights"] == pytest.approx(
-        {"OLD": 0.70}
-    )
-    assert unmodeled["performance_coverage"] == pytest.approx(0.30)
-    assert unmodeled["performance_status"] == (
-        "unavailable_unmodeled_exposure"
-    )
-    assert unmodeled["return"] is None
-    assert unmodeled["risk"] is None
-    assert unmodeled["sharpe_ratio"] is None
-    assert unmodeled["performance_warning"]
+    assert unmodeled["constraint"] == "max_asset_weight"
+    assert unmodeled["affected_tickers"] == ["OLD"]
 
 
 def test_optimizer_adds_turnover_penalty_objective_when_current_weights_exist(monkeypatch):
