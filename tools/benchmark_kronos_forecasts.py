@@ -380,6 +380,7 @@ def run_kronos_origins(
     torch,
     checkpoint_path,
     signature,
+    batch_size=None,
 ):
     completed = _load_checkpoint(checkpoint_path, signature)
     checkpoint_path = Path(checkpoint_path)
@@ -391,20 +392,24 @@ def run_kronos_origins(
         rows = origin["rows"]
         torch.manual_seed(42)
         started = time.perf_counter()
-        predictions = predictor.predict_batch(
-            df_list=[row["train"] for row in rows],
-            x_timestamp_list=[
-                pd.Series(row["train"].index) for row in rows
-            ],
-            y_timestamp_list=[
-                row["future_timestamps"] for row in rows
-            ],
-            pred_len=origin["horizon"],
-            T=1.0,
-            top_p=0.9,
-            sample_count=1,
-            verbose=False,
-        )
+        size = len(rows) if batch_size is None else max(1, int(batch_size))
+        predictions = []
+        for offset in range(0, len(rows), size):
+            batch = rows[offset:offset + size]
+            predictions.extend(predictor.predict_batch(
+                df_list=[row["train"] for row in batch],
+                x_timestamp_list=[
+                    pd.Series(row["train"].index) for row in batch
+                ],
+                y_timestamp_list=[
+                    row["future_timestamps"] for row in batch
+                ],
+                pred_len=origin["horizon"],
+                T=1.0,
+                top_p=0.9,
+                sample_count=1,
+                verbose=False,
+            ))
         scores = {
             row["ticker"]: float(
                 prediction["close"].iloc[-1] / row["train"]["close"].iloc[-1]

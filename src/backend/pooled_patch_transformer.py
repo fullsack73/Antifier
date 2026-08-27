@@ -649,6 +649,8 @@ def walk_forward_pooled_patch_transformer(
     origin_dates=None,
     origin_universes=None,
     rebalance_step=None,
+    evaluation_start=None,
+    evaluation_end=None,
     minimum_training_periods=8,
     maximum_training_periods=12,
     minimum_observations=60,
@@ -689,11 +691,28 @@ def walk_forward_pooled_patch_transformer(
         pd.Timestamp(key): [str(value).strip().upper() for value in values]
         for key, values in dict(origin_universes or {}).items()
     }
+    evaluation_start = (
+        None if evaluation_start is None else pd.Timestamp(evaluation_start)
+    )
+    evaluation_end = (
+        None if evaluation_end is None else pd.Timestamp(evaluation_end)
+    )
+    if (
+        evaluation_start is not None
+        and evaluation_end is not None
+        and evaluation_start > evaluation_end
+    ):
+        raise ValueError("evaluation_start must be on or before evaluation_end")
     snapshots = {}
     for position in positions:
         as_of_date = prices.index[position]
-        tickers = normalized_origin_universes.get(as_of_date, list(prices.columns))
-        tickers = [ticker for ticker in tickers if ticker in prices.columns]
+        requested_tickers = normalized_origin_universes.get(
+            as_of_date,
+            list(prices.columns),
+        )
+        tickers = [
+            ticker for ticker in requested_tickers if ticker in prices.columns
+        ]
         context = build_context_features(
             prices.iloc[:position + 1],
             as_of_date=as_of_date,
@@ -738,6 +757,7 @@ def walk_forward_pooled_patch_transformer(
             })
         snapshots[position] = {
             "as_of_date": as_of_date,
+            "requested_tickers": requested_tickers,
             "tickers": tickers,
             "context_columns": list(context.columns),
             "rows": rows,
@@ -751,6 +771,14 @@ def walk_forward_pooled_patch_transformer(
     primary_index = list(config.horizons).index(primary_horizon)
     for evaluation_position in positions:
         evaluation_date = prices.index[evaluation_position]
+        if (
+            evaluation_start is not None
+            and evaluation_date < evaluation_start
+        ) or (
+            evaluation_end is not None
+            and evaluation_date > evaluation_end
+        ):
+            continue
         eligible_positions = [
             position
             for position in positions
@@ -840,11 +868,18 @@ def walk_forward_pooled_patch_transformer(
             "reported_uncertainty": uncertainty,
             "residuals": [float(value) for value in residuals],
             "requested_universe_size": int(
-                len(snapshots[evaluation_position]["tickers"])
+                len(snapshots[evaluation_position]["requested_tickers"])
+            ),
+            "missing_active_tickers": sorted(
+                set(snapshots[evaluation_position]["requested_tickers"])
+                - set(tickers)
             ),
             "prediction_count": int(len(tickers)),
             "coverage_rate": float(
-                len(tickers) / len(snapshots[evaluation_position]["tickers"])
+                0.0
+                if not snapshots[evaluation_position]["requested_tickers"]
+                else len(tickers)
+                / len(snapshots[evaluation_position]["requested_tickers"])
             ),
             "model": model_diagnostics,
             "target_diagnostics": snapshots[evaluation_position][
@@ -899,6 +934,16 @@ def walk_forward_pooled_patch_transformer(
         "primary_horizon": int(primary_horizon),
         "config": asdict(config),
         "include_kronos": bool(include_kronos),
+        "evaluation_start": (
+            None
+            if evaluation_start is None
+            else evaluation_start.strftime("%Y-%m-%d")
+        ),
+        "evaluation_end": (
+            None
+            if evaluation_end is None
+            else evaluation_end.strftime("%Y-%m-%d")
+        ),
         "context_columns": (
             [] if not snapshots else next(iter(snapshots.values()))["context_columns"]
         ),
@@ -919,7 +964,7 @@ def compare_patch_transformer_runs(candidate, baseline):
     def periods(result):
         return [
             {
-                "period_id": row["period_id"],
+                "period_id": row.get("period_id") or row["as_of_date"],
                 "scores": row["scores"],
                 "realized_returns": row["realized_returns"],
             }

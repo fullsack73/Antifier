@@ -55,6 +55,7 @@ docs/
 src/backend/
 ├─ app.py                            # Flask 앱, REST endpoint, request/response orchestration
 ├─ portfolio_optimization.py         # 데이터 수집, 예측 수익률, MPT/Black-Litterman 최적화
+├─ portfolio_constraints.py          # production hard constraint 정규화, feasibility, solver 적용, 사후 진단
 ├─ portfolio_backtest.py             # walk-forward backtest, forecast cache/process pool, promotion gate
 ├─ portfolio_signals.py              # risk parity, momentum rank, confidence-gated GMV overlay helper
 ├─ portfolio_alpha_v2.py             # point-in-time factor 계약, factor-residual target, regularized alpha
@@ -156,6 +157,7 @@ tools/
 ├─ benchmark_kronos_forecasts.py       # pinned Kronos-small과 기존 ML rank signal 비교
 ├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
 ├─ research_pooled_patch_transformer.py # frozen origin 기반 Patch/ARIMA/Transformer signal과 GMV tilt 비교
+├─ validate_pooled_patch_transformer.py # locked PIT OHLCV split의 Patch/Kronos/ridge/GMV 최종 검증
 ├─ build_sec_pit_features.py          # SEC 공시일 기준 PIT factor/provenance 생성
 ├─ build_ticker_cik_map.py             # 제한된 ticker 집합의 Yahoo SEC metadata 기반 CIK map
 ├─ build_dow_universe_manifest.py       # pinned DJIA snapshot을 dated membership event로 변환

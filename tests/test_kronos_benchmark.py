@@ -165,3 +165,48 @@ def test_benchmark_decision_requires_paired_incremental_evidence():
     assert benchmark.benchmark_decision(result) == (
         "signal_passed_incremental_unconfirmed"
     )
+
+
+def test_run_kronos_origins_chunks_large_cross_section(tmp_path):
+    class Torch:
+        @staticmethod
+        def manual_seed(_seed):
+            return None
+
+    class Predictor:
+        def __init__(self):
+            self.batch_sizes = []
+
+        def predict_batch(self, df_list, **kwargs):
+            self.batch_sizes.append(len(df_list))
+            return [frame.copy() for frame in df_list]
+
+    dates = pd.date_range("2020-01-01", periods=3, freq="D")
+    rows = [
+        {
+            "ticker": ticker,
+            "train": pd.DataFrame({"close": [10.0, 11.0]}, index=dates[:2]),
+            "future_timestamps": pd.Series(dates[2:]),
+        }
+        for ticker in "ABCDE"
+    ]
+    origin = {
+        "period_id": "p1",
+        "case_id": "case",
+        "train_end": dates[1],
+        "horizon": 1,
+        "rows": rows,
+    }
+    predictor = Predictor()
+
+    result = benchmark.run_kronos_origins(
+        [origin],
+        predictor,
+        Torch,
+        tmp_path / "checkpoint.jsonl",
+        {"version": 1},
+        batch_size=2,
+    )
+
+    assert predictor.batch_sizes == [2, 2, 1]
+    assert set(result["p1"]["scores"]) == set("ABCDE")

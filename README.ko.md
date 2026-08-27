@@ -51,15 +51,17 @@
 - S&P 500, Dow Jones, 업로드한 CSV 종목 universe를 대상으로 한 다중 재무 필터 스크리닝과 CSV 내보내기
 
 ### 💼 포트폴리오 최적화
+- production 기본값인 Ledoit-Wolf 글로벌 최소분산과 명시적으로 선택하는 MPT 및 Black-Litterman
 - 예측 기대수익률을 활용한 현대 포트폴리오 이론(MPT) 및 Black-Litterman 최적화
 - 경량 예측, ARIMA + Transformer, 단독 Transformer forecast 전략 선택
-- 무위험 수익률, 목표 수익률, 위험 허용도, 예측 기간, 최소 데이터 길이, Black-Litterman tau 고급 설정
-- 장시간 최적화 작업의 진행률 스트리밍, 포트폴리오 JSON 다운로드, 수익률/위험/Sharpe 요약, weight 테이블 제공
+- 종목 cap, L2 분산화, 최소 보유 비중, turnover, 종목별 override, 섹터·산업·국가 노출 범위 고급 설정
+- solver 실행 전 feasibility 검사와 구조화된 제약 오류를 제공하며, 최신 yfinance 분류를 과거 point-in-time metadata처럼 표시하지 않음
+- 장시간 최적화 작업의 진행률 스트리밍, 포트폴리오 JSON 다운로드, 수익률/위험/Sharpe, 리스크 기여도, 집중도, 공분산, metadata coverage, 제약 slack, weight 테이블 제공
 - 투자 예산을 주식 수량으로 변환하고 전체 또는 종목별 fractional share 설정 지원
 
 ### 📈 포트폴리오 벤치마킹 및 리밸런싱
 - 포트폴리오 JSON 업로드 후 S&P 500과 설정 가능한 무위험 자산 대비 성과 비교
-- 현재 보유 종목, 현금 주입, 목표 자산 universe를 기준으로 리밸런싱 주문 계산
+- 현재 보유 종목, 현금 주입, 목표 자산 universe, turnover 제어를 기준으로 리밸런싱 주문 계산
 - 포트폴리오 입력 로컬 저장/불러오기, 목표 보유 종목 CSV 내보내기, 포트폴리오 JSON 다운로드, 리밸런싱 결과 저장/출력
 - 선택한 기간의 두 종목 상관관계와 회귀를 활용한 헤지 분석
 

@@ -35,6 +35,12 @@ const PortfolioManager = () => {
   const [minHistory, setMinHistory] = useState("504")
   const [blTau, setBlTau] = useState("0.05")
   const [transactionCostBps, setTransactionCostBps] = useState("10")
+  const [maxAssetWeight, setMaxAssetWeight] = useState("")
+  const [l2Gamma, setL2Gamma] = useState("0")
+  const [minHoldingWeight, setMinHoldingWeight] = useState("0")
+  const [turnoverPenalty, setTurnoverPenalty] = useState("0")
+  const [rebalanceBand, setRebalanceBand] = useState("2")
+  const [maxTurnover, setMaxTurnover] = useState("35")
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [tickerGroup, setTickerGroup] = useState("CURRENT_HOLDINGS")
   const [customTickers, setCustomTickers] = useState([])
@@ -160,6 +166,12 @@ const PortfolioManager = () => {
     minHistory,
     blTau,
     transactionCostBps,
+    maxAssetWeight,
+    l2Gamma,
+    minHoldingWeight,
+    turnoverPenalty,
+    rebalanceBand,
+    maxTurnover,
     tickerGroup,
     customTickers,
     spaceUploadFileName,
@@ -217,6 +229,12 @@ const PortfolioManager = () => {
       setMinHistory(String(parsed.minHistory || "504"))
       setBlTau(String(parsed.blTau || "0.05"))
       setTransactionCostBps(String(parsed.transactionCostBps ?? "10"))
+      setMaxAssetWeight(String(parsed.maxAssetWeight ?? ""))
+      setL2Gamma(String(parsed.l2Gamma ?? "0"))
+      setMinHoldingWeight(String(parsed.minHoldingWeight ?? "0"))
+      setTurnoverPenalty(String(parsed.turnoverPenalty ?? "0"))
+      setRebalanceBand(String(parsed.rebalanceBand ?? "2"))
+      setMaxTurnover(String(parsed.maxTurnover ?? "35"))
       setTickerGroup(parsed.tickerGroup || "CURRENT_HOLDINGS")
       setCustomTickers(Array.isArray(parsed.customTickers) ? parsed.customTickers : [])
       setSpaceUploadFileName(String(parsed.spaceUploadFileName || ""))
@@ -325,6 +343,12 @@ const PortfolioManager = () => {
     forecast_horizon: Number.parseInt(forecastHorizon),
     min_history: Number.parseInt(minHistory),
     bl_tau: Number.parseFloat(blTau),
+    max_asset_weight: maxAssetWeight === "" ? null : Number.parseFloat(maxAssetWeight) / 100,
+    l2_gamma: Number.parseFloat(l2Gamma) || 0,
+    min_holding_weight: (Number.parseFloat(minHoldingWeight) || 0) / 100,
+    turnover_penalty: Number.parseFloat(turnoverPenalty) || 0,
+    rebalance_band: (Number.parseFloat(rebalanceBand) || 0) / 100,
+    max_turnover: maxTurnover === "" ? null : Number.parseFloat(maxTurnover) / 100,
     transaction_cost_bps: Number.isFinite(Number.parseFloat(transactionCostBps))
       ? Number.parseFloat(transactionCostBps)
       : 10,
@@ -414,11 +438,19 @@ const PortfolioManager = () => {
         forecast_horizon: Number.parseInt(forecastHorizon),
         min_history: Number.parseInt(minHistory),
         bl_tau: Number.parseFloat(blTau),
+        l2_gamma: Number.parseFloat(l2Gamma) || 0,
+        min_holding_weight: (Number.parseFloat(minHoldingWeight) || 0) / 100,
+        turnover_penalty: Number.parseFloat(turnoverPenalty) || 0,
+        rebalance_band: (Number.parseFloat(rebalanceBand) || 0) / 100,
+        max_turnover: maxTurnover === "" ? null : Number.parseFloat(maxTurnover) / 100,
         transaction_cost_bps: Number.isFinite(Number.parseFloat(transactionCostBps))
           ? Number.parseFloat(transactionCostBps)
           : 10,
         allow_fractional: allowFractional,
         fractional_overrides: fractionalOverrides
+      }
+      if (maxAssetWeight !== "") {
+        payload.max_asset_weight = Number.parseFloat(maxAssetWeight) / 100
       }
       
       if (tickerGroup === "CUSTOM") {
@@ -984,6 +1016,36 @@ const PortfolioManager = () => {
                     onChange={(e) => setTransactionCostBps(e.target.value)}
                     placeholder="10"
                   />
+                </div>
+
+                <div className="optimizer-form-group">
+                  <label htmlFor="mgr-maxAssetWeight">{t("optimizer.maxAssetWeight", "Maximum Asset Weight (%)")}</label>
+                  <input id="mgr-maxAssetWeight" className="optimizer-input" type="number" min="0.01" max="100" step="0.1" value={maxAssetWeight} onChange={(e) => setMaxAssetWeight(e.target.value)} placeholder={t("optimizer.maxAssetWeightPlaceholder", "Automatic (20% target)")} />
+                </div>
+
+                <div className="optimizer-form-group">
+                  <label htmlFor="mgr-l2Gamma">{t("optimizer.l2Gamma", "L2 Diversification Gamma")}</label>
+                  <input id="mgr-l2Gamma" className="optimizer-input" type="number" min="0" step="0.01" value={l2Gamma} onChange={(e) => setL2Gamma(e.target.value)} />
+                </div>
+
+                <div className="optimizer-form-group">
+                  <label htmlFor="mgr-minHoldingWeight">{t("optimizer.minHoldingWeight", "Minimum Holding Weight (%)")}</label>
+                  <input id="mgr-minHoldingWeight" className="optimizer-input" type="number" min="0" max="100" step="0.1" value={minHoldingWeight} onChange={(e) => setMinHoldingWeight(e.target.value)} />
+                </div>
+
+                <div className="optimizer-form-group">
+                  <label htmlFor="mgr-turnoverPenalty">{t("optimizer.turnoverPenalty", "Turnover Penalty")}</label>
+                  <input id="mgr-turnoverPenalty" className="optimizer-input" type="number" min="0" step="0.01" value={turnoverPenalty} onChange={(e) => setTurnoverPenalty(e.target.value)} />
+                </div>
+
+                <div className="optimizer-form-group">
+                  <label htmlFor="mgr-rebalanceBand">{t("optimizer.rebalanceBand", "Rebalance Band (%)")}</label>
+                  <input id="mgr-rebalanceBand" className="optimizer-input" type="number" min="0" max="100" step="0.1" value={rebalanceBand} onChange={(e) => setRebalanceBand(e.target.value)} />
+                </div>
+
+                <div className="optimizer-form-group">
+                  <label htmlFor="mgr-maxTurnover">{t("optimizer.maxTurnover", "Maximum Turnover (%)")}</label>
+                  <input id="mgr-maxTurnover" className="optimizer-input" type="number" min="0" max="200" step="0.1" value={maxTurnover} onChange={(e) => setMaxTurnover(e.target.value)} />
                 </div>
               </div>
             </div>

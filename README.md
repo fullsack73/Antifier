@@ -51,15 +51,17 @@ The name "Antifier" comes from the Korean slang "ant," a nickname for small indi
 - Stock screener for S&P 500, Dow Jones, or uploaded CSV ticker universes with multi-criteria financial filters and CSV export
 
 ### 💼 Portfolio Optimization
+- Ledoit-Wolf global minimum variance as the production default, with opt-in MPT and Black-Litterman methods
 - Modern Portfolio Theory and Black-Litterman optimization with forecast-based expected returns
 - Forecast strategies for lightweight prediction, ARIMA + Transformer, and standalone Transformer
-- Advanced controls for risk-free rate, target return, risk tolerance, forecast horizon, minimum history, and Black-Litterman tau
-- Progress streaming for long-running optimization jobs, downloadable portfolio JSON, return/risk/Sharpe summaries, and weight tables
+- Advanced controls for asset caps, L2 diversification, minimum holdings, turnover, ticker overrides, and sector/industry/country exposure bounds
+- Pre-solver feasibility checks and structured constraint errors; current yfinance classifications are never presented as point-in-time historical metadata
+- Progress streaming for long-running optimization jobs, downloadable portfolio JSON, return/risk/Sharpe summaries, risk contribution, concentration, covariance, metadata coverage, constraint slack, and weight tables
 - Budget-to-shares allocation with global and per-ticker fractional-share controls
 
 ### 📈 Portfolio Benchmarking & Rebalancing
 - Portfolio JSON upload and benchmark comparison against S&P 500 and a configurable risk-free asset
-- Current-holdings portfolio manager with cash injection, target asset space selection, and rebalance order calculation
+- Current-holdings portfolio manager with cash injection, target asset space selection, turnover controls, and rebalance order calculation
 - Save/load portfolio inputs locally, export target holdings CSV, download portfolio JSON, and print/save rebalance results
 - Hedge analysis for two tickers using correlation and regression over a selected date range
 

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "split_id": "nasdaq100-patch-transformer-fresh-validation-2024-2025-v1",
+  "role": "validation",
+  "evaluation_start": "2024-01-01",
+  "evaluation_end": "2025-12-31",
+  "experiment_namespace": "pooled-patch-transformer-fresh-validation-v1",
+  "objectives": [
+    "pooled_patch_transformer_with_kronos"
+  ],
+  "settings": {
+    "target_kind": "relative",
+    "include_pit_context": false,
+    "horizons": [21, 63],
+    "rebalance_step": 63,
+    "lookback": 504,
+    "patch_size": 5,
+    "d_model": 32,
+    "num_heads": 4,
+    "ff_dim": 64,
+    "num_blocks": 2,
+    "dense_units": 32,
+    "dropout": 0.15,
+    "learning_rate": 0.0005,
+    "weight_decay": 0.0001,
+    "epochs": 12,
+    "batch_size": 32,
+    "patience": 3,
+    "validation_periods": 2,
+    "random_state": 42,
+    "minimum_training_periods": 8,
+    "maximum_training_periods": 12,
+    "minimum_observations": 60,
+    "baselines": [
+      "relative_ridge",
+      "frozen_kronos_score",
+      "ledoit_wolf_gmv"
+    ],
+    "signal_gate_probability": 0.95,
+    "gmv_overlay_active_share": 0.05,
+    "max_asset_weight": 0.2,
+    "transaction_cost_bps": 10.0,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "kronos": {
+      "repository_commit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+      "model_revision": "901c26c1332695a2a8f243eb2f37243a37bea320",
+      "tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
+      "device": "mps",
+      "temperature": 1.0,
+      "top_p": 0.9,
+      "sample_count": 1,
+      "seed": 42,
+      "inference_batch_size": 16
+    }
+  },
+  "universe_manifest_sha256": "2be905a14655e55373a562d96aec280f27833d4c13663f8a060b2a4944ea2741",
+  "price_file_sha256": "1fc401ce21707b384398c932b93dbd11d5c0accd748802903779578cb5339896",
+  "factor_file_sha256": "d1ed438e99cf7528b1e2b4606a223282179b8dcb44df497c63f0ae5dc6952ce6",
+  "auxiliary_files": {
+    "ohlcv_provenance": "0f519a7413fcf01a0590bfed0d454f5b6b67e7ea892d2f5e346c810dfd0e9108",
+    "universe_provenance": "54b04a3717ac796b7409744d1a1285a5b38405ebd0c02bed0a867fdc63a3428d",
+    "factor_provenance": "a9eaca34f2c416715c9cbe74f4b9c39c41f006610b29c6c384b5d8b259b19ab1"
+  },
+  "locked": true,
+  "manifest_sha256": "94f52f1149967c736e2214636f1f9e13b0cf27e0e3312bcf96a2bd02e659cee9"
+}

@@ -1,0 +1,709 @@
+{
+  "checkpoint_1_gate": {
+    "completed_seeds": [
+      7,
+      19,
+      42,
+      73,
+      101
+    ],
+    "dfl_mean_realized_annualized_volatility": 0.13894073358881281,
+    "lookahead_violation_count": 0,
+    "model_numerical_fallback_count": 0,
+    "pfl_mean_realized_annualized_volatility": 0.2789080707804371,
+    "reasons": [
+      "DFL mean volatility did not improve strongest shrinkage baseline oas_gmv."
+    ],
+    "status": "REJECT",
+    "strongest_shrinkage_baseline": "oas_gmv",
+    "strongest_shrinkage_realized_annualized_volatility": 0.13174865302003955
+  },
+  "checkpoint_2": null,
+  "configuration": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_49_industry_dfl_covariance_config_v1.json",
+    "file_sha256": "f3b98bb184ee9ecf826d592aae68c35fae0e00e310226b179fb7a37f6a38df4b"
+  },
+  "data": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/raw/market_factors/49_Industry_Portfolios_daily_CSV.zip",
+    "file_sha256": "e214c54a41f058c03ed4a4e582b2126e04120d2a84bc19c023bd2a4251f77097",
+    "ordered_universe_sha256": "cad36f71a324c4cf9a24bde8f184f792bc2c499b6be218b9de1ec943848b4ad9"
+  },
+  "data_audit": {
+    "deviations": [
+      "The original paper data vintage and authors' source code are unavailable; the closest pinned official 49-industry archive is used.",
+      "The paper says returns extend through 2024 but publishes a test partition ending 2023-12-29; the explicit published partitions govern and 2024 is unused.",
+      "The paper does not fully specify the DLinear-to-Cholesky head; the minimal architecture in the locked configuration is used for both arms.",
+      "Validation and test feature windows may use earlier known returns across a partition boundary, but every label is strictly later than its signal and contained in its own partition.",
+      "The objective-required covariance jitter is included directly in the predicted covariance rather than only at the inversion step."
+    ],
+    "lookahead_violation_count": 0,
+    "prior_consumed_splits": [
+      {
+        "evaluation_end": "2010-12-31",
+        "evaluation_start": "2000-01-03",
+        "manifest_sha256": "75c6132c828a86ebe696b31051c41d2dbf33e728f2a1432f2d1e489139c196f5",
+        "split_id": "fama-french-49-industry-rmt-research-2000-2010-v1"
+      },
+      {
+        "evaluation_end": "2017-12-29",
+        "evaluation_start": "2011-01-03",
+        "manifest_sha256": "cd6f5c4ba5757c5350f2a26969fb0f2e64df03ad143a547be5678c197a76b716",
+        "split_id": "fama-french-49-industry-dual-momentum-research-2011-2017-v1"
+      },
+      {
+        "evaluation_end": "2021-12-31",
+        "evaluation_start": "2018-01-03",
+        "manifest_sha256": "2abc8b96abd559c6998fd0e3ae132323b6a2f0918aa3a629287855df79e7b44e",
+        "split_id": "fama-french-49-industry-trend-risk-parity-validation-2018-2021-v1"
+      }
+    ],
+    "promotion_safe": false,
+    "sample_counts": {
+      "test": 11,
+      "train": 2029,
+      "validation": 641
+    }
+  },
+  "decision": "REJECT",
+  "experiment_id": "fama-french-49-industry-dfl-covariance-reproduction-2010-2023-v1",
+  "manifest": {
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_49_industry_dfl_covariance_manifest_v1.json",
+    "file_sha256": "fc630018440760b8fbf9a62235228a27133592c488a11613a1954032672c481a",
+    "self_digest": "5c45e052a05b1d72f7b8f22ebbf43af5499cacd3b5e0e355d7a5c7440f0423d8"
+  },
+  "prediction_artifact": {
+    "content_sha256": "00e2a3c2a8ab5a055425b4fdeeb01586597ba052544b0b1a5bfba4cebd441003",
+    "file": "/Applications/react/my-app/portfolio-project/data/research/derived/fama_french_49_industry_dfl_covariance_predictions_v1.npz",
+    "file_sha256": "15ef48528497b9944b468074591e93ea943ba23a8816b92eea31285ad5c09777"
+  },
+  "production_default_changed": false,
+  "promotion_safe": false,
+  "runtime_variance_policy": "runtime_seconds and peak_python_memory_bytes are measured diagnostics; deterministic reruns compare all other fields and prediction content hashes",
+  "schema_version": 1,
+  "seed_results": [
+    {
+      "dfl": {
+        "gross_turnover": 17.269605921045383,
+        "maximum_absolute_weight": 0.5402042779169104,
+        "mean_concentration": 0.28736996619358474,
+        "mean_covariance_frobenius_error": 108.85841735622903,
+        "mean_gross_turnover": 1.726960592104538,
+        "mean_oracle_gmv_regret_percent_squared": 0.7397486623049886,
+        "mean_period_variance_percent_squared": 0.8503130002746991,
+        "mean_realized_annualized_volatility": 0.14002536121176987,
+        "model": "dfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.10363191079960098,
+          0.1026962479718433,
+          0.13240833608110855,
+          0.1985226757952298,
+          0.2015800395394102,
+          0.14478662631390024,
+          0.1899859677488499,
+          0.12755818621197776,
+          0.11352577090180077,
+          0.08595280860210036,
+          0.13963040336364663
+        ]
+      },
+      "dfl_training": {
+        "arm": "dfl",
+        "best_validation_loss": 2.0085556507110596,
+        "epochs_completed": 20,
+        "final_training_loss": 0.46511760354042053,
+        "minimum_prediction_eigenvalue": 9.918049727275502e-06,
+        "peak_python_memory_bytes": 42133181,
+        "prediction_sha256": "73591fa610ab2411e116604cc528d72b26b9546f971b683b3e3b929d639d0626",
+        "runtime_seconds": 58.195380332999775,
+        "seed": 7
+      },
+      "pfl": {
+        "gross_turnover": 78.18101770098403,
+        "maximum_absolute_weight": 1.2392589878455205,
+        "mean_concentration": 2.9407371370155064,
+        "mean_covariance_frobenius_error": 69.37224772084485,
+        "mean_gross_turnover": 7.8181017700984015,
+        "mean_oracle_gmv_regret_percent_squared": 3.0474272060194023,
+        "mean_period_variance_percent_squared": 3.1579915439891124,
+        "mean_realized_annualized_volatility": 0.27113186293581415,
+        "model": "pfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.3143361989355058,
+          0.19011960570851275,
+          0.2181675646812361,
+          0.25511654793419314,
+          0.2931581119160975,
+          0.3732230011321309,
+          0.3095754021166894,
+          0.37003126012855286,
+          0.27507840609491757,
+          0.13433709775278682,
+          0.249307295893333
+        ]
+      },
+      "pfl_training": {
+        "arm": "pfl",
+        "best_validation_loss": 26.325708389282227,
+        "epochs_completed": 22,
+        "final_training_loss": 0.3762868344783783,
+        "minimum_prediction_eigenvalue": 9.677387424744666e-06,
+        "peak_python_memory_bytes": 42985949,
+        "prediction_sha256": "abef06d2be302324a768574752d24f713e9adb73295dae0763f7f0e385e56c8b",
+        "runtime_seconds": 61.441307416999734,
+        "seed": 7
+      },
+      "seed": 7
+    },
+    {
+      "dfl": {
+        "gross_turnover": 13.536051843091057,
+        "maximum_absolute_weight": 0.3995610556772626,
+        "mean_concentration": 0.22516053104862782,
+        "mean_covariance_frobenius_error": 100.86072115757075,
+        "mean_gross_turnover": 1.3536051843091057,
+        "mean_oracle_gmv_regret_percent_squared": 0.6706296140945122,
+        "mean_period_variance_percent_squared": 0.7811939520642226,
+        "mean_realized_annualized_volatility": 0.13522769302494975,
+        "model": "dfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.11062100546685703,
+          0.1063542998997263,
+          0.12268023572822803,
+          0.1449205662179004,
+          0.19079136178227596,
+          0.1536643743034492,
+          0.1786480047188099,
+          0.1504309789509445,
+          0.09679521788697985,
+          0.08073232100144627,
+          0.15186625731783002
+        ]
+      },
+      "dfl_training": {
+        "arm": "dfl",
+        "best_validation_loss": 2.0093753337860107,
+        "epochs_completed": 17,
+        "final_training_loss": 0.4925028383731842,
+        "minimum_prediction_eigenvalue": 9.909769687510561e-06,
+        "peak_python_memory_bytes": 42065228,
+        "prediction_sha256": "054741a6104ed5a48f63effa8bb91a203a132bdfefe93f25546cc5568468b058",
+        "runtime_seconds": 47.45271437500014,
+        "seed": 19
+      },
+      "pfl": {
+        "gross_turnover": 82.01864785562022,
+        "maximum_absolute_weight": 1.6416012895008234,
+        "mean_concentration": 3.0039505088512097,
+        "mean_covariance_frobenius_error": 62.73458469494107,
+        "mean_gross_turnover": 8.201864785562023,
+        "mean_oracle_gmv_regret_percent_squared": 2.480763236591484,
+        "mean_period_variance_percent_squared": 2.5913275745611943,
+        "mean_realized_annualized_volatility": 0.24933279583822096,
+        "model": "pfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.2676880747643666,
+          0.20137593759876266,
+          0.20088421713559299,
+          0.3592692448348927,
+          0.2578123551437729,
+          0.2794817660055133,
+          0.20708235240688092,
+          0.2430293698727354,
+          0.25323178226916626,
+          0.19863005591016852,
+          0.27417559827857846
+        ]
+      },
+      "pfl_training": {
+        "arm": "pfl",
+        "best_validation_loss": 24.58016014099121,
+        "epochs_completed": 34,
+        "final_training_loss": 0.30250975489616394,
+        "minimum_prediction_eigenvalue": 9.689236321719363e-06,
+        "peak_python_memory_bytes": 42154187,
+        "prediction_sha256": "45bc8ea3237a2ec4d7a56fc95b8470b5ae1ee5e63e1f4278299315a0e9adbdb7",
+        "runtime_seconds": 66.55507100000023,
+        "seed": 19
+      },
+      "seed": 19
+    },
+    {
+      "dfl": {
+        "gross_turnover": 20.423045573408746,
+        "maximum_absolute_weight": 0.4568114290365224,
+        "mean_concentration": 0.31507763574463116,
+        "mean_covariance_frobenius_error": 103.66151095118717,
+        "mean_gross_turnover": 2.042304557340874,
+        "mean_oracle_gmv_regret_percent_squared": 0.8105015118614118,
+        "mean_period_variance_percent_squared": 0.9210658498311223,
+        "mean_realized_annualized_volatility": 0.14482143771031525,
+        "model": "dfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.10981994136326442,
+          0.09726896431897082,
+          0.14041077547037617,
+          0.18055436657839413,
+          0.24254483368335597,
+          0.14926115644077045,
+          0.1892645300493348,
+          0.13486015051425268,
+          0.10984565761450543,
+          0.09097467972304532,
+          0.14823075905719751
+        ]
+      },
+      "dfl_training": {
+        "arm": "dfl",
+        "best_validation_loss": 1.9770467281341553,
+        "epochs_completed": 13,
+        "final_training_loss": 0.5038353204727173,
+        "minimum_prediction_eigenvalue": 9.950319508789107e-06,
+        "peak_python_memory_bytes": 41997507,
+        "prediction_sha256": "6d479280fef7c3a2b6332c5c36b53ba7e8e3efa1b273634bda522e099828b278",
+        "runtime_seconds": 35.67632450000019,
+        "seed": 42
+      },
+      "pfl": {
+        "gross_turnover": 93.79363609103268,
+        "maximum_absolute_weight": 1.7150580301642748,
+        "mean_concentration": 3.6660616487354476,
+        "mean_covariance_frobenius_error": 76.9600580439024,
+        "mean_gross_turnover": 9.379363609103269,
+        "mean_oracle_gmv_regret_percent_squared": 3.3237041975960007,
+        "mean_period_variance_percent_squared": 3.4342685355657108,
+        "mean_realized_annualized_volatility": 0.28240653969060675,
+        "model": "pfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.27034851171593016,
+          0.2550635174068264,
+          0.31693837780602535,
+          0.21474072656989318,
+          0.41568854862172194,
+          0.2221248523174013,
+          0.2980742837517283,
+          0.42266611077790384,
+          0.22809077191743993,
+          0.18989471556081802,
+          0.2728415201509856
+        ]
+      },
+      "pfl_training": {
+        "arm": "pfl",
+        "best_validation_loss": 25.579809188842773,
+        "epochs_completed": 31,
+        "final_training_loss": 0.21613138914108276,
+        "minimum_prediction_eigenvalue": 8.657254511490464e-06,
+        "peak_python_memory_bytes": 42147946,
+        "prediction_sha256": "5f6c46c0225ef0608fd498bd01b1764eee2f7dd995a8825c8a73658afd03107e",
+        "runtime_seconds": 73.85277133299996,
+        "seed": 42
+      },
+      "seed": 42
+    },
+    {
+      "dfl": {
+        "gross_turnover": 14.791412011771113,
+        "maximum_absolute_weight": 0.39633711483717493,
+        "mean_concentration": 0.21549074555500186,
+        "mean_covariance_frobenius_error": 105.41956654758019,
+        "mean_gross_turnover": 1.4791412011771112,
+        "mean_oracle_gmv_regret_percent_squared": 0.7228379190302784,
+        "mean_period_variance_percent_squared": 0.8334022569999888,
+        "mean_realized_annualized_volatility": 0.1399066201323736,
+        "model": "dfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.11614703554019609,
+          0.14114709775680295,
+          0.12395637920086111,
+          0.15618729370778647,
+          0.21609281115248083,
+          0.14894412125960668,
+          0.17551972410090055,
+          0.13292933934267637,
+          0.10042554098336945,
+          0.0934341425378369,
+          0.13418933587359216
+        ]
+      },
+      "dfl_training": {
+        "arm": "dfl",
+        "best_validation_loss": 1.9730515480041504,
+        "epochs_completed": 14,
+        "final_training_loss": 0.49982672929763794,
+        "minimum_prediction_eigenvalue": 9.911139386531431e-06,
+        "peak_python_memory_bytes": 42014615,
+        "prediction_sha256": "2359d2dd88a281ab3d9a1ebd0b7c3ffdc93bead9283feae6d6de496096615424",
+        "runtime_seconds": 31.05736241700015,
+        "seed": 73
+      },
+      "pfl": {
+        "gross_turnover": 104.90103700100131,
+        "maximum_absolute_weight": 1.787379025348285,
+        "mean_concentration": 4.117463733277407,
+        "mean_covariance_frobenius_error": 62.32360996155974,
+        "mean_gross_turnover": 10.490103700100132,
+        "mean_oracle_gmv_regret_percent_squared": 4.46839426209149,
+        "mean_period_variance_percent_squared": 4.5789586000612,
+        "mean_realized_annualized_volatility": 0.31139989377192095,
+        "model": "pfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.2426752256076358,
+          0.1837046271008917,
+          0.24709951925292,
+          0.49546961121086713,
+          0.3829770401654343,
+          0.2370246219670471,
+          0.582025670586052,
+          0.40856188758995887,
+          0.19259625927816126,
+          0.2549749212459899,
+          0.19828944748617264
+        ]
+      },
+      "pfl_training": {
+        "arm": "pfl",
+        "best_validation_loss": 24.137056350708008,
+        "epochs_completed": 24,
+        "final_training_loss": 0.3544061779975891,
+        "minimum_prediction_eigenvalue": 9.45665033214027e-06,
+        "peak_python_memory_bytes": 42078284,
+        "prediction_sha256": "31effbf0ec099d0f25cb0191b26d61c8794e033d97f7a626ba5a1a9d0fdeaa9c",
+        "runtime_seconds": 63.83188766600006,
+        "seed": 73
+      },
+      "seed": 73
+    },
+    {
+      "dfl": {
+        "gross_turnover": 16.613324075470768,
+        "maximum_absolute_weight": 0.6298974866515905,
+        "mean_concentration": 0.2930325613205794,
+        "mean_covariance_frobenius_error": 104.51192209106908,
+        "mean_gross_turnover": 1.6613324075470768,
+        "mean_oracle_gmv_regret_percent_squared": 0.6632192337250404,
+        "mean_period_variance_percent_squared": 0.7737835716947509,
+        "mean_realized_annualized_volatility": 0.1347225558646557,
+        "model": "dfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.11346939548674186,
+          0.09201076416745356,
+          0.1092155379309084,
+          0.15105319884809057,
+          0.19783556136481953,
+          0.15475366424290712,
+          0.17975833938374436,
+          0.12323284857448205,
+          0.11514195321882859,
+          0.10007063470816606,
+          0.14540621658507055
+        ]
+      },
+      "dfl_training": {
+        "arm": "dfl",
+        "best_validation_loss": 2.0019545555114746,
+        "epochs_completed": 16,
+        "final_training_loss": 0.47486749291419983,
+        "minimum_prediction_eigenvalue": 9.906141713145189e-06,
+        "peak_python_memory_bytes": 42048688,
+        "prediction_sha256": "ed061abb0afcc8509e10439aa575b0e956700606c0f34ffc6242a77a030e6468",
+        "runtime_seconds": 74.77449724999997,
+        "seed": 101
+      },
+      "pfl": {
+        "gross_turnover": 81.93963859408375,
+        "maximum_absolute_weight": 1.4804988850978669,
+        "mean_concentration": 2.541093654057411,
+        "mean_covariance_frobenius_error": 64.52029454619661,
+        "mean_gross_turnover": 8.193963859408374,
+        "mean_oracle_gmv_regret_percent_squared": 3.8635466740742626,
+        "mean_period_variance_percent_squared": 3.974111012043974,
+        "mean_realized_annualized_volatility": 0.2802692616656228,
+        "model": "pfl",
+        "numerical_fallback_count": 0,
+        "period_volatilities": [
+          0.19857605767447298,
+          0.20676136293576278,
+          0.22902440377962027,
+          0.3047995268373446,
+          0.6970494103903019,
+          0.17898711766641348,
+          0.3427555639767048,
+          0.2664083406391932,
+          0.2808844791294178,
+          0.18913727398165286,
+          0.18857834131096615
+        ]
+      },
+      "pfl_training": {
+        "arm": "pfl",
+        "best_validation_loss": 24.51169204711914,
+        "epochs_completed": 23,
+        "final_training_loss": 0.34519335627555847,
+        "minimum_prediction_eigenvalue": 9.706944183562882e-06,
+        "peak_python_memory_bytes": 42042081,
+        "prediction_sha256": "7e13afc05f676f44ba7290c15ffbf05ff145fbcec4cce2f78ff4bf751b816460",
+        "runtime_seconds": 75.14527729200017,
+        "seed": 101
+      },
+      "seed": 101
+    }
+  ],
+  "seed_summary": {
+    "dfl": {
+      "mean_realized_annualized_volatility": 0.13894073358881281,
+      "std_realized_annualized_volatility": 0.0036951787074953986
+    },
+    "pfl": {
+      "mean_realized_annualized_volatility": 0.2789080707804371,
+      "std_realized_annualized_volatility": 0.02002486945276652
+    }
+  },
+  "training_runs": [
+    {
+      "arm": "pfl",
+      "best_validation_loss": 26.325708389282227,
+      "epochs_completed": 22,
+      "final_training_loss": 0.3762868344783783,
+      "minimum_prediction_eigenvalue": 9.677387424744666e-06,
+      "peak_python_memory_bytes": 42985949,
+      "prediction_sha256": "abef06d2be302324a768574752d24f713e9adb73295dae0763f7f0e385e56c8b",
+      "runtime_seconds": 61.441307416999734,
+      "seed": 7
+    },
+    {
+      "arm": "dfl",
+      "best_validation_loss": 2.0085556507110596,
+      "epochs_completed": 20,
+      "final_training_loss": 0.46511760354042053,
+      "minimum_prediction_eigenvalue": 9.918049727275502e-06,
+      "peak_python_memory_bytes": 42133181,
+      "prediction_sha256": "73591fa610ab2411e116604cc528d72b26b9546f971b683b3e3b929d639d0626",
+      "runtime_seconds": 58.195380332999775,
+      "seed": 7
+    },
+    {
+      "arm": "pfl",
+      "best_validation_loss": 24.58016014099121,
+      "epochs_completed": 34,
+      "final_training_loss": 0.30250975489616394,
+      "minimum_prediction_eigenvalue": 9.689236321719363e-06,
+      "peak_python_memory_bytes": 42154187,
+      "prediction_sha256": "45bc8ea3237a2ec4d7a56fc95b8470b5ae1ee5e63e1f4278299315a0e9adbdb7",
+      "runtime_seconds": 66.55507100000023,
+      "seed": 19
+    },
+    {
+      "arm": "dfl",
+      "best_validation_loss": 2.0093753337860107,
+      "epochs_completed": 17,
+      "final_training_loss": 0.4925028383731842,
+      "minimum_prediction_eigenvalue": 9.909769687510561e-06,
+      "peak_python_memory_bytes": 42065228,
+      "prediction_sha256": "054741a6104ed5a48f63effa8bb91a203a132bdfefe93f25546cc5568468b058",
+      "runtime_seconds": 47.45271437500014,
+      "seed": 19
+    },
+    {
+      "arm": "pfl",
+      "best_validation_loss": 25.579809188842773,
+      "epochs_completed": 31,
+      "final_training_loss": 0.21613138914108276,
+      "minimum_prediction_eigenvalue": 8.657254511490464e-06,
+      "peak_python_memory_bytes": 42147946,
+      "prediction_sha256": "5f6c46c0225ef0608fd498bd01b1764eee2f7dd995a8825c8a73658afd03107e",
+      "runtime_seconds": 73.85277133299996,
+      "seed": 42
+    },
+    {
+      "arm": "dfl",
+      "best_validation_loss": 1.9770467281341553,
+      "epochs_completed": 13,
+      "final_training_loss": 0.5038353204727173,
+      "minimum_prediction_eigenvalue": 9.950319508789107e-06,
+      "peak_python_memory_bytes": 41997507,
+      "prediction_sha256": "6d479280fef7c3a2b6332c5c36b53ba7e8e3efa1b273634bda522e099828b278",
+      "runtime_seconds": 35.67632450000019,
+      "seed": 42
+    },
+    {
+      "arm": "pfl",
+      "best_validation_loss": 24.137056350708008,
+      "epochs_completed": 24,
+      "final_training_loss": 0.3544061779975891,
+      "minimum_prediction_eigenvalue": 9.45665033214027e-06,
+      "peak_python_memory_bytes": 42078284,
+      "prediction_sha256": "31effbf0ec099d0f25cb0191b26d61c8794e033d97f7a626ba5a1a9d0fdeaa9c",
+      "runtime_seconds": 63.83188766600006,
+      "seed": 73
+    },
+    {
+      "arm": "dfl",
+      "best_validation_loss": 1.9730515480041504,
+      "epochs_completed": 14,
+      "final_training_loss": 0.49982672929763794,
+      "minimum_prediction_eigenvalue": 9.911139386531431e-06,
+      "peak_python_memory_bytes": 42014615,
+      "prediction_sha256": "2359d2dd88a281ab3d9a1ebd0b7c3ffdc93bead9283feae6d6de496096615424",
+      "runtime_seconds": 31.05736241700015,
+      "seed": 73
+    },
+    {
+      "arm": "pfl",
+      "best_validation_loss": 24.51169204711914,
+      "epochs_completed": 23,
+      "final_training_loss": 0.34519335627555847,
+      "minimum_prediction_eigenvalue": 9.706944183562882e-06,
+      "peak_python_memory_bytes": 42042081,
+      "prediction_sha256": "7e13afc05f676f44ba7290c15ffbf05ff145fbcec4cce2f78ff4bf751b816460",
+      "runtime_seconds": 75.14527729200017,
+      "seed": 101
+    },
+    {
+      "arm": "dfl",
+      "best_validation_loss": 2.0019545555114746,
+      "epochs_completed": 16,
+      "final_training_loss": 0.47486749291419983,
+      "minimum_prediction_eigenvalue": 9.906141713145189e-06,
+      "peak_python_memory_bytes": 42048688,
+      "prediction_sha256": "ed061abb0afcc8509e10439aa575b0e956700606c0f34ffc6242a77a030e6468",
+      "runtime_seconds": 74.77449724999997,
+      "seed": 101
+    }
+  ],
+  "unconstrained_baselines": {
+    "equal_weight": {
+      "gross_turnover": 0.0,
+      "maximum_absolute_weight": 0.020408163265306124,
+      "mean_concentration": 0.020408163265306124,
+      "mean_covariance_frobenius_error": null,
+      "mean_gross_turnover": 0.0,
+      "mean_oracle_gmv_regret_percent_squared": 1.2029021742928316,
+      "mean_period_variance_percent_squared": 1.3134665122625422,
+      "mean_realized_annualized_volatility": 0.17348705670806921,
+      "model": "equal_weight",
+      "numerical_fallback_count": 0,
+      "period_volatilities": [
+        0.13528683723702806,
+        0.12304940541408035,
+        0.14457704104485902,
+        0.1914011901707811,
+        0.26113605444556603,
+        0.21971179057590395,
+        0.25479214358927715,
+        0.17167134168772769,
+        0.14995932162173403,
+        0.10576113286224147,
+        0.1510113651395625
+      ]
+    },
+    "historical_sample_covariance_gmv": {
+      "gross_turnover": 63.60222958811433,
+      "maximum_absolute_weight": 0.4913396178679099,
+      "mean_concentration": 0.8703350304642634,
+      "mean_covariance_frobenius_error": 47.47509102332992,
+      "mean_gross_turnover": 6.360222958811433,
+      "mean_oracle_gmv_regret_percent_squared": 1.0343874116952896,
+      "mean_period_variance_percent_squared": 1.1449517496650001,
+      "mean_realized_annualized_volatility": 0.1623242492917637,
+      "model": "historical_sample_covariance_gmv",
+      "numerical_fallback_count": 0,
+      "period_volatilities": [
+        0.132832948152465,
+        0.11958246596825405,
+        0.14467731593710445,
+        0.15446918967061574,
+        0.1846714278443914,
+        0.22779582004630178,
+        0.26436404106716876,
+        0.1733578673909071,
+        0.13145441151641962,
+        0.10964433255639336,
+        0.1427169220593795
+      ]
+    },
+    "ledoit_wolf_constant_correlation_gmv": {
+      "gross_turnover": 38.05976242150835,
+      "maximum_absolute_weight": 0.6004815821785225,
+      "mean_concentration": 0.43098989277827565,
+      "mean_covariance_frobenius_error": 43.92309264154225,
+      "mean_gross_turnover": 3.805976242150835,
+      "mean_oracle_gmv_regret_percent_squared": 0.7726938438934731,
+      "mean_period_variance_percent_squared": 0.8832581818631836,
+      "mean_realized_annualized_volatility": 0.14016731170483998,
+      "model": "ledoit_wolf_constant_correlation_gmv",
+      "numerical_fallback_count": 0,
+      "period_volatilities": [
+        0.09441591003750878,
+        0.10380241311179599,
+        0.13801295437024444,
+        0.13965925538955917,
+        0.16714076416822451,
+        0.211136225740464,
+        0.24760168161223567,
+        0.12477450103414796,
+        0.11547265168204887,
+        0.09654508521370686,
+        0.10327898639330338
+      ]
+    },
+    "ledoit_wolf_constant_variance_gmv": {
+      "gross_turnover": 31.039780988914806,
+      "maximum_absolute_weight": 0.2839994945002334,
+      "mean_concentration": 0.2535815795625375,
+      "mean_covariance_frobenius_error": 43.205935389188035,
+      "mean_gross_turnover": 3.103978098891481,
+      "mean_oracle_gmv_regret_percent_squared": 0.6629743899693025,
+      "mean_period_variance_percent_squared": 0.7735387279390129,
+      "mean_realized_annualized_volatility": 0.13224363330087116,
+      "model": "ledoit_wolf_constant_variance_gmv",
+      "numerical_fallback_count": 0,
+      "period_volatilities": [
+        0.08303165065806394,
+        0.10322074764190074,
+        0.12815279085079023,
+        0.1230458306102999,
+        0.17369626797712923,
+        0.19236964136485735,
+        0.21661533185025822,
+        0.12174713603179681,
+        0.11145164760804538,
+        0.08850954041102248,
+        0.11283938130541839
+      ]
+    },
+    "oas_gmv": {
+      "gross_turnover": 29.60453955405947,
+      "maximum_absolute_weight": 0.2810845110578379,
+      "mean_concentration": 0.23675861400702314,
+      "mean_covariance_frobenius_error": 42.901736894204674,
+      "mean_gross_turnover": 2.960453955405947,
+      "mean_oracle_gmv_regret_percent_squared": 0.656713089297088,
+      "mean_period_variance_percent_squared": 0.7672774272667986,
+      "mean_realized_annualized_volatility": 0.13174865302003955,
+      "model": "oas_gmv",
+      "numerical_fallback_count": 0,
+      "period_volatilities": [
+        0.08369897856378608,
+        0.10254530290600826,
+        0.12815385580421723,
+        0.12298997433363501,
+        0.17436817653769127,
+        0.1884788454485791,
+        0.21695321094781425,
+        0.12167101137086295,
+        0.10994972693800066,
+        0.08865969542134079,
+        0.11176640494849933
+      ]
+    }
+  }
+}
