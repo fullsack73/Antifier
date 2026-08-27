@@ -31,6 +31,15 @@ const Optimizer = () => {
   const [forecastHorizon, setForecastHorizon] = useState("63")
   const [minHistory, setMinHistory] = useState("504")
   const [blTau, setBlTau] = useState("0.05")
+  const [maxAssetWeight, setMaxAssetWeight] = useState("")
+  const [l2Gamma, setL2Gamma] = useState("0")
+  const [minHoldingWeight, setMinHoldingWeight] = useState("0")
+  const [turnoverPenalty, setTurnoverPenalty] = useState("0")
+  const [rebalanceBand, setRebalanceBand] = useState("")
+  const [maxTurnover, setMaxTurnover] = useState("")
+  const [currentWeights, setCurrentWeights] = useState(null)
+  const [assetConstraints, setAssetConstraints] = useState([])
+  const [groupConstraints, setGroupConstraints] = useState([])
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [allowFractional, setAllowFractional] = useState(false)
   const [fractionalOverrides, setFractionalOverrides] = useState({})
@@ -48,6 +57,20 @@ const Optimizer = () => {
   const reconnectTimeoutRef = useRef(null)
   const submittedRequestIdRef = useRef(null)
   const cancellingRequestIdRef = useRef(null)
+
+  const formatErrorDetails = useCallback((details) => {
+    if (!details) return null
+    if (typeof details === "string") return details
+    const parts = []
+    if (details.error_code) parts.push(`${t("optimizer.errorCode", "Code")}: ${details.error_code}`)
+    if (details.constraint) parts.push(`${t("optimizer.conflictingConstraint", "Constraint")}: ${details.constraint}`)
+    if (details.feasible_bound) {
+      parts.push(`${t("optimizer.feasibleBound", "Feasible bound")}: ${JSON.stringify(details.feasible_bound)}`)
+    }
+    const affected = [...(details.affected_tickers || []), ...(details.affected_groups || [])]
+    if (affected.length) parts.push(`${t("optimizer.affected", "Affected")}: ${affected.join(", ")}`)
+    return parts.join(" · ") || null
+  }, [t])
 
   const handleFileUpload = (e) => {
     const file = e.target.files[0]
@@ -257,6 +280,7 @@ const Optimizer = () => {
           throw new Error(t("optimizer.invalidPortfolioFile", "Invalid portfolio file: missing weights"))
         }
         setOptimizedPortfolio(parsed)
+        setCurrentWeights(parsed.weights)
         setAllocation(null)
         setError(null)
       } catch (uploadError) {
@@ -328,7 +352,7 @@ const Optimizer = () => {
       ? t("optimizer.cancelled", "Optimization cancelled")
       : t("optimizer.failed", "Optimization failed")
     setError(status.error || status.message || statusText)
-    setErrorDetails(null)
+    setErrorDetails(formatErrorDetails(status.error_details || status))
     setLoading(false)
     setCancelRequested(false)
     setOptimizedPortfolio(null)
@@ -338,7 +362,7 @@ const Optimizer = () => {
       message: status.message || statusText,
     })
     forgetJobRecord()
-  }, [closeProgressStream, forgetJobRecord, t])
+  }, [closeProgressStream, forgetJobRecord, formatErrorDetails, t])
 
   const fetchJobStatus = useCallback(async (requestId) => {
     const response = await fetch(apiUrl(`/api/optimization-jobs/${encodeURIComponent(requestId)}`), {
@@ -598,6 +622,17 @@ const Optimizer = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const incompleteAsset = assetConstraints.some(
+      item => !item.ticker.trim() || (!item.minWeight && !item.maxWeight),
+    )
+    const incompleteGroup = groupConstraints.some(
+      item => !item.group.trim() || (!item.minWeight && !item.maxWeight),
+    )
+    if (incompleteAsset || incompleteGroup) {
+      setError(t("optimizer.incompleteConstraint", "Complete or remove every constraint row before running."))
+      setErrorDetails(null)
+      return
+    }
     closeProgressStream()
     setLoading(true)
     setError(null)
@@ -637,7 +672,30 @@ const Optimizer = () => {
         optimization_method: optimizationMethod,
         forecast_horizon: Number.parseInt(forecastHorizon),
         min_history: Number.parseInt(minHistory),
-        bl_tau: Number.parseFloat(blTau)
+        bl_tau: Number.parseFloat(blTau),
+        l2_gamma: Number.parseFloat(l2Gamma) || 0,
+        min_holding_weight: (Number.parseFloat(minHoldingWeight) || 0) / 100,
+        asset_constraints: assetConstraints.map(item => ({
+          ticker: item.ticker.trim().toUpperCase(),
+          min_weight: item.minWeight === "" ? null : Number.parseFloat(item.minWeight) / 100,
+          max_weight: item.maxWeight === "" ? null : Number.parseFloat(item.maxWeight) / 100,
+        })),
+        group_constraints: groupConstraints.map(item => ({
+          dimension: item.dimension,
+          group: item.group.trim(),
+          min_weight: item.minWeight === "" ? null : Number.parseFloat(item.minWeight) / 100,
+          max_weight: item.maxWeight === "" ? null : Number.parseFloat(item.maxWeight) / 100,
+        })),
+      }
+
+      if (maxAssetWeight !== "") {
+        payload.max_asset_weight = Number.parseFloat(maxAssetWeight) / 100
+      }
+      if (currentWeights) {
+        payload.current_weights = currentWeights
+        payload.turnover_penalty = Number.parseFloat(turnoverPenalty) || 0
+        if (rebalanceBand !== "") payload.rebalance_band = Number.parseFloat(rebalanceBand) / 100
+        if (maxTurnover !== "") payload.max_turnover = Number.parseFloat(maxTurnover) / 100
       }
 
       if (tickerGroup === "CUSTOM") {
@@ -659,7 +717,7 @@ const Optimizer = () => {
       }
       if (err.response && err.response.data) {
         setError(err.response.data.error || t("optimizer.startError", "An error occurred starting optimization"))
-        setErrorDetails(err.response.data.details || null)
+        setErrorDetails(formatErrorDetails(err.response.data.error_details || err.response.data))
       } else {
         setError(t("optimizer.startError", "An error occurred starting optimization"))
         setErrorDetails(err.message)
@@ -688,13 +746,21 @@ const Optimizer = () => {
     : optimizationMethod === "BL"
       ? t("optimizer.blShort", "Black-Litterman")
       : t("optimizer.mptShort", "Classic MPT")
-  const constraintSummary = riskOnlyOptimization
+  const objectiveConstraintSummary = riskOnlyOptimization
     ? t("optimizer.minVarianceConstraint", "Global minimum variance")
     : targetReturn
     ? t("optimizer.targetConstraintSummary", "{{value}}% target return", { value: targetReturn })
     : riskTolerance
       ? t("optimizer.riskConstraintSummary", "{{value}}% risk ceiling", { value: riskTolerance })
       : t("optimizer.noCustomConstraint", "No custom constraint")
+  const hardConstraintCount = assetConstraints.length + groupConstraints.length
+  const constraintSummary = [
+    objectiveConstraintSummary,
+    maxAssetWeight ? t("optimizer.assetCapSummary", "{{value}}% asset cap", { value: maxAssetWeight }) : null,
+    hardConstraintCount
+      ? t("optimizer.hardConstraintCount", "{{count}} hard constraints", { count: hardConstraintCount })
+      : null,
+  ].filter(Boolean).join(" · ")
   const unavailableMetric = t("optimizer.metricUnavailable", "Unavailable")
   const formatPercentMetric = (value) => (
     typeof value === "number" && Number.isFinite(value)
@@ -709,6 +775,11 @@ const Optimizer = () => {
   const performanceUnavailable = (
     optimizedPortfolio?.performance_status === "unavailable_unmodeled_exposure"
   )
+  const riskDiagnostics = optimizedPortfolio?.risk_diagnostics
+  const concentrationDiagnostics = riskDiagnostics?.concentration
+  const covarianceDiagnostics = riskDiagnostics?.covariance
+  const constraintDiagnostics = optimizedPortfolio?.constraint_diagnostics
+  const classificationMetadata = optimizedPortfolio?.classification_metadata
 
   return (
     <div className="optimizer-container">
@@ -994,7 +1065,191 @@ const Optimizer = () => {
                           />
                         </div>
                       </div>
+
+                      <div className="optimizer-form-group">
+                        <label htmlFor="maxAssetWeight">{t("optimizer.maxAssetWeight", "Maximum Asset Weight (%)")}</label>
+                        <input
+                          id="maxAssetWeight"
+                          className="optimizer-input"
+                          type="number"
+                          min="0.01"
+                          max="100"
+                          step="0.1"
+                          value={maxAssetWeight}
+                          onChange={(e) => setMaxAssetWeight(e.target.value)}
+                          placeholder={t("optimizer.maxAssetWeightPlaceholder", "Automatic (20% target)")}
+                        />
+                      </div>
+
+                      <div className="optimizer-form-group">
+                        <label htmlFor="l2Gamma">{t("optimizer.l2Gamma", "L2 Diversification Gamma")}</label>
+                        <input
+                          id="l2Gamma"
+                          className="optimizer-input"
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={l2Gamma}
+                          onChange={(e) => setL2Gamma(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="optimizer-form-group">
+                        <label htmlFor="minHoldingWeight">{t("optimizer.minHoldingWeight", "Minimum Holding Weight (%)")}</label>
+                        <input
+                          id="minHoldingWeight"
+                          className="optimizer-input"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={minHoldingWeight}
+                          onChange={(e) => setMinHoldingWeight(e.target.value)}
+                        />
+                      </div>
                     </div>
+                  </div>
+
+                  <div className="optimizer-advanced-section">
+                    <div className="optimizer-constraint-heading">
+                      <div>
+                        <div className="optimizer-advanced-section-title">{t("optimizer.assetOverrides", "Asset Overrides")}</div>
+                        <small>{t("optimizer.assetOverridesHelp", "Optional ticker-specific minimum and maximum percentages.")}</small>
+                      </div>
+                      <button
+                        type="button"
+                        className="optimizer-secondary-button"
+                        onClick={() => setAssetConstraints(items => [...items, { ticker: "", minWeight: "", maxWeight: "" }])}
+                      >
+                        {t("optimizer.addAssetConstraint", "Add asset")}
+                      </button>
+                    </div>
+                    {assetConstraints.map((item, index) => (
+                      <div className="optimizer-constraint-row" key={`asset-${index}`}>
+                        <input
+                          className="optimizer-input"
+                          value={item.ticker}
+                          onChange={(e) => setAssetConstraints(items => items.map((entry, position) => position === index ? { ...entry, ticker: e.target.value } : entry))}
+                          placeholder={t("optimizer.ticker", "Ticker")}
+                          aria-label={t("optimizer.assetConstraintTicker", "Asset constraint ticker")}
+                        />
+                        <input
+                          className="optimizer-input"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={item.minWeight}
+                          onChange={(e) => setAssetConstraints(items => items.map((entry, position) => position === index ? { ...entry, minWeight: e.target.value } : entry))}
+                          placeholder={t("optimizer.minimumPercent", "Min %")}
+                          aria-label={t("optimizer.assetMinimum", "Asset minimum percent")}
+                        />
+                        <input
+                          className="optimizer-input"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={item.maxWeight}
+                          onChange={(e) => setAssetConstraints(items => items.map((entry, position) => position === index ? { ...entry, maxWeight: e.target.value } : entry))}
+                          placeholder={t("optimizer.maximumPercent", "Max %")}
+                          aria-label={t("optimizer.assetMaximum", "Asset maximum percent")}
+                        />
+                        <button
+                          type="button"
+                          className="optimizer-secondary-button"
+                          onClick={() => setAssetConstraints(items => items.filter((_, position) => position !== index))}
+                          aria-label={t("optimizer.removeAssetConstraint", "Remove asset constraint")}
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="optimizer-advanced-section">
+                    <div className="optimizer-constraint-heading">
+                      <div>
+                        <div className="optimizer-advanced-section-title">{t("optimizer.groupConstraints", "Classification Constraints")}</div>
+                        <small>{t("optimizer.groupConstraintsHelp", "Near-live sector, industry, or country exposure bounds using covered metadata.")}</small>
+                      </div>
+                      <button
+                        type="button"
+                        className="optimizer-secondary-button"
+                        onClick={() => setGroupConstraints(items => [...items, { dimension: "sector", group: "", minWeight: "", maxWeight: "" }])}
+                      >
+                        {t("optimizer.addGroupConstraint", "Add group")}
+                      </button>
+                    </div>
+                    {groupConstraints.map((item, index) => (
+                      <div className="optimizer-constraint-row optimizer-group-constraint-row" key={`group-${index}`}>
+                        <select
+                          className="optimizer-select"
+                          value={item.dimension}
+                          onChange={(e) => setGroupConstraints(items => items.map((entry, position) => position === index ? { ...entry, dimension: e.target.value } : entry))}
+                          aria-label={t("optimizer.groupDimension", "Group dimension")}
+                        >
+                          <option value="sector">{t("optimizer.sector", "Sector")}</option>
+                          <option value="industry">{t("optimizer.industry", "Industry")}</option>
+                          <option value="country">{t("optimizer.country", "Country")}</option>
+                        </select>
+                        <input
+                          className="optimizer-input"
+                          value={item.group}
+                          onChange={(e) => setGroupConstraints(items => items.map((entry, position) => position === index ? { ...entry, group: e.target.value } : entry))}
+                          placeholder={t("optimizer.groupName", "Group name")}
+                          aria-label={t("optimizer.groupName", "Group name")}
+                        />
+                        <input
+                          className="optimizer-input"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={item.minWeight}
+                          onChange={(e) => setGroupConstraints(items => items.map((entry, position) => position === index ? { ...entry, minWeight: e.target.value } : entry))}
+                          placeholder={t("optimizer.minimumPercent", "Min %")}
+                          aria-label={t("optimizer.groupMinimum", "Group minimum percent")}
+                        />
+                        <input
+                          className="optimizer-input"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={item.maxWeight}
+                          onChange={(e) => setGroupConstraints(items => items.map((entry, position) => position === index ? { ...entry, maxWeight: e.target.value } : entry))}
+                          placeholder={t("optimizer.maximumPercent", "Max %")}
+                          aria-label={t("optimizer.groupMaximum", "Group maximum percent")}
+                        />
+                        <button
+                          type="button"
+                          className="optimizer-secondary-button"
+                          onClick={() => setGroupConstraints(items => items.filter((_, position) => position !== index))}
+                          aria-label={t("optimizer.removeGroupConstraint", "Remove group constraint")}
+                        >×</button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="optimizer-advanced-section">
+                    <div className="optimizer-advanced-section-title">{t("optimizer.turnoverControls", "Turnover Controls")}</div>
+                    {currentWeights ? (
+                      <div className="optimizer-advanced-grid">
+                        <div className="optimizer-form-group">
+                          <label htmlFor="turnoverPenalty">{t("optimizer.turnoverPenalty", "Turnover Penalty")}</label>
+                          <input id="turnoverPenalty" className="optimizer-input" type="number" min="0" step="0.01" value={turnoverPenalty} onChange={(e) => setTurnoverPenalty(e.target.value)} />
+                        </div>
+                        <div className="optimizer-form-group">
+                          <label htmlFor="rebalanceBand">{t("optimizer.rebalanceBand", "Rebalance Band (%)")}</label>
+                          <input id="rebalanceBand" className="optimizer-input" type="number" min="0" max="100" step="0.1" value={rebalanceBand} onChange={(e) => setRebalanceBand(e.target.value)} />
+                        </div>
+                        <div className="optimizer-form-group">
+                          <label htmlFor="maxTurnover">{t("optimizer.maxTurnover", "Maximum Turnover (%)")}</label>
+                          <input id="maxTurnover" className="optimizer-input" type="number" min="0" max="200" step="0.1" value={maxTurnover} onChange={(e) => setMaxTurnover(e.target.value)} />
+                        </div>
+                      </div>
+                    ) : (
+                      <small>{t("optimizer.turnoverNeedsPortfolio", "Load a portfolio JSON with weights to enable turnover controls.")}</small>
+                    )}
                   </div>
 
                   <div className="optimizer-advanced-section">
@@ -1209,6 +1464,81 @@ const Optimizer = () => {
                 </div>
               </dl>
             </div>
+
+            {(riskDiagnostics || constraintDiagnostics) && (
+              <div className="optimizer-diagnostics-grid">
+                <section className="optimizer-diagnostic-card">
+                  <span className="optimizer-section-eyebrow">{t("optimizer.riskTransparency", "Risk transparency")}</span>
+                  <h3>{t("optimizer.concentrationDiagnostics", "Concentration & covariance")}</h3>
+                  {riskDiagnostics?.status !== "complete" && (
+                    <p className="optimizer-diagnostic-warning">
+                      {t("optimizer.diagnosticUnavailable", "Calculation unavailable")}: {riskDiagnostics?.reason || unavailableMetric}
+                    </p>
+                  )}
+                  <dl className="optimizer-diagnostic-list">
+                    <div><dt>{t("optimizer.hhi", "HHI concentration")}</dt><dd>{formatRatioMetric(concentrationDiagnostics?.hhi)}</dd></div>
+                    <div><dt>{t("optimizer.effectiveHoldings", "Effective holdings")}</dt><dd>{formatRatioMetric(concentrationDiagnostics?.effective_number_of_holdings)}</dd></div>
+                    <div><dt>{t("optimizer.maximumWeight", "Maximum asset weight")}</dt><dd>{formatPercentMetric(concentrationDiagnostics?.maximum_asset_weight)}</dd></div>
+                    <div><dt>{t("optimizer.conditionNumber", "Covariance condition number")}</dt><dd>{formatRatioMetric(covarianceDiagnostics?.condition_number)}</dd></div>
+                    <div><dt>{t("optimizer.effectiveRank", "Covariance effective rank")}</dt><dd>{formatRatioMetric(covarianceDiagnostics?.effective_rank)}</dd></div>
+                    <div><dt>{t("optimizer.averageCorrelation", "Average pairwise correlation")}</dt><dd>{formatRatioMetric(covarianceDiagnostics?.average_pairwise_correlation)}</dd></div>
+                  </dl>
+                </section>
+
+                <section className="optimizer-diagnostic-card">
+                  <span className="optimizer-section-eyebrow">{t("optimizer.constraintReview", "Constraint review")}</span>
+                  <h3>
+                    {constraintDiagnostics?.all_satisfied
+                      ? t("optimizer.constraintsSatisfied", "Constraints satisfied")
+                      : t("optimizer.constraintsViolated", "Constraint review unavailable")}
+                  </h3>
+                  <ul className="optimizer-diagnostic-constraint-list">
+                    {(constraintDiagnostics?.constraints || []).map((item) => (
+                      <li key={item.constraint}>
+                        <span>{item.constraint}</span>
+                        <strong className={item.binding ? "is-binding" : ""}>
+                          {item.binding
+                            ? t("optimizer.binding", "Binding")
+                            : item.satisfied
+                              ? t("optimizer.satisfied", "Satisfied")
+                              : t("optimizer.unavailable", "Unavailable")}
+                        </strong>
+                        <small>
+                          {t("optimizer.actualValue", "Actual")}: {formatPercentMetric(item.actual_value)}
+                          {item.lower_bound != null ? ` · ≥ ${formatPercentMetric(item.lower_bound)}` : ""}
+                          {item.upper_bound != null ? ` · ≤ ${formatPercentMetric(item.upper_bound)}` : ""}
+                        </small>
+                      </li>
+                    ))}
+                  </ul>
+                  {classificationMetadata?.status !== "complete" && (
+                    <p className="optimizer-diagnostic-warning">
+                      {t("optimizer.metadataStatus", "Metadata")}: {classificationMetadata?.status || t("optimizer.unavailable", "Unavailable")}
+                    </p>
+                  )}
+                </section>
+              </div>
+            )}
+
+            {riskDiagnostics?.risk_contributions && Object.keys(riskDiagnostics.risk_contributions).length > 0 && (
+              <div className="optimizer-weights-card">
+                <div className="optimizer-weights-header">
+                  <div>
+                    <span className="optimizer-section-eyebrow">{t("optimizer.riskContribution", "Risk contribution")}</span>
+                    <h3>{t("optimizer.riskByAsset", "Risk by asset")}</h3>
+                  </div>
+                </div>
+                <ul className="optimizer-weights-list">
+                  {Object.entries(riskDiagnostics.risk_contributions).map(([ticker, contribution]) => (
+                    <li key={`risk-${ticker}`} style={{ "--portfolio-weight": `${Math.max((contribution.percentage_risk_contribution || 0) * 100, 0.5)}%` }}>
+                      <span className="optimizer-weight-name">{formatPortfolioTicker(ticker)}</span>
+                      <strong>{formatPercentMetric(contribution.percentage_risk_contribution)}</strong>
+                      <span className="optimizer-weight-mark" aria-hidden="true" />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="optimizer-weights-card">
               <div className="optimizer-weights-header">

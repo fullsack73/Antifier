@@ -4109,6 +4109,99 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.optimizer-constraint-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+}
+
+.optimizer-constraint-heading small,
+.optimizer-advanced-section > small {
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.optimizer-constraint-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr auto;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.optimizer-group-constraint-row {
+  grid-template-columns: 0.9fr 1.2fr 0.8fr 0.8fr auto;
+}
+
+.optimizer-constraint-row .optimizer-secondary-button {
+  min-width: 42px;
+  padding-inline: 0.7rem;
+}
+
+.optimizer-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.optimizer-diagnostic-card {
+  padding: var(--spacing-lg);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  background: rgba(7, 10, 8, 0.28);
+}
+
+.optimizer-diagnostic-card h3 {
+  margin: 0.35rem 0 1rem;
+}
+
+.optimizer-diagnostic-list,
+.optimizer-diagnostic-constraint-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+}
+
+.optimizer-diagnostic-list > div,
+.optimizer-diagnostic-constraint-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 0.75rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.optimizer-diagnostic-list dt,
+.optimizer-diagnostic-constraint-list span,
+.optimizer-diagnostic-constraint-list small {
+  color: var(--color-text-muted);
+}
+
+.optimizer-diagnostic-list dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+.optimizer-diagnostic-constraint-list {
+  list-style: none;
+}
+
+.optimizer-diagnostic-constraint-list small {
+  grid-column: 1 / -1;
+}
+
+.optimizer-diagnostic-constraint-list .is-binding {
+  color: var(--color-accent);
+}
+
+.optimizer-diagnostic-warning {
+  color: var(--color-warning, #d9a441);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .optimizer-field-help {
   color: var(--color-text-muted);
   display: block;
@@ -4131,6 +4224,17 @@ h2 {
   }
 
   .optimizer-advanced-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .optimizer-constraint-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .optimizer-constraint-row,
+  .optimizer-group-constraint-row,
+  .optimizer-diagnostics-grid {
     grid-template-columns: 1fr;
   }
 }

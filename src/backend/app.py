@@ -39,6 +39,12 @@ from portfolio_optimization import (
     forecast_single_ticker_with_arima_transformer,
     forecast_single_ticker_with_transformer
 )
+from portfolio_constraints import (
+    ConstraintValidationError,
+    normalize_asset_constraints,
+    normalize_current_weights,
+    normalize_group_constraints,
+)
 from stock_screener import search_stocks
 
 
@@ -136,9 +142,12 @@ def parse_float_param(value, field_name, required=True, default=None):
             raise ValueError(f"{field_name} is required")
         return default
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{field_name} must be a valid number") from exc
+    if not np.isfinite(parsed):
+        raise ValueError(f"{field_name} must be a finite number")
+    return parsed
 
 
 def parse_int_param(value, field_name, required=True, default=None):
@@ -915,6 +924,7 @@ class OptimizationJob:
         self.message = "Optimization queued"
         self.result = None
         self.error = None
+        self.error_details = None
         self.created_at = now
         self.updated_at = now
         self.last_client_seen_at = now
@@ -938,6 +948,19 @@ class OptimizationJob:
         }
         if self.error:
             payload["error"] = self.error
+        if self.error_details:
+            payload["error_details"] = self.error_details
+            for key in (
+                "error_code",
+                "constraint",
+                "requested_value",
+                "feasible_bound",
+                "affected_tickers",
+                "affected_groups",
+                "classification_metadata",
+            ):
+                if key in self.error_details:
+                    payload[key] = self.error_details[key]
         if include_result and self.result is not None:
             payload["result"] = self.result
         return payload
@@ -1068,7 +1091,15 @@ def put_progress_event(request_id, event, close=False):
     return True
 
 
-def push_progress(request_id, progress, total, message, status='running', result=None):
+def push_progress(
+    request_id,
+    progress,
+    total,
+    message,
+    status='running',
+    result=None,
+    error_details=None,
+):
     """Helper to push progress events to the SSE queue."""
     try:
         job = get_optimization_job(request_id)
@@ -1085,6 +1116,7 @@ def push_progress(request_id, progress, total, message, status='running', result
             job.message = message or "Optimization complete"
             job.result = result
             job.error = None
+            job.error_details = None
             job.updated_at = now
             event = job.snapshot()
             event["type"] = "complete"
@@ -1094,6 +1126,7 @@ def push_progress(request_id, progress, total, message, status='running', result
             job.status = "failed"
             job.message = message or "Optimization failed"
             job.error = job.message
+            job.error_details = error_details
             job.updated_at = now
             event = job.snapshot(include_result=False)
             event["type"] = "error"
@@ -1103,6 +1136,7 @@ def push_progress(request_id, progress, total, message, status='running', result
             job.status = "cancelled"
             job.message = message or "Optimization cancelled"
             job.error = job.message
+            job.error_details = None
             job.updated_at = now
             event = job.snapshot(include_result=False)
             event["type"] = "cancelled"
@@ -1260,11 +1294,15 @@ def background_optimization(req_id, params):
             forecast_horizon=params.get('forecast_horizon', 63),
             min_history=params.get('min_history', 504),
             bl_tau=params.get('bl_tau', 0.05),
+            l2_gamma=params.get('l2_gamma', 0.0),
+            max_asset_weight=params.get('max_asset_weight'),
             current_weights=params.get('current_weights'),
             rebalance_band=params.get('rebalance_band'),
             max_turnover=params.get('max_turnover'),
             turnover_penalty=params.get('turnover_penalty', 0.0),
             min_holding_weight=params.get('min_holding_weight', 0.0),
+            asset_constraints=params.get('asset_constraints'),
+            group_constraints=params.get('group_constraints'),
             cancel_event=job.cancel_event,
         )
 
@@ -1272,7 +1310,14 @@ def background_optimization(req_id, params):
             raise OptimizationCancelled("Optimization cancelled")
 
         if "error" in result:
-            push_progress(req_id, 0, 0, result["error"], status='error')
+            push_progress(
+                req_id,
+                0,
+                0,
+                result["error"],
+                status='error',
+                error_details=result,
+            )
         else:
             push_progress(
                 req_id,
@@ -1287,7 +1332,17 @@ def background_optimization(req_id, params):
         push_progress(req_id, 0, 0, str(e), status='cancelled')
     except Exception as e:
         app.logger.error(f"Background optimization failed: {e}")
-        push_progress(req_id, 0, 0, str(e), status='error')
+        push_progress(
+            req_id,
+            0,
+            0,
+            "Optimization failed because the request could not be completed.",
+            status='error',
+            error_details={
+                "error": "Optimization failed because the request could not be completed.",
+                "error_code": "OPTIMIZATION_FAILED",
+            },
+        )
 
 
 def _start_optimization_thread_if_needed(job, params):
@@ -1353,6 +1408,18 @@ def optimize_portfolio_endpoint():
             required=False,
             default=0.05
         )
+        l2_gamma = parse_float_param(
+            data.get('l2_gamma', 0.0),
+            'l2_gamma',
+            required=False,
+            default=0.0
+        )
+        max_asset_weight = parse_float_param(
+            data.get('max_asset_weight'),
+            'max_asset_weight',
+            required=False,
+            default=None
+        )
         rebalance_band = parse_float_param(
             data.get('rebalance_band'),
             'rebalance_band',
@@ -1378,20 +1445,30 @@ def optimize_portfolio_endpoint():
             default=0.0
         )
         current_weights = data.get('current_weights')
+        asset_constraints = normalize_asset_constraints(
+            data.get('asset_constraints')
+        )
+        group_constraints = normalize_group_constraints(
+            data.get('group_constraints')
+        )
         if forecast_horizon < 1 or forecast_horizon > 365:
             raise ValueError('forecast_horizon must be between 1 and 365')
         if min_history < 30:
             raise ValueError('min_history must be at least 30')
         if bl_tau <= 0:
             raise ValueError('bl_tau must be positive')
-        if rebalance_band is not None and rebalance_band < 0:
-            raise ValueError('rebalance_band must be non-negative')
-        if max_turnover is not None and max_turnover < 0:
-            raise ValueError('max_turnover must be non-negative')
+        if l2_gamma < 0:
+            raise ValueError('l2_gamma must be non-negative')
+        if max_asset_weight is not None and (max_asset_weight <= 0 or max_asset_weight > 1):
+            raise ValueError('max_asset_weight must be greater than 0 and at most 1')
+        if rebalance_band is not None and not 0 <= rebalance_band <= 1:
+            raise ValueError('rebalance_band must be between 0 and 1')
+        if max_turnover is not None and not 0 <= max_turnover <= 2:
+            raise ValueError('max_turnover must be between 0 and 2')
         if turnover_penalty < 0:
             raise ValueError('turnover_penalty must be non-negative')
-        if min_holding_weight < 0:
-            raise ValueError('min_holding_weight must be non-negative')
+        if not 0 <= min_holding_weight <= 1:
+            raise ValueError('min_holding_weight must be between 0 and 1')
         if optimization_method == "MIN_VARIANCE" and (
             target_return is not None or risk_tolerance is not None
         ):
@@ -1399,17 +1476,13 @@ def optimize_portfolio_endpoint():
                 "target_return and risk_tolerance are unavailable for "
                 "MIN_VARIANCE"
             )
-        if current_weights is not None:
-            if not isinstance(current_weights, dict):
-                raise ValueError('current_weights must be an object')
-            current_weights = {
-                normalize_ticker_param(ticker): parse_float_param(weight, f"current_weights.{ticker}", required=False, default=0.0)
-                for ticker, weight in current_weights.items()
-            }
+        current_weights = normalize_current_weights(current_weights)
         if tickers is not None:
             if not isinstance(tickers, list):
                 raise ValueError('tickers must be a list')
             tickers = [normalize_ticker_param(ticker) for ticker in tickers]
+    except ConstraintValidationError as e:
+        return jsonify(e.to_dict()), 400
     except (TypeError, ValueError) as e:
         return jsonify({"error": str(e)}), 400
 
@@ -1432,9 +1505,11 @@ def optimize_portfolio_endpoint():
         'persist_result': persist_result, 'load_if_available': load_if_available,
         'forecast_method': forecast_method, 'optimization_method': optimization_method,
         'forecast_horizon': forecast_horizon, 'bl_tau': bl_tau,
+        'l2_gamma': l2_gamma, 'max_asset_weight': max_asset_weight,
         'min_history': min_history, 'rebalance_band': rebalance_band,
         'max_turnover': max_turnover, 'current_weights': current_weights,
-        'turnover_penalty': turnover_penalty, 'min_holding_weight': min_holding_weight
+        'turnover_penalty': turnover_penalty, 'min_holding_weight': min_holding_weight,
+        'asset_constraints': asset_constraints, 'group_constraints': group_constraints
     }
     started = _start_optimization_thread_if_needed(job, params)
 
@@ -1649,6 +1724,18 @@ def manage_portfolio_endpoint():
                 required=False,
                 default=0.05
             )
+            l2_gamma = parse_float_param(
+                data.get('l2_gamma', 0.0),
+                'l2_gamma',
+                required=False,
+                default=0.0
+            )
+            max_asset_weight = parse_float_param(
+                data.get('max_asset_weight'),
+                'max_asset_weight',
+                required=False,
+                default=None
+            )
             rebalance_band = parse_float_param(
                 data.get('rebalance_band', DEFAULT_REBALANCE_BAND),
                 'rebalance_band',
@@ -1694,18 +1781,22 @@ def manage_portfolio_endpoint():
                 raise ValueError('min_history must be at least 30')
             if bl_tau <= 0:
                 raise ValueError('bl_tau must be positive')
-            if rebalance_band < 0:
-                raise ValueError('rebalance_band must be non-negative')
-            if max_turnover is not None and max_turnover < 0:
-                raise ValueError('max_turnover must be non-negative')
+            if l2_gamma < 0:
+                raise ValueError('l2_gamma must be non-negative')
+            if max_asset_weight is not None and (max_asset_weight <= 0 or max_asset_weight > 1):
+                raise ValueError('max_asset_weight must be greater than 0 and at most 1')
+            if not 0 <= rebalance_band <= 1:
+                raise ValueError('rebalance_band must be between 0 and 1')
+            if max_turnover is not None and not 0 <= max_turnover <= 2:
+                raise ValueError('max_turnover must be between 0 and 2')
             if transaction_cost_bps < 0 or transaction_cost_bps >= 10000:
                 raise ValueError(
                     'transaction_cost_bps must be non-negative and less than 10000'
                 )
             if turnover_penalty < 0:
                 raise ValueError('turnover_penalty must be non-negative')
-            if min_holding_weight < 0:
-                raise ValueError('min_holding_weight must be non-negative')
+            if not 0 <= min_holding_weight <= 1:
+                raise ValueError('min_holding_weight must be between 0 and 1')
             if optimization_method == "MIN_VARIANCE" and (
                 target_return is not None or risk_tolerance is not None
             ):
@@ -1730,6 +1821,8 @@ def manage_portfolio_endpoint():
             forecast_horizon=forecast_horizon,
             min_history=min_history,
             bl_tau=bl_tau,
+            l2_gamma=l2_gamma,
+            max_asset_weight=max_asset_weight,
             allow_fractional=allow_fractional,
             fractional_overrides=fractional_overrides,
             rebalance_band=rebalance_band,
@@ -1744,9 +1837,12 @@ def manage_portfolio_endpoint():
             return jsonify(result), 400
             
         return jsonify(result)
-    except Exception as e:
-        app.logger.error(f"manage_portfolio failed: {e}")
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        app.logger.exception("manage_portfolio failed")
+        return jsonify({
+            "error": "Portfolio management could not be completed.",
+            "error_code": "MANAGE_PORTFOLIO_FAILED",
+        }), 500
 
 if __name__ == '__main__':
     import multiprocessing as mp
