@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "split_id": "fama-french-12-industry-ff3-factor-risk-smoke-2021-2025-v1",
+  "role": "research",
+  "evaluation_start": "2020-12-31",
+  "evaluation_end": "2025-12-31",
+  "experiment_namespace": "ff3-factor-risk-gmv-v1-consumed-smoke",
+  "objectives": [
+    "factor_model_minimum_variance"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "bootstrap_samples": 2000,
+    "bootstrap_block_size": 21,
+    "bootstrap_minimum_probability": 0.95,
+    "risk_free_policy": "fred_dgs3mo_daily_equivalent",
+    "factor_model_minimum_variance_policy": {
+      "return_model": "asset_excess_return_on_ff3_with_intercept",
+      "factors": [
+        "mkt_rf",
+        "smb",
+        "hml"
+      ],
+      "exposure_window": 504,
+      "minimum_observations": 252,
+      "factor_covariance": "ewma_half_life_63_days",
+      "factor_covariance_diagonal_shrinkage": 0.25,
+      "specific_variance_cross_sectional_shrinkage": 0.5,
+      "specific_variance_daily_floor": 1e-08,
+      "psd_repair": "spectral_eigenvalue_floor_1e-12",
+      "failure_policy": "exact_ledoit_wolf_gmv_weights",
+      "tuned_parameters": "none"
+    }
+  },
+  "universe_manifest_sha256": "409362fc5d4e9cd778d93684172cf5b36bd9323518090d3bc8d12d1c131e343f",
+  "price_file_sha256": "26d3efcbd6711e072d3ba89959dea45aa92d122f7c92808479e66594d33a392d",
+  "factor_file_sha256": "015a593a033b3dab0662ef40017956acb85589ce2abd1d8014e4f16e550decd3",
+  "auxiliary_files": {},
+  "locked": true,
+  "promotion_use": "forbidden_non_promotion_smoke",
+  "consumed_origin": {
+    "prior_split_id": "fama-french-12-industry-conditional-volatility-research-2021-2025-v1",
+    "prior_manifest_sha256": "b790d0b67b864c536542c1f8fb933144754c24637c411359b92450b7bc3e07f4",
+    "reason": "same evaluation origin was consumed by prior conditional-risk research"
+  },
+  "manifest_sha256": "8061eee3562ad2988d1e76984bc2388841ec17d295755c199f7776e910732e3f"
+}

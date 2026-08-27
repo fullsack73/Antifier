@@ -57,11 +57,13 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 명시적 position embedding, ordered OHLCV patch, direct 21/63일 target, optional frozen Kronos context와 completed-OOS GMV fallback을 사용하는 research-only pooled Patch Transformer 경로
 - completed-OOS record만 사용하는 deterministic confidence gate와 gate 실패 시 exact-GMV fallback을 보장하는 research overlay
 - 기존 ARIMA + Transformer를 21일 실현 변동성 변화 예측에 재사용하고 Ledoit-Wolf correlation과 결합하는 conditional-risk research 경로
+- rolling FF3 exposure, shrinkage/EWMA factor covariance, shrinkage/floor specific risk와 exact Ledoit-Wolf fallback을 사용하는 research-only factor-model GMV 경로
 - SEC filing-date PIT fundamental loader와 날짜별 universe membership을 적용하는 survivorship-safe research data foundation
 - shrinkage/nested covariance conditioning, exact equal-risk-contribution, hierarchical risk parity, regime/minimum-CVaR, completed-feedback online allocator ensemble과 capped-simplex 제약을 검증하는 risk allocator research 경로
 - point-in-time market-cap enforcement, no-lookahead price/FX alignment, paired block bootstrap와 Holm multiple-testing correction을 포함한 quant-standard validation guardrail
 - candidate 4-case validation 후 standard 180-case와 별도 2024-2025 locked holdout으로 이어지는 staged gauntlet, basket/regime별 target 재사용, SQLite forecast cache, case checkpoint/resume
 - 2019-2025 French 12-industry fresh research에서 pooled relative-return 후보와 conditional-volatility GMV가 각각 signal/risk gate를 통과하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
+- 이미 소비된 동일 French 12-industry origin의 FF3 factor-risk smoke에서 변동성은 13.1933%에서 12.9661%로 낮아졌지만 paired 95%/Holm gate를 통과하지 못했고 fresh validation도 아니므로 production Ledoit-Wolf GMV를 유지한 기록
 - 이미 소비된 Kronos 4-case origin diagnostic에서 pooled Patch Transformer가 rank IC는 개선했지만 tail-spread/paired 95% gate를 통과하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 2024-2025 promotion-safe Nasdaq-100 PIT universe/OHLCV fresh validation에서 frozen pooled Patch Transformer가 absolute 및 paired 95% signal gate를 통과하지 못해 GMV overlay를 실행하지 않고 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 같은 consumed origin에서 고정 gamma 2.5%의 GMV + Patch Transformer/Kronos alpha tilt가 수익률·Sharpe를 소폭 높였지만 변동성과 paired 95% gate를 개선하지 못해 diagnostic-only로 유지한 기록
@@ -132,6 +134,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - alert/notification system
 - RSI, MACD, Bollinger Bands, Moving Average 등 technical indicator 확장
 - point-in-time factor hedge 및 ADV/liquidity constraint 연구
+- FF3 factor-risk GMV의 미사용 shadow-forward 구간 검증(현재 smoke 결과로 파라미터 재선택 금지)
 - 단위가 보정된 soft constraint priority와 mixed-integer exact cardinality 검증
 
 ## G. 비범위
