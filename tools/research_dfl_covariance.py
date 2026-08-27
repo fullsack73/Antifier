@@ -56,6 +56,23 @@ def _sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def _resolve_manifest_file(declared_path):
+    """Resolve a locked data path across repository checkouts."""
+    declared = Path(declared_path).expanduser()
+    if declared.exists():
+        return declared.resolve()
+    if not declared.is_absolute():
+        return (ROOT / declared).resolve()
+    parts = declared.parts
+    for index in range(len(parts) - 1):
+        if parts[index:index + 2] == ("data", "research"):
+            candidate = ROOT.joinpath(*parts[index:])
+            if candidate.exists():
+                return candidate.resolve()
+            break
+    return declared.resolve()
+
+
 def _canonical_digest(payload, excluded=()):
     content = {
         key: value
@@ -105,7 +122,9 @@ def load_locked_experiment(manifest_path, config_path):
         raise ValueError("Configuration SHA-256 does not match the manifest")
     if manifest["experiment_id"] != config["experiment_id"]:
         raise ValueError("Manifest and configuration experiment IDs differ")
-    source_path = Path(manifest["data"]["source_file"]).resolve()
+    source_path = _resolve_manifest_file(
+        manifest["data"]["source_file"]
+    )
     if manifest["data"]["source_file_sha256"] != _sha256(source_path):
         raise ValueError("Source archive SHA-256 does not match the manifest")
     returns = parse_value_weighted_daily_returns(source_path) * 100.0

@@ -20,6 +20,7 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 from research_dfl_covariance import (  # noqa: E402
+    _resolve_manifest_file,
     build_partition_samples,
     dfl_loss,
     fit_arm,
@@ -181,3 +182,16 @@ def test_locked_manifest_and_source_are_self_consistent():
     assert loaded_manifest["promotion_safe"] is False
     assert loaded_config["production_defaults_must_remain_unchanged"] is True
     assert returns.shape[1] == 49
+
+
+def test_locked_manifest_source_path_is_portable_across_checkouts():
+    declared = (
+        "/different/checkout/data/research/raw/market_factors/"
+        "49_Industry_Portfolios_daily_CSV.zip"
+    )
+
+    assert _resolve_manifest_file(declared) == (
+        ROOT
+        / "data/research/raw/market_factors/"
+        "49_Industry_Portfolios_daily_CSV.zip"
+    ).resolve()
