@@ -37,7 +37,7 @@
 - `npm run build`: 통과; 기존 Plotly large-chunk 비차단 경고만 발생
 - `PYTHONPATH=src/backend .venv/bin/python -m pytest tests`: 410 tests 통과
 - 추가 확인: strict JSON serialization, 외부 metadata 실패, 구조화 오류, MIN_VARIANCE/BL/MPT 공통 제약, threshold/turnover 사후 검증, SSE/background parameter 전달을 회귀 테스트로 검증했습니다.
-- `git diff --check`, locale JSON parse, backend module compile을 통과했습니다. Production dependency는 변경하지 않았고, 전체 backend test collection과 맞추기 위해 CI 전용 목록에 기존 runtime 고정값 `tensorflow==2.20.0`을 명시했습니다. Locked research manifest의 source path는 다른 checkout에서도 repository-relative fallback 후 동일 SHA-256을 검증합니다.
+- `git diff --check`, locale JSON parse, backend module compile을 통과했습니다. Production dependency는 변경하지 않았고, 전체 backend test collection과 맞추기 위해 CI 전용 목록에 기존 runtime 고정값 `tensorflow==2.20.0`을 명시했습니다. Locked research manifest의 source path는 다른 checkout에서도 repository-relative fallback 후 동일 SHA-256을 검증합니다. Upstream ZIP은 시간이 지나며 내용이 바뀌므로 manifest가 고정한 공개 원본 archive도 repository에 보존해 CI 재현성을 유지합니다.
 
 ## 리스크와 결정
 
