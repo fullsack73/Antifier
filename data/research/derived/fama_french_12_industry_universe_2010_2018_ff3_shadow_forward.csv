@@ -1,0 +1,13 @@
+effective_date,ticker,in_universe
+2010-01-04,NODUR,true
+2010-01-04,DURBL,true
+2010-01-04,MANUF,true
+2010-01-04,ENRGY,true
+2010-01-04,CHEMS,true
+2010-01-04,BUSEQ,true
+2010-01-04,TELCM,true
+2010-01-04,UTILS,true
+2010-01-04,SHOPS,true
+2010-01-04,HLTH,true
+2010-01-04,MONEY,true
+2010-01-04,OTHER,true

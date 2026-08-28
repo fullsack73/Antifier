@@ -88,7 +88,7 @@ Candidate는 point estimate에서 realized volatility를 22.7 bp 낮추고 Sharp
 
 ## 최종 결정
 
-FF3 factor-risk GMV는 point estimate에서는 기존 Ledoit-Wolf GMV를 개선했지만 paired 95% 및 Holm gate를 통과하지 못했고 split도 fresh하지 않습니다. 따라서 자동 승격하지 않고 production Ledoit-Wolf GMV를 유지합니다. 사양을 변경하지 않은 채 최소 20개의 새 63일 origin을 모으는 shadow-forward 검증을 `docs/todo/ff3-factor-risk-shadow-forward-validation.md`에서 추적합니다.
+FF3 factor-risk GMV는 point estimate에서는 기존 Ledoit-Wolf GMV를 개선했지만 paired 95% 및 Holm gate를 통과하지 못했고 split도 fresh하지 않습니다. 따라서 자동 승격하지 않고 production Ledoit-Wolf GMV를 유지합니다. 이후 사양을 변경하지 않은 shadow-forward 검증은 `docs/reports/260828-0359-01-ff3-factor-risk-shadow-forward-validation.md`에서 완료했으며 candidate는 다시 탈락했습니다.
 
 ## 산출물과 검증
 

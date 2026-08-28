@@ -64,6 +64,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - candidate 4-case validation 후 standard 180-case와 별도 2024-2025 locked holdout으로 이어지는 staged gauntlet, basket/regime별 target 재사용, SQLite forecast cache, case checkpoint/resume
 - 2019-2025 French 12-industry fresh research에서 pooled relative-return 후보와 conditional-volatility GMV가 각각 signal/risk gate를 통과하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 이미 소비된 동일 French 12-industry origin의 FF3 factor-risk smoke에서 변동성은 13.1933%에서 12.9661%로 낮아졌지만 paired 95%/Holm gate를 통과하지 못했고 fresh validation도 아니므로 production Ledoit-Wolf GMV를 유지한 기록
+- 동결 후 처음 개봉한 2012-2018 French 12-industry historical holdout의 완전한 63일 origin 27개에서 고정 FF3 factor-risk GMV가 변동성을 10.5515%에서 10.5426%로 0.89 bp만 낮추고 Sharpe와 paired 95%/Holm gate를 개선하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 이미 소비된 Kronos 4-case origin diagnostic에서 pooled Patch Transformer가 rank IC는 개선했지만 tail-spread/paired 95% gate를 통과하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 2024-2025 promotion-safe Nasdaq-100 PIT universe/OHLCV fresh validation에서 frozen pooled Patch Transformer가 absolute 및 paired 95% signal gate를 통과하지 못해 GMV overlay를 실행하지 않고 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 같은 consumed origin에서 고정 gamma 2.5%의 GMV + Patch Transformer/Kronos alpha tilt가 수익률·Sharpe를 소폭 높였지만 변동성과 paired 95% gate를 개선하지 못해 diagnostic-only로 유지한 기록
@@ -134,7 +135,6 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - alert/notification system
 - RSI, MACD, Bollinger Bands, Moving Average 등 technical indicator 확장
 - point-in-time factor hedge 및 ADV/liquidity constraint 연구
-- FF3 factor-risk GMV의 미사용 shadow-forward 구간 검증(현재 smoke 결과로 파라미터 재선택 금지)
 - 단위가 보정된 soft constraint priority와 mixed-integer exact cardinality 검증
 
 ## G. 비범위
