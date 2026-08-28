@@ -5,8 +5,10 @@ import argparse
 import hashlib
 import json
 import sys
+from collections import Counter
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -46,6 +48,7 @@ RISK_RESEARCH_MODELS = (
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
     "conditional_volatility_minimum_variance",
+    "factor_model_minimum_variance",
     "stability_regularized_min_variance",
     "nested_blended_min_variance",
     "resampled_min_variance",
@@ -73,6 +76,7 @@ RISK_CANDIDATES = (
     "cross_validated_min_variance",
     "forecast_ensemble_min_variance",
     "conditional_volatility_minimum_variance",
+    "factor_model_minimum_variance",
     "stability_regularized_min_variance",
     "nested_blended_min_variance",
     "resampled_min_variance",
@@ -142,6 +146,20 @@ def _research_settings(args):
             "correlation": "ledoit_wolf",
             "covariance": "diag_forecast_vol_correlation_diag_forecast_vol",
             "invalid_forecast": "ledoit_wolf_historical_volatility",
+        }
+    if "factor_model_minimum_variance" in args.candidates:
+        settings["factor_model_minimum_variance_policy"] = {
+            "return_model": "asset_excess_return_on_ff3_with_intercept",
+            "factors": ["mkt_rf", "smb", "hml"],
+            "exposure_window": int(args.train_window),
+            "minimum_observations": 252,
+            "factor_covariance": "ewma_half_life_63_days",
+            "factor_covariance_diagonal_shrinkage": 0.25,
+            "specific_variance_cross_sectional_shrinkage": 0.50,
+            "specific_variance_daily_floor": 1e-8,
+            "psd_repair": "spectral_eigenvalue_floor_1e-12",
+            "failure_policy": "exact_ledoit_wolf_gmv_weights",
+            "tuned_parameters": "none",
         }
     if "dual_horizon_momentum" in args.candidates:
         settings["dual_horizon_momentum_policy"] = {
@@ -377,6 +395,28 @@ def _load_risk_free_data(args):
     }
 
 
+def _load_factor_model_data(args):
+    if "factor_model_minimum_variance" not in args.candidates:
+        return None
+    if not args.risk_free_data:
+        raise ValueError(
+            "factor_model_minimum_variance requires --risk-free-data "
+            "with mkt_rf, smb, hml, and rf_daily"
+        )
+    frame = pd.read_csv(
+        Path(args.risk_free_data).expanduser().resolve(),
+        index_col=0,
+        parse_dates=True,
+    )
+    required = {"mkt_rf", "smb", "hml", "rf_daily"}
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise ValueError(
+            "Factor model data is missing: " + ", ".join(missing)
+        )
+    return frame
+
+
 def _risk_gate(summary, candidate_name):
     candidate = summary[candidate_name]
     equal = summary["equal_weight"]
@@ -402,6 +442,7 @@ def _risk_gate(summary, candidate_name):
                 "cross_validated_min_variance",
                 "forecast_ensemble_min_variance",
                 "conditional_volatility_minimum_variance",
+                "factor_model_minimum_variance",
                 "stability_regularized_min_variance",
                 "nested_blended_min_variance",
                 "resampled_min_variance",
@@ -474,6 +515,73 @@ def _risk_gate(summary, candidate_name):
     }
 
 
+def _factor_model_diagnostics(rebalance_records):
+    records = [
+        row.get("risk_model") or {}
+        for row in rebalance_records
+        if row.get("model") == "factor_model_minimum_variance"
+    ]
+    fallback_reasons = Counter(
+        str(row.get("fallback_reason"))
+        for row in records
+        if row.get("fallback_used")
+    )
+    condition_numbers = [
+        row.get("covariance", {}).get("condition_number")
+        for row in records
+        if row.get("covariance", {}).get("condition_number") is not None
+    ]
+    effective_ranks = [
+        row.get("covariance", {}).get("effective_rank")
+        for row in records
+        if row.get("covariance", {}).get("effective_rank") is not None
+    ]
+    exposure_changes = []
+    factor_changes = {name: [] for name in ("mkt_rf", "smb", "hml")}
+    estimated = [
+        row for row in records if not row.get("fallback_used")
+    ]
+    for previous, current in zip(estimated, estimated[1:]):
+        left = previous.get("factor_exposures", {})
+        right = current.get("factor_exposures", {})
+        for ticker in sorted(set(left) & set(right)):
+            delta = np.asarray([
+                float(right[ticker][name]) - float(left[ticker][name])
+                for name in factor_changes
+            ])
+            exposure_changes.append(float(np.linalg.norm(delta)))
+            for index, name in enumerate(factor_changes):
+                factor_changes[name].append(abs(float(delta[index])))
+    return {
+        "rebalance_count": int(len(records)),
+        "estimated_count": int(len(estimated)),
+        "fallback_count": int(sum(fallback_reasons.values())),
+        "fallback_rate": (
+            0.0 if not records else float(sum(fallback_reasons.values()) / len(records))
+        ),
+        "fallback_reasons": dict(sorted(fallback_reasons.items())),
+        "average_covariance_condition_number": (
+            None if not condition_numbers else float(np.mean(condition_numbers))
+        ),
+        "average_covariance_effective_rank": (
+            None if not effective_ranks else float(np.mean(effective_ranks))
+        ),
+        "factor_exposure_stability": {
+            "successive_ticker_pair_count": int(len(exposure_changes)),
+            "mean_l2_change": (
+                None if not exposure_changes else float(np.mean(exposure_changes))
+            ),
+            "median_l2_change": (
+                None if not exposure_changes else float(np.median(exposure_changes))
+            ),
+            "mean_absolute_change_by_factor": {
+                name: (None if not values else float(np.mean(values)))
+                for name, values in factor_changes.items()
+            },
+        },
+    }
+
+
 def _fmt(value):
     return "NA" if value is None else f"{float(value):.4f}"
 
@@ -487,7 +595,8 @@ def _write_report(payload, output_path):
         f"- Rows: {payload['data']['row_count']}",
         f"- Tickers: {payload['data']['ticker_count']}",
         f"- Data promotion safe: `{payload['data_promotion_safe']}`",
-        f"- Split locked: `{payload['split']['promotion_safe']}`",
+        f"- Manifest locked: `{payload['split'].get('locked', False)}`",
+        f"- Promotion safe: `{payload['split']['promotion_safe']}`",
         f"- Risk gate passed: `{payload['risk_gate_passed']}`",
         f"- Promotion eligible: `{payload['promotion_eligible']}`",
         "",
@@ -526,6 +635,15 @@ def _write_report(payload, output_path):
             )
         )
     lines.extend([
+        "",
+        "## FF3 diagnostics",
+        "",
+        "```json",
+        json.dumps(
+            payload.get("factor_model_diagnostics", {}),
+            indent=2,
+        ),
+        "```",
         "",
         "## Guardrail",
         "",
@@ -594,6 +712,8 @@ def main(argv=None):
         prices = _load_prices(args)
         risk_free_daily, risk_free_provenance = _load_risk_free_data(args)
         candidates = list(dict.fromkeys(args.candidates))
+        args.candidates = candidates
+        factor_model_data = _load_factor_model_data(args)
         args.auxiliary_files = _load_replication_auxiliary_files(
             args,
             candidates,
@@ -643,6 +763,7 @@ def main(argv=None):
             max_turnover=args.max_turnover,
             include_daily_returns=True,
             risk_free_daily_returns=risk_free_daily,
+            factor_data=factor_model_data,
         )
         deterministic_gates = {
             candidate: _risk_gate(result["summary_by_model"], candidate)
@@ -713,6 +834,20 @@ def main(argv=None):
         )
         data_promotion_safe = bool(
             price_provenance.get("promotion_safe", False)
+            and (
+                factor_model_data is None
+                or (risk_free_provenance or {}).get(
+                    "promotion_safe", False
+                )
+            )
+        )
+        split_promotion_safe = bool(
+            split_manifest.get("promotion_safe", False)
+            and split_manifest.get("promotion_use")
+            != "forbidden_non_promotion_smoke"
+        )
+        factor_diagnostics = _factor_model_diagnostics(
+            result["rebalance_records"]
         )
         payload = {
             "research_split": args.research_split,
@@ -721,10 +856,13 @@ def main(argv=None):
             "risk_gate_passed": risk_gate_passed,
             "promotion_eligible": bool(
                 data_promotion_safe
-                and split_manifest.get("promotion_safe", False)
+                and split_promotion_safe
                 and risk_gate_passed
             ),
-            "split": split_manifest,
+            "split": {
+                **split_manifest,
+                "promotion_safe": split_promotion_safe,
+            },
             "data": {
                 "source": (
                     str(Path(args.csv).expanduser().resolve())
@@ -738,6 +876,11 @@ def main(argv=None):
                 "tickers": list(prices.columns),
                 "provenance": price_provenance,
                 "risk_free_provenance": risk_free_provenance,
+                "factor_provenance": (
+                    risk_free_provenance
+                    if factor_model_data is not None
+                    else None
+                ),
             },
             "settings": _research_settings(args),
             "models": models,
@@ -747,6 +890,7 @@ def main(argv=None):
             "statistical_risk_gates": statistical_gates,
             "paired_bootstrap": paired_bootstrap,
             "familywise_statistical_gate": familywise,
+            "factor_model_diagnostics": factor_diagnostics,
             "result": result,
         }
         output_path = Path(args.output)
