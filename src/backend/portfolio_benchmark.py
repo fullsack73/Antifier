@@ -12,6 +12,7 @@ import pandas as pd
 import yfinance as yf
 
 from portfolio_optimization import _convert_price_data_to_usd, _extract_close_series
+from ticker_symbols import normalize_yahoo_ticker
 
 
 def _normalize_date_index(series):
@@ -59,7 +60,7 @@ def calculate_portfolio_benchmark(portfolio_data, budget, start_date, end_date, 
         except (TypeError, ValueError):
             raise ValueError(f"Invalid portfolio weight for {ticker}")
         if numeric_weight > 0:
-            cleaned_weights[str(ticker).strip().upper()] = numeric_weight
+            cleaned_weights[normalize_yahoo_ticker(ticker)] = numeric_weight
 
     if not cleaned_weights:
         raise ValueError("Portfolio weights must include at least one positive asset weight")

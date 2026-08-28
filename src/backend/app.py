@@ -46,6 +46,7 @@ from portfolio_constraints import (
     normalize_group_constraints,
 )
 from stock_screener import search_stocks
+from ticker_symbols import normalize_yahoo_ticker
 
 
 app = Flask(__name__)
@@ -133,7 +134,17 @@ def normalize_ticker_param(value, default=None, field_name="ticker"):
         raise ValueError(f"{field_name} is required")
     if not SAFE_TICKER_PATTERN.fullmatch(ticker):
         raise ValueError(f"{field_name} contains invalid characters")
-    return ticker
+    return normalize_yahoo_ticker(ticker)
+
+
+def normalize_ticker_mapping(value, field_name):
+    normalized = {}
+    for raw_ticker, item in value.items():
+        ticker = normalize_ticker_param(raw_ticker, field_name=field_name)
+        if ticker in normalized:
+            raise ValueError(f"{field_name} contains duplicate ticker {ticker}")
+        normalized[ticker] = item
+    return normalized
 
 
 def parse_float_param(value, field_name, required=True, default=None):
@@ -1690,6 +1701,16 @@ def manage_portfolio_endpoint():
             return jsonify({'error': 'tickers must be a list'}), 400
 
         try:
+            current_holdings = normalize_ticker_mapping(
+                current_holdings,
+                'current_holdings',
+            )
+            fractional_overrides = normalize_ticker_mapping(
+                fractional_overrides,
+                'fractional_overrides',
+            )
+            if tickers is not None:
+                tickers = [normalize_ticker_param(ticker) for ticker in tickers]
             start_date, end_date = validate_date_range(start_date_str, end_date_str)
             cash_injection = parse_float_param(
                 data.get('cash_injection', 0.0),

@@ -6,6 +6,7 @@ import numpy as np
 from cache_manager import cached, get_cache
 from financial_statement import build_financial_decision_summary
 from ticker_lists import get_ticker_group
+from ticker_symbols import normalize_yahoo_ticker
 import time
 from contextlib import contextmanager
 
@@ -143,7 +144,7 @@ def _normalize_operator(operator):
 
 def _normalize_ticker_list(tickers):
     normalized = {
-        str(ticker or '').strip().upper()
+        normalize_yahoo_ticker(ticker)
         for ticker in (tickers or [])
         if str(ticker or '').strip()
     }

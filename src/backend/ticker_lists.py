@@ -2,6 +2,8 @@ import pandas as pd
 import os
 import logging
 
+from ticker_symbols import normalize_yahoo_ticker
+
 logger = logging.getLogger(__name__)
 
 # Helper to find file in CWD or up one level (root)
@@ -26,7 +28,7 @@ def get_sp500_tickers():
         csv_path = find_file('snp.csv')
         if csv_path:
             df = pd.read_csv(csv_path)
-            return df['Symbol'].tolist()
+            return [normalize_yahoo_ticker(symbol) for symbol in df['Symbol'].tolist()]
         else:
             logger.error("snp.csv not found")
             return []
