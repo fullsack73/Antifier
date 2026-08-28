@@ -62,7 +62,7 @@ src/backend/
 ├─ forecast_signal_research.py        # forecast 분포와 completed-OOS sequential confidence gate
 ├─ cross_sectional_forecast.py        # pooled linear/ranking/nonlinear walk-forward research
 ├─ pooled_patch_transformer.py        # research-only pooled Patch Transformer, Kronos context, direct-horizon gate
-├─ portfolio_risk_models.py           # robust risk model과 conditional-volatility covariance 연구
+├─ portfolio_risk_models.py           # robust/conditional-volatility/FF3 factor covariance 연구
 ├─ portfolio_statistics.py            # paired block bootstrap와 multiple-testing gate
 ├─ sec_point_in_time.py               # SEC filing-date 기준 PIT 재무 factor 생성
 ├─ research_split.py                   # split hash와 baseline/candidate 공통 실행 계약 검증
@@ -167,7 +167,7 @@ tools/
 ├─ build_historical_price_panel.py      # ticker alias와 SHA provenance를 갖는 historical price panel
 ├─ build_research_price_panel.py        # explicit research basket 가격과 SHA provenance 생성
 ├─ build_market_factor_panel.py         # French factors + FRED DGS3MO PIT-aligned panel
-├─ research_risk_allocators.py        # research-only risk allocator 비교
+├─ research_risk_allocators.py        # research-only risk allocator/FF3 GMV 비교
 ├─ research_mean_shrinkage.py         # locked expected-return shrinkage 비교
 ├─ research_high_momentum.py          # 52-week-high/momentum signal gate
 ├─ research_raw_momentum.py           # raw momentum vs live-default gate

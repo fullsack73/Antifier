@@ -26,6 +26,16 @@ from portfolio_signals import (
 
 
 TRADING_DAYS_PER_YEAR = 252
+FF3_FACTOR_RISK_POLICY = {
+    "factors": ("mkt_rf", "smb", "hml"),
+    "risk_free_column": "rf_daily",
+    "minimum_observations": 252,
+    "factor_covariance_half_life": 63,
+    "factor_covariance_diagonal_shrinkage": 0.25,
+    "specific_variance_cross_sectional_shrinkage": 0.50,
+    "specific_variance_daily_floor": 1e-8,
+    "annualization": TRADING_DAYS_PER_YEAR,
+}
 ONLINE_ALLOCATOR_ENSEMBLE_POLICY = {
     "experts": (
         "equal_weight",
@@ -424,6 +434,224 @@ def conditional_volatility_minimum_variance_weights(
         max_asset_weight,
     )
     diagnostics["optimizer_success"] = bool(success)
+    return weights, diagnostics
+
+
+def _ff3_fallback(fallback_weights, tickers, reason):
+    weights = (
+        pd.Series(fallback_weights, dtype=float)
+        .reindex(tickers)
+        .fillna(0.0)
+    )
+    return weights, {
+        "method": "ff3_factor_model_minimum_variance",
+        "status": "ledoit_wolf_fallback",
+        "fallback_used": True,
+        "fallback_reason": str(reason),
+        "optimizer_success": False,
+    }
+
+
+def ff3_factor_model_covariance(
+    price_data,
+    factor_data,
+    *,
+    minimum_observations=252,
+    factor_covariance_half_life=63,
+    factor_covariance_diagonal_shrinkage=0.25,
+    specific_variance_cross_sectional_shrinkage=0.50,
+    specific_variance_daily_floor=1e-8,
+):
+    """Estimate a no-lookahead FF3 factor covariance for research."""
+    prices = _clean_prices(price_data).dropna(how="any")
+    tickers = list(prices.columns)
+    if len(tickers) < 2:
+        raise ValueError("insufficient_asset_count")
+
+    factors = pd.DataFrame(factor_data).copy()
+    factors.index = pd.to_datetime(factors.index)
+    factors = (
+        factors.sort_index()
+        .apply(pd.to_numeric, errors="coerce")
+        .replace([np.inf, -np.inf], np.nan)
+    )
+    required = [*FF3_FACTOR_RISK_POLICY["factors"], "rf_daily"]
+    missing = [column for column in required if column not in factors]
+    if missing:
+        raise ValueError("missing_factor_columns:" + ",".join(missing))
+
+    returns = prices.pct_change(fill_method=None).dropna(how="any")
+    factors = factors.loc[factors.index <= prices.index[-1], required]
+    aligned = returns.join(factors, how="inner").dropna()
+    minimum_observations = max(5, int(minimum_observations))
+    if len(aligned) < minimum_observations:
+        raise ValueError("insufficient_aligned_observations")
+
+    factor_names = list(FF3_FACTOR_RISK_POLICY["factors"])
+    factor_values = aligned[factor_names].to_numpy(dtype=float)
+    design = np.column_stack([np.ones(len(aligned)), factor_values])
+    if np.linalg.matrix_rank(design) < design.shape[1]:
+        raise ValueError("rank_deficient_factor_design")
+
+    betas = []
+    residual_variances = []
+    exposures = {}
+    for ticker in tickers:
+        excess = (
+            aligned[ticker] - aligned["rf_daily"]
+        ).to_numpy(dtype=float)
+        coefficients, _, rank, _ = np.linalg.lstsq(
+            design,
+            excess,
+            rcond=None,
+        )
+        if rank < design.shape[1] or not np.isfinite(coefficients).all():
+            raise ValueError(f"regression_failure:{ticker}")
+        residuals = excess - design @ coefficients
+        variance = float(np.var(residuals, ddof=design.shape[1]))
+        if not np.isfinite(variance) or variance < 0.0:
+            raise ValueError(f"invalid_specific_variance:{ticker}")
+        betas.append(coefficients[1:])
+        residual_variances.append(variance)
+        exposures[str(ticker)] = {
+            "intercept": float(coefficients[0]),
+            **{
+                name: float(value)
+                for name, value in zip(factor_names, coefficients[1:])
+            },
+        }
+
+    half_life = max(1.0, float(factor_covariance_half_life))
+    ages = np.arange(len(factor_values) - 1, -1, -1, dtype=float)
+    ewma_weights = np.exp(np.log(0.5) * ages / half_life)
+    ewma_weights /= ewma_weights.sum()
+    factor_mean = ewma_weights @ factor_values
+    centered = factor_values - factor_mean
+    factor_covariance = (
+        centered.T @ (centered * ewma_weights[:, None])
+    )
+    factor_shrinkage = float(
+        np.clip(factor_covariance_diagonal_shrinkage, 0.0, 1.0)
+    )
+    factor_covariance = (
+        (1.0 - factor_shrinkage) * factor_covariance
+        + factor_shrinkage * np.diag(np.diag(factor_covariance))
+    )
+
+    specific = np.asarray(residual_variances, dtype=float)
+    specific_target = float(np.median(specific))
+    specific_shrinkage = float(
+        np.clip(specific_variance_cross_sectional_shrinkage, 0.0, 1.0)
+    )
+    specific = (
+        (1.0 - specific_shrinkage) * specific
+        + specific_shrinkage * specific_target
+    )
+    specific = np.maximum(
+        specific,
+        max(0.0, float(specific_variance_daily_floor)),
+    )
+
+    beta_matrix = np.asarray(betas, dtype=float)
+    covariance_values = (
+        beta_matrix @ factor_covariance @ beta_matrix.T
+        + np.diag(specific)
+    ) * TRADING_DAYS_PER_YEAR
+    covariance_values = (
+        covariance_values + covariance_values.T
+    ) / 2.0
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance_values)
+    repaired = bool(np.min(eigenvalues) < 0.0)
+    eigenvalues = np.maximum(eigenvalues, 1e-12)
+    covariance_values = (
+        eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
+    )
+    covariance_values = (
+        covariance_values + covariance_values.T
+    ) / 2.0
+    if not np.isfinite(covariance_values).all():
+        raise ValueError("nonfinite_factor_covariance")
+    covariance = pd.DataFrame(
+        covariance_values,
+        index=tickers,
+        columns=tickers,
+    )
+    return covariance, {
+        "method": "ff3_factor_covariance",
+        "status": "estimated",
+        "fallback_used": False,
+        "observation_count": int(len(aligned)),
+        "estimation_start_date": aligned.index[0].strftime("%Y-%m-%d"),
+        "estimation_end_date": aligned.index[-1].strftime("%Y-%m-%d"),
+        "factor_last_date": factors.index.max().strftime("%Y-%m-%d"),
+        "factor_names": factor_names,
+        "factor_exposures": exposures,
+        "factor_covariance": {
+            name: {
+                other: float(
+                    factor_covariance[row, column]
+                    * TRADING_DAYS_PER_YEAR
+                )
+                for column, other in enumerate(factor_names)
+            }
+            for row, name in enumerate(factor_names)
+        },
+        "specific_variances": {
+            str(ticker): float(value * TRADING_DAYS_PER_YEAR)
+            for ticker, value in zip(tickers, specific)
+        },
+        "policy": {
+            "minimum_observations": minimum_observations,
+            "factor_covariance_half_life": half_life,
+            "factor_covariance_diagonal_shrinkage": factor_shrinkage,
+            "specific_variance_cross_sectional_shrinkage": (
+                specific_shrinkage
+            ),
+            "specific_variance_daily_floor": float(
+                specific_variance_daily_floor
+            ),
+            "annualization": TRADING_DAYS_PER_YEAR,
+        },
+        "psd_repaired": repaired,
+        "covariance": covariance_diagnostics(covariance),
+        "annual_covariance": covariance.to_dict(),
+    }
+
+
+def factor_model_minimum_variance_weights(
+    price_data,
+    factor_data,
+    *,
+    fallback_weights,
+    max_asset_weight=0.20,
+    **covariance_options,
+):
+    """Research-only FF3 GMV with exact Ledoit-Wolf weight fallback."""
+    tickers = list(_clean_prices(price_data).columns)
+    try:
+        covariance, diagnostics = ff3_factor_model_covariance(
+            price_data,
+            factor_data,
+            **covariance_options,
+        )
+    except Exception as exc:
+        return _ff3_fallback(fallback_weights, tickers, exc)
+    weights, success = _minimum_variance_from_covariance(
+        covariance,
+        tickers,
+        max_asset_weight,
+    )
+    if not success:
+        return _ff3_fallback(
+            fallback_weights,
+            tickers,
+            "solver_failure",
+        )
+    diagnostics.update({
+        "method": "ff3_factor_model_minimum_variance",
+        "status": "candidate",
+        "optimizer_success": True,
+    })
     return weights, diagnostics
 
 

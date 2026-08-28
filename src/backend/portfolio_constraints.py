@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linprog
 
+from ticker_symbols import normalize_yahoo_ticker
+
 try:
     import cvxpy as cp
 except Exception:  # pragma: no cover - PyPortfolioOpt normally installs cvxpy.
@@ -105,15 +107,16 @@ def normalize_asset_constraints(value):
                 constraint=f"asset_constraints[{index}]",
                 requested_value=item,
             )
-        ticker = str(item.get("ticker") or "").strip().upper()
-        if not TICKER_PATTERN.fullmatch(ticker):
+        raw_ticker = str(item.get("ticker") or "").strip().upper()
+        if not TICKER_PATTERN.fullmatch(raw_ticker):
             raise ConstraintValidationError(
                 "INVALID_TICKER",
                 f"asset_constraints[{index}].ticker is invalid",
                 constraint=f"asset_constraints[{index}].ticker",
                 requested_value=item.get("ticker"),
-                affected_tickers=[ticker] if ticker else [],
+                affected_tickers=[raw_ticker] if raw_ticker else [],
             )
+        ticker = normalize_yahoo_ticker(raw_ticker)
         if ticker in seen:
             raise ConstraintValidationError(
                 "DUPLICATE_CONSTRAINT",
@@ -236,6 +239,14 @@ def normalize_current_weights(value):
                 constraint="current_weights",
                 requested_value=raw_ticker,
                 affected_tickers=[ticker] if ticker else [],
+            )
+        ticker = normalize_yahoo_ticker(ticker)
+        if ticker in normalized:
+            raise ConstraintValidationError(
+                "DUPLICATE_CURRENT_WEIGHT",
+                f"Duplicate current weight for {ticker}",
+                constraint="current_weights",
+                affected_tickers=[ticker],
             )
         try:
             weight = float(raw_weight)
