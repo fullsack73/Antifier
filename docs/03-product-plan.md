@@ -120,7 +120,11 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 ### 4. Portfolio Management / Benchmark
 
-- 현재 보유 수량, 현금 주입, 목표 weight를 바탕으로 리밸런싱 주문을 계산합니다.
+- 기본 `새 GMV로 재최적화`는 현재 보유 수량과 최신 데이터로 production `MIN_VARIANCE + RISK_ONLY` Ledoit-Wolf 목표를 새로 계산합니다.
+- `불러온 목표 비중으로 리밸런싱`은 Optimizer/Portfolio Manager/호환 JSON의 top-level `weights`만 고정 목표로 사용합니다. JSON의 과거 보유 수량, 가격과 거래 목록은 신뢰하지 않고 사용자가 별도로 입력한 실제 수량과 실행 시점 최신 가격을 사용합니다.
+- 별도 기존 현금 입력은 없으며 `cash_injection`은 새 외부 자금입니다. 매도대금은 리밸런싱 내부 자금이고 weight 합계의 나머지는 비용 전 목표 cash, `remaining_cash`는 거래비용과 정수 반올림 이후 잔액입니다.
+- Turnover는 매수와 매도의 절대 금액을 합한 gross L1 방식입니다. 고정 목표도 기존 band, gross turnover cap, transaction cost와 fractional-share 설정을 동일하게 적용합니다.
+- 결과는 분석용 거래 제안일 뿐 실제 주문이나 broker 호출을 실행하지 않습니다. 과거 목표 복원은 미래 성과 검증, 연구 evidence 소비 또는 production optimizer 승격을 의미하지 않습니다.
 - fractional share 허용 여부와 ticker별 예외를 고려합니다.
 - benchmark는 동일한 기간과 통화 기준으로 비교해야 합니다.
 

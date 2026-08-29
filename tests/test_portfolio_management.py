@@ -15,7 +15,12 @@ sys.modules['tensorflow.keras.callbacks'] = MagicMock()
 
 # Now import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src/backend')))
-from portfolio_optimization import calculate_rebalance_orders, iteratively_solve_max_sharpe
+from portfolio_optimization import (
+    calculate_rebalance_orders,
+    canonical_target_weights_sha256,
+    iteratively_solve_max_sharpe,
+    normalize_fixed_target_weights,
+)
 from portfolio_optimization import _convert_price_data_to_usd, _get_ticker_currency
 from portfolio_optimization import optimize_portfolio, manage_portfolio_logic
 from app import app, normalize_history_close_to_usd, build_historical_log_trend_regression
@@ -34,6 +39,100 @@ def test_calculate_rebalance_orders_no_injection():
     assert result["execution_price_coverage"] == 1.0
     assert len(result["buy_list"]) == 0
     assert len(result["sell_list"]) == 0
+
+
+def test_fixed_target_weight_validation_and_hash_are_deterministic():
+    left = normalize_fixed_target_weights({"MSFT": 0.4, "AAPL": 0.6})
+    right = normalize_fixed_target_weights({"AAPL": 0.6, "MSFT": 0.4})
+
+    assert left == right == {"AAPL": 0.6, "MSFT": 0.4}
+    assert canonical_target_weights_sha256(left) == canonical_target_weights_sha256(right)
+    assert sum(normalize_fixed_target_weights({"AAPL": 1.0 + 5e-9}).values()) == pytest.approx(1.0)
+
+    with pytest.raises(ValueError, match="duplicate ticker BRK-B"):
+        normalize_fixed_target_weights({"BRK.B": 0.5, "BRK-B": 0.5})
+    with pytest.raises(ValueError, match="must not be empty"):
+        normalize_fixed_target_weights({})
+    with pytest.raises(ValueError, match="finite non-negative"):
+        normalize_fixed_target_weights({"AAPL": np.nan})
+    with pytest.raises(ValueError, match="finite non-negative"):
+        normalize_fixed_target_weights({"AAPL": True})
+    with pytest.raises(ValueError, match="sum to 1 or less"):
+        normalize_fixed_target_weights({"AAPL": 1.001})
+
+
+def test_fixed_target_uses_fresh_prices_without_optimizer_and_preserves_cash():
+    provenance = {
+        "status": "complete",
+        "coverage": 1.0,
+        "available_through": "2026-08-28",
+        "missing_tickers": [],
+    }
+    with patch(
+        "portfolio_optimization.fetch_latest_execution_prices",
+        return_value=({"AAPL": 100.0, "MSFT": 100.0}, provenance),
+    ), patch("portfolio_optimization.optimize_portfolio") as mock_optimize, patch(
+        "portfolio_optimization.get_asset_names",
+        return_value={"AAPL": "Apple", "MSFT": "Microsoft"},
+    ):
+        result = manage_portfolio_logic(
+            current_holdings={"AAPL": 10.0},
+            cash_injection=0.0,
+            start_date=None,
+            end_date=None,
+            risk_free_rate=0.0,
+            calculation_mode="FIXED_TARGET",
+            target_weights={"AAPL": 0.4, "MSFT": 0.4},
+            imported_target={"file_name": "six-month-old.json"},
+            rebalance_band=0.0,
+            max_turnover=None,
+            transaction_cost_bps=10.0,
+        )
+
+    mock_optimize.assert_not_called()
+    assert result["calculation_mode"] == "FIXED_TARGET"
+    assert result["prices"] == {"AAPL": 100.0, "MSFT": 100.0}
+    assert result["target_cash_weight"] == pytest.approx(0.2)
+    assert result["current_holdings_value"] == pytest.approx(1000.0)
+    assert result["requested_target_risky_value"] == pytest.approx(800.0)
+    assert result["requested_target_cash_value"] == pytest.approx(200.0)
+    assert result["sell_list"]["AAPL"]["quantity"] == pytest.approx(6.0)
+    assert result["buy_list"]["MSFT"]["quantity"] == pytest.approx(4.0)
+    assert result["gross_trade_value"] == pytest.approx(1000.0)
+    assert result["gross_turnover"] == pytest.approx(1.0)
+    assert result["transaction_cost"] == pytest.approx(1.0)
+    assert result["remaining_cash"] == pytest.approx(199.0)
+    assert result["accounting_diagnostics"]["requested_target_identity"] == pytest.approx(1000.0)
+    assert result["accounting_diagnostics"]["executed_wealth_identity"] == pytest.approx(1000.0)
+
+
+def test_fixed_target_missing_fresh_price_returns_no_partial_orders():
+    with patch(
+        "portfolio_optimization.fetch_latest_execution_prices",
+        return_value=(
+            {"AAPL": 100.0},
+            {
+                "status": "partial",
+                "coverage": 0.5,
+                "missing_tickers": ["MSFT"],
+            },
+        ),
+    ), patch("portfolio_optimization.optimize_portfolio") as mock_optimize:
+        result = manage_portfolio_logic(
+            current_holdings={"AAPL": 1.0},
+            cash_injection=0.0,
+            start_date=None,
+            end_date=None,
+            risk_free_rate=0.0,
+            calculation_mode="FIXED_TARGET",
+            target_weights={"MSFT": 1.0},
+        )
+
+    mock_optimize.assert_not_called()
+    assert result["execution_price_coverage"] == pytest.approx(0.5)
+    assert result["missing_price_tickers"] == ["MSFT"]
+    assert "buy_list" not in result
+    assert "sell_list" not in result
 
 
 @pytest.mark.parametrize("invalid_price", [None, 0.0, -1.0, np.nan, np.inf])
@@ -485,6 +584,86 @@ def test_manage_portfolio_api(client):
         assert "buy_list" in data
         assert data["total_target_value"] == 3000.0
         assert mock_logic.call_args.kwargs["transaction_cost_bps"] == 10.0
+        assert mock_logic.call_args.kwargs["calculation_mode"] == "REOPTIMIZE"
+
+
+def test_manage_portfolio_api_accepts_fixed_target_without_optimizer_dates(client):
+    with patch("app.manage_portfolio_logic") as mock_logic:
+        mock_logic.return_value = {
+            "calculation_mode": "FIXED_TARGET",
+            "weights": {"AAPL": 0.8},
+            "target_cash_weight": 0.2,
+            "buy_list": {},
+            "sell_list": {},
+        }
+        response = client.post('/api/manage-portfolio', json={
+            "calculation_mode": "FIXED_TARGET",
+            "current_holdings": {"AAPL": 2.0},
+            "cash_injection": 0.0,
+            "target_weights": {"AAPL": 0.8},
+            "imported_target": {
+                "file_name": "optimizer.json",
+                "portfolio_id": "gmv-2026-02",
+                "exported_at": "2026-02-01T00:00:00Z",
+            },
+        })
+
+    assert response.status_code == 200
+    kwargs = mock_logic.call_args.kwargs
+    assert kwargs["start_date"] is None
+    assert kwargs["end_date"] is None
+    assert kwargs["target_weights"] == {"AAPL": 0.8}
+    assert kwargs["imported_target"]["file_name"] == "optimizer.json"
+
+
+def test_manage_portfolio_api_rejects_fixed_target_alias_collision(client):
+    response = client.post('/api/manage-portfolio', json={
+        "calculation_mode": "FIXED_TARGET",
+        "current_holdings": {"AAPL": 2.0},
+        "target_weights": {"BRK.B": 0.5, "BRK-B": 0.5},
+    })
+
+    assert response.status_code == 400
+    assert "duplicate ticker BRK-B" in response.get_json()["error"]
+
+
+def test_manage_portfolio_api_fixed_target_fixture_smoke(client):
+    with patch(
+        "portfolio_optimization.fetch_latest_execution_prices",
+        return_value=(
+            {"AAPL": 200.0, "MSFT": 100.0},
+            {
+                "status": "complete",
+                "coverage": 1.0,
+                "available_through": "2026-08-28",
+                "missing_tickers": [],
+            },
+        ),
+    ), patch(
+        "portfolio_optimization.get_asset_names",
+        return_value={"AAPL": "Apple", "MSFT": "Microsoft"},
+    ), patch("portfolio_optimization.optimize_portfolio") as mock_optimize:
+        response = client.post('/api/manage-portfolio', json={
+            "calculation_mode": "FIXED_TARGET",
+            "current_holdings": {"AAPL": 2.0},
+            "cash_injection": 100.0,
+            "target_weights": {"AAPL": 0.5, "MSFT": 0.3},
+            "rebalance_band": 0.0,
+            "max_turnover": 2.0,
+            "transaction_cost_bps": 0.0,
+            "allow_fractional": True,
+        })
+
+    mock_optimize.assert_not_called()
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["calculation_mode"] == "FIXED_TARGET"
+    assert payload["current_holdings_value"] == pytest.approx(400.0)
+    assert payload["total_target_value"] == pytest.approx(500.0)
+    assert payload["requested_target_risky_value"] == pytest.approx(400.0)
+    assert payload["requested_target_cash_value"] == pytest.approx(100.0)
+    assert payload["buy_list"]["MSFT"]["quantity"] == pytest.approx(1.5)
+    assert payload["sell_list"]["AAPL"]["quantity"] == pytest.approx(0.75)
 
 
 def test_manage_portfolio_api_returns_400_for_incomplete_execution_prices(client):

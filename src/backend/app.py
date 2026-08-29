@@ -1676,7 +1676,12 @@ def manage_portfolio_endpoint():
         if not data:
             return jsonify({'error': 'Request must be JSON'}), 400
             
+        calculation_mode = str(
+            data.get('calculation_mode', 'REOPTIMIZE')
+        ).strip().upper()
         current_holdings = data.get('current_holdings', {})
+        target_weights = data.get('target_weights')
+        imported_target = data.get('imported_target', {})
         start_date_str = data.get('start_date')
         end_date_str = data.get('end_date')
         
@@ -1695,6 +1700,14 @@ def manage_portfolio_endpoint():
 
         if not isinstance(current_holdings, dict):
             return jsonify({'error': 'current_holdings must be an object'}), 400
+        if calculation_mode not in {'REOPTIMIZE', 'FIXED_TARGET'}:
+            return jsonify({
+                'error': 'calculation_mode must be REOPTIMIZE or FIXED_TARGET'
+            }), 400
+        if calculation_mode == 'FIXED_TARGET' and not isinstance(target_weights, dict):
+            return jsonify({'error': 'target_weights must be an object'}), 400
+        if not isinstance(imported_target, dict):
+            return jsonify({'error': 'imported_target must be an object'}), 400
         if not isinstance(fractional_overrides, dict):
             return jsonify({'error': 'fractional_overrides must be an object'}), 400
         if tickers is not None and not isinstance(tickers, list):
@@ -1705,13 +1718,29 @@ def manage_portfolio_endpoint():
                 current_holdings,
                 'current_holdings',
             )
+            if calculation_mode == 'FIXED_TARGET':
+                target_weights = normalize_ticker_mapping(
+                    target_weights,
+                    'target_weights',
+                )
+            imported_target = {
+                key: str(imported_target[key])[:512]
+                for key in ('file_name', 'portfolio_id', 'exported_at', 'export_type')
+                if imported_target.get(key) not in (None, '')
+            }
             fractional_overrides = normalize_ticker_mapping(
                 fractional_overrides,
                 'fractional_overrides',
             )
             if tickers is not None:
                 tickers = [normalize_ticker_param(ticker) for ticker in tickers]
-            start_date, end_date = validate_date_range(start_date_str, end_date_str)
+            if calculation_mode == 'REOPTIMIZE':
+                start_date, end_date = validate_date_range(
+                    start_date_str,
+                    end_date_str,
+                )
+            else:
+                start_date, end_date = None, None
             cash_injection = parse_float_param(
                 data.get('cash_injection', 0.0),
                 'cash_injection',
@@ -1851,7 +1880,10 @@ def manage_portfolio_endpoint():
             transaction_cost_bps=transaction_cost_bps,
             turnover_penalty=turnover_penalty,
             min_holding_weight=min_holding_weight,
-            tickers=tickers
+            tickers=tickers,
+            calculation_mode=calculation_mode,
+            target_weights=target_weights,
+            imported_target=imported_target,
         )
         
         if "error" in result:
