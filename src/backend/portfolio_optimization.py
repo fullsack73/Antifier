@@ -2757,6 +2757,12 @@ def data_and_forecast_pipeline(
         },
         "data_eligibility": finalized_eligibility,
         "market_data_provenance": market_data_provenance,
+        # Internal-only discovery metadata. It is exposed solely through the
+        # opt-in observation context, never the normal API response.
+        "observation_dates": [
+            pd.Timestamp(value).strftime("%Y-%m-%d")
+            for value in aligned_data.index
+        ],
     }
 
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
@@ -3415,6 +3421,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                     for column in pd.DataFrame(S).columns
                 },
                 "market_data_provenance": market_data_provenance,
+                "observation_dates": list(
+                    pipeline_result.get("observation_dates") or []
+                ),
             }
 
         if portfolio_id and persist_result:

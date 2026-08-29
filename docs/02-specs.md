@@ -227,6 +227,16 @@ Backend-only research tool:
 - Outcome은 as-of 이후 campaign horizon만큼 서로 다른 시장 관측이 완성된 뒤에만 terminal record로 저장합니다. V2 outcome은 supplied price panel의 canonical hash와 provenance를 검증하고 as-of 당시 실행 weight/cash 및 pre/post-cost wealth로 gross market return, cost 포함 realized return, realized risk와 risk forecast error/calibration을 계산합니다. Immature, network failure, missing data와 partial coverage는 outcome 값 대신 append-only attempt로 기록하고 누락 ticker를 보존합니다. Complete observation에 연결된 mature outcome만 평가 집계에 포함합니다.
 - 모든 shadow 결과는 `production_auto_promotion=false`, `manual_review_only=true`입니다. 실제 미래 데이터가 policy 최소 수만큼 쌓이기 전에는 `insufficient_mature_observations`이며 성과 통과나 승격을 주장하지 않습니다. 같은 CLI를 수동 실행과 scheduler에서 사용하되 production 자동 승격은 지원하지 않습니다.
 
+### Production GMV 운용 정책 calendar-forward 비교
+
+- Historical evidence audit 결과 DOW, Nasdaq, French, Country ETF와 기존 result artifact를 모두 consumed로 취급합니다. 예약된 다른 가설의 holdout을 이 비교에 재사용하지 않으며 historical 결과를 새로 실행하지 않습니다.
+- `gmv_policy_comparison.py`는 최초 production GMV를 한 번 실행해 동일 quantities/cash를 복제한 뒤 `buy_and_hold`, `fixed_target`, `rolling_reoptimization`을 구분합니다. Fixed target은 최초 raw weight/cash/hash를 재정규화하지 않고, rolling만 각 as-of의 과거 504 observation으로 production GMV를 다시 계산합니다.
+- 공통 설정은 63 거래일 rebalance/outcome, 10 bps cost, 2% band, 35% gross L1 turnover cap, 20% asset cap, fractional synthetic units, 2% annual cash/risk-free입니다. 최초 배치에만 band/turnover cap을 면제하고 비용은 부과합니다.
+- Contract v3는 기존 v1/v2 SQLite schema와 hash chain을 변경하지 않고 policy payload만 additive로 저장합니다. Policy별 pre/post quantities, notionals, cash, 공통 prices/covariance, target, turnover, cost, risk, concentration, drift/constraint와 deterministic rerun을 다시 검산합니다.
+- Frozen eligible universe의 현재 가격이 하나라도 없으면 partial order를 만들지 않습니다. Buy-and-hold의 자연스런 cap drift는 거래 오류가 아닌 별도 diagnostic이며, target/accounting/coverage 위반은 correctness failure입니다.
+- Primary endpoint는 paired realized volatility입니다. 21일 circular block, 2,000 samples, seed 42와 Holm 보정을 사용하며 mature paired observation 8개 미만은 `forward_pending`, 방향 충돌이나 guard 미달은 `inconclusive`입니다. Sharpe는 secondary guard일 뿐이며 모든 결과는 `no_automatic_promotion=true`입니다.
+- `tools/gmv_policy_comparison.py` 명령은 evidence audit, spec create/validate, offline fixture/rerun, forward init/observe, mature outcome record/evaluate, ledger verify를 같은 service로 실행합니다. 실제 주문과 broker API는 호출하지 않습니다.
+
 API 변경 규칙:
 
 - 기존 프론트엔드 요청 shape를 깨는 변경은 frontend와 tests를 함께 수정합니다.

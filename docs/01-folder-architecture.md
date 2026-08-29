@@ -68,6 +68,7 @@ src/backend/
 ├─ research_split.py                   # split hash와 baseline/candidate 공통 실행 계약 검증
 ├─ shadow_forward.py                   # append-only calendar-forward campaign/observation/outcome ledger
 ├─ production_baseline_observation.py  # production GMV 결과를 strict shadow observation으로 변환
+├─ gmv_policy_comparison.py          # buy-hold/fixed/rolling GMV forward 회계·상태 오케스트레이션
 ├─ universe_manifest.py               # 날짜별 universe membership와 생존편향 정책 검증
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
@@ -179,6 +180,7 @@ tools/
 ├─ validate_risk_allocator_candidate.py # frozen risk candidate 4-case validation
 ├─ manage_research_evidence.py          # consumed split registry audit/append/use 검사
 ├─ shadow_forward.py                    # shadow campaign/production baseline/outcome/evaluate/verify CLI
+├─ gmv_policy_comparison.py              # 3정책 사전등록·fixture·forward observation CLI
 └─ tune_transformer_hpo.py
 ```
 
