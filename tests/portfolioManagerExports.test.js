@@ -5,6 +5,7 @@ import {
   buildPortfolioExportPayload,
   buildTargetHoldingsCsv,
   escapeCsvValue,
+  parseImportedTarget,
 } from "../src/frontend/portfolioManagerExports"
 
 describe("portfolio manager export helpers", () => {
@@ -64,5 +65,55 @@ describe("portfolio manager export helpers", () => {
       cash_injection: 5000,
       manager_settings: { cash_injection: 5000, forecast_method: "LIGHTWEIGHT" },
     })
+  })
+
+  it("imports optimizer, manager, and compatible top-level weights without stale state", () => {
+    const imported = parseImportedTarget({
+      portfolio_id: "gmv-six-months-ago",
+      exported_at: "2026-02-01T00:00:00Z",
+      weights: { AAPL: 0.5, MSFT: 0.3 },
+      prices: { AAPL: 1 },
+      current_holdings: { OLD: 999 },
+      buy_list: { OLD: {} },
+    }, "optimizer.json")
+
+    expect(imported).toMatchObject({
+      weights: { AAPL: 0.5, MSFT: 0.3 },
+      assetCount: 2,
+      fileName: "optimizer.json",
+      portfolioId: "gmv-six-months-ago",
+    })
+    expect(imported.targetCashWeight).toBeCloseTo(0.2)
+    expect(imported).not.toHaveProperty("prices")
+    expect(imported).not.toHaveProperty("current_holdings")
+  })
+
+  it("rejects duplicate aliases, invalid values, empty weights, and meaningful overflow", () => {
+    expect(() => parseImportedTarget({ weights: {} })).toThrow("must not be empty")
+    expect(() => parseImportedTarget({ weights: { "BRK.B": 0.5, "BRK-B": 0.5 } })).toThrow("duplicate ticker BRK-B")
+    expect(() => parseImportedTarget({ weights: { AAPL: -0.1 } })).toThrow("finite and non-negative")
+    expect(() => parseImportedTarget({ weights: { AAPL: true } })).toThrow("finite and non-negative")
+    expect(() => parseImportedTarget({ weights: { "BAD TICKER": 0.5 } })).toThrow("invalid ticker")
+    expect(() => parseImportedTarget({ weights: { AAPL: 1.001 } })).toThrow("100% or less")
+    expect(parseImportedTarget({ weights: { AAPL: 1 + 5e-9 } }).weights.AAPL).toBeCloseTo(1)
+  })
+
+  it("round-trips a portfolio manager export through the common target parser", () => {
+    const payload = buildPortfolioExportPayload({
+      results: {
+        calculation_mode: "FIXED_TARGET",
+        execution_target_weights: { AAPL: 0.75 },
+        target_weights_sha256: "abc123",
+        imported_target: { portfolio_id: "original-target" },
+      },
+      managerSettings: {},
+      portfolioId: "manager-result",
+    })
+
+    const imported = parseImportedTarget(payload, "manager-result.json")
+    expect(imported.weights).toEqual({ AAPL: 0.75 })
+    expect(imported.targetCashWeight).toBe(0.25)
+    expect(payload.calculation_mode).toBe("FIXED_TARGET")
+    expect(payload.target_weights_sha256).toBe("abc123")
   })
 })

@@ -1,0 +1,20 @@
+{
+  "portfolio_id": "fixture-gmv-2026-02",
+  "exported_at": "2026-02-28T00:00:00Z",
+  "weights": {
+    "AAPL": 0.5,
+    "MSFT": 0.3
+  },
+  "prices": {
+    "AAPL": 1,
+    "MSFT": 1
+  },
+  "current_holdings": {
+    "OLD": 999
+  },
+  "buy_list": {
+    "OLD": {
+      "quantity": 1
+    }
+  }
+}
