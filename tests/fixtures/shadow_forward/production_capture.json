@@ -1,0 +1,83 @@
+{
+  "as_of_timestamp": "2026-08-28T00:00:00+00:00",
+  "optimizer_result": {
+    "weights": {"AAA": 0.6, "BBB": 0.4},
+    "cash_weight": 0.0,
+    "risk": 0.1341640786499874,
+    "prices": {"AAA": 100.0, "BBB": 50.0},
+    "optimization_method": "MIN_VARIANCE",
+    "forecast_method_effective": "RISK_ONLY",
+    "forecast_bypassed": true,
+    "no_view_tickers": [],
+    "data_eligibility": {
+      "requested_tickers": ["AAA", "BBB"],
+      "eligible_tickers": ["AAA", "BBB"]
+    },
+    "market_data_provenance": {
+      "source": "fixture_adjusted_close",
+      "base_currency": "USD",
+      "status": "complete",
+      "coverage": 1.0,
+      "available_through": "2026-08-28",
+      "missing_tickers": [],
+      "data_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "classification_metadata": {"securities": {}},
+    "optimizer_controls": {
+      "solver_objective": "ledoit_wolf_minimum_variance",
+      "l2_gamma": 0.0,
+      "turnover_penalty": 0.0,
+      "min_holding_weight": 0.0,
+      "requested_max_asset_weight": 0.7,
+      "effective_max_asset_weight": 0.7,
+      "asset_constraints": [],
+      "group_constraints": []
+    },
+    "_observation_context": {
+      "covariance": {
+        "AAA": {"AAA": 0.04, "BBB": 0.01},
+        "BBB": {"AAA": 0.01, "BBB": 0.09}
+      }
+    }
+  },
+  "rerun_result": {
+    "weights": {"AAA": 0.6, "BBB": 0.4},
+    "cash_weight": 0.0,
+    "risk": 0.1341640786499874,
+    "prices": {"AAA": 100.0, "BBB": 50.0},
+    "optimization_method": "MIN_VARIANCE",
+    "forecast_method_effective": "RISK_ONLY",
+    "forecast_bypassed": true,
+    "no_view_tickers": [],
+    "data_eligibility": {
+      "requested_tickers": ["AAA", "BBB"],
+      "eligible_tickers": ["AAA", "BBB"]
+    },
+    "market_data_provenance": {
+      "source": "fixture_adjusted_close",
+      "base_currency": "USD",
+      "status": "complete",
+      "coverage": 1.0,
+      "available_through": "2026-08-28",
+      "missing_tickers": [],
+      "data_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "classification_metadata": {"securities": {}},
+    "optimizer_controls": {
+      "solver_objective": "ledoit_wolf_minimum_variance",
+      "l2_gamma": 0.0,
+      "turnover_penalty": 0.0,
+      "min_holding_weight": 0.0,
+      "requested_max_asset_weight": 0.7,
+      "effective_max_asset_weight": 0.7,
+      "asset_constraints": [],
+      "group_constraints": []
+    },
+    "_observation_context": {
+      "covariance": {
+        "AAA": {"AAA": 0.04, "BBB": 0.01},
+        "BBB": {"AAA": 0.01, "BBB": 0.09}
+      }
+    }
+  }
+}

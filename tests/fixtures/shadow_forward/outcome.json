@@ -1,0 +1,11 @@
+{
+  "status": "complete",
+  "data_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "data_provenance": {"source": "fixture-realized-prices"},
+  "prices": [
+    {"date": "2026-08-28", "prices": {"AAA": 100.0, "BBB": 50.0}},
+    {"date": "2026-08-31", "prices": {"AAA": 101.0, "BBB": 49.5}},
+    {"date": "2026-09-01", "prices": {"AAA": 102.0, "BBB": 50.5}},
+    {"date": "2026-09-02", "prices": {"AAA": 103.0, "BBB": 51.0}}
+  ]
+}

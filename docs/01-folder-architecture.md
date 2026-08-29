@@ -66,6 +66,9 @@ src/backend/
 ├─ portfolio_statistics.py            # paired block bootstrap와 multiple-testing gate
 ├─ sec_point_in_time.py               # SEC filing-date 기준 PIT 재무 factor 생성
 ├─ research_split.py                   # split hash와 baseline/candidate 공통 실행 계약 검증
+├─ shadow_forward.py                   # append-only calendar-forward campaign/observation/outcome ledger
+├─ production_baseline_observation.py  # production GMV 결과를 strict shadow observation으로 변환
+├─ gmv_policy_comparison.py            # buy-hold/fixed/rolling GMV forward 회계·상태 오케스트레이션
 ├─ universe_manifest.py               # 날짜별 universe membership와 생존편향 정책 검증
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
@@ -175,8 +178,24 @@ tools/
 ├─ research_minvar_momentum_blend.py  # min-var/momentum construction gate
 ├─ research_online_reversal_ensemble.py # completed-feedback signal Hedge 연구
 ├─ validate_risk_allocator_candidate.py # frozen risk candidate 4-case validation
+├─ manage_research_evidence.py          # consumed split registry audit/append/use 검사
+├─ shadow_forward.py                    # shadow campaign/production baseline/outcome/evaluate/verify CLI
+├─ gmv_policy_comparison.py              # 3정책 사전등록·fixture·forward observation CLI
 └─ tune_transformer_hpo.py
 ```
+
+연구 정책은 `data/research/research_policy_v1.json`, 이미 확인한 split은
+`data/research/evidence_consumption_v1.jsonl`에 버전과 hash chain을 갖춰
+기록합니다. 실제 calendar-forward SQLite ledger는 `--ledger`로 경로를
+명시하며 저장소에서 추적하지 않습니다. `collect-baseline`은 실제 optimizer를
+호출하는 live mode와 network-free fixture capture mode가 같은 adapter와 ledger
+검증을 사용하도록 구성합니다.
+
+GMV 정책 비교의 immutable 사양과 등록 요약은 각각
+`data/research/derived/production_gmv_policy_forward_spec_v1.json`,
+`data/research/derived/production_gmv_policy_forward_registration_v1.json`에
+추적합니다. Raw policy state와 outcome은 append-only local SQLite ledger에만
+보존하고 등록 요약은 그 payload/record hash를 참조합니다.
 
 테스트는 변경 범위에 맞춰 선택적으로 실행하되, 공유 API나 포트폴리오 계산 로직을 건드리면 백엔드 테스트를 우선 실행합니다. 프론트엔드 렌더링/API client 변경은 lint, Vitest, build 중 최소 하나 이상으로 확인합니다.
 

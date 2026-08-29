@@ -916,6 +916,16 @@ def test_optimizer_min_variance_bypasses_forecast_and_uses_ledoit_gmv(
         "no_view_tickers": [],
         "tickers": tickers,
         "latest_prices": {"AAA": 100.0, "BBB": 80.0},
+        "data_eligibility": {
+            "requested_tickers": tickers,
+            "eligible_tickers": tickers,
+        },
+        "market_data_provenance": {
+            "source": "fixture",
+            "status": "complete",
+            "coverage": 1.0,
+            "data_sha256": "a" * 64,
+        },
     }
 
     def fake_pipeline(*args, **kwargs):
@@ -979,6 +989,21 @@ def test_optimizer_min_variance_bypasses_forecast_and_uses_ledoit_gmv(
     assert result["optimizer_controls"]["solver_objective"] == (
         "ledoit_wolf_minimum_variance"
     )
+    assert result["market_data_provenance"]["data_sha256"] == "a" * 64
+    assert "_observation_context" not in result
+
+    observed = portfolio_optimization.optimize_portfolio(
+        start_date="2024-01-01",
+        end_date="2024-12-31",
+        risk_free_rate=0.02,
+        tickers=tickers,
+        forecast_method="TRANSFORMER",
+        max_asset_weight=1.0,
+        include_observation_context=True,
+    )
+    assert observed["weights"] == result["weights"]
+    assert observed["optimizer_controls"] == result["optimizer_controls"]
+    assert observed["_observation_context"]["covariance"]["AAA"]["AAA"] == 0.04
 
 
 def test_optimizer_min_variance_rejects_return_or_risk_target():
