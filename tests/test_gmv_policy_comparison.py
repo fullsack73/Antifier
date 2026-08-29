@@ -126,6 +126,13 @@ def test_spec_hash_and_locked_settings_detect_drift():
         validate_comparison_spec(changed)
 
 
+def test_tracked_registration_artifact_hash():
+    path = ROOT / "data" / "research" / "derived" / "production_gmv_policy_forward_registration_v1.json"
+    artifact = json.loads(path.read_text(encoding="utf-8"))
+    expected = artifact.pop("artifact_sha256")
+    assert canonical_json_digest(artifact) == expected
+
+
 def test_initial_allocation_is_identical_and_costed_once():
     spec = _spec()
     campaign = _campaign(spec)

@@ -1,0 +1,68 @@
+{
+  "artifact_sha256": "3301b95f7e75db84bcff1479674bc54fd6a303b9aa8446d4d609bdcce0cf7f44",
+  "campaign": {
+    "campaign_id": "production-gmv-policy-forward-v1",
+    "campaign_sha256": "67349b5a53b2bd8a450c7c797430ba7b48137f2942e6115e32384a4470944ee3",
+    "created_at": "2026-08-29T08:34:11.588983+00:00"
+  },
+  "code_revision": "506404f79d27d392dccbccb0b1a47c7418b48362",
+  "correctness_failure_count": 0,
+  "evidence_audit": {
+    "consumed_split_count": 9,
+    "last_record_sha256": "b994400594e6d7a77fe4d43c49c329fa9575d5115c594c5017aa516b98944ea0",
+    "policy_sha256": "5fa92a3528fda9dc19abb74acff97201c6d630b0fe6ff073cf321f1f8270c31f",
+    "untouched_historical_comparison_available": false
+  },
+  "evaluation": {
+    "mature_paired_observation_count": 0,
+    "minimum_mature_observations": 8,
+    "paired_statistics": {},
+    "recorded_outcome_count": 0,
+    "status": "forward_pending",
+    "turnover_cap_violation_count": 0
+  },
+  "initial_observation": {
+    "all_policy_states_identical": true,
+    "as_of_timestamp": "2026-08-29T08:34:14+00:00",
+    "available_through": "2026-08-28",
+    "common_data_sha256": "4ea309bbc76d5ffab59c46bcce779cf64ee203651516b158328ea832058037a2",
+    "eligible_universe_count": 497,
+    "eligible_universe_sha256": "127dd9cb0935e6bad244044274482d9194d9c85fedd21a674abefeb103998cae",
+    "excluded_tickers": [
+      "AVB",
+      "EA",
+      "EQR",
+      "FDXF",
+      "Q",
+      "SNDK"
+    ],
+    "initial_transaction_cost": 9.99000999000999,
+    "initial_turnover": 0.9990009990009988,
+    "optimizer_result_sha256": "a6231b89116f51d78ff59d9ef561f5802bd6e4c6e6bf443ea728ac6cbe8440ce",
+    "optimizer_rerun_max_weight_difference": 0.0,
+    "optimizer_rerun_passed": true,
+    "payload_sha256": "64d50d09a7fde828ceef9e3deafff64ff20094f3dfef5cabb3298c6a067eba01",
+    "record_sha256": "58c775de201b98f4afea54f5b032999182f220373987467fb583b56957fb38dd",
+    "requested_universe_count": 503,
+    "requested_universe_sha256": "f41769f4982ac54694dccc35d90d105ce2790e07df01dc7a91c866178bf64955",
+    "solver_fallback_count": 0,
+    "status": "complete"
+  },
+  "ledger_integrity": {
+    "campaigns": 1,
+    "observations": 1,
+    "outcome_attempts": 0,
+    "outcomes": 0,
+    "status": "ok"
+  },
+  "manual_review_only": true,
+  "no_automatic_promotion": true,
+  "production_auto_promotion": false,
+  "raw_policy_results": {
+    "storage": "append-only local shadow ledger",
+    "ledger_path": "data/research/shadow/production_gmv_policy_forward_v1.sqlite3",
+    "observation_payload_sha256": "64d50d09a7fde828ceef9e3deafff64ff20094f3dfef5cabb3298c6a067eba01"
+  },
+  "schema_version": 1,
+  "spec_sha256": "388e1b8a83de5030b83d471919872fdb1f57eee5f7df4c2f367835b770ebe256"
+}

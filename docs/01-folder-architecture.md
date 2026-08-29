@@ -68,7 +68,7 @@ src/backend/
 ├─ research_split.py                   # split hash와 baseline/candidate 공통 실행 계약 검증
 ├─ shadow_forward.py                   # append-only calendar-forward campaign/observation/outcome ledger
 ├─ production_baseline_observation.py  # production GMV 결과를 strict shadow observation으로 변환
-├─ gmv_policy_comparison.py          # buy-hold/fixed/rolling GMV forward 회계·상태 오케스트레이션
+├─ gmv_policy_comparison.py            # buy-hold/fixed/rolling GMV forward 회계·상태 오케스트레이션
 ├─ universe_manifest.py               # 날짜별 universe membership와 생존편향 정책 검증
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
@@ -190,6 +190,12 @@ tools/
 명시하며 저장소에서 추적하지 않습니다. `collect-baseline`은 실제 optimizer를
 호출하는 live mode와 network-free fixture capture mode가 같은 adapter와 ledger
 검증을 사용하도록 구성합니다.
+
+GMV 정책 비교의 immutable 사양과 등록 요약은 각각
+`data/research/derived/production_gmv_policy_forward_spec_v1.json`,
+`data/research/derived/production_gmv_policy_forward_registration_v1.json`에
+추적합니다. Raw policy state와 outcome은 append-only local SQLite ledger에만
+보존하고 등록 요약은 그 payload/record hash를 참조합니다.
 
 테스트는 변경 범위에 맞춰 선택적으로 실행하되, 공유 API나 포트폴리오 계산 로직을 건드리면 백엔드 테스트를 우선 실행합니다. 프론트엔드 렌더링/API client 변경은 lint, Vitest, build 중 최소 하나 이상으로 확인합니다.
 
