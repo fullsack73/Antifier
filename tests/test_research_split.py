@@ -1,6 +1,9 @@
 import pytest
 
 from research_split import (
+    candidate_specification_digest,
+    dataset_lineage_digest,
+    load_research_policy,
     normalize_research_split_manifest,
     research_split_digest,
     validate_comparison_execution_settings,
@@ -76,7 +79,7 @@ def test_split_run_rejects_objective_or_data_drift():
         )
 
 
-def test_locked_research_split_is_promotion_safe():
+def test_legacy_locked_research_split_is_integrity_only():
     payload = _manifest()
 
     result = validate_research_split_run(
@@ -93,10 +96,12 @@ def test_locked_research_split_is_promotion_safe():
         auxiliary_files={},
     )
 
-    assert result["promotion_safe"] is True
+    assert result["integrity_locked"] is True
+    assert result["promotion_safe"] is False
+    assert result["evidence_scope"] == "legacy_unclassified"
 
 
-def test_locked_holdout_split_is_promotion_safe():
+def test_legacy_locked_holdout_is_not_new_promotion_evidence():
     payload = _manifest()
     payload["role"] = "locked_holdout"
     payload["manifest_sha256"] = research_split_digest(payload)
@@ -115,10 +120,11 @@ def test_locked_holdout_split_is_promotion_safe():
         auxiliary_files={},
     )
 
-    assert result["promotion_safe"] is True
+    assert result["integrity_locked"] is True
+    assert result["promotion_safe"] is False
 
 
-def test_locked_validation_split_is_promotion_safe():
+def test_legacy_locked_validation_is_not_new_promotion_evidence():
     payload = _manifest()
     payload["role"] = "validation"
     payload["manifest_sha256"] = research_split_digest(payload)
@@ -137,7 +143,8 @@ def test_locked_validation_split_is_promotion_safe():
         auxiliary_files={},
     )
 
-    assert result["promotion_safe"] is True
+    assert result["integrity_locked"] is True
+    assert result["promotion_safe"] is False
 
 
 def test_comparison_contract_rejects_execution_drift():
@@ -158,3 +165,85 @@ def test_comparison_contract_rejects_execution_drift():
         validate_comparison_execution_settings(common, candidate)
 
     assert validate_comparison_execution_settings(common, common) == common
+
+
+def test_schema_v2_locks_policy_candidate_and_dataset_hashes():
+    payload = _manifest()
+    payload.update({
+        "schema_version": 2,
+        "lane": "alpha",
+        "evidence_scope": "experimental_public_data",
+        "policy_sha256": load_research_policy()["policy_sha256"],
+    })
+    payload["candidate_specification_sha256"] = (
+        candidate_specification_digest(payload)
+    )
+    payload["dataset_lineage_sha256"] = dataset_lineage_digest(payload)
+    payload["manifest_sha256"] = research_split_digest(payload)
+
+    normalized = normalize_research_split_manifest(payload)
+    assert normalized["lane"] == "alpha"
+    assert normalized["evidence_scope"] == "experimental_public_data"
+
+    payload["settings"]["ridge_penalty"] = 20.0
+    payload["manifest_sha256"] = research_split_digest(payload)
+    with pytest.raises(ValueError, match="candidate_specification_sha256"):
+        normalize_research_split_manifest(payload)
+
+
+def test_policy_keeps_production_baseline_and_separates_lane_contracts():
+    policy = load_research_policy()
+
+    assert policy["production_baseline"] == {
+        "optimization_method": "MIN_VARIANCE",
+        "forecast_method_effective": "RISK_ONLY",
+        "covariance_estimator": "ledoit_wolf",
+        "objective": "long_only_capped_global_minimum_variance",
+    }
+    assert policy["lanes"]["alpha"]["stop_rule"] == (
+        "do_not_run_overlay_or_allocator_when_signal_gate_fails"
+    )
+    assert policy["lanes"]["risk"]["allowed_primary_endpoints"] == [
+        "realized_volatility",
+        "risk_forecast_mae",
+        "max_drawdown",
+    ]
+    assert policy["lanes"]["execution_correctness"][
+        "statistical_performance_claim"
+    ] is False
+
+
+def test_consumed_split_rejects_selection_but_allows_acknowledged_diagnostic():
+    from pathlib import Path
+    import json
+
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads(
+        (root / "data/research/derived/"
+         "fama_french_12_industry_ff3_factor_risk_smoke_split_v1.json")
+        .read_text(encoding="utf-8")
+    )
+    kwargs = {
+        "split_id": manifest["split_id"],
+        "experiment_namespace": manifest["experiment_namespace"],
+        "objectives": manifest["objectives"],
+        "settings": manifest["settings"],
+        "evaluation_start": manifest["evaluation_start"],
+        "evaluation_end": manifest["evaluation_end"],
+        "universe_manifest_sha256": manifest["universe_manifest_sha256"],
+        "price_file_sha256": manifest["price_file_sha256"],
+        "factor_file_sha256": manifest["factor_file_sha256"],
+        "auxiliary_files": manifest.get("auxiliary_files", {}),
+    }
+    with pytest.raises(ValueError, match="Consumed research evidence"):
+        validate_research_split_run(manifest, **kwargs)
+
+    result = validate_research_split_run(
+        manifest,
+        evidence_use="diagnostic",
+        acknowledge_consumed=True,
+        **kwargs,
+    )
+    assert result["consumption_state"] == "consumed"
+    assert result["candidate_selection_allowed"] is False
+    assert result["promotion_safe"] is False

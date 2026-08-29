@@ -1,0 +1,34 @@
+{
+  "campaign_id": "production-gmv-shadow-v1",
+  "as_of_timestamp": "2026-08-28T20:00:00+00:00",
+  "status": "complete",
+  "requested_universe": ["AAA", "BBB"],
+  "eligible_universe": ["AAA", "BBB"],
+  "data_provenance": {
+    "source": "fixture",
+    "available_through": "2026-08-28",
+    "data_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "coverage": 1.0,
+    "missing_tickers": []
+  },
+  "baseline": {
+    "optimization_method": "MIN_VARIANCE",
+    "forecast_method_effective": "RISK_ONLY",
+    "covariance_estimator": "ledoit_wolf",
+    "forecast_bypassed": true,
+    "signal": {"status": "no_view", "scores": {}},
+    "weights": {"AAA": 0.6, "BBB": 0.4},
+    "cash_weight": 0.0,
+    "risk_forecast": {"annual_volatility": 0.2},
+    "execution": {
+      "invariants_passed": true,
+      "turnover_identity_passed": true,
+      "transaction_cost_identity_passed": true,
+      "constraints_satisfied": true,
+      "turnover": 1.0,
+      "transaction_cost": 0.001,
+      "price_coverage": 1.0
+    }
+  },
+  "candidate": null
+}

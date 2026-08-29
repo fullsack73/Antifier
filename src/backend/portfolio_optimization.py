@@ -642,6 +642,81 @@ def _align_price_history_without_lookahead(data):
     return aligned.dropna(axis=1, how="any")
 
 
+def canonical_price_frame_sha256(price_data):
+    """Hash an ordered numeric price panel without locale-dependent formatting."""
+    frame = pd.DataFrame(price_data).copy()
+    frame.index = pd.to_datetime(frame.index)
+    frame.columns = list(map(str, frame.columns))
+    frame = frame.sort_index().reindex(sorted(frame.columns), axis=1)
+    digest = hashlib.sha256()
+    digest.update(json.dumps(list(frame.columns), separators=(",", ":")).encode("utf-8"))
+    for timestamp, row in frame.iterrows():
+        digest.update(pd.Timestamp(timestamp).isoformat().encode("utf-8"))
+        for value in row:
+            numeric = float(value)
+            token = numeric.hex() if np.isfinite(numeric) else "nan"
+            digest.update(token.encode("ascii"))
+            digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _market_data_provenance(
+    price_data,
+    data_eligibility,
+    *,
+    start_date,
+    end_date,
+    fetch_diagnostics=None,
+):
+    """Describe the exact USD price input used by the optimizer."""
+    frame = pd.DataFrame(price_data)
+    eligibility = dict(data_eligibility or {})
+    requested = list(eligibility.get("requested_tickers") or [])
+    eligible = list(eligibility.get("eligible_tickers") or frame.columns)
+    requested_count = len(requested)
+    coverage = (
+        1.0
+        if requested_count == 0 and len(eligible) == 0
+        else float(len(eligible) / requested_count) if requested_count else 0.0
+    )
+    fetch = dict(fetch_diagnostics or {})
+    request_error_count = int(fetch.get("request_error_count", 0))
+    successful_request_count = int(fetch.get("successful_request_count", 0))
+    if frame.empty:
+        status = (
+            "network_failure"
+            if request_error_count > 0 and successful_request_count == 0
+            else "data_missing"
+        )
+    elif coverage < 1.0:
+        status = "partial"
+    else:
+        status = "complete"
+    return {
+        "source": "yfinance_adjusted_close",
+        "base_currency": BASE_CURRENCY,
+        "auto_adjust": True,
+        "query_start_date": str(start_date),
+        "query_end_date_exclusive": str(end_date),
+        "status": status,
+        "coverage": coverage,
+        "requested_count": int(requested_count),
+        "eligible_count": int(len(eligible)),
+        "missing_tickers": sorted(set(requested) - set(eligible)),
+        "available_through": (
+            None
+            if frame.empty
+            else pd.Timestamp(frame.index.max()).strftime("%Y-%m-%d")
+        ),
+        "row_count": int(len(frame)),
+        "column_count": int(len(frame.columns)),
+        "data_sha256": (
+            None if frame.empty else canonical_price_frame_sha256(frame)
+        ),
+        "fetch_diagnostics": fetch,
+    }
+
+
 def _initialize_data_eligibility(
     price_data,
     requested_tickers,
@@ -1627,6 +1702,13 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
     logger.info(f"GET_STOCK_DATA: Starting fetch for {len(tickers)} tickers")
 
     all_series = []
+    fetch_diagnostics = {
+        "provider": "yfinance",
+        "requested_tickers": list(tickers),
+        "request_error_count": 0,
+        "successful_request_count": 0,
+        "empty_response_count": 0,
+    }
 
     # Process in chunks to prevent one bad ticker from blocking the whole batch
     BATCH_SIZE = 50
@@ -1659,7 +1741,12 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
                     session=session,
                     threads=False,
                 )
+                if chunk_data.empty:
+                    fetch_diagnostics["empty_response_count"] += 1
+                else:
+                    fetch_diagnostics["successful_request_count"] += 1
             except Exception as exc:
+                fetch_diagnostics["request_error_count"] += 1
                 logger.warning(f"GET_STOCK_DATA: Chunk {chunk_idx+1} batch failed: {exc}")
 
             missing_tickers = [
@@ -1687,11 +1774,15 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
                             threads=False,
                         )
                     except Exception as exc:
+                        fetch_diagnostics["request_error_count"] += 1
                         logger.warning(f"GET_STOCK_DATA: Retry failed for {ticker}: {exc}")
                         continue
                     if ticker in ticker_data.columns:
+                        fetch_diagnostics["successful_request_count"] += 1
                         chunk_data = pd.concat([chunk_data, ticker_data], axis=1)
                         recovered.append(ticker)
+                    else:
+                        fetch_diagnostics["empty_response_count"] += 1
 
                 missing_tickers = [
                     ticker
@@ -1718,7 +1809,10 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
     # Combine all chunks
     if not all_series:
         logger.error("GET_STOCK_DATA: All chunks failed")
-        return pd.DataFrame()
+        empty = pd.DataFrame()
+        fetch_diagnostics["missing_tickers"] = list(tickers)
+        empty.attrs["fetch_diagnostics"] = fetch_diagnostics
+        return empty
         
     logger.info(f"GET_STOCK_DATA: Combining {len(all_series)} chunks")
     try:
@@ -1733,10 +1827,16 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
             logger.warning(
                 f"GET_STOCK_DATA: Final missing tickers: {', '.join(missing_tickers)}"
             )
+        fetch_diagnostics["missing_tickers"] = missing_tickers
+        final_data.attrs["fetch_diagnostics"] = fetch_diagnostics
         return final_data
     except Exception as e:
         logger.error(f"GET_STOCK_DATA: Error combining chunks: {e}")
-        return pd.DataFrame()
+        fetch_diagnostics["request_error_count"] += 1
+        fetch_diagnostics["missing_tickers"] = list(tickers)
+        empty = pd.DataFrame()
+        empty.attrs["fetch_diagnostics"] = fetch_diagnostics
+        return empty
 
 # NOTE: 모델 객체를 캐시하지 않음 - 메모리 누수 방지를 위해 forecast 결과만 캐시
 def _generate_arima_transformer_prediction(ticker, ticker_data, horizon=252):
@@ -1884,7 +1984,7 @@ def forecast_single_ticker_with_transformer(ticker, ticker_data, horizon=252):
 @cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache for predictions
 def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
     """Forecast returns for single ticker using ARIMA + Transformer with caching.
-    
+
     Returns no-view when insufficient data or model failure prevents a valid ML forecast.
     Returns dictionary with expected_return and uncertainty.
     """
@@ -2260,6 +2360,7 @@ def data_and_forecast_pipeline(
         _weighted_progress(0, 30, current, total, message)
         
     data = get_stock_data(tickers, start_date, end_date, progress_callback=fetch_callback, cancel_event=cancel_event)
+    fetch_diagnostics = dict(data.attrs.get("fetch_diagnostics", {}))
     _raise_if_cancelled(cancel_event)
     data_eligibility = _initialize_data_eligibility(
         data,
@@ -2267,16 +2368,27 @@ def data_and_forecast_pipeline(
         min_history,
         end_date,
     )
-    
-    if data.empty:
-        logger.warning("Could not fetch any valid data.")
+
+    def pipeline_failure(message, current_data):
+        finalized = _finalize_data_eligibility(data_eligibility, current_data)
         return {
-            "error": "Could not fetch any valid data for the given tickers and date range.",
-            "data_eligibility": _finalize_data_eligibility(
-                data_eligibility,
-                data,
+            "error": message,
+            "data_eligibility": finalized,
+            "market_data_provenance": _market_data_provenance(
+                current_data,
+                finalized,
+                start_date=start_date,
+                end_date=end_date,
+                fetch_diagnostics=fetch_diagnostics,
             ),
         }
+
+    if data.empty:
+        logger.warning("Could not fetch any valid data.")
+        return pipeline_failure(
+            "Could not fetch any valid data for the given tickers and date range.",
+            data,
+        )
 
     currency_metadata = {}
     currency_conversion_failures = []
@@ -2302,13 +2414,10 @@ def data_and_forecast_pipeline(
             
         if data.empty:
             logger.warning(f"All tickers dropped due to insufficient history (<{min_history} points).")
-            return {
-                "error": f"All selected tickers have less than {min_history} days of data in the selected period.",
-                "data_eligibility": _finalize_data_eligibility(
-                    data_eligibility,
-                    data,
-                ),
-            }
+            return pipeline_failure(
+                f"All selected tickers have less than {min_history} days of data in the selected period.",
+                data,
+            )
     # --- END: MINIMUM HISTORY CHECK ---
 
     # DEBUG: Check for large values in data that might cause overflow
@@ -2357,13 +2466,10 @@ def data_and_forecast_pipeline(
 
         if data.empty:
             logger.error("No valid tickers remaining after Liveness Check.")
-            return {
-                "error": f"All tickers were dropped because they stopped trading before {end_date}.",
-                "data_eligibility": _finalize_data_eligibility(
-                    data_eligibility,
-                    data,
-                ),
-            }
+            return pipeline_failure(
+                f"All tickers were dropped because they stopped trading before {end_date}.",
+                data,
+            )
     except Exception as e:
          logger.error(f"Error during Liveness Check: {e}")
     # --- END: STRICT TIMEFRAME CHECK ---
@@ -2382,13 +2488,10 @@ def data_and_forecast_pipeline(
 
     if data.empty:
         logger.error("No valid tickers remaining after currency conversion.")
-        return {
-            "error": "Could not convert selected non-USD prices into USD.",
-            "data_eligibility": _finalize_data_eligibility(
-                data_eligibility,
-                data,
-            ),
-        }
+        return pipeline_failure(
+            "Could not convert selected non-USD prices into USD.",
+            data,
+        )
 
     # Sanitization: Replace infinity with NaN to prevent overflow in covariance calculation
     data = data.replace([np.inf, -np.inf], np.nan)
@@ -2609,13 +2712,10 @@ def data_and_forecast_pipeline(
 
     if aligned_data.empty:
         logger.error("All tickers were dropped due to data quality issues.")
-        return {
-            "error": "No valid data remaining after sanitization.",
-            "data_eligibility": _finalize_data_eligibility(
-                data_eligibility,
-                aligned_data,
-            ),
-        }
+        return pipeline_failure(
+            "No valid data remaining after sanitization.",
+            aligned_data,
+        )
 
     prior_mu = _calculate_historical_cagr(aligned_data)
     if no_view_tickers:
@@ -2631,6 +2731,17 @@ def data_and_forecast_pipeline(
         except Exception:
             pass
             
+    finalized_eligibility = _finalize_data_eligibility(
+        data_eligibility,
+        aligned_data,
+    )
+    market_data_provenance = _market_data_provenance(
+        aligned_data,
+        finalized_eligibility,
+        start_date=start_date,
+        end_date=end_date,
+        fetch_diagnostics=fetch_diagnostics,
+    )
     return {
         "mu": mu_forecast,
         "prior_mu": prior_mu,
@@ -2644,10 +2755,8 @@ def data_and_forecast_pipeline(
             ticker: currency_metadata.get(ticker, {}).get("source_currency", BASE_CURRENCY)
             for ticker in final_tickers
         },
-        "data_eligibility": _finalize_data_eligibility(
-            data_eligibility,
-            aligned_data,
-        ),
+        "data_eligibility": finalized_eligibility,
+        "market_data_provenance": market_data_provenance,
     }
 
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
@@ -2661,7 +2770,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        turnover_penalty=0.0, min_holding_weight=0.0,
                        asset_constraints=None, group_constraints=None,
                        current_holdings=None,
-                       cancel_event=None):
+                       cancel_event=None, include_observation_context=False):
     """Optimize portfolio and optionally persist or reuse saved results."""
     _raise_if_cancelled(cancel_event)
     classification_metadata = {
@@ -2819,6 +2928,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
     price_currency = pipeline_result.get("price_currency", BASE_CURRENCY)
     source_currencies = pipeline_result.get("source_currencies", {})
     data_eligibility = pipeline_result.get("data_eligibility")
+    market_data_provenance = pipeline_result.get("market_data_provenance", {})
 
     if current_weights is None and current_holdings:
         holding_values = {}
@@ -3271,6 +3381,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 else "optimization_input"
             ),
             "data_eligibility": data_eligibility,
+            "market_data_provenance": market_data_provenance,
             "classification_metadata": classification_metadata,
             "risk_diagnostics": risk_diagnostics_payload,
             "constraint_diagnostics": constraint_diagnostics_payload,
@@ -3294,6 +3405,17 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             },
         }
         result_payload.update(control_payload)
+        if include_observation_context:
+            result_payload["_observation_context"] = {
+                "covariance": {
+                    str(column): {
+                        str(index): float(value)
+                        for index, value in pd.DataFrame(S)[column].items()
+                    }
+                    for column in pd.DataFrame(S).columns
+                },
+                "market_data_provenance": market_data_provenance,
+            }
 
         if portfolio_id and persist_result:
             _raise_if_cancelled(cancel_event)

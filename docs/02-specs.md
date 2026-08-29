@@ -198,6 +198,7 @@ Backend-only research tool:
   - forecast 실패는 임의 양의 expected return을 주입하지 않고 explicit no-view와 maximum uncertainty로 prior-only 처리합니다.
   - production 기본 최적화는 `MIN_VARIANCE`입니다. Ledoit-Wolf shrinkage covariance로 long-only capped global minimum variance를 풀며 expected-return forecast와 max-Sharpe objective를 사용하지 않습니다.
   - `MIN_VARIANCE` 요청은 pipeline의 forecast 단계를 `RISK_ONLY` historical diagnostic 경로로 대체합니다. 응답과 저장 metadata에 requested/effective forecast, `forecast_bypassed`, optimization method, solver objective를 기록합니다.
+  - optimizer가 실제 사용한 정렬 가격 panel은 ordered numeric SHA-256, requested/eligible coverage, 누락 ticker, available-through date와 yfinance request failure 진단을 `market_data_provenance`로 반환합니다. Shadow adapter가 명시적으로 요청할 때만 covariance를 `_observation_context`에 추가하며 일반 production API의 objective, weight, persistence와 응답 기본 shape는 바꾸지 않습니다.
   - Black-Litterman과 classic MPT max-Sharpe는 명시적 opt-in입니다. `MIN_VARIANCE`에는 의미가 충돌하는 `target_return`과 `risk_tolerance`를 허용하지 않습니다.
   - historical backtest에서 static market cap은 as-of date가 없으면 사용하지 않습니다. historical market-cap 모델은 date-indexed point-in-time snapshot만 사용합니다.
   - max-Sharpe에 L2/turnover penalty가 있으면 변환된 단일 max-Sharpe 문제에 objective를 직접 붙이지 않고 convex efficient-return target grid를 비교합니다.
@@ -207,6 +208,24 @@ Backend-only research tool:
   - gross period return은 net period end value에 시작 비용을 단순 가산하지 않습니다. 동일한 pre-cost controlled target과 현금으로 별도 costless 기간 경로를 평가해, 비용 때문에 매수하지 못한 자산의 기간 수익까지 gross/net cost drag에 반영합니다.
   - primary CAGR, Sharpe, downside/tail risk, drawdown은 최초 배치 전 `initial_value`를 base로 사용합니다. 최초 transaction cost는 첫 실제 일수익률과 wealth drawdown에 포함하며, 비용 차감 후 첫 portfolio value를 새 원금처럼 취급하지 않습니다.
   - 부분 위험노출 research model의 잔여 현금은 signal date에 이용 가능한 historical daily risk-free return으로 적립하며, risk forecast는 실제 위험자산 노출을 사용합니다.
+
+### 연구 증거 정책과 calendar-forward shadow
+
+- 현재 환경에서 licensed delisted-inclusive PIT 개별주 가격·identity 자료를 확보할 수 없다는 점은 제품의 accepted limitation입니다. 이를 blocker, 반복 TODO 또는 production alpha 승격 선행조건으로 남기지 않습니다.
+- Production 기본값은 `MIN_VARIANCE + RISK_ONLY + Ledoit-Wolf GMV`로 고정합니다. 공개 데이터 기반 개별주 alpha는 gate 통과 여부와 관계없이 `experimental_public_data`이며 production 승격 증거가 아닙니다. French industry portfolio 연구는 aggregate portfolio evidence일 뿐 개별주 alpha·execution 증거가 아닙니다.
+- SEC filing date는 covered fundamental이 공개된 이후의 PIT availability만 보장합니다. Dated Nasdaq membership은 해당 secondary source 범위의 membership history만 보완합니다. Yahoo adjusted OHLCV는 delisted-inclusive 또는 vintage PIT 자료가 아니며, 이 세 가지를 결합해도 licensed PIT 개별주 panel과 동등하다고 주장하지 않습니다.
+- `data/research/research_policy_v1.json`이 production baseline, evidence scope와 alpha/risk/execution lane 계약의 canonical policy입니다. 새 schema v2 split은 policy, candidate specification, dataset lineage hash를 함께 잠급니다.
+- `data/research/evidence_consumption_v1.jsonl`은 결과를 확인한 split의 append-only hash-chain registry입니다. consumed split 또는 같은 lineage의 겹치는 소비 구간은 candidate selection, tuning, validation, promotion에 재사용할 수 없습니다. 명시적 diagnostic/reproduction만 허용하며 `promotion_safe=false`입니다.
+- Alpha lane은 기존 signal-only gate를 유지합니다. 완료된 OOS period 최소 8개, coverage 80%, positive IC rate 50%, saturation 10% 이하, tie 25% 이하를 요구하고 mean rank IC와 top-minus-bottom spread가 양수일 bootstrap probability를 각각 95% 이상 요구합니다. 동시 후보는 Holm-Bonferroni로 보정하며 실패 시 overlay/allocator를 실행하지 않습니다.
+- Risk lane은 결과 확인 전에 `realized_volatility`, `risk_forecast_mae`, `max_drawdown` 중 primary endpoint 하나를 잠급니다. Primary는 paired 95% superiority, Sharpe는 95% superiority guard, 비-primary risk와 calibration은 zero-margin non-inferiority, turnover는 기존 `candidate <= max(50%, 2×baseline)`, concentration은 candidate HHI가 baseline 이하인지를 guard로 사용합니다. 이 prospective guard로 과거 consumed 결과를 재채점하지 않습니다.
+- Execution/correctness lane은 cash/weight, traded-notional/turnover/cost, pre/post-cost wealth, constraint와 price coverage 항등식이 primary입니다. 통계적 alpha 성과를 주장하지 않으며 하나라도 위반하면 실패합니다.
+- `tools/shadow_forward.py`는 `init`, `observe`, `collect-baseline`, `record-outcome`, `evaluate`, `verify` 명령을 제공합니다. Campaign 생성 전 as-of와 최초 기록 후 과거 backfill, duplicate/conflicting record, specification/data drift를 거부합니다. UPDATE/DELETE 금지 trigger와 payload/record hash chain을 사용합니다.
+- `collect-baseline`은 `production_baseline_observation.py`를 통해 production `MIN_VARIANCE + RISK_ONLY` optimizer를 같은 입력으로 두 번 실행합니다. 네트워크/optimizer 실행은 SQLite transaction 밖에서 끝내고 observation 하나만 append하며 주문 계산, broker 호출, portfolio 저장 또는 production 변경을 수행하지 않습니다. `--fixture-capture`는 같은 adapter를 network 없이 재생합니다.
+- Shadow observation은 as-of, requested/eligible universe와 hash, data provenance/hash/coverage/failure, baseline 및 사전 등록 candidate의 signal/weight/risk forecast, execution 조건을 기록합니다. Candidate가 없는 production baseline campaign에는 candidate payload를 허용하지 않습니다.
+- Observation contract v2는 caller boolean을 판정 근거로 사용하지 않습니다. Raw current/executed notional, cash, reference/post-cost wealth, cost rate, prices, constraint specification과 rerun hash에서 weight+cash, traded-notional, turnover, transaction cost, wealth, eligible ticker, price coverage, hard constraint와 deterministic rerun 항등식을 다시 계산합니다. 기존 contract v1 row와 physical SQLite schema v1 hash chain은 그대로 읽고 검증합니다.
+- 동일 campaign/as-of 재실행은 `recorded_at`을 제외한 semantic payload가 같으면 duplicate로 멱등 처리하고, data hash 또는 계산 결과가 바뀌면 conflicting duplicate로 거부합니다. Complete, partial coverage, network failure, data missing과 calculation failure를 모두 append-only observation으로 보존합니다.
+- Outcome은 as-of 이후 campaign horizon만큼 서로 다른 시장 관측이 완성된 뒤에만 terminal record로 저장합니다. V2 outcome은 supplied price panel의 canonical hash와 provenance를 검증하고 as-of 당시 실행 weight/cash 및 pre/post-cost wealth로 gross market return, cost 포함 realized return, realized risk와 risk forecast error/calibration을 계산합니다. Immature, network failure, missing data와 partial coverage는 outcome 값 대신 append-only attempt로 기록하고 누락 ticker를 보존합니다. Complete observation에 연결된 mature outcome만 평가 집계에 포함합니다.
+- 모든 shadow 결과는 `production_auto_promotion=false`, `manual_review_only=true`입니다. 실제 미래 데이터가 policy 최소 수만큼 쌓이기 전에는 `insufficient_mature_observations`이며 성과 통과나 승격을 주장하지 않습니다. 같은 CLI를 수동 실행과 scheduler에서 사용하되 production 자동 승격은 지원하지 않습니다.
 
 API 변경 규칙:
 
