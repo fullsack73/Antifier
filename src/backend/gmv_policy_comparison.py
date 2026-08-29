@@ -20,6 +20,10 @@ from research_split import canonical_json_digest, load_research_policy
 
 
 POLICIES = ("buy_and_hold", "fixed_target", "rolling_reoptimization")
+
+
+class RebalanceNotDue(ValueError):
+    """Raised when fewer than the locked trading observations have elapsed."""
 SPEC_VERSION = 1
 DEFAULTS = {
     "train_window": 504,
@@ -346,6 +350,21 @@ def build_comparison_observation(
         spec,
         frozen_universe=frozen,
     )
+    if prior:
+        prior_through = (prior.get("data_provenance") or {}).get("available_through")
+        observation_dates = list(
+            (optimizer_result.get("_observation_context") or {}).get("observation_dates") or []
+        )
+        if prior_through and observation_dates:
+            elapsed = sum(
+                pd.Timestamp(value).date() > pd.Timestamp(prior_through).date()
+                for value in observation_dates
+            )
+            required = int(spec["settings"]["rebalance_frequency"])
+            if elapsed < required:
+                raise RebalanceNotDue(
+                    f"Rebalance not due: {elapsed} of {required} trading observations elapsed"
+                )
     eligible = verified["eligible_universe"]
     prices = {str(k): float(v) for k, v in dict(optimizer_result.get("prices") or {}).items() if str(k) in eligible}
     missing = sorted(t for t in eligible if t not in prices or not np.isfinite(prices[t]) or prices[t] <= 0.0)
@@ -453,6 +472,52 @@ def build_comparison_observation(
             "passed": True,
         },
         "policies": policies,
+        "no_automatic_promotion": True,
+    }
+
+
+def build_failed_comparison_observation(
+    campaign,
+    spec,
+    *,
+    as_of_timestamp,
+    error,
+    status="calculation_failure",
+    prior_observation=None,
+    optimizer_result=None,
+):
+    """Preserve a no-trade retry record without advancing the complete state."""
+    spec = validate_comparison_spec(spec)
+    if status not in {"network_failure", "data_missing", "calculation_failure"}:
+        raise ValueError("Unsupported comparison failure status")
+    prior = dict(prior_observation or {})
+    result = dict(optimizer_result or {})
+    eligibility = dict(result.get("data_eligibility") or {})
+    eligible = list(prior.get("eligible_universe") or eligibility.get("eligible_tickers") or [])
+    requested = list(spec["requested_universe"])
+    eligible = sorted(set(map(str, eligible)).intersection(requested))
+    provenance = dict(result.get("market_data_provenance") or {})
+    provenance.update({
+        "coverage": len(eligible) / len(requested),
+        "missing_tickers": sorted(set(requested) - set(eligible)),
+        "failure_status": status,
+        "error": str(error),
+        "no_trade": True,
+        "retry_from_last_complete": prior.get("as_of_timestamp"),
+    })
+    as_of = pd.Timestamp(as_of_timestamp)
+    if as_of.tz is None:
+        raise ValueError("as_of_timestamp must be timezone-aware")
+    return {
+        "contract_version": 3,
+        "campaign_id": campaign["campaign_id"],
+        "comparison_spec_sha256": spec["comparison_spec_sha256"],
+        "as_of_timestamp": as_of.tz_convert("UTC").isoformat(),
+        "status": status,
+        "requested_universe": requested,
+        "eligible_universe": eligible,
+        "data_provenance": provenance,
+        "policies": None,
         "no_automatic_promotion": True,
     }
 

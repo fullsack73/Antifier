@@ -16,7 +16,9 @@ if str(BACKEND) in sys.path:
 sys.path.insert(0, str(BACKEND))
 
 from gmv_policy_comparison import (  # noqa: E402
+    RebalanceNotDue,
     build_comparison_observation,
+    build_failed_comparison_observation,
     collect_live_comparison_inputs,
     create_comparison_spec,
     load_spec,
@@ -158,22 +160,50 @@ def main(argv=None):
             result = create_campaign(args.ledger, _campaign(spec, args.campaign_id))
         elif args.command == "forward-observe":
             spec = load_spec(args.spec)
-            if args.capture:
-                capture = _json(args.capture)
-                first, second = capture["optimizer_result"], capture["rerun_result"]
-            else:
-                first, second = collect_live_comparison_inputs(spec, as_of_timestamp=args.as_of)
             campaign = _campaign(spec, args.campaign_id)
             prior = latest_complete_observation(args.ledger, args.campaign_id)
-            observation = build_comparison_observation(
-                campaign,
-                spec,
-                first,
-                second,
-                as_of_timestamp=args.as_of,
-                prior_observation=prior,
-            )
-            result = append_observation(args.ledger, observation)
+            first = None
+            try:
+                if args.capture:
+                    capture = _json(args.capture)
+                    first, second = capture["optimizer_result"], capture["rerun_result"]
+                else:
+                    first, second = collect_live_comparison_inputs(spec, as_of_timestamp=args.as_of)
+                observation = build_comparison_observation(
+                    campaign,
+                    spec,
+                    first,
+                    second,
+                    as_of_timestamp=args.as_of,
+                    prior_observation=prior,
+                )
+                result = append_observation(args.ledger, observation)
+            except RebalanceNotDue as exc:
+                result = {"status": "not_due", "observation_recorded": False, "reason": str(exc)}
+            except (OSError, TypeError, ValueError) as exc:
+                message = str(exc).lower()
+                if isinstance(exc, OSError) or any(
+                    token in message for token in ("network", "download", "connection", "timed out")
+                ):
+                    failure_status = "network_failure"
+                elif any(
+                    token in message for token in ("missing", "coverage", "observations", "price")
+                ):
+                    failure_status = "data_missing"
+                else:
+                    failure_status = "calculation_failure"
+                failure = build_failed_comparison_observation(
+                    campaign,
+                    spec,
+                    as_of_timestamp=args.as_of,
+                    error=exc,
+                    status=failure_status,
+                    prior_observation=prior,
+                    optimizer_result=first,
+                )
+                result = append_observation(args.ledger, failure)
+                result["observation_status"] = failure_status
+                result["no_trade"] = True
         elif args.command in {"fixture-run", "deterministic-rerun"}:
             spec = load_spec(args.spec)
             fixture_payload = _json(args.input)

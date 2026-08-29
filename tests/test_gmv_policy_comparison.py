@@ -14,7 +14,9 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from gmv_policy_comparison import (  # noqa: E402
+    RebalanceNotDue,
     build_comparison_observation,
+    build_failed_comparison_observation,
     collect_live_comparison_inputs,
     create_comparison_spec,
     validate_comparison_spec,
@@ -24,6 +26,7 @@ from shadow_forward import (  # noqa: E402
     append_observation,
     create_campaign,
     evaluate_campaign,
+    latest_complete_observation,
     outcome_price_sha256,
     record_outcome,
     verify_ledger,
@@ -192,6 +195,52 @@ def test_missing_price_and_nondeterministic_result_create_no_partial_state():
         )
 
 
+def test_failed_observation_is_no_trade_and_preserves_last_complete_state(tmp_path):
+    spec = _spec()
+    campaign = _campaign(spec)
+    ledger = tmp_path / "failure.sqlite3"
+    created = create_campaign(ledger, campaign, now="2026-08-29T00:00:00+00:00")
+    initial = _observation(
+        spec, campaign, _optimizer_result(), as_of=created["campaign"]["created_at"]
+    )
+    append_observation(ledger, initial, now="2026-08-29T00:01:00+00:00")
+    failed = build_failed_comparison_observation(
+        campaign,
+        spec,
+        as_of_timestamp="2026-08-30T00:00:00+00:00",
+        error="missing frozen-universe execution prices",
+        status="data_missing",
+        prior_observation=initial,
+    )
+    assert failed["policies"] is None
+    assert failed["data_provenance"]["no_trade"] is True
+    append_observation(ledger, failed, now="2026-08-30T00:01:00+00:00")
+    assert latest_complete_observation(ledger, campaign["campaign_id"])[
+        "as_of_timestamp"
+    ] == initial["as_of_timestamp"]
+    assert verify_ledger(ledger)["observations"] == 2
+
+
+def test_rebalance_waits_for_63_new_trading_observations():
+    spec = _spec()
+    campaign = _campaign(spec)
+    first = _optimizer_result()
+    first["market_data_provenance"]["available_through"] = "2026-08-28"
+    initial = _observation(spec, campaign, first)
+    later = _optimizer_result(data_hash="c" * 64)
+    later["_observation_context"]["observation_dates"] = (
+        pd.bdate_range("2024-09-16", "2026-09-11").strftime("%Y-%m-%d").tolist()
+    )
+    with pytest.raises(RebalanceNotDue, match="Rebalance not due"):
+        _observation(
+            spec,
+            campaign,
+            later,
+            prior=initial,
+            as_of="2026-09-12T00:00:00+00:00",
+        )
+
+
 def test_contract_v3_is_append_only_and_mature_pair_only(tmp_path):
     spec = _spec()
     campaign = _campaign(spec)
@@ -238,6 +287,11 @@ def test_contract_v3_is_append_only_and_mature_pair_only(tmp_path):
         now="2026-12-01T00:00:00+00:00",
     )
     assert set(recorded["policy_metrics"]) == set(spec["policies"])
+    assert all(
+        metrics["daily_returns"][min(metrics["daily_returns"])]
+        < (1.0001 - 1.0)
+        for metrics in recorded["policy_metrics"].values()
+    )
     evaluation = evaluate_campaign(ledger, campaign["campaign_id"])
     assert evaluation["status"] == "forward_pending"
     assert evaluation["mature_paired_observation_count"] == 1

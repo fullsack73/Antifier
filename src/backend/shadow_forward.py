@@ -891,6 +891,9 @@ def _comparison_policy_outcome(frame, as_of, horizon, policy, risk_free_rate):
     daily_rate = (1.0 + float(risk_free_rate)) ** (1.0 / 252.0) - 1.0
     cash_path = cash * (1.0 + daily_rate) ** np.arange(len(selected))
     values = prices.mul(quantities.reindex(required), axis=1).sum(axis=1) + cash_path
+    # The interval is net of the rebalance cost: the as-of denominator is the
+    # pre-trade wealth, while all future values use the funded post-cost state.
+    values.iloc[0] = float(policy["pre_trade_wealth"])
     returns = values.pct_change().dropna()
     volatility = float(returns.std(ddof=0) * np.sqrt(252))
     total_return = float(values.iloc[-1] / values.iloc[0] - 1.0)
@@ -1151,6 +1154,11 @@ def evaluate_campaign(path, campaign_id):
             "WHERE campaign_id = ? GROUP BY status",
             (campaign_id,),
         ).fetchall()
+        observation_payload_rows = connection.execute(
+            "SELECT status, payload_json FROM observations WHERE campaign_id = ? "
+            "ORDER BY as_of_timestamp",
+            (campaign_id,),
+        ).fetchall()
     if campaign.get("comparison_specification") is not None:
         payloads = [json.loads(row["payload_json"]) for row in rows]
         eligible = [
@@ -1181,6 +1189,27 @@ def evaluate_campaign(path, campaign_id):
             "production_auto_promotion": False,
             "manual_review_only": True,
         }
+        complete_observations = [
+            json.loads(row["payload_json"])
+            for row in observation_payload_rows
+            if row["status"] == "complete"
+        ]
+        correctness_failures = sum(
+            row["status"] == "calculation_failure" for row in observation_payload_rows
+        )
+        turnover_cap_violations = 0
+        for observation in complete_observations:
+            for policy_payload in (observation.get("policies") or {}).values():
+                if (
+                    not (policy_payload.get("controls") or {}).get("initial_allocation", False)
+                    and float(policy_payload.get("turnover", 0.0))
+                    > float(campaign["comparison_specification"]["settings"]["max_turnover"]) + 1e-10
+                ):
+                    turnover_cap_violations += 1
+                if not all((policy_payload.get("checks") or {}).values()):
+                    correctness_failures += 1
+        result["correctness_failure_count"] = int(correctness_failures)
+        result["turnover_cap_violation_count"] = int(turnover_cap_violations)
         if not eligible:
             return result
         policy_ids = ["buy_and_hold", "fixed_target", "rolling_reoptimization"]
@@ -1247,9 +1276,25 @@ def evaluate_campaign(path, campaign_id):
                         continue
                     winner_summary = summaries[winner]
                     other_summary = summaries[other]
+                    pair_key = (
+                        f"{winner}_vs_{other}"
+                        if f"{winner}_vs_{other}" in pair_results
+                        else f"{other}_vs_{winner}"
+                    )
+                    pair = pair_results[pair_key]
+                    winner_is_left = pair_key.startswith(f"{winner}_vs_")
+                    sharpe_probability = pair["probability"]["higher_sharpe"]
+                    sharpe_guard = (
+                        sharpe_probability is not None
+                        and (
+                            sharpe_probability >= 0.95
+                            if winner_is_left
+                            else sharpe_probability <= 0.05
+                        )
+                    )
                     guards.extend([
                         winner_summary["mean_max_drawdown"] >= other_summary["mean_max_drawdown"],
-                        winner_summary["mean_sharpe"] >= other_summary["mean_sharpe"],
+                        sharpe_guard,
                         abs(winner_summary["risk_forecast_calibration_ratio"] - 1.0)
                         <= abs(other_summary["risk_forecast_calibration_ratio"] - 1.0),
                         winner_summary["cumulative_turnover"]
@@ -1257,7 +1302,15 @@ def evaluate_campaign(path, campaign_id):
                         winner_summary["mean_concentration_hhi"]
                         <= other_summary["mean_concentration_hhi"],
                     ])
-                if all(guards):
+                result["superiority_guard_audit"] = {
+                    "candidate": winner,
+                    "risk_policy_guards_passed": bool(all(guards)),
+                    "correctness_failure_count": int(correctness_failures),
+                    "turnover_cap_violation_count": int(turnover_cap_violations),
+                    "all_panels_same_direction": True,
+                    "panel_count": 1,
+                }
+                if all(guards) and correctness_failures == 0 and turnover_cap_violations == 0:
                     result["status"] = "superiority"
                     result["superior_policy"] = winner
         return result
