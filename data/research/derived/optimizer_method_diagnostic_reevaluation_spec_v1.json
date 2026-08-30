@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "optimizer-method-diagnostic-reevaluation-2026-08-29-v1",
+  "frozen_at": "2026-08-29T00:00:00+09:00",
+  "purpose": "diagnostic_reproduction_only",
+  "promotion_safe": false,
+  "production_change_allowed": false,
+  "datasets": [
+    {
+      "dataset_id": "country-etf-public-adjusted-prices-2007-2025",
+      "price_file": "data/research/derived/country_etf_prices_2007_2025.csv",
+      "price_file_sha256": "7ba7ace8c9d913eb4f10531b00b8c4c7f72b7c4217a3da9d4e4d61c106d831dc",
+      "evidence_scope": "experimental_public_data",
+      "survivorship_policy": "explicit_predeclared_etf_basket_not_asserted"
+    },
+    {
+      "dataset_id": "fama-french-12-industry-aggregate-2019-2025",
+      "price_file": "data/research/derived/fama_french_12_industry_prices_2019_2025_forecast_research.csv",
+      "price_file_sha256": "26d3efcbd6711e072d3ba89959dea45aa92d122f7c92808479e66594d33a392d",
+      "evidence_scope": "aggregate_portfolio_research",
+      "consumption_state": "consumed_diagnostic_acknowledged"
+    }
+  ],
+  "models": [
+    "equal_weight",
+    "min_variance",
+    "historical_mpt",
+    "historical_bl",
+    "risk_parity",
+    "low_volatility"
+  ],
+  "settings": {
+    "train_window": 504,
+    "rebalance_frequency": 63,
+    "forecast_horizon": 63,
+    "transaction_cost_bps": 10.0,
+    "max_asset_weight": 0.2,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35,
+    "min_holding_weight": 0.0,
+    "risk_free_rate": 0.02,
+    "initial_value": 10000.0
+  },
+  "descriptive_endpoints": [
+    "cagr",
+    "annual_volatility",
+    "sharpe_ratio",
+    "max_drawdown",
+    "controlled_turnover",
+    "transaction_costs",
+    "risk_forecast_mae",
+    "average_concentration_hhi"
+  ],
+  "interpretation": {
+    "cross_dataset_consistency_required_for_descriptive_preference": true,
+    "candidate_selection_allowed": false,
+    "validation_claim_allowed": false,
+    "production_promotion_allowed": false,
+    "calendar_forward_claim_allowed": false
+  }
+}

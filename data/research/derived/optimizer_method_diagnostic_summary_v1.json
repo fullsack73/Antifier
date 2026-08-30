@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "optimizer-method-diagnostic-reevaluation-2026-08-29-v1",
+  "purpose": "diagnostic_reproduction_only",
+  "promotion_safe": false,
+  "production_change": false,
+  "inputs": {
+    "spec_sha256": "7c69595557c5849a7739b1eec098e69e7ec889da0c93ffca40e590e7657704bc",
+    "country_result_sha256": "3bb3029ac973cffb3866cae015506085aec78d040dbc5f8455cc4e4c1ea927b2",
+    "french12_result_sha256": "cf3e4f74985b93fe067fd76b29c8abbaa2bc21ed856e166b4c67e684f4efbcb7"
+  },
+  "verification": {
+    "deterministic_rerun": true,
+    "rebalance_record_count": 528,
+    "execution_invariant_failure_count": 0,
+    "evidence_registry_status": "ok"
+  },
+  "paired_block_bootstrap": {
+    "candidate": "min_variance",
+    "block_size": 21,
+    "samples": 2000,
+    "seed": 42,
+    "comparisons": {
+      "country_etf": {
+        "observation_count": 4275,
+        "equal_weight": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.1035,
+          "probability_higher_sharpe": 0.3295
+        },
+        "historical_mpt": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.9275,
+          "probability_higher_sharpe": 0.9725
+        },
+        "historical_bl": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.138,
+          "probability_higher_sharpe": 0.397
+        },
+        "risk_parity": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.102,
+          "probability_higher_sharpe": 0.314
+        },
+        "low_volatility": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.0805,
+          "probability_higher_sharpe": 0.2055
+        }
+      },
+      "french12": {
+        "observation_count": 1255,
+        "equal_weight": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.0015,
+          "probability_higher_sharpe": 0.0075
+        },
+        "historical_mpt": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.2545,
+          "probability_higher_sharpe": 0.321
+        },
+        "historical_bl": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.007,
+          "probability_higher_sharpe": 0.0185
+        },
+        "risk_parity": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.001,
+          "probability_higher_sharpe": 0.0025
+        },
+        "low_volatility": {
+          "probability_lower_volatility": 1.0,
+          "probability_higher_return": 0.001,
+          "probability_higher_sharpe": 0.002
+        }
+      }
+    }
+  },
+  "descriptive_conclusion": {
+    "min_variance_lowest_annual_volatility_on_both_panels": true,
+    "min_variance_lowest_risk_forecast_mae_on_both_panels": true,
+    "consistent_return_superiority": false,
+    "consistent_sharpe_superiority": false,
+    "consistent_drawdown_superiority": false,
+    "consistent_turnover_superiority": false,
+    "production_risk_only_objective_reconfirmed": true,
+    "performance_validation_claim": false,
+    "calendar_forward_claim": false
+  }
+}

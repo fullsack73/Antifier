@@ -8,6 +8,7 @@
 ## 목표
 
 - 시장, 섹터, size, value 등 factor exposure의 목표 범위 또는 중립 제약을 검증 가능한 production 기능으로 설계합니다.
+- 본 작업은 risk/execution experimental lane이며 licensed PIT 개별주 alpha 확보나 production optimizer 변경의 blocker가 아닙니다.
 
 ## 요구사항
 
@@ -23,6 +24,7 @@
 
 - versioned factor exposure dataset, provenance hash, as-of policy, hedge instrument 목록
 - exposure drift 및 위기 구간을 포함한 out-of-sample validation gate
+- 결과를 보기 전에 고정한 calendar-forward campaign과 `research_policy_v1.json` risk lane 계약
 
 ## 참고
 
