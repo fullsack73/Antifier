@@ -2406,6 +2406,97 @@ h2 {
   margin: calc(-1 * var(--spacing-sm)) 0 var(--spacing-lg);
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.manager-mode-selector {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-md);
+  margin: 0 0 var(--spacing-xl);
+  padding: 0;
+  border: 0;
+}
+
+.manager-mode-selector legend {
+  margin-bottom: var(--spacing-sm);
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.manager-mode-selector label {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  cursor: pointer;
+}
+
+.manager-mode-selector span,
+.manager-result-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.manager-mode-selector small,
+.manager-target-import p,
+.manager-result-mode small,
+.manager-result-mode span {
+  color: var(--color-text-muted);
+}
+
+.manager-target-import,
+.manager-result-mode {
+  margin-bottom: var(--spacing-xl);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.manager-target-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0;
+}
+
+.manager-target-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--spacing-md);
+  margin: var(--spacing-md) 0 0;
+}
+
+.manager-target-summary div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.manager-target-summary dt {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.manager-target-summary dd {
+  margin: 0;
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
 .manager-advanced-actions {
   display: flex;
   flex-wrap: wrap;
@@ -3838,6 +3929,15 @@ h2 {
 }
 
 @media (max-width: 768px) {
+  .manager-mode-selector,
+  .manager-target-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .manager-target-actions {
+    flex-direction: column;
+  }
+
   .main-content {
     padding: var(--spacing-lg);
   }

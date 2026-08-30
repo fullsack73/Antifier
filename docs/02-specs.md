@@ -101,7 +101,7 @@
 - `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening
 - `POST /api/asset-names`: ticker display name 조회
 - `POST /api/benchmark-portfolio`: 포트폴리오 benchmark 계산
-- `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산. 입력에서 생략하면 `rebalance_band=0.02`, `max_turnover=0.35`, `transaction_cost_bps=10`을 적용해 작은 거래를 건너뛰고 gross turnover를 제한하며 실행 비용을 예산에 포함합니다. Band가 매수/매도 한쪽만 제거해 target의 의도된 현금 비중을 바꾸지 않도록 필요한 최소 반대편 거래를 재도입한 뒤 turnover cap을 적용합니다. 거래비용은 기존 현금을 먼저 사용하고 부족분만 매수 주문에서 비례 축소하며, 실제 정수/소수 주문의 gross traded value로 다시 계산합니다. 응답은 `execution_target_weights`, `gross_trade_value`, `transaction_cost`, `investable_value`, `remaining_cash`와 비용 진단을 포함하고 `target holdings + transaction cost + remaining cash = total target value`를 보장합니다. 선택 입력 `turnover_penalty`, `min_holding_weight`는 내부 최적화 호출에 전달됩니다. 양수 보유수량 또는 양수 target weight가 있는 모든 ticker는 finite 양수 최신 가격이 필요합니다. 하나라도 누락되면 부분 주문을 만들지 않고 HTTP 400과 `required_price_tickers`, `missing_price_tickers`, 실제 `execution_price_coverage`를 반환합니다.
+- `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산. `calculation_mode`를 생략한 `REOPTIMIZE` 요청은 기존처럼 최신 데이터로 새 목표를 최적화하고, `FIXED_TARGET`은 top-level `target_weights`를 검증한 뒤 optimizer를 호출하지 않고 실행 시점 최신 USD 가격으로만 주문을 계산합니다. Imported JSON의 과거 holdings, prices와 buy/sell list는 계산 입력이 아닙니다. Weight 합계가 1 미만이면 차이를 비용 전 목표 cash로 유지하며, 미세 부동소수점 오차를 제외한 1 초과는 거부합니다. 기본 `rebalance_band=0.02`, `max_turnover=0.35`, `transaction_cost_bps=10`과 fractional-share 정책은 두 모드에 동일하게 적용합니다. Turnover는 매수와 매도의 절대 거래금액을 합한 gross L1 방식이며 A 20% 매도와 B 20% 매수는 40%입니다. 거래비용은 목표 cash에서 먼저 사용하고 부족분만 매수를 축소합니다. 응답은 mode, target hash/cash/provenance, 가격 coverage, `execution_target_weights`, gross traded value/turnover, 비용과 회계 진단을 포함합니다. 필수 최신 가격이 하나라도 누락되면 부분 주문 없이 HTTP 400과 coverage를 반환합니다. 결과는 분석용 제안이며 주문이나 broker 호출을 수행하지 않습니다.
 
 Backend-only research tool:
 
@@ -226,6 +226,16 @@ Backend-only research tool:
 - 동일 campaign/as-of 재실행은 `recorded_at`을 제외한 semantic payload가 같으면 duplicate로 멱등 처리하고, data hash 또는 계산 결과가 바뀌면 conflicting duplicate로 거부합니다. Complete, partial coverage, network failure, data missing과 calculation failure를 모두 append-only observation으로 보존합니다.
 - Outcome은 as-of 이후 campaign horizon만큼 서로 다른 시장 관측이 완성된 뒤에만 terminal record로 저장합니다. V2 outcome은 supplied price panel의 canonical hash와 provenance를 검증하고 as-of 당시 실행 weight/cash 및 pre/post-cost wealth로 gross market return, cost 포함 realized return, realized risk와 risk forecast error/calibration을 계산합니다. Immature, network failure, missing data와 partial coverage는 outcome 값 대신 append-only attempt로 기록하고 누락 ticker를 보존합니다. Complete observation에 연결된 mature outcome만 평가 집계에 포함합니다.
 - 모든 shadow 결과는 `production_auto_promotion=false`, `manual_review_only=true`입니다. 실제 미래 데이터가 policy 최소 수만큼 쌓이기 전에는 `insufficient_mature_observations`이며 성과 통과나 승격을 주장하지 않습니다. 같은 CLI를 수동 실행과 scheduler에서 사용하되 production 자동 승격은 지원하지 않습니다.
+
+### Production GMV 운용 정책 calendar-forward 비교
+
+- Historical evidence audit 결과 DOW, Nasdaq, French, Country ETF와 기존 result artifact를 모두 consumed로 취급합니다. 예약된 다른 가설의 holdout을 이 비교에 재사용하지 않으며 historical 결과를 새로 실행하지 않습니다.
+- `gmv_policy_comparison.py`는 최초 production GMV를 한 번 실행해 동일 quantities/cash를 복제한 뒤 `buy_and_hold`, `fixed_target`, `rolling_reoptimization`을 구분합니다. Fixed target은 최초 raw weight/cash/hash를 재정규화하지 않고, rolling만 각 as-of의 과거 504 observation으로 production GMV를 다시 계산합니다.
+- 공통 설정은 63 거래일 rebalance/outcome, 10 bps cost, 2% band, 35% gross L1 turnover cap, 20% asset cap, fractional synthetic units, 2% annual cash/risk-free입니다. 최초 배치에만 band/turnover cap을 면제하고 비용은 부과합니다.
+- Contract v3는 기존 v1/v2 SQLite schema와 hash chain을 변경하지 않고 policy payload만 additive로 저장합니다. Policy별 pre/post quantities, notionals, cash, 공통 prices/covariance, target, turnover, cost, risk, concentration, drift/constraint와 deterministic rerun을 다시 검산합니다.
+- Frozen eligible universe의 현재 가격이 하나라도 없으면 partial order를 만들지 않습니다. Network/data/calculation failure는 세 정책 모두 거래하지 않은 v3 observation으로 provenance를 남기고 마지막 complete state에서 다음 관측일에 재시도합니다. Buy-and-hold의 자연스런 cap drift는 거래 오류가 아닌 별도 diagnostic이며, target/accounting/coverage 위반은 correctness failure입니다.
+- Outcome의 첫 return은 pre-trade wealth에서 비용이 차감된 post-cost state로 이어지므로 모든 성과는 거래비용 net 기준입니다. Primary endpoint는 paired realized volatility입니다. 21일 circular block, 2,000 samples, seed 42와 Holm 보정을 사용하며 mature paired observation 8개 미만은 `forward_pending`, 방향 충돌이나 guard 미달은 `inconclusive`입니다. Sharpe 95% 우위, drawdown, calibration, turnover, concentration, correctness와 cap guard를 모두 통과해야만 superiority를 검토합니다. 향후 panel이 추가되면 모든 적격 panel에서 같은 정책·방향이어야 하며 하나라도 충돌하면 pooled 결과와 무관하게 `inconclusive`입니다. 모든 결과는 `no_automatic_promotion=true`입니다.
+- `tools/gmv_policy_comparison.py` 명령은 evidence audit, spec create/validate, offline fixture/rerun, forward init/observe, mature outcome record/evaluate, ledger verify를 같은 service로 실행합니다. 실제 주문과 broker API는 호출하지 않습니다.
 
 API 변경 규칙:
 

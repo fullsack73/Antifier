@@ -9,6 +9,7 @@ import {
   buildPortfolioExportPayload,
   buildTargetHoldingsCsv,
   downloadBlob,
+  parseImportedTarget,
 } from "./portfolioManagerExports"
 import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
 import { apiUrl } from "./apiClient.js"
@@ -23,6 +24,9 @@ const PortfolioManager = () => {
   // Holdings state: array of { ticker, quantity }
   const [holdings, setHoldings] = useState(DEFAULT_HOLDINGS)
   const [cashInjection, setCashInjection] = useState("")
+  const [calculationMode, setCalculationMode] = useState("REOPTIMIZE")
+  const [importedTarget, setImportedTarget] = useState(null)
+  const [targetImportError, setTargetImportError] = useState(null)
 
   // Configuration mirrored from Optimizer
   const [forecastMethod, setForecastMethod] = useState("LIGHTWEIGHT")
@@ -59,6 +63,7 @@ const PortfolioManager = () => {
 
   // CSV upload
   const csvFileInputRef = useRef(null)
+  const targetJsonInputRef = useRef(null)
   const spaceCsvFileInputRef = useRef(null)
   const resultsPrintRef = useRef(null)
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -68,6 +73,7 @@ const PortfolioManager = () => {
   const [uploadError, setUploadError] = useState(null)
   const [spaceUploadError, setSpaceUploadError] = useState(null)
   const riskOnlyOptimization = optimizationMethod === "MIN_VARIANCE"
+  const fixedTargetMode = calculationMode === "FIXED_TARGET"
 
   useEffect(() => {
     try {
@@ -154,9 +160,45 @@ const PortfolioManager = () => {
     return dict
   }
 
+  const handleTargetJsonUpload = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (loadEvent) => {
+      try {
+        const parsed = parseImportedTarget(
+          JSON.parse(loadEvent.target.result),
+          file.name,
+        )
+        setImportedTarget(parsed)
+        setTargetImportError(null)
+        setResults(null)
+      } catch (uploadError) {
+        setTargetImportError(
+          uploadError.message || t("manager.invalidTargetJson", "Invalid target portfolio JSON."),
+        )
+      }
+    }
+    reader.onerror = () => setTargetImportError(
+      t("manager.readTargetJsonError", "Failed to read target portfolio JSON."),
+    )
+    reader.readAsText(file)
+    event.target.value = ""
+  }
+
+  const handleRemoveImportedTarget = () => {
+    setImportedTarget(null)
+    setTargetImportError(null)
+    setResults(null)
+    if (targetJsonInputRef.current) targetJsonInputRef.current.value = ""
+  }
+
   const buildPortfolioSnapshot = () => ({
     holdings,
     cashInjection,
+    calculationMode,
+    importedTarget,
     forecastMethod,
     optimizationMethod,
     startDate,
@@ -218,6 +260,21 @@ const PortfolioManager = () => {
 
       setHoldings(savedHoldings.length > 0 ? savedHoldings : DEFAULT_HOLDINGS)
       setCashInjection(String(parsed.cashInjection || ""))
+      const restoredTarget = parsed.importedTarget && typeof parsed.importedTarget === "object"
+        ? parseImportedTarget({
+            weights: parsed.importedTarget.weights,
+            portfolio_id: parsed.importedTarget.portfolioId,
+            exported_at: parsed.importedTarget.exportedAt,
+            export_type: parsed.importedTarget.exportType,
+          }, parsed.importedTarget.fileName)
+        : null
+      setCalculationMode(
+        parsed.calculationMode === "FIXED_TARGET" && restoredTarget
+          ? "FIXED_TARGET"
+          : "REOPTIMIZE"
+      )
+      setImportedTarget(restoredTarget)
+      setTargetImportError(null)
       setForecastMethod(parsed.forecastMethod || "LIGHTWEIGHT")
       setOptimizationMethod(
         parsed.optimizationMethod || "MIN_VARIANCE"
@@ -331,6 +388,7 @@ const PortfolioManager = () => {
   }
 
   const buildManagerExportSettings = () => ({
+    calculation_mode: calculationMode,
     current_holdings: buildHoldingsDict(),
     cash_injection: Number.parseFloat(cashInjection) || 0,
     start_date: startDate,
@@ -413,34 +471,25 @@ const PortfolioManager = () => {
   // --- Submit ---
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setLoading(true)
     setError(null)
-    setResults(null)
 
     const holdingsDict = buildHoldingsDict()
     if (Object.keys(holdingsDict).length === 0) {
       setError(t("manager.noHoldings", "Please add at least one holding."))
-      setLoading(false)
+      return
+    }
+    if (fixedTargetMode && !importedTarget) {
+      setError(t("manager.targetJsonRequired", "Load a target portfolio JSON first."))
       return
     }
 
+    setLoading(true)
+    setResults(null)
     try {
       const payload = {
+        calculation_mode: calculationMode,
         current_holdings: holdingsDict,
         cash_injection: Number.parseFloat(cashInjection) || 0,
-        start_date: startDate,
-        end_date: endDate,
-        risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
-        forecast_method: optimizationMethod === "MIN_VARIANCE"
-          ? "RISK_ONLY"
-          : forecastMethod,
-        optimization_method: optimizationMethod,
-        forecast_horizon: Number.parseInt(forecastHorizon),
-        min_history: Number.parseInt(minHistory),
-        bl_tau: Number.parseFloat(blTau),
-        l2_gamma: Number.parseFloat(l2Gamma) || 0,
-        min_holding_weight: (Number.parseFloat(minHoldingWeight) || 0) / 100,
-        turnover_penalty: Number.parseFloat(turnoverPenalty) || 0,
         rebalance_band: (Number.parseFloat(rebalanceBand) || 0) / 100,
         max_turnover: maxTurnover === "" ? null : Number.parseFloat(maxTurnover) / 100,
         transaction_cost_bps: Number.isFinite(Number.parseFloat(transactionCostBps))
@@ -449,16 +498,39 @@ const PortfolioManager = () => {
         allow_fractional: allowFractional,
         fractional_overrides: fractionalOverrides
       }
-      if (maxAssetWeight !== "") {
-        payload.max_asset_weight = Number.parseFloat(maxAssetWeight) / 100
-      }
-      
-      if (tickerGroup === "CUSTOM") {
-        if (customTickers.length > 0) {
-          payload.tickers = customTickers
+
+      if (fixedTargetMode) {
+        payload.target_weights = importedTarget.weights
+        payload.imported_target = {
+          file_name: importedTarget.fileName,
+          portfolio_id: importedTarget.portfolioId,
+          exported_at: importedTarget.exportedAt,
+          export_type: importedTarget.exportType,
         }
-      } else if (tickerGroup !== "CURRENT_HOLDINGS") {
-        payload.ticker_group = tickerGroup
+      } else {
+        Object.assign(payload, {
+          start_date: startDate,
+          end_date: endDate,
+          risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
+          forecast_method: optimizationMethod === "MIN_VARIANCE"
+            ? "RISK_ONLY"
+            : forecastMethod,
+          optimization_method: optimizationMethod,
+          forecast_horizon: Number.parseInt(forecastHorizon),
+          min_history: Number.parseInt(minHistory),
+          bl_tau: Number.parseFloat(blTau),
+          l2_gamma: Number.parseFloat(l2Gamma) || 0,
+          min_holding_weight: (Number.parseFloat(minHoldingWeight) || 0) / 100,
+          turnover_penalty: Number.parseFloat(turnoverPenalty) || 0,
+        })
+        if (maxAssetWeight !== "") {
+          payload.max_asset_weight = Number.parseFloat(maxAssetWeight) / 100
+        }
+        if (tickerGroup === "CUSTOM") {
+          if (customTickers.length > 0) payload.tickers = customTickers
+        } else if (tickerGroup !== "CURRENT_HOLDINGS") {
+          payload.ticker_group = tickerGroup
+        }
       }
 
       const response = await axios.post(
@@ -707,6 +779,83 @@ const PortfolioManager = () => {
 
       {/* Main Form */}
       <form onSubmit={handleSubmit} className="optimizer-form">
+        <fieldset className="manager-mode-selector">
+          <legend>{t("manager.calculationMode", "Calculation Mode")}</legend>
+          <label>
+            <input
+              type="radio"
+              name="calculation-mode"
+              value="REOPTIMIZE"
+              checked={!fixedTargetMode}
+              onChange={(event) => setCalculationMode(event.target.value)}
+            />
+            <span>
+              <strong>{t("manager.reoptimizeMode", "Reoptimize to a New GMV")}</strong>
+              <small>{t("manager.reoptimizeModeHelp", "Use current holdings and fresh data to calculate a new target.")}</small>
+            </span>
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="calculation-mode"
+              value="FIXED_TARGET"
+              checked={fixedTargetMode}
+              onChange={(event) => setCalculationMode(event.target.value)}
+            />
+            <span>
+              <strong>{t("manager.fixedTargetMode", "Rebalance to Imported Target Weights")}</strong>
+              <small>{t("manager.fixedTargetModeHelp", "Keep imported weights fixed and use current holdings and fresh prices.")}</small>
+            </span>
+          </label>
+        </fieldset>
+
+        {fixedTargetMode && (
+          <section className="manager-target-import" aria-labelledby="target-import-title">
+            <div>
+              <h3 id="target-import-title" className="manager-section-title">
+                {t("manager.importedTarget", "Imported Target")}
+              </h3>
+              <p>{t("manager.importedTargetHelp", "Only weights are imported. Historical holdings, prices, and orders are ignored.")}</p>
+            </div>
+            <input
+              ref={targetJsonInputRef}
+              type="file"
+              accept=".json,application/json"
+              aria-label={t("manager.targetJsonFile", "Target portfolio JSON file")}
+              onChange={handleTargetJsonUpload}
+              className="sr-only"
+            />
+            <div className="manager-target-actions">
+              <button
+                type="button"
+                className="optimizer-secondary-button"
+                onClick={() => targetJsonInputRef.current?.click()}
+              >
+                {importedTarget
+                  ? t("manager.replaceTargetJson", "Replace JSON")
+                  : t("manager.chooseTargetJson", "Choose JSON")}
+              </button>
+              {importedTarget && (
+                <button
+                  type="button"
+                  className="optimizer-secondary-button"
+                  onClick={handleRemoveImportedTarget}
+                >
+                  {t("manager.removeTargetJson", "Remove JSON")}
+                </button>
+              )}
+            </div>
+            {targetImportError && <div className="optimizer-error" role="alert">{targetImportError}</div>}
+            {importedTarget && (
+              <dl className="manager-target-summary" aria-live="polite">
+                <div><dt>{t("manager.targetPortfolioId", "Portfolio ID")}</dt><dd>{importedTarget.portfolioId || t("common.notAvailable", "N/A")}</dd></div>
+                <div><dt>{t("manager.targetAssetCount", "Target assets")}</dt><dd>{importedTarget.assetCount}</dd></div>
+                <div><dt>{t("manager.targetCash", "Target cash")}</dt><dd>{(importedTarget.targetCashWeight * 100).toFixed(2)}%</dd></div>
+              </dl>
+            )}
+          </section>
+        )}
+
         {/* Holdings Input */}
         <div className="manager-holdings-section">
           <h3 className="manager-section-title">
@@ -778,6 +927,8 @@ const PortfolioManager = () => {
 
         {/* Configuration grid */}
         <div className="optimizer-form-grid">
+          {!fixedTargetMode && (
+            <>
           <div className="optimizer-form-group">
             <label>{t("optimizer.tickerGroup", "Target Asset Space")}</label>
             {tickerGroup === "CUSTOM" && customTickers.length > 0 ? (
@@ -906,11 +1057,13 @@ const PortfolioManager = () => {
               required
             />
           </div>
+            </>
+          )}
 
           <button
             type="submit"
             className="optimizer-submit-button"
-            disabled={loading}
+            disabled={loading || (fixedTargetMode && !importedTarget)}
           >
             {loading
               ? t("common.loading", "Loading...")
@@ -953,6 +1106,8 @@ const PortfolioManager = () => {
               </div>
 
               <div className="optimizer-advanced-section">
+                {!fixedTargetMode && (
+                  <>
                 <div className="optimizer-form-group">
                   <label htmlFor="forecastHorizon" title={t("optimizer.forecastHorizonTitle", "Number of trading days to forecast into the future. Default is 63 (roughly one quarter).")}>{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
                   <input
@@ -994,6 +1149,8 @@ const PortfolioManager = () => {
                     </small>
                   </div>
                 )}
+                  </>
+                )}
 
                 <div className="optimizer-form-group">
                   <label
@@ -1018,6 +1175,8 @@ const PortfolioManager = () => {
                   />
                 </div>
 
+                {!fixedTargetMode && (
+                  <>
                 <div className="optimizer-form-group">
                   <label htmlFor="mgr-maxAssetWeight">{t("optimizer.maxAssetWeight", "Maximum Asset Weight (%)")}</label>
                   <input id="mgr-maxAssetWeight" className="optimizer-input" type="number" min="0.01" max="100" step="0.1" value={maxAssetWeight} onChange={(e) => setMaxAssetWeight(e.target.value)} placeholder={t("optimizer.maxAssetWeightPlaceholder", "Automatic (20% target)")} />
@@ -1037,6 +1196,8 @@ const PortfolioManager = () => {
                   <label htmlFor="mgr-turnoverPenalty">{t("optimizer.turnoverPenalty", "Turnover Penalty")}</label>
                   <input id="mgr-turnoverPenalty" className="optimizer-input" type="number" min="0" step="0.01" value={turnoverPenalty} onChange={(e) => setTurnoverPenalty(e.target.value)} />
                 </div>
+                  </>
+                )}
 
                 <div className="optimizer-form-group">
                   <label htmlFor="mgr-rebalanceBand">{t("optimizer.rebalanceBand", "Rebalance Band (%)")}</label>
@@ -1128,6 +1289,23 @@ const PortfolioManager = () => {
           <h3 className="manager-results-title">
             {t("manager.resultsTitle", "Rebalancing Results")}
           </h3>
+          <div className="manager-result-mode" role="status">
+            <strong>
+              {results.calculation_mode === "FIXED_TARGET"
+                ? t("manager.fixedTargetMode", "Rebalance to Imported Target Weights")
+                : t("manager.reoptimizeMode", "Reoptimize to a New GMV")}
+            </strong>
+            {results.calculation_mode === "FIXED_TARGET" && (
+              <span>
+                {results.imported_target?.portfolio_id || results.imported_target?.file_name || ""}
+                {results.target_weights_sha256
+                  ? ` · ${results.target_weights_sha256.slice(0, 12)}`
+                  : ""}
+                {` · ${t("manager.targetCash", "Target cash")} ${(Number(results.target_cash_weight || 0) * 100).toFixed(2)}%`}
+              </span>
+            )}
+            <small>{t("manager.proposalOnly", "Proposal only. No orders are submitted.")}</small>
+          </div>
 
           <div className="manager-results-actions no-print">
             <button
@@ -1408,30 +1586,40 @@ const PortfolioManager = () => {
                   })}
                 </span>
               </div>
-              <div className="manager-summary-card manager-summary-metric-card">
+              {results.calculation_mode !== "FIXED_TARGET" && <div className="manager-summary-card manager-summary-metric-card">
                 <span className="manager-summary-label">
                   {t("optimizer.return", "Expected Return")}
                 </span>
                 <span className="manager-summary-metric-value">
                   {formatPercentMetric(expectedReturn)}
                 </span>
-              </div>
-              <div className="manager-summary-card manager-summary-metric-card">
+              </div>}
+              {results.calculation_mode !== "FIXED_TARGET" && <div className="manager-summary-card manager-summary-metric-card">
                 <span className="manager-summary-label">
                   {t("optimizer.risk", "Volatility")}
                 </span>
                 <span className="manager-summary-metric-value">
                   {formatPercentMetric(volatility)}
                 </span>
-              </div>
-              <div className="manager-summary-card manager-summary-metric-card">
+              </div>}
+              {results.calculation_mode !== "FIXED_TARGET" && <div className="manager-summary-card manager-summary-metric-card">
                 <span className="manager-summary-label">
                   {t("optimizer.sharpeRatio", "Sharpe Ratio")}
                 </span>
                 <span className="manager-summary-metric-value">
                   {formatRatioMetric(sharpeRatio)}
                 </span>
-              </div>
+              </div>}
+              {results.gross_turnover !== undefined && (
+                <div className="manager-summary-card manager-summary-metric-card">
+                  <span className="manager-summary-label">
+                    {t("manager.grossTurnover", "Gross Buy + Sell Turnover")}
+                  </span>
+                  <span className="manager-summary-metric-value">
+                    {formatPercentMetric(results.gross_turnover)}
+                  </span>
+                </div>
+              )}
               {results.transaction_cost !== undefined && (
                 <div className="manager-summary-card manager-summary-metric-card">
                   <span className="manager-summary-label">

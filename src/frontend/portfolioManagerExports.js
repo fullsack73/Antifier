@@ -1,4 +1,65 @@
 const DEFAULT_EXPORT_PREFIX = "portfolio-rebalance"
+export const TARGET_WEIGHT_SUM_TOLERANCE = 1e-8
+
+const YAHOO_TICKER_ALIASES = {
+  "BF.A": "BF-A",
+  "BF.B": "BF-B",
+  "BRK.A": "BRK-A",
+  "BRK.B": "BRK-B",
+}
+
+const normalizeTargetTicker = (value) => {
+  const ticker = String(value || "").trim().toUpperCase()
+  return YAHOO_TICKER_ALIASES[ticker] || ticker
+}
+
+export const parseImportedTarget = (value, fileName = "") => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Portfolio JSON must be an object.")
+  }
+  if (!value.weights || typeof value.weights !== "object" || Array.isArray(value.weights)) {
+    throw new Error("Portfolio JSON must contain a weights object.")
+  }
+
+  const entries = Object.entries(value.weights)
+  if (entries.length === 0) throw new Error("Portfolio weights must not be empty.")
+
+  const weights = {}
+  for (const [rawTicker, rawWeight] of entries) {
+    const ticker = normalizeTargetTicker(rawTicker)
+    if (!ticker) throw new Error("Portfolio weights contain an empty ticker.")
+    if (!/^[A-Z0-9.^=-]{1,24}$/.test(ticker)) {
+      throw new Error(`Portfolio weights contain invalid ticker ${ticker}.`)
+    }
+    if (Object.hasOwn(weights, ticker)) {
+      throw new Error(`Portfolio weights contain duplicate ticker ${ticker}.`)
+    }
+    const weight = typeof rawWeight === "boolean" ? Number.NaN : Number(rawWeight)
+    if (!Number.isFinite(weight) || weight < 0) {
+      throw new Error(`Weight for ${ticker} must be finite and non-negative.`)
+    }
+    weights[ticker] = weight
+  }
+
+  const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0)
+  if (total > 1 + TARGET_WEIGHT_SUM_TOLERANCE) {
+    throw new Error("Portfolio weights must sum to 100% or less.")
+  }
+  if (total > 1) {
+    for (const ticker of Object.keys(weights)) weights[ticker] /= total
+  }
+  const normalizedTotal = Object.values(weights).reduce((sum, weight) => sum + weight, 0)
+
+  return {
+    weights,
+    targetCashWeight: Math.max(0, 1 - normalizedTotal),
+    assetCount: Object.keys(weights).length,
+    fileName,
+    portfolioId: value.portfolio_id ? String(value.portfolio_id) : "",
+    exportedAt: value.exported_at ? String(value.exported_at) : "",
+    exportType: value.export_type ? String(value.export_type) : "",
+  }
+}
 
 const sanitizeFilenamePart = (value) =>
   String(value || DEFAULT_EXPORT_PREFIX)

@@ -53,6 +53,7 @@ from portfolio_constraints import (
     solver_weight_bounds,
 )
 from portfolio_risk_models import portfolio_risk_diagnostics
+from ticker_symbols import normalize_yahoo_ticker
 
 # Configure logging for this module
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -72,6 +73,7 @@ DEFAULT_REBALANCE_BAND = 0.02
 DEFAULT_MAX_TURNOVER = 0.35
 DEFAULT_TRANSACTION_COST_BPS = 10.0
 DEFAULT_OPTIMIZATION_METHOD = "MIN_VARIANCE"
+TARGET_WEIGHT_SUM_TOLERANCE = 1e-8
 TRADING_DAYS_PER_YEAR = 252
 YFINANCE_REQUEST_TIMEOUT_SECONDS = 15
 YFINANCE_INDIVIDUAL_RETRY_ATTEMPTS = 2
@@ -2755,6 +2757,12 @@ def data_and_forecast_pipeline(
         },
         "data_eligibility": finalized_eligibility,
         "market_data_provenance": market_data_provenance,
+        # Internal-only discovery metadata. It is exposed solely through the
+        # opt-in observation context, never the normal API response.
+        "observation_dates": [
+            pd.Timestamp(value).strftime("%Y-%m-%d")
+            for value in aligned_data.index
+        ],
     }
 
 def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, tickers=None,
@@ -3413,6 +3421,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                     for column in pd.DataFrame(S).columns
                 },
                 "market_data_provenance": market_data_provenance,
+                "observation_dates": list(
+                    pipeline_result.get("observation_dates") or []
+                ),
             }
 
         if portfolio_id and persist_result:
@@ -3529,6 +3540,128 @@ class RebalancePriceCoverageError(ValueError):
         )
 
 
+def normalize_fixed_target_weights(target_weights):
+    """Validate fixed target weights without inventing a new allocation."""
+    if not isinstance(target_weights, dict):
+        raise ValueError("target_weights must be an object")
+    if not target_weights:
+        raise ValueError("target_weights must not be empty")
+
+    normalized = {}
+    for raw_ticker, raw_weight in target_weights.items():
+        ticker = normalize_yahoo_ticker(raw_ticker)
+        if not ticker:
+            raise ValueError("target_weights contains an empty ticker")
+        if ticker in normalized:
+            raise ValueError(f"target_weights contains duplicate ticker {ticker}")
+        if isinstance(raw_weight, bool):
+            raise ValueError(
+                f"target_weights[{ticker}] must be a finite non-negative number"
+            )
+        try:
+            weight = float(raw_weight)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"target_weights[{ticker}] must be a finite non-negative number"
+            ) from exc
+        if not np.isfinite(weight) or weight < 0:
+            raise ValueError(
+                f"target_weights[{ticker}] must be a finite non-negative number"
+            )
+        normalized[ticker] = weight
+
+    total = float(sum(normalized.values()))
+    if total > 1.0 + TARGET_WEIGHT_SUM_TOLERANCE:
+        raise ValueError("target_weights must sum to 1 or less")
+    if total > 1.0:
+        normalized = {
+            ticker: weight / total
+            for ticker, weight in normalized.items()
+        }
+    return dict(sorted(normalized.items()))
+
+
+def canonical_target_weights_sha256(target_weights):
+    payload = json.dumps(
+        dict(sorted(target_weights.items())),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def fetch_latest_execution_prices(tickers, as_of=None):
+    """Fetch recent adjusted prices for order calculation, without forecasting."""
+    required = _dedupe_tickers(tickers)
+    as_of_date = pd.Timestamp(as_of or datetime.utcnow().date()).normalize()
+    end_date = as_of_date + pd.Timedelta(days=1)
+    start_date = end_date - pd.Timedelta(days=30)
+    if not required:
+        return {}, {
+            "source": "yfinance_adjusted_close",
+            "base_currency": BASE_CURRENCY,
+            "status": "complete",
+            "coverage": 1.0,
+            "required_tickers": [],
+            "missing_tickers": [],
+            "price_dates": {},
+            "available_through": None,
+            "query_start_date": start_date.strftime("%Y-%m-%d"),
+            "query_end_date_exclusive": end_date.strftime("%Y-%m-%d"),
+            "source_currencies": {},
+            "currency_conversion_failures": [],
+            "fetch_diagnostics": {},
+        }
+    data = get_stock_data(
+        required,
+        start_date.strftime("%Y-%m-%d"),
+        end_date.strftime("%Y-%m-%d"),
+    )
+    fetch_diagnostics = dict(data.attrs.get("fetch_diagnostics", {}))
+    currency_metadata = {}
+    currency_failures = []
+    if not data.empty:
+        data, currency_metadata, currency_failures = _convert_price_data_to_usd(
+            data,
+            start_date.strftime("%Y-%m-%d"),
+            end_date.strftime("%Y-%m-%d"),
+        )
+
+    prices = {}
+    price_dates = {}
+    for ticker in required:
+        if ticker not in data:
+            continue
+        series = pd.to_numeric(data[ticker], errors="coerce").replace(
+            [np.inf, -np.inf], np.nan
+        ).dropna()
+        if not series.empty and float(series.iloc[-1]) > 0:
+            prices[ticker] = float(series.iloc[-1])
+            price_dates[ticker] = pd.Timestamp(series.index[-1]).strftime("%Y-%m-%d")
+
+    missing = sorted(set(required) - set(prices))
+    coverage = 1.0 if not required else (len(required) - len(missing)) / len(required)
+    return prices, {
+        "source": "yfinance_adjusted_close",
+        "base_currency": BASE_CURRENCY,
+        "status": "complete" if coverage == 1.0 else "partial",
+        "coverage": float(coverage),
+        "required_tickers": required,
+        "missing_tickers": missing,
+        "price_dates": price_dates,
+        "available_through": max(price_dates.values()) if price_dates else None,
+        "query_start_date": start_date.strftime("%Y-%m-%d"),
+        "query_end_date_exclusive": end_date.strftime("%Y-%m-%d"),
+        "source_currencies": {
+            ticker: currency_metadata.get(ticker, {}).get("source_currency", BASE_CURRENCY)
+            for ticker in prices
+        },
+        "currency_conversion_failures": sorted(currency_failures),
+        "fetch_diagnostics": fetch_diagnostics,
+    }
+
+
 def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, cash_injection,
                                allow_fractional=True, fractional_overrides=None,
                                rebalance_band=0.0, max_turnover=None,
@@ -3614,6 +3747,11 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
         ticker: total_target_value * float(target_weights.get(ticker, 0.0))
         for ticker in all_tickers
     }
+    requested_target_risky_value = float(sum(pre_control_target_values.values()))
+    requested_target_cash_value = max(
+        0.0,
+        float(total_target_value - requested_target_risky_value),
+    )
     controls_enabled = (
         max(0.0, _safe_float(rebalance_band, 0.0)) > 0
         or max_turnover is not None
@@ -3767,14 +3905,30 @@ def calculate_rebalance_orders(current_holdings, target_weights, latest_prices, 
             total_target_value,
         ),
         "total_target_value": total_target_value,
+        "current_holdings_value": float(total_current_value),
+        "target_cash_weight": max(0.0, 1.0 - float(sum(target_weights.values()))),
+        "requested_target_risky_value": requested_target_risky_value,
+        "requested_target_cash_value": requested_target_cash_value,
+        "executed_risky_value": float(sum(actual_target_values.values())),
         "investable_value": investable_value,
         "remaining_cash": remaining_cash,
         "gross_trade_value": gross_trade_value,
+        "gross_turnover": (
+            0.0 if total_target_value <= 0.0 else gross_trade_value / total_target_value
+        ),
         "transaction_cost_bps": transaction_cost_bps,
         "transaction_cost": transaction_cost,
         "transaction_cost_diagnostics": transaction_cost_diagnostics,
         "required_price_tickers": sorted(str(ticker) for ticker in required_price_tickers),
         "execution_price_coverage": 1.0,
+        "accounting_diagnostics": {
+            "requested_target_identity": float(
+                requested_target_risky_value + requested_target_cash_value
+            ),
+            "executed_wealth_identity": float(
+                sum(actual_target_values.values()) + transaction_cost + remaining_cash
+            ),
+        },
     }
     if controls_enabled:
         rebalance_controls = dict(rebalance_controls)
@@ -3797,7 +3951,69 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
                            rebalance_band=DEFAULT_REBALANCE_BAND,
                            max_turnover=DEFAULT_MAX_TURNOVER,
                            transaction_cost_bps=DEFAULT_TRANSACTION_COST_BPS,
+                           calculation_mode="REOPTIMIZE",
+                           target_weights=None,
+                           imported_target=None,
                            **kwargs):
+
+    calculation_mode = str(calculation_mode or "REOPTIMIZE").strip().upper()
+    if calculation_mode not in {"REOPTIMIZE", "FIXED_TARGET"}:
+        return {"error": "calculation_mode must be REOPTIMIZE or FIXED_TARGET"}
+
+    if calculation_mode == "FIXED_TARGET":
+        try:
+            target_weights = normalize_fixed_target_weights(target_weights)
+        except ValueError as exc:
+            return {"error": str(exc)}
+        required_tickers = list(current_holdings)
+        required_tickers.extend(
+            ticker for ticker, weight in target_weights.items() if weight > 1e-10
+        )
+        latest_prices, price_provenance = fetch_latest_execution_prices(
+            required_tickers
+        )
+        target_hash = canonical_target_weights_sha256(target_weights)
+        try:
+            rebalance_data = calculate_rebalance_orders(
+                current_holdings,
+                target_weights,
+                latest_prices,
+                cash_injection,
+                allow_fractional=allow_fractional,
+                fractional_overrides=fractional_overrides,
+                rebalance_band=rebalance_band,
+                max_turnover=max_turnover,
+                transaction_cost_bps=transaction_cost_bps,
+            )
+        except RebalancePriceCoverageError as exc:
+            return {
+                "error": str(exc),
+                "calculation_mode": calculation_mode,
+                "target_weights_sha256": target_hash,
+                "target_cash_weight": max(0.0, 1.0 - sum(target_weights.values())),
+                "imported_target": imported_target or {},
+                "price_provenance": price_provenance,
+                "required_price_tickers": exc.required_price_tickers,
+                "missing_price_tickers": exc.missing_price_tickers,
+                "execution_price_coverage": exc.execution_price_coverage,
+            }
+        except ValueError as exc:
+            return {"error": str(exc), "calculation_mode": calculation_mode}
+
+        display_tickers = sorted(set(current_holdings) | set(target_weights))
+        return {
+            "calculation_mode": calculation_mode,
+            "weights": target_weights,
+            "prices": latest_prices,
+            "current_holdings": current_holdings,
+            "cash_injection": cash_injection,
+            "target_weights_sha256": target_hash,
+            "target_cash_weight": max(0.0, 1.0 - sum(target_weights.values())),
+            "imported_target": imported_target or {},
+            "price_provenance": price_provenance,
+            "asset_names": get_asset_names(display_tickers),
+            **rebalance_data,
+        }
 
     universe_tickers = list(current_holdings.keys())
     if tickers:
@@ -3848,6 +4064,7 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
     except ValueError as exc:
         return {"error": str(exc)}
     opt_result.update(rebalance_data)
+    opt_result["calculation_mode"] = calculation_mode
     opt_result["current_holdings"] = current_holdings
     opt_result["cash_injection"] = cash_injection
     display_tickers = set(current_holdings.keys())

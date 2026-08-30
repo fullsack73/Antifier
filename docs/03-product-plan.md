@@ -72,6 +72,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소
 - 저장된 portfolio result 조회
 - production GMV 결과와 실제 가격 provenance를 strict calendar-forward observation으로 변환하는 baseline-only adapter, network-free fixture replay와 append-only correctness ledger
+- 동일 최초 production GMV에서 buy-and-hold, immutable fixed-target rebalance, 63일 rolling reoptimization을 비교하는 additive shadow contract v3과 forward-only 사전등록 경로. 실제 future outcome 8개 전까지 `forward_pending`이며 자동 승격은 없음
 - 기존 equal weight, Ledoit-Wolf GMV, historical MPT/BL, risk parity, low-volatility를 동일 비용·turnover 조건으로 두 panel에서 재현 진단한 결과, GMV는 변동성과 risk forecast MAE가 가장 낮았지만 수익률·Sharpe·drawdown·turnover 우위는 일관되지 않아 risk-only production 목적만 재확인하고 승격·성과 주장은 하지 않은 기록
 - 포트폴리오 benchmark와 리밸런싱 계산
 - pairs/correlation/regression 분석
@@ -115,6 +116,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - Alpha, risk, execution/correctness는 서로 다른 primary endpoint와 stop rule을 사용합니다. Alpha signal gate 실패 시 overlay/allocator를 열지 않고, execution invariant 통과를 성과 개선으로 표현하지 않습니다.
 - DOW, Nasdaq, French의 이미 확인한 split은 consumed registry로 추적하며 candidate 선택·튜닝·승격에 다시 사용하지 않습니다. 과거 보고서는 당시 결정 기록으로 그대로 보존합니다.
 - Historical holdout 추가 탐색 대신 campaign 생성 이후만 기록할 수 있는 append-only calendar-forward shadow ledger를 축적합니다. 현재 승격 가능한 alpha candidate가 없으므로 production baseline부터 관측하며 자동 승격은 지원하지 않습니다.
+- GMV 운용 정책 비교는 alpha나 새 optimizer 연구가 아니며, 같은 production GMV target을 유지·실행하는 방식만 비교합니다. Historical 성과를 추가 탐색하지 않고 forward mature observation만 paired 평가합니다.
 - Baseline collection은 실제 production optimizer 결과에서 universe/data hash, explicit no-view, weight/cash, risk와 실행 회계를 파생합니다. Success/partial/network/data/calculation failure를 같은 one-shot CLI로 기록하고 raw notional·비용·wealth·constraint·coverage·deterministic rerun을 ledger에서 재검산합니다.
 - 이 기능은 운영 관측과 correctness를 개선한 것이며 alpha, Sharpe 또는 calendar-forward 성과 개선을 검증한 결과가 아닙니다. 실제 미래 outcome이 성숙하기 전까지 baseline 평가는 descriptive/insufficient 상태입니다.
 
@@ -132,7 +134,11 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 ### 4. Portfolio Management / Benchmark
 
-- 현재 보유 수량, 현금 주입, 목표 weight를 바탕으로 리밸런싱 주문을 계산합니다.
+- 기본 `새 GMV로 재최적화`는 현재 보유 수량과 최신 데이터로 production `MIN_VARIANCE + RISK_ONLY` Ledoit-Wolf 목표를 새로 계산합니다.
+- `불러온 목표 비중으로 리밸런싱`은 Optimizer/Portfolio Manager/호환 JSON의 top-level `weights`만 고정 목표로 사용합니다. JSON의 과거 보유 수량, 가격과 거래 목록은 신뢰하지 않고 사용자가 별도로 입력한 실제 수량과 실행 시점 최신 가격을 사용합니다.
+- 별도 기존 현금 입력은 없으며 `cash_injection`은 새 외부 자금입니다. 매도대금은 리밸런싱 내부 자금이고 weight 합계의 나머지는 비용 전 목표 cash, `remaining_cash`는 거래비용과 정수 반올림 이후 잔액입니다.
+- Turnover는 매수와 매도의 절대 금액을 합한 gross L1 방식입니다. 고정 목표도 기존 band, gross turnover cap, transaction cost와 fractional-share 설정을 동일하게 적용합니다.
+- 결과는 분석용 거래 제안일 뿐 실제 주문이나 broker 호출을 실행하지 않습니다. 과거 목표 복원은 미래 성과 검증, 연구 evidence 소비 또는 production optimizer 승격을 의미하지 않습니다.
 - fractional share 허용 여부와 ticker별 예외를 고려합니다.
 - benchmark는 동일한 기간과 통화 기준으로 비교해야 합니다.
 

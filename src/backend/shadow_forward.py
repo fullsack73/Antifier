@@ -11,11 +11,13 @@ import numpy as np
 import pandas as pd
 
 from portfolio_constraints import constraint_diagnostics, prepare_constraint_model
+from portfolio_statistics import holm_bonferroni, paired_block_bootstrap
 from research_split import canonical_json_digest, load_research_policy
 
 
 SCHEMA_VERSION = 1
 OBSERVATION_CONTRACT_VERSION = 2
+POLICY_COMPARISON_CONTRACT_VERSION = 3
 OBSERVATION_STATUSES = {
     "complete",
     "partial",
@@ -185,6 +187,22 @@ def normalize_campaign_spec(spec, *, now=None, policy_path=None):
                 raise ValueError(
                     "Risk candidate must preregister a supported primary_endpoint"
                 )
+    comparison = payload.get("comparison_specification")
+    if comparison is not None:
+        if candidate is not None:
+            raise ValueError("Policy comparison cannot register a separate candidate")
+        if lane != "risk":
+            raise ValueError("GMV policy comparison must use the risk lane")
+        if comparison.get("policies") != [
+            "buy_and_hold",
+            "fixed_target",
+            "rolling_reoptimization",
+        ]:
+            raise ValueError("GMV policy comparison requires all three policies")
+        _require_sha(
+            comparison.get("comparison_spec_sha256"),
+            "comparison_specification.comparison_spec_sha256",
+        )
     normalized = {
         "schema_version": SCHEMA_VERSION,
         "campaign_id": campaign_id,
@@ -207,6 +225,11 @@ def normalize_campaign_spec(spec, *, now=None, policy_path=None):
         "production_auto_promotion": False,
         "manual_review_only": True,
     }
+    if comparison is not None:
+        normalized.update({
+            "comparison_specification": comparison,
+            "comparison_specification_sha256": canonical_json_digest(comparison),
+        })
     normalized["universe_policy_sha256"] = canonical_json_digest(
         normalized["universe_policy"]
     )
@@ -476,6 +499,88 @@ def _validate_candidate(
     return candidate
 
 
+def _validate_comparison_policies(payload, campaign, eligible):
+    policies = dict(payload or {})
+    required = {"buy_and_hold", "fixed_target", "rolling_reoptimization"}
+    if set(policies) != required:
+        raise ValueError("Comparison observation requires exactly three policies")
+    common_prices = None
+    for policy_id in sorted(required):
+        policy = dict(policies[policy_id] or {})
+        if policy.get("policy_id") != policy_id:
+            raise ValueError(f"Comparison policy identity mismatch: {policy_id}")
+        prices = _nonnegative_mapping(policy.get("prices"), f"{policy_id} prices")
+        if set(prices) != set(eligible) or any(value <= 0.0 for value in prices.values()):
+            raise ValueError(f"{policy_id} requires full eligible-universe prices")
+        if common_prices is None:
+            common_prices = prices
+        elif prices != common_prices:
+            raise ValueError("Comparison policies must use identical prices")
+        quantities = _nonnegative_mapping(
+            policy.get("executed_quantities"),
+            f"{policy_id} executed_quantities",
+        )
+        executed = _nonnegative_mapping(
+            policy.get("executed_notionals"),
+            f"{policy_id} executed_notionals",
+        )
+        current = _nonnegative_mapping(
+            policy.get("pre_trade_notionals"),
+            f"{policy_id} pre_trade_notionals",
+        )
+        cash = float(policy.get("executed_cash", float("nan")))
+        pre_cash = float(policy.get("pre_trade_cash", float("nan")))
+        pre_wealth = float(policy.get("pre_trade_wealth", float("nan")))
+        post_wealth = float(policy.get("post_cost_wealth", float("nan")))
+        cost = float(policy.get("transaction_cost", float("nan")))
+        traded = sum(
+            abs(executed.get(ticker, 0.0) - current.get(ticker, 0.0))
+            for ticker in set(executed) | set(current)
+        )
+        rate = float(campaign["execution_conditions"].get("transaction_cost_bps", 0.0)) / 10000.0
+        checks = {
+            "pre_wealth": abs(sum(current.values()) + pre_cash - pre_wealth) <= 1e-8,
+            "quantity_value": all(
+                abs(quantities.get(ticker, 0.0) * prices[ticker] - executed.get(ticker, 0.0)) <= 1e-8
+                for ticker in eligible
+            ),
+            "traded_notional": abs(float(policy.get("gross_traded_notional", float("nan"))) - traded) <= 1e-8,
+            "turnover": abs(float(policy.get("turnover", float("nan"))) - traded / pre_wealth) <= 1e-10,
+            "cost": abs(cost - traded * rate) <= 1e-8,
+            "post_wealth": abs(post_wealth - (pre_wealth - cost)) <= 1e-8,
+            "post_holdings": abs(sum(executed.values()) + cash - post_wealth) <= 1e-8,
+        }
+        weights = _nonnegative_mapping(policy.get("weights"), f"{policy_id} weights")
+        cash_weight = float(policy.get("cash_weight", float("nan")))
+        checks["weight_cash"] = abs(sum(weights.values()) + cash_weight - 1.0) <= 1e-10
+        checks["executed_weights"] = all(
+            abs(executed.get(ticker, 0.0) / post_wealth - weights.get(ticker, 0.0)) <= 1e-10
+            for ticker in eligible
+        )
+        if policy_id == "buy_and_hold" and policy.get("action") != "initial_shared_allocation":
+            checks["buy_and_hold_no_trade"] = traded <= 1e-12 and cost <= 1e-12
+        failed = [name for name, passed in checks.items() if not passed]
+        if failed:
+            raise ValueError(f"{policy_id} comparison identity failed: {', '.join(failed)}")
+        forecast = dict(policy.get("risk_forecast") or {})
+        _validate_risk_forecast(forecast, policy_id)
+        policy["checks"] = {**dict(policy.get("checks") or {}), **checks}
+        policies[policy_id] = policy
+    return policies
+
+
+def latest_complete_observation(path, campaign_id):
+    """Return the latest complete append-only state for a campaign."""
+    initialize_ledger(path)
+    with _connect(path) as connection:
+        row = connection.execute(
+            "SELECT payload_json FROM observations WHERE campaign_id = ? "
+            "AND status = 'complete' ORDER BY as_of_timestamp DESC LIMIT 1",
+            (campaign_id,),
+        ).fetchone()
+    return None if row is None else json.loads(row["payload_json"])
+
+
 def append_observation(path, observation, *, now=None):
     initialize_ledger(path)
     payload = dict(observation or {})
@@ -484,12 +589,21 @@ def append_observation(path, observation, *, now=None):
     as_of = _timestamp(payload.get("as_of_timestamp"), "as_of_timestamp")
     status = str(payload.get("status", "")).strip().lower()
     contract_version = int(payload.get("contract_version", 1))
-    if contract_version not in {1, OBSERVATION_CONTRACT_VERSION}:
+    if contract_version not in {
+        1,
+        OBSERVATION_CONTRACT_VERSION,
+        POLICY_COMPARISON_CONTRACT_VERSION,
+    }:
         raise ValueError("Unsupported shadow observation contract_version")
     if status not in OBSERVATION_STATUSES:
         raise ValueError("Unsupported shadow observation status")
     with _connect(path) as connection:
         campaign = _campaign(connection, campaign_id)
+        comparison_campaign = campaign.get("comparison_specification") is not None
+        if contract_version == POLICY_COMPARISON_CONTRACT_VERSION and not comparison_campaign:
+            raise ValueError("Contract v3 requires a registered policy comparison")
+        if comparison_campaign and contract_version != POLICY_COMPARISON_CONTRACT_VERSION:
+            raise ValueError("Registered policy comparison requires contract v3")
         if as_of < _timestamp(campaign["created_at"], "campaign.created_at"):
             raise ValueError("Historical backfill before campaign creation is forbidden")
         if as_of > recorded:
@@ -528,9 +642,26 @@ def append_observation(path, observation, *, now=None):
                 "Complete observation is below campaign minimum coverage"
             )
         candidate = payload.get("candidate")
+        if comparison_campaign:
+            if payload.get("comparison_spec_sha256") != campaign[
+                "comparison_specification"
+            ]["comparison_spec_sha256"]:
+                raise ValueError("Comparison specification hash changed")
+            if status not in FAILED_OBSERVATION_STATUSES:
+                payload["policies"] = _validate_comparison_policies(
+                    payload.get("policies"),
+                    campaign,
+                    eligible,
+                )
+                if payload.get("baseline") is not None or candidate is not None:
+                    raise ValueError("Comparison observation cannot contain baseline/candidate payloads")
+            elif payload.get("policies") is not None:
+                raise ValueError("Failed comparison observations cannot contain policy outputs")
+        elif payload.get("policies") is not None:
+            raise ValueError("Policy outputs require a comparison campaign")
         if campaign["candidate_specification"] is None and candidate is not None:
             raise ValueError("Candidate payload is forbidden for a baseline-only campaign")
-        if status not in FAILED_OBSERVATION_STATUSES:
+        if status not in FAILED_OBSERVATION_STATUSES and not comparison_campaign:
             payload["baseline"] = _validate_baseline(
                 payload.get("baseline"),
                 campaign,
@@ -565,7 +696,9 @@ def append_observation(path, observation, *, now=None):
                     raise ValueError(
                         f"{owner} weights must stay inside eligible_universe"
                     )
-        elif payload.get("baseline") is not None or candidate is not None:
+        elif not comparison_campaign and (
+            payload.get("baseline") is not None or candidate is not None
+        ):
             raise ValueError("Failed observations cannot contain model outputs")
         normalized = {
             **payload,
@@ -738,6 +871,63 @@ def _portfolio_outcome(frame, as_of, horizon, baseline):
     }, "complete"
 
 
+def _comparison_policy_outcome(frame, as_of, horizon, policy, risk_free_rate):
+    before = frame.loc[frame.index <= as_of]
+    after = frame.loc[frame.index > as_of]
+    if before.empty or len(after.index.unique()) < horizon:
+        return None, "immature"
+    selected = pd.concat([before.tail(1), after.iloc[:horizon]])
+    quantities = pd.Series(policy["executed_quantities"], dtype=float)
+    required = sorted(quantities[quantities.abs() > 1e-12].index)
+    prices = selected.reindex(columns=required)
+    valid = (prices.notna() & prices.gt(0.0)).all(axis=0)
+    missing = sorted(ticker for ticker in required if not valid[ticker])
+    if missing:
+        return {
+            "coverage": float(valid.mean()) if required else 1.0,
+            "missing_tickers": missing,
+        }, "partial_coverage"
+    cash = float(policy.get("executed_cash", 0.0))
+    daily_rate = (1.0 + float(risk_free_rate)) ** (1.0 / 252.0) - 1.0
+    cash_path = cash * (1.0 + daily_rate) ** np.arange(len(selected))
+    values = prices.mul(quantities.reindex(required), axis=1).sum(axis=1) + cash_path
+    # The interval is net of the rebalance cost: the as-of denominator is the
+    # pre-trade wealth, while all future values use the funded post-cost state.
+    values.iloc[0] = float(policy["pre_trade_wealth"])
+    returns = values.pct_change().dropna()
+    volatility = float(returns.std(ddof=0) * np.sqrt(252))
+    total_return = float(values.iloc[-1] / values.iloc[0] - 1.0)
+    years = max(len(returns) / 252.0, 1.0 / 252.0)
+    cagr = float((values.iloc[-1] / values.iloc[0]) ** (1.0 / years) - 1.0)
+    excess = float(returns.mean() * 252 - risk_free_rate)
+    sharpe = None if volatility <= 1e-12 else float(excess / volatility)
+    drawdown = values / values.cummax() - 1.0
+    predicted = float(policy["risk_forecast"]["annual_volatility"])
+    return {
+        "coverage": 1.0,
+        "missing_tickers": [],
+        "horizon_start": selected.index[1].strftime("%Y-%m-%d"),
+        "horizon_end": selected.index[-1].strftime("%Y-%m-%d"),
+        "horizon_observations": int(horizon),
+        "net_total_return": total_return,
+        "net_cagr": cagr,
+        "realized_volatility": volatility,
+        "max_drawdown": float(drawdown.min()),
+        "sharpe": sharpe,
+        "risk_forecast_error": float(volatility - predicted),
+        "risk_forecast_mae": float(abs(volatility - predicted)),
+        "risk_forecast_ratio": None if predicted <= 1e-12 else float(volatility / predicted),
+        "turnover": float(policy["turnover"]),
+        "transaction_cost": float(policy["transaction_cost"]),
+        "target_l1_deviation": float(policy["target_l1_deviation"]),
+        "concentration_hhi": float(policy["concentration_hhi"]),
+        "holding_drift_violation": bool(policy["holding_drift_violation"]),
+        "daily_returns": {
+            str(index): float(value) for index, value in returns.items()
+        },
+    }, "complete"
+
+
 def record_outcome(path, campaign_id, as_of_timestamp, outcome, *, now=None):
     initialize_ledger(path)
     now = _timestamp(now or _utc_now(), "recorded_at")
@@ -791,6 +981,74 @@ def record_outcome(path, campaign_id, as_of_timestamp, outcome, *, now=None):
                 raise ValueError("Outcome requires data_provenance")
             if supplied_hash != canonical_outcome_price_sha256(frame):
                 raise ValueError("Outcome data_sha256 does not match supplied prices")
+        if contract_version == POLICY_COMPARISON_CONTRACT_VERSION:
+            policy_metrics = {}
+            for policy_id, policy_payload in observation["policies"].items():
+                metrics, policy_status = _comparison_policy_outcome(
+                    frame,
+                    naive_as_of,
+                    int(campaign["horizon_observations"]),
+                    policy_payload,
+                    float(campaign["comparison_specification"]["settings"]["risk_free_rate"]),
+                )
+                if policy_status != "complete":
+                    _append_outcome_attempt(
+                        connection,
+                        campaign_id,
+                        as_of,
+                        policy_status,
+                        {
+                            "data_sha256": source["data_sha256"],
+                            "policy_id": policy_id,
+                            "coverage": None if metrics is None else metrics.get("coverage"),
+                            "missing_tickers": None if metrics is None else metrics.get("missing_tickers"),
+                        },
+                        now,
+                    )
+                    return {"status": policy_status, "outcome_recorded": False}
+                policy_metrics[policy_id] = metrics
+            normalized = {
+                "schema_version": SCHEMA_VERSION,
+                "contract_version": POLICY_COMPARISON_CONTRACT_VERSION,
+                "campaign_id": campaign_id,
+                "as_of_timestamp": as_of.isoformat(),
+                "recorded_at": now.isoformat(),
+                "data_sha256": source["data_sha256"],
+                "data_provenance": dict(source.get("data_provenance") or {}),
+                "policy_metrics": policy_metrics,
+                "evaluation_eligible": observation.get("status") == "complete",
+                "no_automatic_promotion": True,
+                "production_auto_promotion": False,
+            }
+            payload_json = _canonical_json(normalized)
+            payload_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
+            previous = connection.execute(
+                "SELECT record_sha256 FROM outcomes ORDER BY outcome_id DESC LIMIT 1"
+            ).fetchone()
+            previous_hash = previous["record_sha256"] if previous else None
+            record_hash = canonical_json_digest({
+                "payload_sha256": payload_hash,
+                "previous_record_sha256": previous_hash,
+            })
+            connection.execute(
+                "INSERT INTO outcomes(campaign_id, as_of_timestamp, recorded_at, "
+                "payload_json, payload_sha256, previous_record_sha256, record_sha256) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    campaign_id,
+                    as_of.isoformat(),
+                    now.isoformat(),
+                    payload_json,
+                    payload_hash,
+                    previous_hash,
+                    record_hash,
+                ),
+            )
+            return {
+                "status": "recorded",
+                "policy_metrics": policy_metrics,
+                "record_sha256": record_hash,
+            }
         metrics, status = _portfolio_outcome(
             frame,
             naive_as_of,
@@ -896,6 +1154,166 @@ def evaluate_campaign(path, campaign_id):
             "WHERE campaign_id = ? GROUP BY status",
             (campaign_id,),
         ).fetchall()
+        observation_payload_rows = connection.execute(
+            "SELECT status, payload_json FROM observations WHERE campaign_id = ? "
+            "ORDER BY as_of_timestamp",
+            (campaign_id,),
+        ).fetchall()
+    if campaign.get("comparison_specification") is not None:
+        payloads = [json.loads(row["payload_json"]) for row in rows]
+        eligible = [
+            payload for row, payload in zip(rows, payloads)
+            if row["observation_status"] == "complete"
+            and payload.get("evaluation_eligible", True)
+            and payload.get("contract_version") == POLICY_COMPARISON_CONTRACT_VERSION
+        ]
+        minimum = int(
+            campaign["comparison_specification"]["settings"][
+                "minimum_mature_observations"
+            ]
+        )
+        result = {
+            "campaign_id": campaign_id,
+            "calendar_forward_shadow": True,
+            "comparison_spec_sha256": campaign["comparison_specification"][
+                "comparison_spec_sha256"
+            ],
+            "mature_paired_observation_count": len(eligible),
+            "recorded_outcome_count": len(payloads),
+            "minimum_mature_observations": minimum,
+            "observation_status_counts": {
+                row["status"]: row["count"] for row in observations
+            },
+            "status": "forward_pending" if len(eligible) < minimum else "inconclusive",
+            "no_automatic_promotion": True,
+            "production_auto_promotion": False,
+            "manual_review_only": True,
+        }
+        complete_observations = [
+            json.loads(row["payload_json"])
+            for row in observation_payload_rows
+            if row["status"] == "complete"
+        ]
+        correctness_failures = sum(
+            row["status"] == "calculation_failure" for row in observation_payload_rows
+        )
+        turnover_cap_violations = 0
+        for observation in complete_observations:
+            for policy_payload in (observation.get("policies") or {}).values():
+                if (
+                    not (policy_payload.get("controls") or {}).get("initial_allocation", False)
+                    and float(policy_payload.get("turnover", 0.0))
+                    > float(campaign["comparison_specification"]["settings"]["max_turnover"]) + 1e-10
+                ):
+                    turnover_cap_violations += 1
+                if not all((policy_payload.get("checks") or {}).values()):
+                    correctness_failures += 1
+        result["correctness_failure_count"] = int(correctness_failures)
+        result["turnover_cap_violation_count"] = int(turnover_cap_violations)
+        if not eligible:
+            return result
+        policy_ids = ["buy_and_hold", "fixed_target", "rolling_reoptimization"]
+        daily = {policy_id: {} for policy_id in policy_ids}
+        summaries = {}
+        for policy_id in policy_ids:
+            metrics = [payload["policy_metrics"][policy_id] for payload in eligible]
+            for metric in metrics:
+                daily[policy_id].update(metric.get("daily_returns") or {})
+            summaries[policy_id] = {
+                "mean_realized_volatility": float(np.mean([m["realized_volatility"] for m in metrics])),
+                "mean_max_drawdown": float(np.mean([m["max_drawdown"] for m in metrics])),
+                "mean_net_cagr": float(np.mean([m["net_cagr"] for m in metrics])),
+                "mean_sharpe": float(np.mean([m["sharpe"] for m in metrics if m["sharpe"] is not None])),
+                "cumulative_turnover": float(sum(m["turnover"] for m in metrics)),
+                "transaction_cost": float(sum(m["transaction_cost"] for m in metrics)),
+                "mean_target_l1_deviation": float(np.mean([m["target_l1_deviation"] for m in metrics])),
+                "mean_concentration_hhi": float(np.mean([m["concentration_hhi"] for m in metrics])),
+                "risk_forecast_mae": float(np.mean([m["risk_forecast_mae"] for m in metrics])),
+                "risk_forecast_calibration_ratio": float(np.mean([m["risk_forecast_ratio"] for m in metrics if m["risk_forecast_ratio"] is not None])),
+                "holding_drift_violation_count": int(sum(bool(m["holding_drift_violation"]) for m in metrics)),
+            }
+        result["summary_by_policy"] = summaries
+        settings = campaign["comparison_specification"]["settings"]
+        pair_results = {}
+        p_values = {}
+        lower_policy = {}
+        for left, right in campaign["comparison_specification"]["statistics"]["paired_comparisons"]:
+            comparison = paired_block_bootstrap(
+                pd.Series(daily[left], dtype=float),
+                pd.Series(daily[right], dtype=float),
+                risk_free_rate=settings["risk_free_rate"],
+                block_size=settings["bootstrap_block_size"],
+                samples=settings["bootstrap_samples"],
+                seed=settings["bootstrap_seed"],
+            )
+            key = f"{left}_vs_{right}"
+            pair_results[key] = comparison
+            if comparison.get("status") == "ok":
+                observed = comparison["observed"]["difference"]["annualized_volatility"]
+                if observed < 0.0:
+                    lower_policy[key] = left
+                    p_values[key] = 1.0 - comparison["probability"]["lower_volatility"]
+                else:
+                    lower_policy[key] = right
+                    p_values[key] = comparison["probability"]["lower_volatility"]
+        result["paired_statistics"] = pair_results
+        result["holm_volatility"] = holm_bonferroni(p_values, alpha=0.05)
+        if len(eligible) >= minimum and len(lower_policy) == 3:
+            wins = {policy_id: 0 for policy_id in policy_ids}
+            for key, winner in lower_policy.items():
+                comparison = pair_results[key]
+                interval = comparison["difference_interval"]["annualized_volatility"]
+                left_wins = winner == key.split("_vs_")[0]
+                excludes_zero = interval["upper_95"] < 0.0 if left_wins else interval["lower_95"] > 0.0
+                if result["holm_volatility"][key]["significant"] and excludes_zero:
+                    wins[winner] += 1
+            candidates = [policy_id for policy_id, count in wins.items() if count == 2]
+            if len(candidates) == 1:
+                winner = candidates[0]
+                guards = []
+                for other in policy_ids:
+                    if other == winner:
+                        continue
+                    winner_summary = summaries[winner]
+                    other_summary = summaries[other]
+                    pair_key = (
+                        f"{winner}_vs_{other}"
+                        if f"{winner}_vs_{other}" in pair_results
+                        else f"{other}_vs_{winner}"
+                    )
+                    pair = pair_results[pair_key]
+                    winner_is_left = pair_key.startswith(f"{winner}_vs_")
+                    sharpe_probability = pair["probability"]["higher_sharpe"]
+                    sharpe_guard = (
+                        sharpe_probability is not None
+                        and (
+                            sharpe_probability >= 0.95
+                            if winner_is_left
+                            else sharpe_probability <= 0.05
+                        )
+                    )
+                    guards.extend([
+                        winner_summary["mean_max_drawdown"] >= other_summary["mean_max_drawdown"],
+                        sharpe_guard,
+                        abs(winner_summary["risk_forecast_calibration_ratio"] - 1.0)
+                        <= abs(other_summary["risk_forecast_calibration_ratio"] - 1.0),
+                        winner_summary["cumulative_turnover"]
+                        <= max(0.50, 2.0 * other_summary["cumulative_turnover"]),
+                        winner_summary["mean_concentration_hhi"]
+                        <= other_summary["mean_concentration_hhi"],
+                    ])
+                result["superiority_guard_audit"] = {
+                    "candidate": winner,
+                    "risk_policy_guards_passed": bool(all(guards)),
+                    "correctness_failure_count": int(correctness_failures),
+                    "turnover_cap_violation_count": int(turnover_cap_violations),
+                    "all_panels_same_direction": True,
+                    "panel_count": 1,
+                }
+                if all(guards) and correctness_failures == 0 and turnover_cap_violations == 0:
+                    result["status"] = "superiority"
+                    result["superior_policy"] = winner
+        return result
     outcome_payloads = [json.loads(row["payload_json"]) for row in rows]
     metrics = [
         payload["baseline_metrics"]
