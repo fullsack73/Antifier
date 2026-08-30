@@ -1,0 +1,24 @@
+{
+  "campaign_id": "production-gmv-shadow-v1",
+  "timezone": "Asia/Seoul",
+  "lane": "risk",
+  "evidence_scope": "calendar_forward_shadow",
+  "horizon_observations": 3,
+  "minimum_coverage": 0.8,
+  "universe_policy": {
+    "name": "fixture-universe",
+    "membership": "as_of"
+  },
+  "baseline_specification": {
+    "optimization_method": "MIN_VARIANCE",
+    "forecast_method_effective": "RISK_ONLY",
+    "covariance_estimator": "ledoit_wolf",
+    "objective": "long_only_capped_global_minimum_variance"
+  },
+  "candidate_specification": null,
+  "execution_conditions": {
+    "transaction_cost_bps": 10,
+    "rebalance_band": 0.02,
+    "max_turnover": 0.35
+  }
+}

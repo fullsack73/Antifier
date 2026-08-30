@@ -8,6 +8,7 @@
 ## 목표
 
 - ADV participation, 최소 거래대금, 예상 market impact를 point-in-time portfolio constraint로 설계합니다.
+- 본 작업은 execution/correctness lane이며 alpha 성과 개선 또는 licensed PIT 데이터 확보 과제로 해석하지 않습니다.
 
 ## 요구사항
 
@@ -23,6 +24,7 @@
 
 - point-in-time OHLCV provenance, corporate-action policy, portfolio notional 입력 계약
 - realized slippage 또는 보수적 impact calibration과 coverage gate
+- calendar-forward observation의 missing/partial coverage와 accounting invariant 기록
 
 ## 참고
 

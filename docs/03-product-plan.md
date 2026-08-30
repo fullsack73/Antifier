@@ -58,7 +58,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - completed-OOS record만 사용하는 deterministic confidence gate와 gate 실패 시 exact-GMV fallback을 보장하는 research overlay
 - 기존 ARIMA + Transformer를 21일 실현 변동성 변화 예측에 재사용하고 Ledoit-Wolf correlation과 결합하는 conditional-risk research 경로
 - rolling FF3 exposure, shrinkage/EWMA factor covariance, shrinkage/floor specific risk와 exact Ledoit-Wolf fallback을 사용하는 research-only factor-model GMV 경로
-- SEC filing-date PIT fundamental loader와 날짜별 universe membership을 적용하는 survivorship-safe research data foundation
+- SEC filing-date PIT fundamental loader와 날짜별 universe membership을 적용하되, 공개 가격의 delisted coverage 한계를 숨기지 않는 experimental research foundation
 - shrinkage/nested covariance conditioning, exact equal-risk-contribution, hierarchical risk parity, regime/minimum-CVaR, completed-feedback online allocator ensemble과 capped-simplex 제약을 검증하는 risk allocator research 경로
 - point-in-time market-cap enforcement, no-lookahead price/FX alignment, paired block bootstrap와 Holm multiple-testing correction을 포함한 quant-standard validation guardrail
 - candidate 4-case validation 후 standard 180-case와 별도 2024-2025 locked holdout으로 이어지는 staged gauntlet, basket/regime별 target 재사용, SQLite forecast cache, case checkpoint/resume
@@ -66,11 +66,13 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 이미 소비된 동일 French 12-industry origin의 FF3 factor-risk smoke에서 변동성은 13.1933%에서 12.9661%로 낮아졌지만 paired 95%/Holm gate를 통과하지 못했고 fresh validation도 아니므로 production Ledoit-Wolf GMV를 유지한 기록
 - 동결 후 처음 개봉한 2012-2018 French 12-industry historical holdout의 완전한 63일 origin 27개에서 고정 FF3 factor-risk GMV가 변동성을 10.5515%에서 10.5426%로 0.89 bp만 낮추고 Sharpe와 paired 95%/Holm gate를 개선하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 이미 소비된 Kronos 4-case origin diagnostic에서 pooled Patch Transformer가 rank IC는 개선했지만 tail-spread/paired 95% gate를 통과하지 못해 production Ledoit-Wolf GMV를 유지한 검증 기록
-- 2024-2025 promotion-safe Nasdaq-100 PIT universe/OHLCV fresh validation에서 frozen pooled Patch Transformer가 absolute 및 paired 95% signal gate를 통과하지 못해 GMV overlay를 실행하지 않고 production Ledoit-Wolf GMV를 유지한 검증 기록
+- 2024-2025 dated Nasdaq-100 membership/공개 OHLCV validation에서 frozen pooled Patch Transformer가 absolute 및 paired 95% signal gate를 통과하지 못해 GMV overlay를 실행하지 않고 production Ledoit-Wolf GMV를 유지한 검증 기록
 - 같은 consumed origin에서 고정 gamma 2.5%의 GMV + Patch Transformer/Kronos alpha tilt가 수익률·Sharpe를 소폭 높였지만 변동성과 paired 95% gate를 개선하지 못해 diagnostic-only로 유지한 기록
 - 동일 고정 gamma에서 Transformer 단독, ARIMA+Transformer, ARIMA 단독, Kronos/Patch 계열 6개 signal을 비교했으나 모두 plain GMV 대비 변동성이 증가하고 95% gate를 통과하지 못해 모델 선택을 보류한 기록
 - 최적화 진행률 SSE stream, 화면 이동/새로고침 후 job 재연결, 명시 취소
 - 저장된 portfolio result 조회
+- production GMV 결과와 실제 가격 provenance를 strict calendar-forward observation으로 변환하는 baseline-only adapter, network-free fixture replay와 append-only correctness ledger
+- 기존 equal weight, Ledoit-Wolf GMV, historical MPT/BL, risk parity, low-volatility를 동일 비용·turnover 조건으로 두 panel에서 재현 진단한 결과, GMV는 변동성과 risk forecast MAE가 가장 낮았지만 수익률·Sharpe·drawdown·turnover 우위는 일관되지 않아 risk-only production 목적만 재확인하고 승격·성과 주장은 하지 않은 기록
 - 포트폴리오 benchmark와 리밸런싱 계산
 - pairs/correlation/regression 분석
 - 영어/한국어 국제화
@@ -106,6 +108,16 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - hard constraint는 최적화 solver와 threshold/turnover 이후 실제 반환 weight 모두에서 검증하며, 결과 UI는 충족, binding, metadata 부족, 계산 불가를 구분합니다.
 - 그룹 제약은 현재 시점 yfinance 분류 coverage가 완전할 때만 지원합니다. point-in-time 분류가 없는 historical 실행에는 최신 분류를 소급 적용하지 않습니다.
 
+### 2-1. Portfolio Research Evidence
+
+- Licensed CRSP/CCM 수준의 delisted-inclusive PIT 개별주 자료를 현재 확보할 수 없다는 점은 accepted product limitation입니다. 이를 다음 연구의 blocker나 반복 TODO로 두지 않습니다.
+- Production은 검증된 `MIN_VARIANCE + RISK_ONLY` Ledoit-Wolf GMV만 유지합니다. 공개 데이터 기반 개별주 alpha와 aggregate French portfolio 연구는 experimental이며 production alpha 일반화 근거가 아닙니다.
+- Alpha, risk, execution/correctness는 서로 다른 primary endpoint와 stop rule을 사용합니다. Alpha signal gate 실패 시 overlay/allocator를 열지 않고, execution invariant 통과를 성과 개선으로 표현하지 않습니다.
+- DOW, Nasdaq, French의 이미 확인한 split은 consumed registry로 추적하며 candidate 선택·튜닝·승격에 다시 사용하지 않습니다. 과거 보고서는 당시 결정 기록으로 그대로 보존합니다.
+- Historical holdout 추가 탐색 대신 campaign 생성 이후만 기록할 수 있는 append-only calendar-forward shadow ledger를 축적합니다. 현재 승격 가능한 alpha candidate가 없으므로 production baseline부터 관측하며 자동 승격은 지원하지 않습니다.
+- Baseline collection은 실제 production optimizer 결과에서 universe/data hash, explicit no-view, weight/cash, risk와 실행 회계를 파생합니다. Success/partial/network/data/calculation failure를 같은 one-shot CLI로 기록하고 raw notional·비용·wealth·constraint·coverage·deterministic rerun을 ledger에서 재검산합니다.
+- 이 기능은 운영 관측과 correctness를 개선한 것이며 alpha, Sharpe 또는 calendar-forward 성과 개선을 검증한 결과가 아닙니다. 실제 미래 outcome이 성숙하기 전까지 baseline 평가는 descriptive/insufficient 상태입니다.
+
 ### 3. Screening / Financial Statement
 
 - predefined universe는 CSV와 helper 모듈을 통해 관리합니다.
@@ -128,6 +140,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 현재 로드맵과 TODO 기준 우선순위:
 
+- 배포 가능한 `collect-baseline` CLI로 immutable calendar-forward production baseline observation을 지속 축적하고 mature outcome을 수동 검토
 - Stock Screener custom CSV universe 지원
 - 회귀/forecast 모델 선택 UX와 LSTM 사용 의도 재검토
 - 사용자 인증과 저장된 portfolio/watchlist/screening criteria

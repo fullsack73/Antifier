@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "policy_id": "antifier-research-evidence-2026-08-28-v1",
+  "effective_date": "2026-08-28",
+  "production_baseline": {
+    "optimization_method": "MIN_VARIANCE",
+    "forecast_method_effective": "RISK_ONLY",
+    "covariance_estimator": "ledoit_wolf",
+    "objective": "long_only_capped_global_minimum_variance"
+  },
+  "accepted_limitations": {
+    "licensed_delisted_inclusive_pit_stock_data": "unavailable",
+    "policy": "accepted_product_limitation_not_a_blocker_or_todo"
+  },
+  "evidence_scopes": {
+    "production_baseline": {"production_evidence_allowed": true},
+    "experimental_public_data": {"production_evidence_allowed": false},
+    "aggregate_portfolio_research": {"production_evidence_allowed": false},
+    "accepted_unavailable_evidence": {"production_evidence_allowed": false},
+    "calendar_forward_shadow": {"production_evidence_allowed": false}
+  },
+  "data_claims": {
+    "sec_filing_date": "filing_date_pit_for_covered_fundamentals_only",
+    "dated_nasdaq_membership": "dated_secondary_membership_not_complete_security_identity",
+    "yahoo_ohlcv": "public_adjusted_prices_not_delisted_inclusive_or_vintage_pit",
+    "french_industry_portfolios": "aggregate_time_series_not_individual_stock_or_execution_evidence"
+  },
+  "lanes": {
+    "alpha": {
+      "primary_endpoints": ["mean_rank_ic", "mean_top_bottom_spread"],
+      "minimum_bootstrap_probability": 0.95,
+      "minimum_completed_periods": 8,
+      "minimum_coverage": 0.8,
+      "minimum_positive_rank_ic_rate": 0.5,
+      "maximum_saturation_rate": 0.1,
+      "maximum_tie_rate": 0.25,
+      "multiple_testing": "holm_bonferroni",
+      "stop_rule": "do_not_run_overlay_or_allocator_when_signal_gate_fails"
+    },
+    "risk": {
+      "allowed_primary_endpoints": [
+        "realized_volatility",
+        "risk_forecast_mae",
+        "max_drawdown"
+      ],
+      "minimum_bootstrap_probability": 0.95,
+      "sharpe_guard": "superiority_95_percent",
+      "non_primary_risk_guard": "zero_margin_non_inferiority",
+      "calibration_guard": "closer_to_one_than_baseline",
+      "turnover_guard": "candidate_lte_max_0_50_or_2x_baseline",
+      "concentration_guard": "candidate_hhi_lte_baseline",
+      "multiple_testing": "holm_bonferroni"
+    },
+    "execution_correctness": {
+      "primary_endpoints": [
+        "cash_and_weight_identity",
+        "transaction_cost_identity",
+        "turnover_identity",
+        "constraint_compliance",
+        "price_coverage"
+      ],
+      "statistical_performance_claim": false,
+      "stop_rule": "fail_on_any_invariant_violation"
+    }
+  },
+  "shadow": {
+    "append_only": true,
+    "backfill_allowed": false,
+    "minimum_mature_observations": 8,
+    "production_auto_promotion": false,
+    "manual_review_only": true
+  }
+}
