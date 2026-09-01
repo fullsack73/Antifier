@@ -105,6 +105,7 @@
 
 Backend-only research tool:
 
+- `tools/three_portfolio_forward.py`: 현재 및 과거 LLM 단독, production GMV, 뉴스 보정 GMV의 입력 파일·weight·cash·spec hash를 검증하고 구성 이후 Yahoo chart v8 공통 USD adjusted-close를 동일 buy-and-hold/fractional-unit 계약으로 평가합니다. 사전 고정 63/126/252개 수익 milestone에는 연 3.5% 현금, 252일 연율화, 21일 paired circular block bootstrap을 적용하고, 전체 가용 구간은 움직이는 종점이므로 설명용으로만 제공합니다. 과거 사양은 GMV가 2024-08-29 가격까지 사용한 사실에 따라 2024-08-30부터 시작하는 `retrospective_forward_holdout`이며 사전등록 증거로 취급하지 않습니다. Historical backfill과 자동 승격은 금지하고, 뉴스 source/model/prompt provenance가 없는 결과는 `non_reproducible_diagnostic`으로 고정합니다.
 - `tools/backtest_portfolio_models.py`: CSV, ticker list, ticker group을 입력받아 rolling rebalance backtest를 실행하고 `settings`, `models`, `summary_by_model`, `alpha_diagnostics`, `rebalance_records`, `promotion_decision`, `warnings` JSON을 저장합니다. 모델에는 `risk_parity`, `momentum_6m`, `low_volatility`, `market_cap_weight`, `momentum_12_1`, `momentum_bl`, `signal_stack_bl`, `adaptive_signal_tilt`, `calibrated_lightweight_bl`, `arima_transformer_rank_bl`, `transformer_rank_bl`이 포함됩니다.
   - `adaptive_signal_tilt`은 12-1/6개월 momentum, 1개월 reversal, low-volatility, drawdown rank를 training window 내부의 완료된 forward-relative-return 구간으로 IC calibration하고 equal-weight 주변의 명시적 active-share tilt로 변환합니다. calibration과 target 생성은 rebalance date 이전 가격만 사용합니다.
   - research model `maximum_diversification`은 Ledoit-Wolf covariance와 long-only/max-weight 제약에서 diversification ratio를 최대화합니다. promotion gate 통과 전 기본 allocator로 사용하지 않습니다.
