@@ -181,6 +181,7 @@ tools/
 ├─ manage_research_evidence.py          # consumed split registry audit/append/use 검사
 ├─ shadow_forward.py                    # shadow campaign/production baseline/outcome/evaluate/verify CLI
 ├─ gmv_policy_comparison.py              # 3정책 사전등록·fixture·forward observation CLI
+├─ three_portfolio_forward.py            # frozen 3포트폴리오 63/126/252일 forward 평가 CLI
 └─ tune_transformer_hpo.py
 ```
 
@@ -196,6 +197,13 @@ GMV 정책 비교의 immutable 사양과 등록 요약은 각각
 `data/research/derived/production_gmv_policy_forward_registration_v1.json`에
 추적합니다. Raw policy state와 outcome은 append-only local SQLite ledger에만
 보존하고 등록 요약은 그 payload/record hash를 참조합니다.
+
+LLM 단독, production GMV, 뉴스 보정 GMV의 고정 비중 forward 비교 사양은
+`data/research/derived/three_portfolio_forward_spec_v1.json`에 추적합니다. 과거 입력의
+소급 forward holdout 사양은
+`data/research/derived/three_portfolio_past_forward_spec_v1.json`에 별도로 추적합니다.
+`tools/three_portfolio_forward.py`는 두 사양의 입력 hash를 검증하고 구성 이후
+63/126/252개 공통 일별 수익 관측과 전체 가용 구간의 설명용 성과를 평가합니다.
 
 테스트는 변경 범위에 맞춰 선택적으로 실행하되, 공유 API나 포트폴리오 계산 로직을 건드리면 백엔드 테스트를 우선 실행합니다. 프론트엔드 렌더링/API client 변경은 lint, Vitest, build 중 최소 하나 이상으로 확인합니다.
 

@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "campaign_id": "three-portfolio-forward-performance-v1",
+  "formation_date": "2026-08-30",
+  "first_eligible_date": "2026-08-31",
+  "portfolios": {
+    "gmv": {
+      "label": "GMV",
+      "input_path": "tests/portfolios/GMV_baseline.json",
+      "input_sha256": "1042892937d0093c25a691c7452bbde43242f3ebec3379570f58c246e666d96b",
+      "portfolio_id": "req_1788077556589_rp8nft42n",
+      "weights": {
+        "GOOG": 0.03195115669550199,
+        "MO": 0.05869074492099322,
+        "AME": 0.03217840532064781,
+        "CBOE": 0.06755344130168012,
+        "COR": 0.03429939248867544,
+        "CF": 0.030390716136167378,
+        "CHD": 0.049479600648416076,
+        "CME": 0.09133879740027573,
+        "KO": 0.08412744102898177,
+        "ED": 0.09052070234975078,
+        "DUK": 0.04396503401154423,
+        "XOM": 0.04658596815489266,
+        "FE": 0.03645067947338919,
+        "JNJ": 0.07143181783750208,
+        "KR": 0.04685866650506764,
+        "MSFT": 0.06675049615949823,
+        "PG": 0.034284242580332386,
+        "TTWO": 0.05129758964958262,
+        "TJX": 0.03184510733710061
+      },
+      "cash_weight": 0.0
+    },
+    "news_adjusted_gmv": {
+      "label": "뉴스 보정 GMV",
+      "input_path": "tests/portfolios/llm-refined-GMV.json",
+      "input_sha256": "7ba69790d472e1d4e5e406cf02b88ead9af3fc142bc2192f4ddcfec7c5fb0243",
+      "portfolio_id": "news-adjusted-gmv-20260830",
+      "weights": {
+        "GOOG": 0.03795115669550199,
+        "MO": 0.03369074492099322,
+        "AME": 0.04117840532064781,
+        "CBOE": 0.07155344130168012,
+        "COR": 0.04029939248867544,
+        "CF": 0.03439071613616738,
+        "CHD": 0.055479600648416075,
+        "CME": 0.09133879740027573,
+        "KO": 0.08912744102898176,
+        "ED": 0.08452070234975077,
+        "DUK": 0.04696503401154423,
+        "XOM": 0.03658596815489266,
+        "FE": 0.04245067947338919,
+        "JNJ": 0.07643181783750208,
+        "KR": 0.04085866650506764,
+        "MSFT": 0.07075049615949823,
+        "PG": 0.010284242580332385,
+        "TTWO": 0.05529758964958262,
+        "TJX": 0.04084510733710061
+      },
+      "cash_weight": 1.1102230246251565e-16
+    },
+    "llm_only": {
+      "label": "LLM 단독",
+      "input_path": "tests/portfolios/llm-scratch.json",
+      "input_sha256": "0d86e82e55c634be514186ee90f936ff03f8561b7370bf1cb0756a4936fbca61",
+      "portfolio_id": "llm-stable-value-20260830",
+      "weights": {
+        "BRK-B": 0.055,
+        "CB": 0.04,
+        "JPM": 0.04,
+        "AFL": 0.035,
+        "JNJ": 0.04,
+        "ABBV": 0.04,
+        "MRK": 0.03,
+        "ABT": 0.03,
+        "PG": 0.045,
+        "PEP": 0.04,
+        "KR": 0.035,
+        "GIS": 0.035,
+        "KMB": 0.03,
+        "DUK": 0.045,
+        "SO": 0.04,
+        "AEP": 0.035,
+        "XEL": 0.035,
+        "LMT": 0.035,
+        "GD": 0.03,
+        "WM": 0.03,
+        "RSG": 0.025,
+        "XOM": 0.03,
+        "CVX": 0.03,
+        "IBM": 0.04,
+        "VZ": 0.03
+      },
+      "cash_weight": 0.09999999999999998
+    }
+  },
+  "data_contract": {
+    "source": "yahoo_finance_adjusted_close",
+    "client": "yahoo_chart_v8",
+    "include_adjusted_close": true,
+    "base_currency": "USD",
+    "alignment": "common_dates_forward_fill_after_first_observation",
+    "unit_semantics": "synthetic_fractional_buy_and_hold_units",
+    "rebalance_policy": "none"
+  },
+  "annual_cash_return": 0.035,
+  "annualization_days": 252,
+  "milestones_return_observations": [
+    63,
+    126,
+    252
+  ],
+  "bootstrap": {
+    "method": "paired_circular_block",
+    "block_size": 21,
+    "samples": 5000,
+    "seed": 20260830,
+    "minimum_probability": 0.95
+  },
+  "news_provenance": {
+    "status": "unavailable",
+    "classification": "non_reproducible_diagnostic",
+    "reason": "The frozen input contains weights only; news identifiers, publication and retrieval timestamps, content digests, model, prompt, and configuration were not preserved."
+  },
+  "historical_backfill_allowed": false,
+  "manual_review_only": true,
+  "no_automatic_promotion": true,
+  "spec_sha256": "7c2c1edf73dd105d59e79edf0ff1476aa1255629e91188e6be6d4c530ce449fb"
+}

@@ -73,6 +73,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 저장된 portfolio result 조회
 - production GMV 결과와 실제 가격 provenance를 strict calendar-forward observation으로 변환하는 baseline-only adapter, network-free fixture replay와 append-only correctness ledger
 - 동일 최초 production GMV에서 buy-and-hold, immutable fixed-target rebalance, 63일 rolling reoptimization을 비교하는 additive shadow contract v3과 forward-only 사전등록 경로. 실제 future outcome 8개 전까지 `forward_pending`이며 자동 승격은 없음
+- 2026-08-30에 고정한 LLM 단독, production GMV, 뉴스 보정 GMV의 입력 hash와 buy-and-hold 계약을 잠그고 구성 이후 63/126/252개 공통 일별 수익 관측만 평가하는 forward-only CLI. 뉴스 provenance 부재는 `non_reproducible_diagnostic`으로 유지하며 자동 승격은 없음
+- 과거 세 포트폴리오는 GMV 학습 데이터가 끝난 2024-08-29 다음 거래일부터 소급 forward holdout으로 평가. 252일 및 2026-08-28까지의 설명용 결과에서 GMV가 수익률·Sharpe·낙폭 기준 우세했고 뉴스 보정 GMV와 LLM 단독 모두 paired 95% gate를 통과하지 못했으므로 production 변경은 없음
 - 기존 equal weight, Ledoit-Wolf GMV, historical MPT/BL, risk parity, low-volatility를 동일 비용·turnover 조건으로 두 panel에서 재현 진단한 결과, GMV는 변동성과 risk forecast MAE가 가장 낮았지만 수익률·Sharpe·drawdown·turnover 우위는 일관되지 않아 risk-only production 목적만 재확인하고 승격·성과 주장은 하지 않은 기록
 - 포트폴리오 benchmark와 리밸런싱 계산
 - pairs/correlation/regression 분석
@@ -147,6 +149,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 현재 로드맵과 TODO 기준 우선순위:
 
 - 배포 가능한 `collect-baseline` CLI로 immutable calendar-forward production baseline observation을 지속 축적하고 mature outcome을 수동 검토
+- 세 고정 포트폴리오의 63/126/252 공통 일별 수익 관측을 calendar-forward로 축적하고 milestone별 수동 검토
 - Stock Screener custom CSV universe 지원
 - 회귀/forecast 모델 선택 UX와 LSTM 사용 의도 재검토
 - 사용자 인증과 저장된 portfolio/watchlist/screening criteria
