@@ -1,18 +1,21 @@
 import Plot from "./LazyPlot.jsx"
 import { useTranslation } from "react-i18next"
+import { getPriceAxisLayout, PRICE_NUMBER_FORMAT } from "./priceChartAxis.js"
 
 function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
   const { t } = useTranslation()
   const chartText = "#f2f1e9"
   const chartMuted = "#a9ad9f"
   const chartGrid = "rgba(174, 186, 154, 0.1)"
+  const prices = Object.values(data)
+  const regressionPrices = Object.values(regression)
 
   return (
     <Plot
       data={[
         {
           x: Object.keys(data),
-          y: Object.values(data),
+          y: prices,
           type: "scatter",
           mode: "markers",
           name: t("regression.actualPrices", "Actual Prices"),
@@ -21,11 +24,11 @@ function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
             size: 5,
             opacity: 0.66,
           },
-          hovertemplate: `%{x}<br>%{y:.2f} ${priceCurrency}<extra></extra>`,
+          hovertemplate: `%{x}<br>%{y:${PRICE_NUMBER_FORMAT}} ${priceCurrency}<extra></extra>`,
         },
         {
           x: Object.keys(regression),
-          y: Object.values(regression),
+          y: regressionPrices,
           type: "scatter",
           mode: "lines",
           name: t("regression.regressionLine", "Regression Line"),
@@ -33,7 +36,7 @@ function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
             color: "#b3cf84",
             width: 2.5,
           },
-          hovertemplate: `%{x}<br>%{y:.2f} ${priceCurrency}<extra></extra>`,
+          hovertemplate: `%{x}<br>%{y:${PRICE_NUMBER_FORMAT}} ${priceCurrency}<extra></extra>`,
         },
       ]}
       layout={{
@@ -67,6 +70,7 @@ function RegressionChart({ data, regression, ticker, priceCurrency = "USD" }) {
           spikedash: "dot",
         },
         yaxis: {
+          ...getPriceAxisLayout([...prices, ...regressionPrices]),
           title: { text: t("chart.priceWithCurrency", "Price ({{currency}})", { currency: priceCurrency }), font: { color: chartMuted } },
           color: chartMuted,
           gridcolor: chartGrid,

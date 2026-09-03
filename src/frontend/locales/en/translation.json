@@ -100,6 +100,8 @@
     "results": "Analysis results",
     "dataWindow": "Data window",
     "displayCurrency": "Display currency",
+    "rateView": "Rate view",
+    "showCurrencyPair": "Show {{pair}}",
     "errorTitle": "Market data is unavailable",
     "errorDescription": "Check the symbol and date range, then change a field to try again.",
     "emptyTitle": "No market data for this window",

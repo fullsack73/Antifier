@@ -1,25 +1,27 @@
 import Plot from "./LazyPlot.jsx"
 import { useTranslation } from "react-i18next"
+import { getPriceAxisLayout, PRICE_NUMBER_FORMAT } from "./priceChartAxis.js"
 
 function StockChart({ data, ticker, priceCurrency = "USD" }) {
   const { t } = useTranslation()
   const chartText = "#f2f1e9"
   const chartMuted = "#a9ad9f"
   const chartGrid = "rgba(174, 186, 154, 0.1)"
+  const prices = Object.values(data)
 
   return (
     <Plot
       data={[
         {
           x: Object.keys(data),
-          y: Object.values(data),
+          y: prices,
           type: "scatter",
           mode: "lines",
           line: {
             color: "#b3cf84",
             width: 2.25,
           },
-          hovertemplate: `%{x}<br>%{y:.2f} ${priceCurrency}<extra></extra>`,
+          hovertemplate: `%{x}<br>%{y:${PRICE_NUMBER_FORMAT}} ${priceCurrency}<extra></extra>`,
         },
       ]}
       layout={{
@@ -53,6 +55,7 @@ function StockChart({ data, ticker, priceCurrency = "USD" }) {
           spikedash: "dot",
         },
         yaxis: {
+          ...getPriceAxisLayout(prices),
           title: { text: t("chart.priceWithCurrency", "Price ({{currency}})", { currency: priceCurrency }), font: { color: chartMuted } },
           color: chartMuted,
           gridcolor: chartGrid,
