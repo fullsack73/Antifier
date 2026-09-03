@@ -202,6 +202,10 @@ def normalize_currency(currency):
 
 def infer_currency_from_ticker(ticker):
     ticker_upper = str(ticker or "").upper()
+    if ticker_upper.endswith("=X"):
+        pair_symbol = ticker_upper[:-2]
+        if len(pair_symbol) in {3, 6} and pair_symbol.isalpha():
+            return pair_symbol[-3:]
     for suffix, currency in TICKER_SUFFIX_CURRENCIES.items():
         if ticker_upper.endswith(suffix):
             return currency
@@ -310,15 +314,15 @@ def fetch_usd_conversion_factor(currency, start_date, end_date, target_index):
 
 
 def normalize_history_close_to_usd(ticker, df, start_date, end_date):
-    """Normalize a yfinance history dataframe's Close column into USD for charting."""
+    """Normalize stock prices to USD while preserving FX rates in their quote currency."""
     if df.empty or 'Close' not in df.columns:
         return df, BASE_CURRENCY, {}
 
     source_currency = get_ticker_currency(ticker)
-    if source_currency == BASE_CURRENCY:
-        return df, BASE_CURRENCY, {
+    if source_currency == BASE_CURRENCY or str(ticker).upper().endswith("=X"):
+        return df, source_currency, {
             "source_currency": source_currency,
-            "display_currency": BASE_CURRENCY,
+            "display_currency": source_currency,
         }
 
     conversion_factor = fetch_usd_conversion_factor(source_currency, start_date, end_date, df.index)

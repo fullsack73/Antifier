@@ -69,6 +69,7 @@
 
 - Antifier는 투자 의사결정을 보조하는 분석 도구이며 투자 자문이나 수익 보장을 제공하지 않습니다.
 - 통화가 다른 자산은 USD 기준 변환 흐름을 유지하고, 원 통화와 표시 통화를 응답에 명확히 포함합니다.
+- Yahoo FX ticker(`=X`)는 이미 환율을 나타내므로 다시 USD 가격으로 환산하지 않습니다. `GET /api/get-data`는 quote currency 기준 원 환율을 반환하고 UI는 정방향/역방향 통화쌍을 전환해 표시합니다.
 - 수익률은 log return, simple return, annualized return의 의미가 섞이지 않도록 함수명과 응답 필드명을 분명히 합니다.
 - 거래일 기준 연율화는 기존 `TRADING_DAYS_PER_YEAR = 252` 관례를 따릅니다.
 - 포트폴리오 최적화는 입력 데이터 길이, 결측치, 상장 기간 부족, 무효 weight를 방어해야 합니다. `min_history` 미만 ticker는 최적화 universe에서 제외하되 성공/오류 응답의 `data_eligibility`에 요청·적격·제외 ticker, 관측 수/커버리지/최초·최종 관측일, 제외 stage/reason을 남겨 universe 축소를 숨기지 않습니다.

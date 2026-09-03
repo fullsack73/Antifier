@@ -1,5 +1,6 @@
 import Plot from "./LazyPlot.jsx"
 import { useTranslation } from "react-i18next"
+import { getPriceAxisLayout } from "./priceChartAxis.js"
 
 const toSeries = (data = {}) =>
   Object.entries(data)
@@ -115,6 +116,11 @@ const FutureChart = ({ data, historicalData = {}, ticker, priceCurrency = "USD" 
           spikedash: "dot",
         },
         yaxis: {
+          ...getPriceAxisLayout([
+            ...historicalSeries.map(({ value }) => value),
+            ...minPrices,
+            ...maxPrices,
+          ]),
           title: { text: t("chart.priceWithCurrency", "Price ({{currency}})", { currency: priceCurrency }), font: { color: chartMuted } },
           color: chartMuted,
           gridcolor: chartGrid,

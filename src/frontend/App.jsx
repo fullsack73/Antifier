@@ -20,6 +20,7 @@ import PortfolioManager from "./PortfolioManager.jsx"
 import { apiUrl } from "./apiClient.js"
 import { clearOptimizerJob, isRunningOptimizerJob, readOptimizerJob, writeOptimizerJob } from "./optimizerJobStorage.js"
 import { StockChartsSkeleton } from "./SkeletonScreens.jsx"
+import { getCurrencyPair, invertCurrencySeries } from "./priceChartAxis.js"
 import "./App.css"
 
 const STOCK_FETCH_DEBOUNCE_MS = 1800
@@ -41,10 +42,22 @@ function AppContent() {
   const [futurePredictions, setFuturePredictions] = useState(null)
   const [priceCurrency, setPriceCurrency] = useState("USD")
   const [sourceCurrency, setSourceCurrency] = useState("USD")
+  const [isCurrencyPairInverted, setIsCurrencyPairInverted] = useState(false)
   const [activeView, setActiveView] = useState("stock")
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [selectedLanguage, setSelectedLanguage] = useState("en")
   const { t } = useTranslation()
+  const currencyPair = getCurrencyPair(ticker)
+  const displayedPair = currencyPair
+    ? (isCurrencyPairInverted ? `${currencyPair.quote}/${currencyPair.base}` : `${currencyPair.base}/${currencyPair.quote}`)
+    : null
+  const alternatePair = currencyPair
+    ? (isCurrencyPairInverted ? `${currencyPair.base}/${currencyPair.quote}` : `${currencyPair.quote}/${currencyPair.base}`)
+    : null
+  const displayedCurrency = currencyPair && isCurrencyPairInverted ? currencyPair.base : priceCurrency
+  const displayedData = currencyPair && isCurrencyPairInverted ? invertCurrencySeries(data) : data
+  const displayedRegression = currencyPair && isCurrencyPairInverted ? invertCurrencySeries(regressionData) : regressionData
+  const displayedFuturePredictions = currencyPair && isCurrencyPairInverted ? invertCurrencySeries(futurePredictions) : futurePredictions
 
   // AbortController to cancel previous API calls
   const abortControllerRef = useRef(null)
@@ -169,6 +182,7 @@ function AppContent() {
 
   const handleTickerChange = (newTicker) => {
     setTicker(newTicker)
+    setIsCurrencyPairInverted(false)
   }
 
   const handleFutureDaysChange = (days) => {
@@ -349,32 +363,45 @@ function AppContent() {
                       {companyName} <span>({ticker})</span>
                     </h2>
                   </div>
-                  <dl className="stock-result-meta">
-                    <div>
-                      <dt>{t("stock.dataWindow", "Data window")}</dt>
-                      <dd>{appStartDate} → {appEndDate}</dd>
-                    </div>
-                    <div>
-                      <dt>{t("stock.displayCurrency", "Display currency")}</dt>
-                      <dd>
-                        {sourceCurrency !== priceCurrency
-                          ? `${sourceCurrency} → ${priceCurrency}`
-                          : priceCurrency}
-                      </dd>
-                    </div>
-                  </dl>
+                  <div className="stock-result-details">
+                    <dl className="stock-result-meta">
+                      <div>
+                        <dt>{t("stock.dataWindow", "Data window")}</dt>
+                        <dd>{appStartDate} → {appEndDate}</dd>
+                      </div>
+                      <div>
+                        <dt>{currencyPair ? t("stock.rateView", "Rate view") : t("stock.displayCurrency", "Display currency")}</dt>
+                        <dd>
+                          {currencyPair
+                            ? `${displayedPair} · ${displayedCurrency}`
+                            : sourceCurrency !== priceCurrency
+                              ? `${sourceCurrency} → ${priceCurrency}`
+                              : priceCurrency}
+                        </dd>
+                      </div>
+                    </dl>
+                    {currencyPair && (
+                      <button
+                        type="button"
+                        className="stock-currency-toggle optimizer-secondary-button manager-display-toggle-button is-compact"
+                        onClick={() => setIsCurrencyPairInverted((current) => !current)}
+                      >
+                        {t("stock.showCurrencyPair", "Show {{pair}}", { pair: alternatePair })}
+                      </button>
+                    )}
+                  </div>
                 </header>
 
                 <div className="stock-chart-grid">
                   <div className="chart-wrapper chart-wrapper-price">
-                    <StockChart data={data} ticker={ticker} priceCurrency={priceCurrency} />
+                    <StockChart data={displayedData} ticker={ticker} priceCurrency={displayedCurrency} />
                   </div>
                   <div className="chart-wrapper chart-wrapper-regression">
-                    <RegressionChart data={data} regression={regressionData} ticker={ticker} formula={formula} priceCurrency={priceCurrency} />
+                    <RegressionChart data={displayedData} regression={displayedRegression} ticker={ticker} formula={formula} priceCurrency={displayedCurrency} />
                   </div>
-                  {futurePredictions && Object.keys(futurePredictions).length > 0 && (
+                  {displayedFuturePredictions && Object.keys(displayedFuturePredictions).length > 0 && (
                     <div className="chart-wrapper chart-wrapper-forecast">
-                      <FutureChart data={futurePredictions} historicalData={data} ticker={ticker} priceCurrency={priceCurrency} />
+                      <FutureChart data={displayedFuturePredictions} historicalData={displayedData} ticker={ticker} priceCurrency={displayedCurrency} />
                     </div>
                   )}
                 </div>

@@ -5806,6 +5806,16 @@ body::before {
   margin: 0;
 }
 
+.stock-result-details {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+}
+
+.stock-currency-toggle {
+  white-space: nowrap;
+}
+
 .stock-chart-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.18fr) minmax(21rem, 0.82fr);
@@ -5996,6 +6006,11 @@ body::before {
     align-items: flex-start;
     flex-direction: column;
     gap: 0.75rem;
+  }
+
+  .stock-result-details {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .stock-chart-grid .chart-wrapper,

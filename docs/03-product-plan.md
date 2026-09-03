@@ -89,6 +89,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 날짜 범위는 미래 종료일을 허용하지 않고 시작일이 종료일보다 앞서야 합니다.
 - chart는 historical price, regression, future prediction을 분리해 보여줍니다.
 - 통화 변환이 발생하면 원 통화와 표시 통화를 UI/응답에 드러냅니다.
+- Yahoo FX ticker는 quote currency 기준 원 환율을 기본 표시하고 정방향/역방향 통화쌍 전환을 제공합니다.
 
 ### 2. Portfolio Optimization
 

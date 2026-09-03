@@ -512,6 +512,25 @@ def test_stock_chart_history_close_is_normalized_to_usd():
     assert metadata["source_currency"] == "KRW"
 
 
+def test_stock_chart_forex_history_keeps_its_quote_currency():
+    dates = pd.to_datetime(["2024-01-02", "2024-01-03"])
+    history = pd.DataFrame({"Close": [1300.0, 1310.0]}, index=dates)
+
+    with patch("app.yf.download") as mock_download, patch("app.yf.Ticker") as mock_ticker:
+        normalized, price_currency, metadata = normalize_history_close_to_usd(
+            "KRW=X",
+            history,
+            start_date="2024-01-01",
+            end_date="2024-01-04",
+        )
+
+    assert normalized["Close"].tolist() == [1300.0, 1310.0]
+    assert price_currency == "KRW"
+    assert metadata == {"source_currency": "KRW", "display_currency": "KRW"}
+    mock_download.assert_not_called()
+    mock_ticker.assert_not_called()
+
+
 def test_forecast_model_regression_line_uses_historical_log_trend():
     dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"])
     prices = pd.Series([100.0, 90.0, 130.0, 140.0], index=dates)
