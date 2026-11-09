@@ -787,12 +787,6 @@ const Optimizer = () => {
         <div className="page-title-block optimizer-title-block">
           <span className="page-kicker">{t("optimizer.kicker")}</span>
           <h1 className="page-header">{t("optimizer.title")}</h1>
-          <p className="optimizer-page-intro">
-            {t(
-              "optimizer.intro",
-              "Build a model-led allocation from a defined universe, historical window, and risk objective.",
-            )}
-          </p>
         </div>
         <div className="optimizer-context-strip" aria-label={t("optimizer.runContext", "Current run context")}>
           <div>
@@ -1424,7 +1418,6 @@ const Optimizer = () => {
               <div>
                 <span className="optimizer-section-eyebrow">{t("optimizer.resultKicker", "Model output")}</span>
                 <h2 id="optimizer-results-title">{t("optimizer.results")}</h2>
-                <p>{t("optimizer.resultHelp", "Review the modeled tradeoff first, then inspect the target weights.")}</p>
               </div>
               <button
                 className="optimizer-secondary-button"
@@ -1583,7 +1576,6 @@ const Optimizer = () => {
               <div>
                 <span className="optimizer-section-eyebrow">{t("optimizer.executionPlan", "Execution plan")}</span>
                 <h2 id="optimizer-allocation-title">{t("optimizer.investmentAllocation")}</h2>
-                <p>{t("optimizer.allocationHelp", "Convert target weights into a budget-aware share plan.")}</p>
               </div>
             </div>
             <div className="investment-allocation-form">

@@ -14,6 +14,7 @@ import financial_statement
 def setup_function():
     financial_statement._BENCHMARK_TABLE_CACHE.clear()
     financial_statement._PEER_BENCHMARK_CACHE.clear()
+    financial_statement._PEER_INFO_CACHE.clear()
     financial_statement._FX_RATE_CACHE.clear()
 
 
@@ -95,8 +96,8 @@ def test_financial_dashboard_scores_metrics_and_bundles_statements(monkeypatch):
     result = financial_statement.get_financial_dashboard("FAKE")
 
     assert result["company"]["industry"] == "Software - Infrastructure"
-    assert result["decision"]["label"] == "BUY"
-    assert result["decision"]["score"] == 79
+    assert result["decision"]["label"] == "STRONG"
+    assert result["decision"]["score"] == 100
     assert result["decision"]["confidence"] == 100
     assert result["per"] == "12.00"
     assert result["debt_ratio"] == "0.40"
@@ -362,3 +363,86 @@ def test_financial_dashboard_low_data_confidence_is_insufficient(monkeypatch):
     assert result["decision"]["score"] is None
     assert result["statement_errors"]["annual"]["income"]
     json.dumps(result, allow_nan=False)
+
+
+def test_debt_units_and_zero_debt_are_consistent():
+    for raw in (0, 5, 10, 10.01, 100):
+        assert financial_statement._normalize_debt_to_equity(raw) == raw / 100
+    metrics = financial_statement._build_investment_metrics({'debtToEquity': 0, 'profitMargins': 0}, 0)
+    by_key = {m['key']: m for m in metrics}
+    assert by_key['debt_to_equity']['score'] == 100
+    assert by_key['debt_ratio']['score'] == 100
+    assert by_key['profit_margin']['value'] == 0
+    assert by_key['profit_margin']['score'] == 35
+
+
+def test_health_absolute_rules_survive_bad_peer_averages():
+    info = {'profitMargins': -.1, 'currentRatio': .6, 'beta': 3}
+    benchmarks = {'profit_margin': {'value': -.2}, 'current_ratio': {'value': .5}, 'beta': {'value': 4}}
+    metrics = financial_statement._build_investment_metrics(info, None, benchmarks)
+    by_key = {m['key']: m for m in metrics}
+    assert by_key['profit_margin']['score'] == 10
+    assert by_key['current_ratio']['score'] == 10
+    assert by_key['beta']['weight'] == 0
+
+
+def test_partial_valuation_cannot_produce_overall_score():
+    metrics = financial_statement._build_investment_metrics({'trailingPE': 10, 'priceToBook': 1, 'priceToSalesTrailing12Months': 1}, None)
+    decision = financial_statement._score_dashboard_metrics(metrics)
+    assert decision['score'] is None
+    assert decision['components']['valuation']['score'] == 100
+    assert decision['components']['health']['score'] is None
+    assert decision['label'] == 'INSUFFICIENT DATA'
+
+
+def test_component_weights_and_required_metrics():
+    info = {'trailingPE': 10, 'priceToBook': 1, 'priceToSalesTrailing12Months': 1,
+            'returnOnEquity': .2, 'returnOnAssets': .1, 'profitMargins': .2,
+            'operatingMargins': .2, 'debtToEquity': 40, 'currentRatio': 2, 'quickRatio': 2}
+    metrics = financial_statement._build_investment_metrics(info, .4)
+    decision = financial_statement._score_dashboard_metrics(metrics)
+    assert sum(m['weight'] for m in metrics if m['category'] == 'valuation') == 40
+    assert sum(m['weight'] for m in metrics) == 100
+    assert decision['score'] == 100
+    assert decision['label'] == 'STRONG'
+    no_balance = financial_statement._score_dashboard_metrics(financial_statement._build_investment_metrics(info, None))
+    assert no_balance['components']['health']['score'] is None
+    assert no_balance['score'] is None
+    metrics[0]['score'] = 10
+    decision = financial_statement._score_dashboard_metrics(metrics)
+    assert decision['components']['health']['score'] == 100
+    assert decision['components']['valuation']['score'] == 55
+    assert decision['score'] == 82
+
+
+def test_peer_cache_is_independent_of_request_order(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(financial_statement, 'INDUSTRY_REPRESENTATIVE_TICKERS', {
+        'review': {'name': 'Review', 'tickers': ['A', 'B', 'C', 'D']}})
+    payloads = {symbol: {'returnOnEquity': value} for symbol, value in zip('ABCD', [.1, .55, .9, .2])}
+    monkeypatch.setattr(financial_statement.yf, 'Ticker', lambda symbol: SimpleNamespace(info=payloads[symbol]))
+    info = {'industry': 'Review'}
+    financial_statement._fetch_representative_peer_benchmarks(info, 'A')
+    after_a = financial_statement._fetch_representative_peer_benchmarks(info, 'B')
+    financial_statement._PEER_BENCHMARK_CACHE.clear()
+    first = financial_statement._fetch_representative_peer_benchmarks(info, 'B')
+    assert first == after_a
+    assert first['roe']['sample_size'] == 3
+
+
+def test_peer_average_requires_three_observations(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(financial_statement, 'INDUSTRY_REPRESENTATIVE_TICKERS', {
+        'review': {'name': 'Review', 'tickers': ['A', 'B']}})
+    monkeypatch.setattr(financial_statement.yf, 'Ticker', lambda _: SimpleNamespace(info={'returnOnEquity': .2}))
+    assert financial_statement._fetch_representative_peer_benchmarks({'industry': 'Review'}, 'A') == {}
+
+
+def test_severe_solvency_risk_caps_health_even_when_ratios_look_cheap():
+    info = {'trailingPE': 10, 'priceToBook': 1, 'priceToSalesTrailing12Months': 1,
+            'returnOnEquity': .2, 'returnOnAssets': .1, 'profitMargins': .2,
+            'operatingMargins': .2, 'debtToEquity': 40, 'currentRatio': 2, 'quickRatio': 2}
+    decision = financial_statement._score_dashboard_metrics(financial_statement._build_investment_metrics(info, 1.1))
+    assert decision['components']['health']['score'] == 35
+    assert decision['score'] == 61
+    assert decision['label'] == 'MIXED'

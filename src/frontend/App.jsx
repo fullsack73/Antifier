@@ -265,12 +265,6 @@ function AppContent() {
               <div className="stock-title-block">
                 <span className="page-kicker">{t("stock.kicker", "Market workspace")}</span>
                 <h1 id="stock-dashboard-title">{t("stock.workspaceTitle", "Stock analysis")}</h1>
-                <p className="stock-page-intro">
-                  {t(
-                    "stock.workspaceDescription",
-                    "Compare price history, trend fit, and model forecasts in one view.",
-                  )}
-                </p>
               </div>
               <dl className="stock-context-strip" aria-label={t("stock.selectionSummary", "Current analysis settings")}>
                 <div>
@@ -308,9 +302,6 @@ function AppContent() {
 
               <div className="controls-container">
                 <section className="stock-control-group stock-control-group-asset" aria-labelledby="stock-asset-title">
-                  <header className="stock-control-group-header">
-                    <h3 id="stock-asset-title">{t("stock.assetAndModel", "Asset and model")}</h3>
-                  </header>
                   <div className="control-column">
                     <TickerInput onTickerChange={handleTickerChange} initialTicker="AAPL" />
                     <ModelSelector
@@ -323,16 +314,10 @@ function AppContent() {
                 </section>
 
                 <section className="stock-control-group stock-control-group-window" aria-labelledby="stock-window-title">
-                  <header className="stock-control-group-header">
-                    <h3 id="stock-window-title">{t("stock.historicalWindow", "Historical window")}</h3>
-                  </header>
                   <DateInput onDateRangeChange={handleDateRangeChange} notifyInitial={false} inputIdPrefix="stock-date" />
                 </section>
 
                 <section className="stock-control-group stock-control-group-forecast" aria-labelledby="stock-forecast-title">
-                  <header className="stock-control-group-header">
-                    <h3 id="stock-forecast-title">{t("stock.forecastSetup", "Forecast horizon")}</h3>
-                  </header>
                   <FutureDateInput onFutureDaysChange={handleFutureDaysChange} initialDays={futureDays} />
                   <p className="stock-control-help">
                     {t(
@@ -358,7 +343,6 @@ function AppContent() {
               <section className="stock-results" aria-label={t("regression.data")}>
                 <header className="stock-results-header">
                   <div>
-                    <p>{t("stock.results", "Analysis results")}</p>
                     <h2>
                       {companyName} <span>({ticker})</span>
                     </h2>

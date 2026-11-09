@@ -1561,7 +1561,7 @@ def stock_screener_endpoint():
         return jsonify({"error": "'filters' must be a dictionary"}), 400
 
     try:
-        results = search_stocks(filters)
+        results = search_stocks(filters, include_coverage=data.get('include_coverage') is True)
         return jsonify(results)
     except Exception as e:
         # Log the exception for debugging

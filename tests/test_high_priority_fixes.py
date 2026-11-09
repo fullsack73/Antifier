@@ -904,3 +904,23 @@ def test_optimization_cancel_event_stops_before_fetch(monkeypatch):
             "2024-02-01",
             cancel_event=cancel_event,
         )
+
+
+@pytest.mark.parametrize("include_coverage", [False, True])
+def test_stock_screener_coverage_is_opt_in(monkeypatch, include_coverage):
+    import stock_screener
+
+    monkeypatch.setattr(stock_screener, "get_ticker_group", lambda _group: ["AAPL", "MSFT"])
+    monkeypatch.setattr(stock_screener, "get_universe_dataframe", lambda _group: pd.DataFrame([
+        {"Ticker": "AAPL", "Financial Score": 80},
+    ]))
+    payload = {"filters": {"Index": "S&P 500"}}
+    if include_coverage:
+        payload["include_coverage"] = True
+    response = app_module.app.test_client().post("/api/stock-screener", json=payload)
+    assert response.status_code == 200
+    rows = [{"Ticker": "AAPL", "Financial Score": 80}]
+    assert response.get_json() == (
+        {"results": rows, "coverage": {"requested": 2, "fetched": 1, "missing": 1}}
+        if include_coverage else rows
+    )

@@ -123,7 +123,6 @@ const PortfolioBenchmark = () => {
         <div className="benchmark-hero-copy">
           <span className="page-kicker">{t("benchmark.kicker")}</span>
           <h1 id="benchmark-page-title">{t("benchmark.title")}</h1>
-          <p>{t("benchmark.subtitle")}</p>
         </div>
         <dl className="benchmark-comparison-set" aria-label={t("benchmark.comparisonSet")}>
           <div>

@@ -82,7 +82,7 @@
 
 - `GET /api/get-data`: ticker price, regression, future prediction, currency metadata
 - `GET /api/analyze-hedge`: 두 ticker의 pairs/correlation/regression 분석. 단정적인 hedge 성립 여부를 반환하지 않고, 상관계수, p-value, 회귀 alpha/beta/R-squared, 관측치 수, 비단정적 correlation signal을 반환합니다.
-- `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
+- `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 건전성·저평가 평가, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
 - `POST /api/optimize-portfolio`: 포트폴리오 최적화 job 시작. 같은 `request_id` 재요청은 기존 job 상태를 반환합니다. 완료/데이터 오류 결과의 `data_eligibility`는 `minimum_observations`, 14일 staleness, no-leading-fill alignment 정책과 ticker별 `no_price_data`, `insufficient_history`, `stale_price`, `fx_unavailable`, `invalid_price`, `forecast_output_missing`, `alignment_missing` 사유를 제공합니다.
   - 비율 입력은 모두 decimal입니다. 기존 요청 호환을 위해 `max_asset_weight` 생략 시 20%를 목표로 하되 적격 종목이 5개 미만이면 기존과 같이 `1/N`까지의 feasible cap을 사용합니다. 사용자가 `max_asset_weight`를 명시하면 자동 완화하지 않습니다. `l2_gamma=0`, `min_holding_weight=0`, `turnover_penalty=0`이며 `rebalance_band`, `max_turnover`, `current_weights`는 선택 입력입니다. `turnover_penalty`는 `current_weights`가 있을 때만 L1 objective로 적용합니다.
   - 종목별 hard constraint는 `asset_constraints: [{"ticker":"AAPL","min_weight":0.05,"max_weight":0.20}]`, 그룹 hard constraint는 `group_constraints: [{"dimension":"sector|industry|country","group":"Technology","min_weight":0.10,"max_weight":0.40}]` 형식을 사용합니다. 생략한 bound는 적용하지 않으며 기존 요청 shape는 그대로 유효합니다. 전체 공통 cap은 `max_asset_weight`를 사용합니다.
@@ -99,7 +99,7 @@
 - `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE. 연결 시 현재 상태를 먼저 전송하고 이후 이벤트를 구독합니다.
 - `GET /api/portfolio-results`: 저장된 최적화 결과 목록
 - `GET /api/portfolio-results/<portfolio_id>`: 특정 최적화 결과 조회
-- `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening
+- `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening. 기본 응답은 기존 결과 배열이며, top-level `include_coverage=true` 요청은 `{results, coverage: {requested, fetched, missing}}`를 반환합니다. Coverage는 필터 적용 전 고유 종목 기준입니다. 부분 조회 캐시는 성공한 종목을 보존하고 다음 검색에서 누락 종목만 다시 조회하며, UI는 불완전한 조회를 경고합니다.
 - `POST /api/asset-names`: ticker display name 조회
 - `POST /api/benchmark-portfolio`: 포트폴리오 benchmark 계산
 - `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산. `calculation_mode`를 생략한 `REOPTIMIZE` 요청은 기존처럼 최신 데이터로 새 목표를 최적화하고, `FIXED_TARGET`은 top-level `target_weights`를 검증한 뒤 optimizer를 호출하지 않고 실행 시점 최신 USD 가격으로만 주문을 계산합니다. Imported JSON의 과거 holdings, prices와 buy/sell list는 계산 입력이 아닙니다. Weight 합계가 1 미만이면 차이를 비용 전 목표 cash로 유지하며, 미세 부동소수점 오차를 제외한 1 초과는 거부합니다. 기본 `rebalance_band=0.02`, `max_turnover=0.35`, `transaction_cost_bps=10`과 fractional-share 정책은 두 모드에 동일하게 적용합니다. Turnover는 매수와 매도의 절대 거래금액을 합한 gross L1 방식이며 A 20% 매도와 B 20% 매수는 40%입니다. 거래비용은 목표 cash에서 먼저 사용하고 부족분만 매수를 축소합니다. 응답은 mode, target hash/cash/provenance, 가격 coverage, `execution_target_weights`, gross traded value/turnover, 비용과 회계 진단을 포함합니다. 필수 최신 가격이 하나라도 누락되면 부분 주문 없이 HTTP 400과 coverage를 반환합니다. 결과는 분석용 제안이며 주문이나 broker 호출을 수행하지 않습니다.
@@ -271,3 +271,14 @@ PYTHONPATH=src/backend python -m pytest tests
 - 백엔드 CI: Python 3.11, `requirements-ci.txt`, `python -m pytest tests`
 - installer build: Linux/Windows/macOS matrix, PyInstaller, artifact upload, release creation
 - 상세 빌드 문서: `tools/BUILD.md`
+
+### Financial Score: 건전성·저평가 평가
+
+- 건전성 60점: ROE 10, ROA 8, 순이익률 8, 영업이익률 4, Debt/Equity 10, 부채/자산 10, 유동비율 6, 당좌비율 4. 절대 기준만 적용합니다.
+- 저평가 40점: trailing P/E 20, P/B 12, P/S 8. 유효한 산업/섹터 benchmark를 우선하고 없으면 절대 기준을 사용합니다. 상대 점수는 업종 대비 가격 수준이며 내재가치를 추정하지 않습니다.
+- 성장률, 베타, 예상 P/E, PEG는 가중치 0의 참고 지표입니다. 현금흐름과 금융회사/리츠 전용 건전성 지표는 현재 포함하지 않으며 해당 업종 점수는 제한적으로 해석합니다.
+- 각 영역은 가중 데이터 충족률 70% 이상이어야 합니다. 건전성에는 부채/자산, 수익성 지표 1개 이상, 유동/당좌비율 1개 이상이 필수이고 저평가에는 trailing P/E가 필수입니다. 한 영역이라도 불충족하면 종합 점수는 null입니다. 결측 영역의 가중치를 다른 영역으로 이전하지 않습니다.
+- `decision.components.health|valuation`은 score와 coverage를 제공합니다. `confidence`는 기존 API 호환 필드이며 통계적 신뢰도가 아닌 데이터 충족률입니다. 종합 점수는 반올림한 영역 점수의 60/40 합입니다.
+- Yahoo Debt/Equity는 percentage point를 100으로 나눕니다. 무차입 0은 정상 값입니다. 대표 peer 평균은 대상 종목 제외 후 지표별 3개 이상일 때만 사용하고, 캐시는 업종과 제외 대상 ticker를 함께 키로 사용합니다. 스크리너 캐시는 계산 버전별 namespace로 분리합니다.
+
+- 부채/자산 1 이상 또는 유동비율 0.75 미만이면 건전성 점수 상한은 35점입니다. 대표 종목 원자료도 24시간 공유 캐시해 제외 대상별 평균 계산이 외부 호출 수를 증폭시키지 않도록 합니다.

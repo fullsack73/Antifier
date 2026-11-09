@@ -31,7 +31,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 - Stock Analysis: ticker, 기간, 모델, forecast horizon을 선택하고 가격/회귀/미래 예측 차트를 확인
 - Pairs Analysis: 두 종목의 상관관계와 회귀 기반 관계 분석
-- Financial Statement: ticker별 주요 재무 지표, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 점수화 결과를 대시보드로 확인하고 전체 재무제표는 팝업에서 확인
+- Financial Statement: ticker별 주요 재무 지표, Finviz/yfinance benchmark 비교, 규칙 기반 건전성·저평가 평가, 점수화 결과를 대시보드로 확인하고 전체 재무제표는 팝업에서 확인
 - Optimizer: MPT 또는 Black-Litterman 기반 포트폴리오 최적화
 - Benchmark: 포트폴리오 성과를 S&P 500과 risk-free asset 기준으로 비교
 - Portfolio Manager: 현재 보유 종목과 현금 주입을 바탕으로 리밸런싱 주문 계산
@@ -43,7 +43,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 인터랙티브 주가 차트와 기간 선택
 - LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, lightweight ensemble 계열 forecast/회귀 흐름
 - 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
-- 재무제표, 주요 재무 지표, 규칙 기반 투자 신호 대시보드 조회
+- 재무제표, 주요 재무 지표, 규칙 기반 건전성·저평가 평가 대시보드 조회
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - Ledoit-Wolf global minimum-variance 기본 최적화와 opt-in MPT/Black-Litterman
 - 종목별 및 sector/industry/country별 최소·최대 비중 hard constraint, 사전 feasibility 검사, 구조화된 오류
@@ -127,7 +127,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 - predefined universe는 CSV와 helper 모듈을 통해 관리합니다.
 - Stock Screener의 기본 검색 기준은 Financial Statement 대시보드와 같은 0-100 종합 점수이며, raw 재무 지표가 비어 있거나 외부 데이터 호출이 실패해도 방어적으로 처리해야 합니다.
-- Financial Statement의 STRONG BUY/BUY/HOLD 등 신호는 데이터 기반 분석 보조 신호이며 투자 자문이나 자동 매매 지시로 표현하지 않습니다.
+- Financial Statement는 건전성 60%와 저평가 정도 40%를 합산합니다. 매수·매도 대신 STRONG/FAVORABLE/MIXED/WEAK/VERY WEAK 평가 등급을 사용하며 수익률 예측으로 해석하지 않습니다.
 - 업종/섹터 평균 비교는 Finviz group valuation의 산업 평균을 우선 사용하고, Finviz가 제공하지 않는 수익성/성장성/안정성/위험 지표는 yfinance 기반 산업별 대표 대형주 단순 평균으로 보완합니다.
 - Finviz 산업/섹터 평균을 찾지 못하면 yfinance 기반 산업별 대표 대형주 단순 평균을 전체 benchmark fallback으로 사용합니다.
 - 산업별 대표 ticker dataset이 없는 경우에는 섹터 대표 대형주 단순 평균을 마지막 benchmark fallback으로 사용합니다.
@@ -166,3 +166,14 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 수익률 보장, 투자 자문, 자동 주문 실행은 현재 범위가 아닙니다.
 - 계좌 연동, 실거래 broker API, 결제/구독 시스템은 현재 범위가 아닙니다.
 - 대규모 멀티테넌트 서버 배포와 사용자별 데이터베이스 운영은 인증/저장 기능 결정 전까지 범위 밖입니다.
+
+### Financial Score: 건전성·저평가 평가
+
+- 건전성 60점: ROE 10, ROA 8, 순이익률 8, 영업이익률 4, Debt/Equity 10, 부채/자산 10, 유동비율 6, 당좌비율 4. 절대 기준만 적용합니다.
+- 저평가 40점: trailing P/E 20, P/B 12, P/S 8. 유효한 산업/섹터 benchmark를 우선하고 없으면 절대 기준을 사용합니다. 상대 점수는 업종 대비 가격 수준이며 내재가치를 추정하지 않습니다.
+- 성장률, 베타, 예상 P/E, PEG는 가중치 0의 참고 지표입니다. 현금흐름과 금융회사/리츠 전용 건전성 지표는 현재 포함하지 않으며 해당 업종 점수는 제한적으로 해석합니다.
+- 각 영역은 가중 데이터 충족률 70% 이상이어야 합니다. 건전성에는 부채/자산, 수익성 지표 1개 이상, 유동/당좌비율 1개 이상이 필수이고 저평가에는 trailing P/E가 필수입니다. 한 영역이라도 불충족하면 종합 점수는 null입니다. 결측 영역의 가중치를 다른 영역으로 이전하지 않습니다.
+- `decision.components.health|valuation`은 score와 coverage를 제공합니다. `confidence`는 기존 API 호환 필드이며 통계적 신뢰도가 아닌 데이터 충족률입니다. 종합 점수는 반올림한 영역 점수의 60/40 합입니다.
+- Yahoo Debt/Equity는 percentage point를 100으로 나눕니다. 무차입 0은 정상 값입니다. 대표 peer 평균은 대상 종목 제외 후 지표별 3개 이상일 때만 사용하고, 캐시는 업종과 제외 대상 ticker를 함께 키로 사용합니다. 스크리너 캐시는 계산 버전별 namespace로 분리합니다.
+
+- 부채/자산 1 이상 또는 유동비율 0.75 미만이면 건전성 점수 상한은 35점입니다. 대표 종목 원자료도 24시간 공유 캐시해 제외 대상별 평균 계산이 외부 호출 수를 증폭시키지 않도록 합니다.

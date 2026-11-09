@@ -158,15 +158,15 @@
     "market_cap": "시가총액",
     "currency": "통화",
     "source_currency": "원 통화",
-    "confidence": "신뢰도 {{confidence}}% · 사용 가능 지표 {{available}}/{{total}}개",
-    "analysis_note": "사용 가능한 데이터로 계산한 규칙 기반 재무 신호입니다. 투자 조언이 아니라 분석 참고 자료로 사용하세요.",
+    "confidence": "데이터 충족률 {{confidence}}% · 평가 지표 {{available}}/{{total}}개",
+    "analysis_note": "건전성 60%와 저평가 정도 40%의 규칙 기반 평가입니다. 각 영역의 가중 데이터 충족률 70%와 필수 지표가 필요합니다. 성장률·베타·예상 P/E·PEG는 참고용이며 수익률 예측이나 매매 신호가 아닙니다. 금융회사·리츠의 업종 특화 건전성 지표와 현금흐름은 반영하지 않습니다.",
     "view_full_statements": "전체 재무제표 보기",
     "full_statements_title": "전체 재무제표",
     "no_statement_data": "선택한 재무제표 데이터가 없습니다.",
     "breakdown": "항목",
     "rule": "판정 기준",
     "loading_dashboard": "재무 대시보드 로딩 중",
-    "empty_dashboard": "티커를 입력하고 재무 데이터를 가져오면 투자 신호 대시보드를 볼 수 있습니다.",
+    "empty_dashboard": "티커를 입력해 재무 건전성과 저평가 정도를 확인하세요.",
     "benchmark_available": "{{source}} 기준 {{benchmark}}의 {{basis}}은 {{average}}이며, 이 종목은 {{position}}이고 차이는 {{difference}}입니다.",
     "benchmark_unavailable": "현재 데이터 소스에서 {{industry}}의 신뢰 가능한 산업/섹터 평균을 제공하지 않아 절대 기준으로 평가했습니다.",
     "benchmark_position": {
@@ -185,11 +185,11 @@
       "yfinance_representative_peers": "yfinance"
     },
     "decision_labels": {
-      "strong_buy": "STRONG BUY",
-      "buy": "BUY",
-      "hold": "HOLD",
-      "reduce": "REDUCE",
-      "sell": "SELL",
+      "strong_buy": "매우 양호",
+      "buy": "양호",
+      "hold": "혼재",
+      "reduce": "취약",
+      "sell": "매우 취약",
       "insufficient_data": "데이터 부족"
     },
     "metric_categories": {
@@ -241,7 +241,11 @@
       "caution": "강한 신호로 보기 전에 주의해서 확인해야 합니다.",
       "negative": "점수 기준에서 비우호적인 신호입니다.",
       "missing": "점수화할 데이터가 부족합니다."
-    }
+    },
+    "component_health": "재무 건전성 (60%)",
+    "component_valuation": "저평가 정도 (40%)",
+    "component_coverage": "데이터 {{coverage}}%",
+    "reference_only": "참고 지표 · 종합 점수 제외"
   },
   "optimizer": {
     "kicker": "포트폴리오 최적화",
@@ -455,6 +459,7 @@
     "readError": "파일을 읽지 못했습니다.",
     "uploadCsvRequired": "유효한 티커 심볼이 있는 CSV 파일을 업로드하세요.",
     "networkError": "네트워크 응답이 올바르지 않습니다",
+    "partialCoverage": "전체 {{requested}}개 중 {{fetched}}개 종목만 분석되었습니다({{missing}}개 누락). 일부 종목에 한정된 결과입니다. 잠시 후 다시 검색하면 누락 종목을 재조회합니다.",
     "fetchError": "종목 검색 결과를 가져오지 못했습니다.",
     "Under": "미만",
     "Over": "초과",
@@ -483,7 +488,7 @@
       "company": "회사",
       "score": "점수",
       "signal": "신호",
-      "confidence": "신뢰도",
+      "confidence": "데이터 충족률",
       "price": "가격",
       "pe": "P/E",
       "pb": "P/B",
@@ -495,7 +500,6 @@
   "benchmark": {
     "kicker": "성과 벤치마크",
     "title": "포트폴리오 벤치마크",
-    "subtitle": "같은 시장 기간에서 포트폴리오, S&P 500, 현금 기준 성과를 비교합니다.",
     "comparisonSet": "비교 기준",
     "primarySeries": "주요 시계열",
     "marketReference": "시장 기준",

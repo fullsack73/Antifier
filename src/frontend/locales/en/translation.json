@@ -158,15 +158,15 @@
     "market_cap": "Market Cap",
     "currency": "Currency",
     "source_currency": "source",
-    "confidence": "{{confidence}}% confidence · {{available}}/{{total}} metrics available",
-    "analysis_note": "Rule-based financial signal from available data. Use it as analytical context, not investment advice.",
+    "confidence": "{{confidence}}% data coverage · {{available}}/{{total}} scored metrics",
+    "analysis_note": "Rule-based assessment: 60% financial health, 40% relative value. Each component requires 70% weighted data coverage and core metrics. Growth, beta, forward P/E and PEG are reference only. This is not a return forecast or trading signal. Sector-specific health measures for financial firms/REITs and cash flow are not included.",
     "view_full_statements": "View Full Statements",
     "full_statements_title": "Full Financial Statements",
     "no_statement_data": "No statement data is available for this selection.",
     "breakdown": "Breakdown",
     "rule": "Rule",
     "loading_dashboard": "Loading financial dashboard",
-    "empty_dashboard": "Enter a ticker symbol and fetch data to see the investment signal dashboard.",
+    "empty_dashboard": "Enter a ticker to assess financial health and relative value.",
     "benchmark_available": "{{basis}} for {{benchmark}} from {{source}} is {{average}}; this metric is {{position}} by {{difference}}.",
     "benchmark_unavailable": "No reliable industry or sector average is available from the current source for {{industry}}, so this metric uses absolute thresholds.",
     "benchmark_position": {
@@ -185,11 +185,11 @@
       "yfinance_representative_peers": "yfinance"
     },
     "decision_labels": {
-      "strong_buy": "STRONG BUY",
-      "buy": "BUY",
-      "hold": "HOLD",
-      "reduce": "REDUCE",
-      "sell": "SELL",
+      "strong_buy": "STRONG",
+      "buy": "FAVORABLE",
+      "hold": "MIXED",
+      "reduce": "WEAK",
+      "sell": "VERY WEAK",
       "insufficient_data": "INSUFFICIENT DATA"
     },
     "metric_categories": {
@@ -241,7 +241,11 @@
       "caution": "Watch this metric before treating the signal as strong.",
       "negative": "Unfavorable under the scoring rule.",
       "missing": "Not enough data to score this metric."
-    }
+    },
+    "component_health": "Financial health (60%)",
+    "component_valuation": "Relative value (40%)",
+    "component_coverage": "{{coverage}}% coverage",
+    "reference_only": "Reference only · excluded from total"
   },
   "optimizer": {
     "kicker": "Portfolio Optimization",
@@ -455,6 +459,7 @@
     "readError": "Failed to read the file.",
     "uploadCsvRequired": "Please upload a CSV file with valid ticker symbols.",
     "networkError": "Network response was not ok",
+    "partialCoverage": "Only {{fetched}} of {{requested}} stocks could be analyzed; {{missing}} are missing. These results are incomplete. Try searching again later to retry missing stocks.",
     "fetchError": "Failed to fetch screener results.",
     "Under": "Under",
     "Over": "Over",
@@ -483,7 +488,7 @@
       "company": "Company",
       "score": "Score",
       "signal": "Signal",
-      "confidence": "Confidence",
+      "confidence": "Data coverage",
       "price": "Price",
       "pe": "P/E",
       "pb": "P/B",
@@ -495,7 +500,6 @@
   "benchmark": {
     "kicker": "Performance Benchmark",
     "title": "Portfolio Benchmark",
-    "subtitle": "Test one allocation against the same market window and a configurable cash baseline.",
     "comparisonSet": "Comparison set",
     "primarySeries": "Primary series",
     "marketReference": "Market reference",

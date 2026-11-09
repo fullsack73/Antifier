@@ -28,6 +28,11 @@ const OPERATORS = [
 ];
 
 const DECISION_LABEL_KEYS = {
+    STRONG: 'strong_buy',
+    FAVORABLE: 'buy',
+    MIXED: 'hold',
+    WEAK: 'reduce',
+    'VERY WEAK': 'sell',
     'STRONG BUY': 'strong_buy',
     BUY: 'buy',
     HOLD: 'hold',
@@ -45,6 +50,7 @@ const StockScreener = () => {
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [coverage, setCoverage] = useState(null);
     const [customTickers, setCustomTickers] = useState([]);
     const [uploadFileName, setUploadFileName] = useState('');
     const [uploadError, setUploadError] = useState(null);
@@ -84,7 +90,7 @@ const StockScreener = () => {
         const reader = new FileReader();
         reader.onload = (event) => {
             const text = event.target.result;
-            const tickers = text
+            const tickers = [...new Set(text
                 .split(/[\r\n,]+/)
                 .map(t => t.trim())
                 // Remove header rows, RTF artifacts, and empty lines
@@ -92,7 +98,8 @@ const StockScreener = () => {
                 .filter(t => !/^(symbol|ticker|name|company)$/i.test(t))
                 .map(t => t.replace(/\\$/, ''))
                 // Allow only valid ticker characters: letters, digits, dots, hyphens, carets
-                .filter(t => /^[A-Z0-9.\-^]+$/i.test(t));
+                .filter(t => /^[A-Z0-9.\-^]+$/i.test(t))
+                .map(t => t.toUpperCase()))];
 
             if (tickers.length === 0) {
                 setUploadError(t('stockScreener.noValidTickers'));
@@ -129,6 +136,7 @@ const StockScreener = () => {
         setLoading(true);
         setError(null);
         setResults([]);
+        setCoverage(null);
 
         if (tickerGroup === 'Custom' && customTickers.length === 0) {
             setError(t('stockScreener.uploadCsvRequired'));
@@ -137,6 +145,7 @@ const StockScreener = () => {
         }
 
         const payload = {
+            include_coverage: true,
             filters: {
                 Index: tickerGroup,
                 criteria: filters
@@ -163,7 +172,12 @@ const StockScreener = () => {
             }
 
             const data = await response.json();
-            setResults(data);
+            const rows = Array.isArray(data) ? data : data?.results;
+            if (!Array.isArray(rows)) {
+                throw new Error(t('stockScreener.fetchError'));
+            }
+            setResults(rows);
+            setCoverage(Array.isArray(data) ? null : data.coverage);
         } catch (err) {
             setError(err.message || t('stockScreener.fetchError'));
             if (import.meta.env.DEV) {
@@ -201,7 +215,7 @@ const StockScreener = () => {
         if (['P/E', 'Forward P/E', 'P/B', 'Price/Sales', 'PEG'].includes(key)) {
             return parseFloat(val).toFixed(2);
         }
-        if (key === 'Financial Score') {
+        if (['Financial Score', 'Financial Health', 'Relative Value'].includes(key)) {
             return `${Math.round(val)}/100`;
         }
         if (key === 'Score Confidence') {
@@ -361,6 +375,11 @@ const StockScreener = () => {
             )}
 
             {error && <div className="error-banner">{error}</div>}
+            {coverage?.missing > 0 && (
+                <div className="error-banner" role="status">
+                    {t('stockScreener.partialCoverage', coverage)}
+                </div>
+            )}
 
             {loading && <ScreenerSkeleton />}
 
@@ -380,6 +399,8 @@ const StockScreener = () => {
                                     <th>{t('stockScreener.table.ticker')}</th>
                                     <th>{t('stockScreener.table.company')}</th>
                                     <th>{t('stockScreener.table.score')}</th>
+                                    <th>{t('financial.component_health')}</th>
+                                    <th>{t('financial.component_valuation')}</th>
                                     <th>{t('stockScreener.table.signal')}</th>
                                     <th>{t('stockScreener.table.confidence')}</th>
                                     <th>{t('stockScreener.table.price')}</th>
@@ -396,6 +417,8 @@ const StockScreener = () => {
                                         <td className="ticker-cell">{row.Ticker}</td>
                                         <td className="company-cell">{row.Company}</td>
                                         <td className="number-cell">{formatValue('Financial Score', row['Financial Score'])}</td>
+                                        <td className="number-cell">{formatValue('Financial Health', row['Financial Health'])}</td>
+                                        <td className="number-cell">{formatValue('Relative Value', row['Relative Value'])}</td>
                                         <td>{formatSignal(row['Financial Signal'])}</td>
                                         <td className="number-cell">{formatValue('Score Confidence', row['Score Confidence'])}</td>
                                         <td className="number-cell">{formatValue('Price', row.Price)}</td>
