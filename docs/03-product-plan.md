@@ -2,6 +2,11 @@
 
 본 문서는 Antifier의 제품 범위, 사용자, 핵심 기능, 현재 로드맵을 정리합니다.
 
+Transformer·ARIMA·동일가중 혼합 예측의 실패 원인은 별도 offline diagnostic
+campaign으로 조사합니다. 합성 대조군과 시간 정보/직접 예측/학습량/입력 정보의
+통제 실험 결과를 구분하며, 소비된 과거 데이터의 개선을 새 alpha 검증이나
+production 승격으로 해석하지 않습니다.
+
 ## A. 서비스 개요
 
 Antifier는 개인 투자자, 트레이더, 금융 분석가가 주식 데이터 분석, 예측, 재무제표 확인, 포트폴리오 최적화를 한 곳에서 수행하도록 돕는 금융 분석 웹앱입니다. 이름은 소액 개인 투자자를 뜻하는 한국어 표현인 "개미"에서 출발했습니다.
@@ -43,6 +48,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 인터랙티브 주가 차트와 기간 선택
 - LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, lightweight ensemble 계열 forecast/회귀 흐름
 - 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
+- 사용자 요청으로 Transformer 및 ARIMA+Transformer 서비스 경로에 직접 기간 예측 적용. GMV 기본값은 유지하며 production 수익률 일반화 승격과는 구분
 - 재무제표, 주요 재무 지표, 규칙 기반 건전성·저평가 평가 대시보드 조회
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - Ledoit-Wolf global minimum-variance 기본 최적화와 opt-in MPT/Black-Litterman

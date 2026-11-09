@@ -477,17 +477,19 @@ def generate_monte_carlo_future_predictions(
 
 
 def generate_forecast_regression_response(ticker, stock, close_series, future_days, price_currency, currency_metadata, model_type):
+    forecast_history = close_series
     close_series = close_series.dropna()
     if close_series.empty:
         return {}
 
     use_transformer_only = is_transformer_model_type(model_type)
+    forecast_horizon = future_days if future_days > 0 else 63
     if use_transformer_only:
-        prediction = forecast_single_ticker_with_transformer(ticker, close_series, horizon=TRADING_DAYS_PER_YEAR)
+        prediction = forecast_single_ticker_with_transformer(ticker, forecast_history, horizon=forecast_horizon)
         model_label = "TRANSFORMER"
         default_source = "transformer"
     else:
-        prediction = forecast_single_ticker_with_arima_transformer(ticker, close_series, horizon=TRADING_DAYS_PER_YEAR)
+        prediction = forecast_single_ticker_with_arima_transformer(ticker, forecast_history, horizon=forecast_horizon)
         model_label = "ARIMA_TRANSFORMER"
         default_source = "arima_transformer"
 
@@ -498,7 +500,6 @@ def generate_forecast_regression_response(ticker, stock, close_series, future_da
         annual_log_return = None
 
     if annual_log_return is not None and np.isfinite(annual_log_return):
-        annual_log_return = float(np.clip(annual_log_return, -0.69, 0.69))
         daily_log_return = annual_log_return / TRADING_DAYS_PER_YEAR
     else:
         annual_log_return = None
@@ -533,6 +534,8 @@ def generate_forecast_regression_response(ticker, stock, close_series, future_da
         'intercept': 'N/A',
         'model_metadata': {
             'model': model_label,
+            'forecast_horizon': forecast_horizon,
+            'diagnostics': prediction.get('diagnostics', {}),
             'expected_annual_log_return': annual_log_return,
             'uncertainty': prediction.get('uncertainty'),
             'components': prediction.get('components', {}),

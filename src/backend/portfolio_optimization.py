@@ -34,10 +34,13 @@ from cache_manager import (
 )
 from ticker_lists import get_ticker_group
 from forecast_models import (
-    ARIMATransformerPredictor,
-    TransformerForecastModel,
     NO_VIEW_FORECAST_UNCERTAINTY,
     no_view_prediction,
+)
+from direct_horizon_forecast import (
+    MODEL_VERSION as DIRECT_FORECAST_VERSION,
+    DirectHorizonTransformerForecastModel as TransformerForecastModel,
+    DirectARIMATransformerPredictor as ARIMATransformerPredictor,
 )
 from lightweight_forecast import lightweight_ensemble_forecast
 from portfolio_signals import cap_and_normalize_weights
@@ -1860,7 +1863,7 @@ def _generate_arima_transformer_prediction(ticker, ticker_data, horizon=252):
         
         start_time = time.time()
         predictor = ARIMATransformerPredictor()
-        predictor.train_all(valid_prices)
+        predictor.train_all(prices)
         prediction = predictor.predict(horizon=horizon)
         elapsed = time.time() - start_time
         
@@ -1899,7 +1902,7 @@ def _generate_transformer_prediction(ticker, ticker_data, horizon=252):
 
         start_time = time.time()
         model = TransformerForecastModel()
-        model.train(valid_prices)
+        model.train(prices)
         prediction = model.predict(horizon=horizon)
         elapsed = time.time() - start_time
 
@@ -1981,7 +1984,14 @@ def forecast_single_ticker_with_transformer(ticker, ticker_data, horizon=252):
     return prediction
 
 
-@cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache for predictions
+def _direct_forecast_cache_key(method, ticker, ticker_data, horizon=252):
+    prices = np.asarray(ticker_data, dtype=float)
+    price_hash = hashlib.sha256(str(prices.shape).encode() + prices.tobytes()).hexdigest()
+    return f"forecast_{DIRECT_FORECAST_VERSION}_{method}_{ticker}_{int(horizon)}_{price_hash}"
+
+
+@cached(l1_ttl=900, l2_ttl=14400, key_func=lambda ticker, ticker_data, horizon=252:
+        _direct_forecast_cache_key("arima_transformer", ticker, ticker_data, horizon))
 def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
     """Forecast returns for single ticker using ARIMA + Transformer with caching.
 
@@ -2008,7 +2018,8 @@ def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
         gc.collect()
 
 
-@cached(l1_ttl=900, l2_ttl=14400)
+@cached(l1_ttl=900, l2_ttl=14400, key_func=lambda ticker, ticker_data, horizon=252:
+        _direct_forecast_cache_key("transformer", ticker, ticker_data, horizon))
 def _transformer_forecast_single_ticker(ticker, ticker_data, horizon=252):
     """Forecast returns for one ticker using the Transformer model with caching."""
     try:
@@ -2300,8 +2311,6 @@ def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate
         return 2.5
 
 
-@cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
-
 def _pipeline_key_func(
     start_date,
     end_date,
@@ -2318,7 +2327,7 @@ def _pipeline_key_func(
         tickers_str = ",".join(sorted(tickers))
     else:
         tickers_str = "None"
-    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v3_eligibility"
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v3_eligibility|{DIRECT_FORECAST_VERSION}"
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)

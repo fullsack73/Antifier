@@ -1,5 +1,46 @@
 # 2) Specs
 
+## Production 직접 예측 경로 (사용자 요청, 2026-11-09)
+
+서비스의 `Transformer` 선택은 `direct_horizon_forecast.py`의 기간 누적 로그수익률
+직접 학습을 사용한다. `ARIMA + Transformer`는 기존 ARIMA와 직접 예측 head를
+기존 동일가중 계약으로 결합한다. API의 `expected_return`은 연율 로그수익률로
+유지하고, 기간값은 요청 horizon으로 학습한다. 기존 ±0.69 연율 포화를 적용하지 않는다.
+학습/검증 목표가 겹치지 않게 purge하고 두 scaler는 학습 partition으로만 맞춘다.
+불확실성은 검증 기간 RMSE를 같은 연율 단위로 변환한 진단 값이며 calibrated
+prediction interval이라고 주장하지 않는다. 기간별 완료 target이 부족하거나
+입력의 날짜에 결측/비정상 값이 있으면 no-view로 처리한다.
+
+GMV/RISK_ONLY 기본값과 opt-in MPT/BL 선택은 유지한다. 이는 사용자 요청의
+서비스 예측 경로 변경이며 독립 alpha 승격 판정이 아니다. 과거 연구용 legacy
+`forecast_models.TransformerForecastModel`은 그대로 보존한다. 연구와 production이
+같은 model builder/target split helper를 사용한다. Forecast-rank cache schema는
+`2026-11-09-direct-horizon-v1`로 분리해 예전 예측 재사용을 방지한다.
+
+## Forecast failure attribution diagnostic
+
+`tools/diagnose_forecast_failures.py`는 기존 로컬 Nasdaq 자료만 사용하는
+research-only 원인 분리 도구입니다. 63거래일을 주 대상으로 현재 경로 재현,
+합성 양성/음성 대조군, Transformer 2×2 통제, ARIMA 대체 경로 및 혼합 오차
+분해, PIT 정보 추가를 조사합니다. 모든 산출물은 `diagnostic_only`,
+`promotion_eligible=false`이며 소비된 historical evidence를 승격에 재사용하지 않습니다.
+사전 manifest와 작업별 checkpoint를 고정하고, 실행 예산 8시간 중 마지막
+1시간은 집계에 확보합니다. 미실행·실패·불충분 표본을 성공과 구분합니다.
+Production forecast/API/default allocation은 변경하지 않습니다.
+
+`tools/compare_improved_forecast_portfolios.py`는 사용자 요청의 diagnostic 비교로
+63일 직접 예측을 넣은 MPT, 기존 Ledoit-Wolf GMV, GMV+고정 rank overlay를
+같은 504/63일 학습·실행 계약에서 비교합니다. 모델·seed·gamma는 결과 전에
+고정하며 동일한 covariance/cap/비용/거래 제어를 사용합니다. MPT의 GMV 대체는
+별도 표시합니다. 소비된 과거 자료의 명시적 성과 진단이며 signal gate를 통과한
+승격 후보나 독립 holdout으로 취급하지 않습니다.
+
+`tools/compare_forecast_mpt_before_after.py`는 위 비교의 고정된 개선 MPT 결과를
+재사용하고 동일 가격/학습 창에 기존 Transformer `predict()`의 연율 제한 후
+예측을 생성해 MPT 전후 차이를 계산합니다. 양쪽의 MPT objective, covariance,
+수익률 변환, 실패 시 GMV 대체와 비용 회계는 같습니다. 부모 산출물과 입력 hash를
+검증하며 원래 결과를 덮어쓰지 않습니다.
+
 본 문서는 Antifier 구현에 사용하는 기술 스택과 운영 규칙을 정의합니다.
 
 ## A. Runtime / Core

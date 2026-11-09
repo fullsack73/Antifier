@@ -60,6 +60,7 @@ src/backend/
 ├─ portfolio_signals.py              # risk parity, momentum rank, confidence-gated GMV overlay helper
 ├─ portfolio_alpha_v2.py             # point-in-time factor 계약, factor-residual target, regularized alpha
 ├─ forecast_signal_research.py        # forecast 분포와 completed-OOS sequential confidence gate
+├─ forecast_failure_diagnostics.py    # research-only 예측 원인 분리, 단위/모델 통제와 날짜별 오차 통계
 ├─ cross_sectional_forecast.py        # pooled linear/ranking/nonlinear walk-forward research
 ├─ pooled_patch_transformer.py        # research-only pooled Patch Transformer, Kronos context, direct-horizon gate
 ├─ portfolio_risk_models.py           # robust/conditional-volatility/FF3 factor covariance 연구
@@ -71,6 +72,7 @@ src/backend/
 ├─ gmv_policy_comparison.py            # buy-hold/fixed/rolling GMV forward 회계·상태 오케스트레이션
 ├─ universe_manifest.py               # 날짜별 universe membership와 생존편향 정책 검증
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
+├─ direct_horizon_forecast.py          # 서비스 직접 기간 수익률 예측, purged 학습/검증과 hybrid adapter
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
 ├─ hedge_analysis.py                 # pairs 상관/회귀 분석
@@ -157,6 +159,9 @@ tools/
 ├─ backtest_portfolio_models.py
 ├─ compare_forecast_models.py
 ├─ diagnose_forecast_signals.py       # persistent forecast cache 포화/tie/coverage 진단
+├─ diagnose_forecast_failures.py      # offline 8시간 원인 분리 campaign, immutable manifest/checkpoint/report
+├─ compare_improved_forecast_portfolios.py # GMV / direct-horizon MPT / GMV rank overlay 동일 실행 비교
+├─ compare_forecast_mpt_before_after.py # 동일 MPT에서 기존 반복/저장된 직접 예측의 전후 비교
 ├─ benchmark_kronos_forecasts.py       # pinned Kronos-small과 기존 ML rank signal 비교
 ├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
 ├─ research_pooled_patch_transformer.py # frozen origin 기반 Patch/ARIMA/Transformer signal과 GMV tilt 비교
