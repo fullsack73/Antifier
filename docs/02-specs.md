@@ -17,6 +17,20 @@ GMV/RISK_ONLY 기본값과 opt-in MPT/BL 선택은 유지한다. 이는 사용�
 같은 model builder/target split helper를 사용한다. Forecast-rank cache schema는
 `2026-11-09-direct-horizon-v1`로 분리해 예전 예측 재사용을 방지한다.
 
+## Yahoo 공유 연결과 BL 캐시 (2026-11-10)
+
+yfinance는 가격·메타데이터 조회가 process-wide session을 공유한다. 최적화의
+`_managed_yfinance_session`은 lock으로 지연 생성한 프로세스 소유 curl session을
+빌려 쓰며, 개별 조회 종료·실패·취소 때 닫지 않는다. 프로세스 종료 시 atexit으로
+정리한다. ML worker는 기존 spawn 방식이므로 각 프로세스가 자체 session을 만든다.
+따라서 최적화 이후 차트·회귀·재무 조회에도 닫힌 session이 전달되지 않는다.
+명시적 CA bundle과 기존 가격 조회 timeout/concurrency 제한을 유지한다.
+
+BL 시가총액과 시장 위험회피계수도 같은 session을 사용한다. 시가총액의 빈 응답은
+캐시하지 않고 종목별 실패 사유를 기록한다. 두 조회의 session-v2 cache key로
+기존 빈 시가총액·대체 delta 캐시를 우회한다. Historical PIT 제한과 데이터
+실패 시 MPT fallback 계약은 유지한다.
+
 ## Forecast failure attribution diagnostic
 
 `tools/diagnose_forecast_failures.py`는 기존 로컬 Nasdaq 자료만 사용하는
@@ -40,6 +54,13 @@ Production forecast/API/default allocation은 변경하지 않습니다.
 예측을 생성해 MPT 전후 차이를 계산합니다. 양쪽의 MPT objective, covariance,
 수익률 변환, 실패 시 GMV 대체와 비용 회계는 같습니다. 부모 산출물과 입력 hash를
 검증하며 원래 결과를 덮어쓰지 않습니다.
+
+`tools/compare_forecast_bl_before_after.py`는 기존/개선의 저장된 예측과 불확실성을
+공통 BL 백테스트에 적용한다. 실제 서비스의 historical 시가총액 미확보 시
+MPT 대체 경로와 구분해 동일비중 시장 prior, delta 2.5, tau 0.05를 사용한다.
+현재 시가총액을 과거에 소급하지 않고, raw/adjusted/posterior view와 fallback을
+기록한다. 개선 불확실성은 purged 목표 scaler와 저장된 최저 검증 MSE에서
+재구성하며 보정된 OOS 신뢰구간으로 취급하지 않는다. Production 변경은 없다.
 
 본 문서는 Antifier 구현에 사용하는 기술 스택과 운영 규칙을 정의합니다.
 
@@ -323,3 +344,46 @@ PYTHONPATH=src/backend python -m pytest tests
 - Yahoo Debt/Equity는 percentage point를 100으로 나눕니다. 무차입 0은 정상 값입니다. 대표 peer 평균은 대상 종목 제외 후 지표별 3개 이상일 때만 사용하고, 캐시는 업종과 제외 대상 ticker를 함께 키로 사용합니다. 스크리너 캐시는 계산 버전별 namespace로 분리합니다.
 
 - 부채/자산 1 이상 또는 유동비율 0.75 미만이면 건전성 점수 상한은 35점입니다. 대표 종목 원자료도 24시간 공유 캐시해 제외 대상별 평균 계산이 외부 호출 수를 증폭시키지 않도록 합니다.
+
+## 사용자 전략 백테스트 (2026-11-12)
+
+벤치마크의 고정 비중 모드를 유지하며 CSV ticker 목록으로 GMV, production 직접
+Transformer 예측 MPT, 실험 GMV+고정 2.5% rank overlay를 비교하는 모드를 제공한다.
+각 origin 이전 학습 창만 사용하고 모든 전략의 종목, 실행 달력, 비용과 제어 조건은 같다.
+재조정 간격과 예측 horizon은 독립 설정이다. 후보 풀은 시작 시점 학습 자료로만
+확정하며 이후 가격 누락은 사후 종목 제거 대신 실패로 처리한다. 현재 CSV의
+고정 풀 진단이며 historical universe 전체 재현, 미래 성과 또는 자동 승격을 주장하지 않는다.
+
+API: POST `/api/strategy-backtests/preview`, POST `/api/strategy-backtests`,
+GET `/api/strategy-backtest-results`. 실행은 기존 optimization job 상태/진행률/취소
+endpoint를 재사용하고 결과는 `backtest_` prefix로 기존 JSON 저장소에 보존한다.
+최대 2,000종목/CSV 1MB, 예상 50,000 forecast, 동시 비교 job 1개를 제한한다.
+조회 오류와 no-view/MPT solver fallback을 기록하고 일수익률은 최초 비용을
+포함한 순자산에 검산한다. 기존 공통 일수익률 export TODO는 별도로 유지한다.
+
+### 비교 항목별 모델 선택 (2026-11-12)
+
+전략 백테스트는 고정 체크박스 대신 1~10개의 서로 다른 조합을 등록한다.
+`strategy_configs`의 `optimization_method`는 MIN_VARIANCE/MPT/BL/GMV_MODEL,
+`forecast_method`는 LIGHTWEIGHT/ARIMA_TRANSFORMER/TRANSFORMER이며 GMV는
+RISK_ONLY로 정규화한다. 화면은 Optimizer와 같은 예측·최적화 선택지를 사용하며
+GMV_MODEL은 기존 실험 overlay의 추가 선택지다. GMV 1개로 시작해 사용자가
+조합을 추가·제거한다. 기존 `strategies` 요청과 저장 결과는 계속 읽을 수 있다.
+
+동일 origin·예측 방식은 구성요소 전략들이 공유하고 예상 작업량도 중복을 제외한다.
+각 결과의 조합과 모델별 예측/불확실성/대체 사유를 저장하며 결과 이름은 저장된
+설정에서 결정한다. 경량 예측의 기간 단순수익률은 연 로그수익률로 변환한다.
+과거 BL은 기존 백테스트의 동일비중 시장 prior(delta 2.5, tau .05)를 사용하며
+현재 시가총액을 과거에 적용하지 않는다. BL 가정을 화면과 결과 진단에 명시한다.
+
+### CSV 인식 및 업로드 UI 보정 (2026-11-12)
+
+`Symbol`/`Ticker` 열은 대소문자·주변 공백·BOM과 무관하게 인식한다. 헤더 없는
+줄바꿈/쉼표 목록, 세미콜론·탭 CSV도 지원하며 이름 등 부가 열은 종목으로 해석하지
+않는다. 최대 2,000종목으로 저장소의 S&P 500(503종목)·NYSE 목록을 잘라내지 않고
+인식한다. 예측 50,000회 상한과 실행 전 작업량 확인은 유지한다.
+
+POST `/api/strategy-backtests/universe`는 날짜·모델 설정과 무관하게 업로드한 CSV를
+검증하고 종목/중복 목록을 반환한다. UI는 업로드 직후 파일명과 인식 종목 수를
+표시한다. UTF-8, BOM이 있는 UTF-16, UTF-8 실패 시 EUC-KR 텍스트를 읽는다.
+구버전 백엔드의 404는 파일 손상이 아닌 서버 재시작 안내로 표시한다.

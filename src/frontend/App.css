@@ -6858,3 +6858,84 @@ body::before {
     font-weight: 700;
   }
 }
+
+.benchmark-mode-switch { display: flex; gap: .75rem; margin: 1rem 0 1.5rem; flex-wrap: wrap; }
+.benchmark-mode-switch button[aria-pressed="true"] { border-color: #a8c77a; color: #a8c77a; }
+.strategy-backtest { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+.strategy-backtest fieldset { border: 1px solid rgba(174,186,154,.25); padding: 1.25rem; border-radius: 8px; }
+.strategy-backtest label { display: flex; flex-direction: column; gap: .5rem; margin: .75rem 0; }
+.strategy-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 0 1.25rem; }
+.strategy-backtest input, .strategy-backtest select { min-width: 0; padding: .6rem; }
+.strategy-choices { display: flex; flex-wrap: wrap; gap: 1rem; }
+.strategy-choices label { flex-direction: row; align-items: center; }
+.strategy-note { color: #aeb49f; line-height: 1.6; }
+.strategy-table { overflow-x: auto; margin: 1rem 0; }
+.strategy-table table { border-collapse: collapse; width: 100%; }
+.strategy-table th, .strategy-table td { text-align: right; padding: .7rem; border-bottom: 1px solid rgba(174,186,154,.2); white-space: nowrap; }
+.strategy-table th:first-child, .strategy-table td:first-child { text-align: left; }
+.strategy-backtest progress { width: min(100%,500px); }
+.benchmark-mode-switch button, .strategy-backtest button {
+  font: inherit; color: #f4f1e8; background: #1a2017; border: 1px solid #414c37;
+  border-radius: 6px; padding: .6rem 1rem; min-height: 42px; cursor: pointer;
+}
+.benchmark-mode-switch button:hover, .strategy-backtest button:hover { border-color: #a8c77a; }
+.strategy-backtest button:disabled { opacity: .45; cursor: default; }
+.strategy-backtest input:not([type="checkbox"]), .strategy-backtest select {
+  font: inherit; color: #f4f1e8; background: #0f140d; border: 1px solid #414c37; border-radius: 6px;
+}
+.strategy-backtest input[type="file"]::file-selector-button {
+  font: inherit; padding: .5rem .8rem; color: #f4f1e8; background: #26311e;
+  border: 1px solid #414c37; border-radius: 4px; margin-right: .8rem;
+}
+.strategy-backtest input[type="checkbox"] { accent-color: #a8c77a; }
+.strategy-backtest :focus-visible, .benchmark-mode-switch :focus-visible { outline: 2px solid #a8c77a; outline-offset: 3px; }
+
+/* Simplified strategy workspace */
+.strategy-backtest { max-width: 1120px; padding: 0; font-variant-numeric: tabular-nums; }
+.strategy-backtest > h2 { text-align: left; font-size: clamp(1.7rem,3vw,2.3rem); letter-spacing: -.035em; margin: 0 0 .6rem; }
+.strategy-backtest > p { color: var(--color-text-secondary); max-width: 65ch; }
+.strategy-limitations { margin: 1rem 0 2rem; font-size: .85rem; color: var(--color-text-secondary); }
+.strategy-limitations summary { cursor: pointer; width: fit-content; }
+.strategy-backtest fieldset { border: 0; border-top: 1px solid var(--color-divider); border-radius: 0; padding: 1.5rem 0; min-width: 0; }
+.strategy-backtest legend { padding-right: 1rem; font-weight: 600; }
+.strategy-fields { grid-template-columns: repeat(3,minmax(0,1fr)); gap: .25rem 1.5rem; margin: 1rem 0; }
+.strategy-backtest label { font-size: .85rem; color: var(--color-text-secondary); }
+.strategy-backtest .date-input-container { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem 1.5rem; margin-top: 1.5rem; }
+.strategy-backtest .date-preset-panel { grid-column: 1 / -1; }
+.strategy-backtest .date-preset-group { display: flex; flex-wrap: wrap; gap: .4rem; }
+.strategy-backtest .date-preset-group button { flex: 0 1 auto; min-width: 3.5rem; box-shadow: none; }
+.strategy-choices { padding: .5rem 0 1rem; }
+.strategy-backtest button[type="submit"] { background: var(--color-primary); color: var(--color-on-primary); border-color: transparent; font-weight: 600; }
+.benchmark-mode-switch { border-bottom: 1px solid var(--color-divider); gap: .25rem; }
+.benchmark-mode-switch button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; }
+.benchmark-mode-switch button[aria-pressed="true"] { border-bottom-color: var(--color-primary); }
+@media(max-width:700px) { .strategy-fields { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:440px) { .strategy-fields, .strategy-backtest .date-input-container { grid-template-columns: 1fr; } }
+.strategy-backtest .stock-date-start, .strategy-backtest .stock-date-end { grid-column: auto; grid-row: auto; }
+.strategy-config-row { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)) auto; gap: 1rem; align-items: center; margin: .75rem 0; }
+@media (max-width: 640px) { .strategy-config-row { grid-template-columns: minmax(0,1fr); gap: 0; } }
+
+/* Keep the CSV source and controls inside the strategy workspace at any zoom. */
+.strategy-backtest { width: 100%; min-width: 0; box-sizing: border-box; }
+.strategy-backtest form, .strategy-fields, .strategy-config-row { min-width: 0; }
+.strategy-backtest label { min-width: 0; }
+.strategy-backtest input:not([type="checkbox"]), .strategy-backtest select { width: 100%; max-width: 100%; box-sizing: border-box; }
+.strategy-backtest input.hidden-file-input { display: none; }
+.strategy-source { margin-bottom: 1.5rem; min-width: 0; }
+.strategy-file-row { display: flex; align-items: center; gap: 1rem; min-width: 0; margin-bottom: .65rem; }
+.strategy-file-row button { flex: 0 0 auto; }
+.strategy-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-secondary); }
+.strategy-source small { display: block; line-height: 1.5; color: var(--color-text-secondary); }
+.strategy-universe { margin-top: .75rem; padding: .75rem 0; overflow-wrap: anywhere; }
+.strategy-universe strong { color: var(--color-primary); }
+.strategy-universe p { margin: .4rem 0; color: var(--color-text-secondary); font-size: .85rem; }
+.strategy-config-row { align-items: end; }
+.strategy-config-row label { margin: 0; }
+.strategy-config-row > button { margin-bottom: 0; }
+.strategy-backtest button[type="submit"] { display: block; margin-top: 1rem; max-width: 100%; }
+.strategy-backtest [role="alert"] { overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .strategy-file-row { align-items: stretch; flex-direction: column; gap: .6rem; }
+  .strategy-file-row button, .strategy-backtest button[type="submit"] { width: 100%; }
+  .strategy-config-row { gap: .75rem; margin: 1rem 0; padding-bottom: 1rem; border-bottom: 1px solid var(--color-divider); }
+}

@@ -2609,6 +2609,7 @@ def run_portfolio_model_backtest(
     market_caps_as_of_date=None,
     point_in_time_market_caps=None,
     factor_data=None,
+    cancel_event=None,
 ):
     train_window = int(train_window)
     rebalance_frequency = max(1, int(rebalance_frequency))
@@ -2710,6 +2711,9 @@ def run_portfolio_model_backtest(
     warnings = list(rebalance_targets.get("warnings", []))
 
     for rebalance_index in range(train_window, len(data) - 1, rebalance_frequency):
+        if cancel_event is not None and cancel_event.is_set():
+            from portfolio_optimization import OptimizationCancelled
+            raise OptimizationCancelled("Backtest cancelled")
         current_date = data.index[rebalance_index]
         current_date_key = current_date.strftime("%Y-%m-%d")
         next_index = min(rebalance_index + rebalance_frequency, len(data) - 1)

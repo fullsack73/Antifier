@@ -1,3 +1,4 @@
+import atexit
 import json
 import logging
 import hashlib
@@ -84,6 +85,7 @@ YFINANCE_RETRY_BACKOFF_SECONDS = 1.0
 
 _YFINANCE_RUNTIME_LOCK = threading.Lock()
 _YFINANCE_RUNTIME_CONFIGURED = False
+_YFINANCE_SESSION = None
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
@@ -141,25 +143,36 @@ def _configure_yfinance_runtime():
 
 
 def _create_yfinance_session():
-    """Create a bounded-lifetime curl session with an explicit CA bundle."""
+    """Create the process-owned curl session with an explicit CA bundle."""
     return curl_requests.Session(
         impersonate="chrome",
         verify=certifi.where(),
     )
 
 
-@contextmanager
-def _managed_yfinance_session():
-    """Close Yahoo sockets after one logical fetch instead of leaking them across a long run."""
-    _configure_yfinance_runtime()
-    session = _create_yfinance_session()
-    try:
-        yield session
-    finally:
+def _close_yfinance_session():
+    """Release the process-owned Yahoo session only at process shutdown."""
+    if _YFINANCE_SESSION is not None:
         try:
-            session.close()
+            _YFINANCE_SESSION.close()
         except Exception as exc:
             logger.warning(f"YFINANCE: Failed to close download session: {exc}")
+
+
+atexit.register(_close_yfinance_session)
+
+
+@contextmanager
+def _managed_yfinance_session():
+    """Borrow one process-owned session; yfinance shares it across all modules."""
+    global _YFINANCE_SESSION
+    _configure_yfinance_runtime()
+    with _YFINANCE_RUNTIME_LOCK:
+        if _YFINANCE_SESSION is None:
+            _YFINANCE_SESSION = _create_yfinance_session()
+        session = _YFINANCE_SESSION
+    # Closing here would also break unrelated Ticker/history/info requests.
+    yield session
 
 
 def worker_initializer():
@@ -1616,20 +1629,22 @@ def load_portfolio_result(portfolio_id):
     return result
 
 
-def list_saved_portfolios():
+def list_saved_portfolios(include_backtests=False):
     """Return available saved portfolio identifiers."""
     if not RESULTS_DIR.exists():
         return []
-    return sorted(p.stem for p in RESULTS_DIR.glob("*.json"))
+    return sorted(p.stem for p in RESULTS_DIR.glob("*.json")
+                  if include_backtests or not p.stem.startswith("backtest_"))
 
 
-def _stock_data_key_func(tickers, start_date, end_date, progress_callback=None, cancel_event=None):
+def _stock_data_key_func(tickers, start_date, end_date, progress_callback=None, cancel_event=None, preserve_missing=False):
     tickers_str = ",".join(tickers or [])
-    key_str = f"{tickers_str}|{start_date}|{end_date}|stock_data_v3"
+    version = "stock_data_raw_v1" if preserve_missing else "stock_data_v3"
+    key_str = f"{tickers_str}|{start_date}|{end_date}|{version}"
     return f"stock_data_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 
-def _extract_yfinance_close_frame(raw_data, requested_tickers):
+def _extract_yfinance_close_frame(raw_data, requested_tickers, preserve_missing=False):
     """Return usable Close columns only, excluding yfinance's all-NaN failure placeholders."""
     requested_tickers = list(requested_tickers or [])
     if raw_data is None or not isinstance(raw_data, pd.DataFrame) or raw_data.empty:
@@ -1675,7 +1690,9 @@ def _extract_yfinance_close_frame(raw_data, requested_tickers):
 
     close_frame = close_frame.apply(pd.to_numeric, errors="coerce")
     close_frame = close_frame.replace([np.inf, -np.inf], np.nan)
-    close_frame = close_frame.ffill().dropna(how="all").dropna(axis=1, how="all")
+    if not preserve_missing:
+        close_frame = close_frame.ffill()
+    close_frame = close_frame.dropna(how="all").dropna(axis=1, how="all")
     ordered_columns = [
         ticker
         for ticker in requested_tickers
@@ -1684,7 +1701,7 @@ def _extract_yfinance_close_frame(raw_data, requested_tickers):
     return close_frame.loc[:, ordered_columns]
 
 
-def _download_yfinance_close(tickers, start_date, end_date, session, threads):
+def _download_yfinance_close(tickers, start_date, end_date, session, threads, preserve_missing=False):
     raw_data = yf.download(
         tickers,
         start=start_date,
@@ -1695,11 +1712,11 @@ def _download_yfinance_close(tickers, start_date, end_date, session, threads):
         timeout=YFINANCE_REQUEST_TIMEOUT_SECONDS,
         session=session,
     )
-    return _extract_yfinance_close_frame(raw_data, tickers)
+    return _extract_yfinance_close_frame(raw_data, tickers, preserve_missing=preserve_missing)
 
 
 @cached(l1_ttl=900, l2_ttl=14400, key_func=_stock_data_key_func)  # 15 min L1, 4 hour L2 cache
-def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel_event=None):
+def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel_event=None, preserve_missing=False):
     """Fetch stock data with bounded Yahoo concurrency and explicit missing-ticker retries."""
     _raise_if_cancelled(cancel_event)
     logger.info(f"GET_STOCK_DATA: Starting fetch for {len(tickers)} tickers")
@@ -1743,6 +1760,7 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
                     end_date,
                     session=session,
                     threads=False,
+                    preserve_missing=preserve_missing,
                 )
                 if chunk_data.empty:
                     fetch_diagnostics["empty_response_count"] += 1
@@ -1775,6 +1793,7 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
                             end_date,
                             session=session,
                             threads=False,
+                            preserve_missing=preserve_missing,
                         )
                     except Exception as exc:
                         fetch_diagnostics["request_error_count"] += 1
@@ -1820,7 +1839,9 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
     logger.info(f"GET_STOCK_DATA: Combining {len(all_series)} chunks")
     try:
         final_data = pd.concat(all_series, axis=1)
-        final_data = final_data.ffill().dropna(how='all').dropna(axis=1, how='all')
+        if not preserve_missing:
+            final_data = final_data.ffill()
+        final_data = final_data.dropna(how='all').dropna(axis=1, how='all')
         missing_tickers = [ticker for ticker in tickers if ticker not in final_data.columns]
         logger.info(
             f"GET_STOCK_DATA: Final shape: {final_data.shape}; "
@@ -2243,50 +2264,71 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
-@cached(l1_ttl=86400, l2_ttl=604800)  # 24 hours L1, 7 days L2 (Market caps change slowly)
 def get_market_caps(tickers):
-    """Fetch market capitalizations for tickers using yfinance."""
+    """Fetch USD market caps with a live session; cache only non-empty results."""
+    cache = get_cache()
+    # Version the key to bypass empty results saved by the closed-session path.
+    cache_key = "get_market_caps_session_v2_" + hashlib.md5(str(tickers).encode()).hexdigest()
+    cached_caps = cache.get(cache_key)
+    if cached_caps:
+        return cached_caps
     mcaps = {}
     try:
         logger.info(f"Fetching market caps for {len(tickers)} tickers")
         batch_size = 50
-        for i in range(0, len(tickers), batch_size):
-            batch = tickers[i:i+batch_size]
-            try:
-                tickers_str = " ".join(batch)
-                yf_tickers = yf.Tickers(tickers_str)
-                for ticker in batch:
-                    try:
-                        # info access can be slow.
-                        info = yf_tickers.tickers[ticker].info
-                        mc = info.get("marketCap") or info.get("totalAssets")
-                        if mc:
-                            currency = _normalize_currency(info.get("currency") or info.get("financialCurrency"))
-                            currency = currency or _get_ticker_currency(ticker)
-                            if currency != BASE_CURRENCY:
-                                conversion_factor = _fetch_latest_usd_conversion_scalar(currency)
-                                if conversion_factor:
-                                    mc = float(mc) * conversion_factor
-                                else:
-                                    logger.warning(f"Skipping market cap for {ticker}: cannot convert {currency} to {BASE_CURRENCY}")
-                                    continue
-                            mcaps[ticker] = float(mc)
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.error(f"Batch info fetch failed: {e}")
+        with _managed_yfinance_session() as session:
+            for i in range(0, len(tickers), batch_size):
+                batch = tickers[i:i+batch_size]
+                try:
+                    tickers_str = " ".join(batch)
+                    yf_tickers = yf.Tickers(tickers_str, session=session)
+                    for ticker in batch:
+                        try:
+                            # info access can be slow.
+                            info = yf_tickers.tickers[ticker].info
+                            mc = info.get("marketCap") or info.get("totalAssets")
+                            if mc:
+                                currency = _normalize_currency(info.get("currency") or info.get("financialCurrency"))
+                                currency = currency or _get_ticker_currency(ticker)
+                                if currency != BASE_CURRENCY:
+                                    conversion_factor = _fetch_latest_usd_conversion_scalar(currency)
+                                    if conversion_factor:
+                                        mc = float(mc) * conversion_factor
+                                    else:
+                                        logger.warning(f"Skipping market cap for {ticker}: cannot convert {currency} to {BASE_CURRENCY}")
+                                        continue
+                                mcaps[ticker] = float(mc)
+                        except Exception as e:
+                            logger.warning("Market cap fetch failed for %s: %s", ticker, e)
+                except Exception as e:
+                    logger.error(f"Batch info fetch failed: {e}")
     except Exception as e:
         logger.error(f"Market cap fetch failed: {e}")
+    if mcaps:
+        cache.set(cache_key, mcaps, l1_ttl=86400, l2_ttl=604800)
+    else:
+        logger.warning("No market caps fetched; leaving result uncached for retry")
     return mcaps
 
 
-@cached(l1_ttl=3600, l2_ttl=86400)
+@cached(
+    l1_ttl=3600,
+    l2_ttl=86400,
+    key_func=lambda *args, **kwargs: "bl_delta_session_v2_" + hashlib.md5(
+        str(args + tuple(kwargs.items())).encode()
+    ).hexdigest(),
+)
 def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate):
     """Calculate market implied risk aversion (delta) for S&P 500."""
     market_ticker = "^GSPC"
     try:
         # Use simple caching for standard S&P500 fetch
-        market_data = yf.download(market_ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
+        with _managed_yfinance_session() as session:
+            market_data = yf.download(
+                market_ticker, start=start_date, end=end_date, progress=False,
+                auto_adjust=True, session=session,
+                timeout=YFINANCE_REQUEST_TIMEOUT_SECONDS,
+            )
         
         if isinstance(market_data.columns, pd.MultiIndex): 
             if 'Close' in market_data.columns.get_level_values(0):

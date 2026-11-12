@@ -1904,6 +1904,73 @@ def manage_portfolio_endpoint():
             "error_code": "MANAGE_PORTFOLIO_FAILED",
         }), 500
 
+@app.route('/api/strategy-backtests/universe', methods=['POST'])
+def inspect_strategy_universe():
+    from strategy_backtest import parse_ticker_csv
+    payload = request.get_json(silent=True)
+    try:
+        if not isinstance(payload, dict):
+            raise ValueError('Expected a JSON object')
+        return jsonify(parse_ticker_csv(payload.get('csv', '')))
+    except (ValueError, TypeError) as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+@app.route('/api/strategy-backtests/preview', methods=['POST'])
+def preview_strategy_backtest():
+    from strategy_backtest import validate_settings
+    try:
+        return jsonify(validate_settings(request.get_json(silent=True)))
+    except (ValueError, TypeError) as exc:
+        return jsonify({'error': str(exc)}), 400
+
+
+def background_strategy_backtest(request_id, settings):
+    from strategy_backtest import run_comparison
+    from portfolio_optimization import save_portfolio_result
+    job = get_optimization_job(request_id)
+    try:
+        result = run_comparison(settings,
+            lambda current, total, message: push_progress(request_id, current, total, message),
+            job.cancel_event)
+        if job.cancel_event.is_set():
+            raise OptimizationCancelled('Backtest cancelled')
+        save_portfolio_result(request_id, result, metadata={'result_type': 'strategy_backtest'})
+        push_progress(request_id, 100, 100, 'Backtest completed', status='completed', result=result)
+    except OptimizationCancelled:
+        push_progress(request_id, 0, 100, 'Backtest cancelled', status='cancelled')
+    except Exception as exc:
+        app.logger.exception('Strategy backtest failed')
+        push_progress(request_id, 0, 100, str(exc), status='error')
+
+
+@app.route('/api/strategy-backtests', methods=['POST'])
+def create_strategy_backtest():
+    from strategy_backtest import validate_settings
+    from uuid import uuid4
+    try:
+        settings = validate_settings(request.get_json(silent=True))
+        with OPTIMIZATION_JOBS_LOCK:
+            if any(j.status == 'running' and j.request_id.startswith('backtest_')
+                   for j in OPTIMIZATION_JOBS.values()):
+                return jsonify({'error': 'A strategy backtest is already running'}), 409
+            request_id = 'backtest_' + uuid4().hex
+            job, _ = ensure_optimization_job(request_id)
+            job.thread = threading.Thread(target=background_strategy_backtest,
+                                          args=(request_id, settings), daemon=True)
+            job.thread.start()
+        return jsonify({'request_id': request_id, 'settings': settings}), 202
+    except (ValueError, TypeError) as exc:
+        return jsonify({'error': str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({'error': str(exc)}), 429
+
+
+@app.route('/api/strategy-backtest-results', methods=['GET'])
+def strategy_backtest_results():
+    return jsonify({'ids': [key for key in list_saved_portfolios(include_backtests=True) if key.startswith('backtest_')]})
+
+
 if __name__ == '__main__':
     import multiprocessing as mp
 

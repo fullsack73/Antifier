@@ -74,6 +74,7 @@ src/backend/
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ direct_horizon_forecast.py          # 서비스 직접 기간 수익률 예측, purged 학습/검증과 hybrid adapter
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
+├─ strategy_backtest.py             # CSV 고정 종목군의 GMV/직접 예측 MPT/실험 overlay 비교
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
 ├─ hedge_analysis.py                 # pairs 상관/회귀 분석
 ├─ financial_statement.py            # 재무제표와 주요 ratio 조회
@@ -122,6 +123,7 @@ src/frontend/
 │  └─ ko/translation.json
 ├─ *Chart.jsx                        # Plotly 기반 차트 컴포넌트
 ├─ Optimizer.jsx                     # 포트폴리오 최적화 UI
+├─ StrategyBacktest.jsx              # CSV 전략 비교 설정, job 복구, 곡선과 재조정 상세
 ├─ PortfolioBenchmark.jsx            # 벤치마크 UI
 ├─ PortfolioManager.jsx              # 보유 종목/리밸런싱 UI
 ├─ FinancialStatement.jsx            # 재무제표 UI
@@ -162,6 +164,7 @@ tools/
 ├─ diagnose_forecast_failures.py      # offline 8시간 원인 분리 campaign, immutable manifest/checkpoint/report
 ├─ compare_improved_forecast_portfolios.py # GMV / direct-horizon MPT / GMV rank overlay 동일 실행 비교
 ├─ compare_forecast_mpt_before_after.py # 동일 MPT에서 기존 반복/저장된 직접 예측의 전후 비교
+├─ compare_forecast_bl_before_after.py # 저장 예측/불확실성을 공통 historical BL에 넣은 전후 비교
 ├─ benchmark_kronos_forecasts.py       # pinned Kronos-small과 기존 ML rank signal 비교
 ├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
 ├─ research_pooled_patch_transformer.py # frozen origin 기반 Patch/ARIMA/Transformer signal과 GMV tilt 비교
