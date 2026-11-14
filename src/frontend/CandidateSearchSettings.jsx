@@ -23,7 +23,7 @@ export function CandidateSearchSummary({ value }) {
 }
 
 export default function CandidateSearchSettings({ value = DEFAULT_CANDIDATE_SEARCH, onChange,
-  riskOnly = false, campaignId, onReset, previewInput, idPrefix = "candidate" }) {
+  riskOnly = false, campaignId, onReset, previewInput, idPrefix = "candidate", expanded = false }) {
   const { t } = useTranslation()
   const text = key => t(`candidateSearch.${key}`)
   const [preview, setPreview] = useState(null)
@@ -42,23 +42,28 @@ export default function CandidateSearchSettings({ value = DEFAULT_CANDIDATE_SEAR
       setPreview(data)
     } catch (err) { setError(err.message) }
   }
-  return <details className="candidate-settings"><summary>{text("title")}</summary>
-    <label className="candidate-enabled"><input type="checkbox" checked={value.enabled}
+  const Container = expanded ? "div" : "details"
+  return <Container className="candidate-settings">{!expanded && <summary>{text("title")}</summary>}
+    <label className="candidate-enabled"><input type="checkbox" role="switch" checked={value.enabled}
       onChange={e => update("enabled", e.target.checked)} />{text("enabled")}</label>
     {value.enabled && <>
-      <p className="strategy-note">{text("holdingNote")}</p>
+      <div className="candidate-controls">
       <label htmlFor={`${idPrefix}-mode`}>{text("mode")}</label>
       <select id={`${idPrefix}-mode`} value={riskOnly ? "price_features" : value.mode} disabled={riskOnly}
         onChange={e => update("mode", e.target.value)}>
         {["forecast_profile", "price_features", "frozen_forecast"].map(mode => <option key={mode} value={mode}>{text(mode)}</option>)}
       </select>
-      {riskOnly && <p>{text("riskOnly")}</p>}
       <div className="candidate-fields">{["similar_count", "explore_count", "seed", "refresh_interval"].map(key =>
         <label key={key} htmlFor={`${idPrefix}-${key}`}>{text(key)}<input id={`${idPrefix}-${key}`} type="number"
           min={key === "refresh_interval" ? 1 : 0} max={key === "seed" ? 4294967295 : key === "refresh_interval" ? 2520 : 2000}
           step="1" value={value[key]} disabled={key === "refresh_interval" && (riskOnly || value.mode !== "forecast_profile")}
           onChange={e => update(key, e.target.value === "" ? "" : Number(e.target.value))} /></label>)}</div>
-      <p className="strategy-note">{text("referenceNote")}</p>
+      </div>
+      <details className="candidate-help"><summary>{text("help")}</summary>
+        <p>{text("holdingNote")}</p>
+        {riskOnly && <p>{text("riskOnly")}</p>}
+        <p>{text("referenceNote")}</p>
+      </details>
       {campaignId && <div><small>{text("context")}: {campaignId}</small>
         {onReset && <button type="button" onClick={() => { onReset(); setPreview(null) }}>{text("reset")}</button>}</div>}
     </>}
@@ -71,5 +76,5 @@ export default function CandidateSearchSettings({ value = DEFAULT_CANDIDATE_SEAR
       {preview.reset_required && <p>{text("contextChanged")}</p>}
       {preview.initial && <p>{text("initial")}</p>}{preview.limited_savings && <p>{text("limitedSavings")}</p>}
     </div>}
-  </details>
+  </Container>
 }

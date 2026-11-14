@@ -25,3 +25,12 @@ it('identifies legacy results without applying the new default retrospectively',
   render(<CandidateSearchSummary />)
   expect(screen.getByText('candidateSearch.legacy')).toBeInTheDocument()
 })
+
+it('keeps explanations collapsed and exposes a labelled enable switch', () => {
+  render(<CandidateSearchSettings expanded onChange={vi.fn()} />)
+  expect(screen.getByRole('switch')).toHaveAccessibleName('candidateSearch.enabled')
+  const help = screen.getByText('candidateSearch.help').closest('details')
+  expect(help.open).toBe(false)
+  fireEvent.click(screen.getByText('candidateSearch.help'))
+  expect(help.open).toBe(true)
+})

@@ -52,6 +52,7 @@ const Optimizer = () => {
   const [assetConstraints, setAssetConstraints] = useState([])
   const [groupConstraints, setGroupConstraints] = useState([])
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [settingsTab, setSettingsTab] = useState("allocation")
   const [allowFractional, setAllowFractional] = useState(false)
   const [fractionalOverrides, setFractionalOverrides] = useState({})
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -946,10 +947,6 @@ const Optimizer = () => {
               </div>
             </section>
 
-            <CandidateSearchSettings value={candidateSearch} onChange={next => { setCandidateSearch(next); setCampaignId(null) }}
-              riskOnly={riskOnlyOptimization} campaignId={campaignId} onReset={() => setCampaignId(null)}
-              idPrefix="optimizer-search" previewInput={{ tickers: customTickers, ticker_group: tickerGroup,
-                holdings: currentWeights || {}, end_date: endDate, forecast_method: forecastMethod, forecast_horizon: Number(forecastHorizon), min_history: Number(minHistory) }} />
             <section className="optimizer-form-section">
               <div className="optimizer-form-section-heading">
                 <span>03</span>
@@ -1037,9 +1034,22 @@ const Optimizer = () => {
                   <h3 className="optimizer-modal-title">{t("optimizer.advancedSettings", "Advanced Settings")}</h3>
                   <button type="button" className="optimizer-modal-close" onClick={() => setShowAdvanced(false)} aria-label={t("common.close", "Close")}>×</button>
                 </div>
+                <div className="optimizer-settings-tabs" role="tablist" aria-label={t("optimizer.advancedSettings")}>
+                  {["allocation", "forecast", "candidates"].map(tab => <button key={tab} type="button" role="tab"
+                    id={`optimizer-tab-${tab}`} aria-controls={`optimizer-panel-${tab}`} aria-selected={settingsTab === tab} tabIndex={settingsTab === tab ? 0 : -1}
+                    onKeyDown={e => {
+                      const tabs = ["allocation", "forecast", "candidates"]
+                      const next = e.key === "Home" ? 0 : e.key === "End" ? 2 :
+                        e.key === "ArrowRight" ? (tabs.indexOf(tab) + 1) % 3 : e.key === "ArrowLeft" ? (tabs.indexOf(tab) + 2) % 3 : -1
+                      if (next < 0) return
+                      e.preventDefault(); setSettingsTab(tabs[next])
+                      document.getElementById(`optimizer-tab-${tabs[next]}`).focus()
+                    }}
+                    onClick={() => setSettingsTab(tab)}>{t(`optimizer.settingsTabs.${tab}`, { allocation: "Allocation", forecast: "Forecast", candidates: "Candidate search" }[tab])}</button>)}
+                </div>
                 <div className="optimizer-modal-body optimizer-advanced-modal-body">
+                  <div role="tabpanel" id="optimizer-panel-allocation" aria-labelledby="optimizer-tab-allocation" hidden={settingsTab !== "allocation"}>
                   <div className="optimizer-advanced-section">
-                    <div className="optimizer-advanced-section-title">{t("optimizer.constraints", "Constraints")}</div>
                     <div className="optimizer-advanced-grid">
                       <div className="optimizer-form-group">
                         <label htmlFor="targetReturn">{t("optimizer.targetReturn")}</label>
@@ -1263,8 +1273,9 @@ const Optimizer = () => {
                     )}
                   </div>
 
+                  </div>
+                  <div role="tabpanel" id="optimizer-panel-forecast" aria-labelledby="optimizer-tab-forecast" hidden={settingsTab !== "forecast"}>
                   <div className="optimizer-advanced-section">
-                    <div className="optimizer-advanced-section-title">{t("optimizer.forecastControls", "Forecast Controls")}</div>
                     <div className="optimizer-advanced-grid">
                       <div className="optimizer-form-group">
                         <label htmlFor="forecastHorizon" title={t("optimizer.forecastHorizonTitle", "Number of trading days to forecast into the future. Default is 63 (roughly one quarter).")}>{t("optimizer.forecastHorizon", "Forecast Horizon (Days)")}</label>
@@ -1308,6 +1319,13 @@ const Optimizer = () => {
                         </div>
                       )}
                     </div>
+                  </div>
+                  </div>
+                  <div role="tabpanel" id="optimizer-panel-candidates" aria-labelledby="optimizer-tab-candidates" hidden={settingsTab !== "candidates"}>
+            <CandidateSearchSettings expanded value={candidateSearch} onChange={next => { setCandidateSearch(next); setCampaignId(null) }}
+              riskOnly={riskOnlyOptimization} campaignId={campaignId} onReset={() => setCampaignId(null)}
+              idPrefix="optimizer-search" previewInput={{ tickers: customTickers, ticker_group: tickerGroup,
+                holdings: currentWeights || {}, end_date: endDate, forecast_method: forecastMethod, forecast_horizon: Number(forecastHorizon), min_history: Number(minHistory) }} />
                   </div>
                 </div>
                 <div className="optimizer-modal-footer">

@@ -325,6 +325,17 @@ describe("Optimizer job lifecycle", () => {
     await waitFor(() => expect(screen.getByText("AAPL")).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole("button", { name: "Advanced Settings" }))
+    const candidateTab = screen.getByRole("tab", { name: "Candidate search" })
+    fireEvent.click(candidateTab)
+    expect(candidateTab).toHaveAttribute("aria-selected", "true")
+    const similar = screen.getByLabelText("candidateSearch.similar_count")
+    fireEvent.change(similar, { target: { value: "7" } })
+    fireEvent.keyDown(candidateTab, { key: "Home" })
+    expect(screen.getByRole("tab", { name: "Allocation" })).toHaveFocus()
+    fireEvent.click(candidateTab)
+    expect(similar).toHaveValue(7)
+    fireEvent.click(screen.getByRole("tab", { name: "Allocation" }))
+
     expect(screen.getByLabelText("Target Return (%)")).toBeDisabled()
     expect(screen.getByLabelText("Risk Tolerance (%)")).toBeDisabled()
 
