@@ -184,3 +184,58 @@ def test_saved_result_is_not_visible_until_candidate_transaction_commits(setup, 
     assert po.load_portfolio_result('candidate-fixture') is None
     d.commit()
     assert po.load_portfolio_result('candidate-fixture')['candidate_search']['decision_key']==d.key
+
+
+def test_micro_price_revisions_reuse_forecasts_without_chaining(setup):
+    store,prices,calls,forecast=setup
+    frame=prices.iloc[:200,:3].copy()
+    def run(data,**kwargs):
+        return store.prepare(data,{},method='TRANSFORMER',horizon=63,train_window=126,
+                             forecast=forecast,**kwargs)
+    first=run(frame)
+    tiny=frame*(1+4e-7)
+    reused=run(tiny)
+    assert len(calls)==3 and reused.report['prediction_calls']==0
+    assert reused.report['cache_hits']==reused.report['compatible_cache_hits']==3
+    assert reused.predictions==first.predictions
+    # Two individually small changes cannot move the anchor used to validate reuse.
+    changed=run(frame*(1+8e-7))
+    assert changed.report['prediction_calls']==3 and len(calls)==6
+    assert store.connect().execute('select count(*) from prediction_inputs').fetchone()[0]==6
+
+
+def test_revised_dates_horizon_model_and_material_prices_do_not_share(setup,monkeypatch):
+    import direct_horizon_forecast as direct
+    store,prices,calls,forecast=setup
+    frame=prices.iloc[:200,:2]
+    def run(data,horizon=63):
+        return store.prepare(data,{},method='TRANSFORMER',horizon=horizon,train_window=126,forecast=forecast)
+    run(frame)
+    shifted=frame.copy();shifted.index+=pd.Timedelta(days=1)
+    assert run(shifted).report['cache_hits']==0
+    assert run(frame,horizon=21).report['cache_hits']==0
+    assert run(frame*1.001).report['cache_hits']==0
+    monkeypatch.setattr(direct,'MODEL_VERSION','new-model')
+    assert run(frame).report['cache_hits']==0
+
+
+def test_legacy_cache_inputs_are_only_backfilled_on_an_exact_match(setup):
+    store,prices,calls,forecast=setup
+    frame=prices.iloc[:200,:2]
+    def run(data):
+        return store.prepare(data,{},method='TRANSFORMER',horizon=63,train_window=126,forecast=forecast)
+    run(frame)
+    with store.connect() as db:db.execute('delete from prediction_inputs')
+    assert run(frame).report['cache_hits']==2
+    assert len(calls)==2
+    assert run(frame*(1+1e-7)).report['compatible_cache_hits']==2
+
+
+def test_batch_cache_lookup_does_not_train_compatible_inputs(setup):
+    store,prices,_,forecast=setup
+    frame=prices.iloc[:200,:3]
+    store.prepare(frame,{},method='TRANSFORMER',horizon=63,train_window=126,forecast=forecast)
+    def forbidden(*a):raise AssertionError('must reuse compatible inputs before batching')
+    d=store.prepare(frame*(1+1e-7),{},method='TRANSFORMER',horizon=63,train_window=126,
+                    forecast=forbidden,batch_forecast=forbidden)
+    assert d.report['compatible_cache_hits']==3 and d.report['prediction_calls']==0

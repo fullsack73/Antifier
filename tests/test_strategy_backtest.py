@@ -32,6 +32,19 @@ def test_csv_normalizes_deduplicates_and_estimates():
     assert s['estimated_forecasts'] == 2 * s['estimated_rebalances']
 
 
+@pytest.fixture(autouse=True)
+def inline_forecast_pool(monkeypatch):
+    original = sb._create_forecast_pool
+    from types import SimpleNamespace
+    class Pool:
+        def apply_async(self, function, args):
+            return SimpleNamespace(get=lambda timeout: function(*args))
+        def terminate(self): pass
+        def join(self): pass
+    monkeypatch.setattr(sb, '_create_forecast_pool', Pool)
+    return original
+
+
 @pytest.fixture
 def history(monkeypatch):
     dates = pd.bdate_range('2023-06-01', '2024-04-30')
@@ -307,3 +320,42 @@ def test_workload_gmv_has_zero_forecasts_and_shared_methods_are_not_added():
     assert row['total_before_cache']==row['initial_forecasts_upper_bound']==row['total_upper_bound']==0
     assert s['estimated_forecasts']==len(s['tickers'])*s['estimated_rebalances']
     assert s['initial_forecasts_upper_bound']==len(s['tickers'])
+
+
+def test_all_cached_comparison_does_not_create_ml_worker(history,monkeypatch):
+    monkeypatch.setattr(sb,'_transformer_forecast_single_ticker',
+        lambda ticker,series,horizon:(ticker,{'expected_return':.05,'uncertainty':.1}))
+    sb.run_comparison(config(strategies=['model_mpt']),lambda *a:None,threading.Event())
+    monkeypatch.setattr(sb,'_create_forecast_pool',lambda:pytest.fail('cache hit must not start a worker'))
+    result=sb.run_comparison(config(strategies=['model_mpt']),lambda *a:None,threading.Event())
+    assert all(d['prediction_calls']==0 for d in result['strategies']['model_mpt']['candidate_decisions'])
+
+
+def test_worker_is_terminated_when_cancelled(history,monkeypatch):
+    import multiprocessing as mp
+    from types import SimpleNamespace
+    event=threading.Event();stopped=[]
+    class Pool:
+        def apply_async(self,*args):
+            def wait(timeout):
+                event.set();raise mp.TimeoutError()
+            return SimpleNamespace(get=wait)
+        def terminate(self):stopped.append('terminated')
+        def join(self):stopped.append('joined')
+    monkeypatch.setattr(sb,'_create_forecast_pool',Pool)
+    with pytest.raises(OptimizationCancelled):
+        sb.run_comparison(config(strategies=['model_mpt']),lambda *a:None,event)
+    assert stopped==['terminated','joined']
+
+
+def test_native_pool_uses_spawn_thread_limits_and_worker_recycling(inline_forecast_pool,monkeypatch):
+    import multiprocessing as mp
+    import portfolio_optimization as po
+    from types import SimpleNamespace
+    observed={}
+    def pool(**kwargs):observed.update(kwargs);return 'pool'
+    def context(kind):
+        assert kind=='spawn';return SimpleNamespace(Pool=pool)
+    monkeypatch.setattr(mp,'get_context',context)
+    assert inline_forecast_pool()=='pool'
+    assert observed==dict(processes=1,initializer=po.worker_initializer,maxtasksperchild=10)

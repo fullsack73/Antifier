@@ -240,7 +240,38 @@ def validate_settings(payload):
     return settings
 
 
+def _create_forecast_pool():
+    import multiprocessing as mp
+    from portfolio_optimization import worker_initializer
+    return mp.get_context('spawn').Pool(processes=1, initializer=worker_initializer, maxtasksperchild=10)
+
+
 def run_comparison(settings, progress, cancel_event, checkpoint=None):
+    import multiprocessing as mp
+    pool = None
+    def forecast(method, ticker, series, horizon):
+        nonlocal pool
+        _raise_if_cancelled(cancel_event)
+        if method not in {'TRANSFORMER', 'ARIMA_TRANSFORMER'}:
+            return forecast_for_method(method, ticker, series, horizon)
+        if pool is None:
+            pool = _create_forecast_pool()
+        pending = pool.apply_async(forecast_for_method, (method, ticker, series, horizon))
+        while True:
+            _raise_if_cancelled(cancel_event)
+            try:
+                return pending.get(timeout=.25)
+            except mp.TimeoutError:
+                continue
+    try:
+        return _run_comparison(settings, progress, cancel_event, checkpoint, forecast)
+    finally:
+        if pool is not None:
+            pool.terminate()
+            pool.join()
+
+
+def _run_comparison(settings, progress, cancel_event, checkpoint, forecast):
     s = settings
     check = lambda: _raise_if_cancelled(cancel_event)
     check()
@@ -303,7 +334,7 @@ def run_comparison(settings, progress, cancel_event, checkpoint=None):
             held = states['min_variance']['shares'].to_dict()
             decision = store.prepare(train, held, config['candidate_search'], method=method,
                 horizon=s['forecast_horizon'], train_window=s['train_window'],
-                forecast=lambda ticker, series, horizon: forecast_for_method(method, ticker, series, horizon),
+                forecast=lambda ticker, series, horizon: forecast(method, ticker, series, horizon),
                 campaign_id=campaign, cancel_event=cancel_event,
                 progress=lambda ticker, done, total: progress(5 + 90 * (number + len(decisions)/len(origins))/len(s['strategies']),
                     100, f'{date}: {method} {ticker} ({done+1}/{total})'))

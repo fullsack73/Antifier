@@ -12,6 +12,9 @@ import numpy as np
 import pandas as pd
 
 POLICY_VERSION = 'candidate-search-v1'
+PRICE_CACHE_RTOL = 5e-7
+PRICE_CACHE_ATOL = 1e-8
+
 MODES = ('forecast_profile', 'price_features', 'frozen_forecast')
 DEFAULTS = dict(enabled=True, mode='forecast_profile', similar_count=10, explore_count=10,
                 seed=42, refresh_interval=252)
@@ -119,6 +122,9 @@ class CandidateStore:
                 CREATE TABLE IF NOT EXISTS decisions(campaign TEXT, key TEXT, payload TEXT NOT NULL,
                     PRIMARY KEY(campaign,key));
                 CREATE TABLE IF NOT EXISTS predictions(key TEXT PRIMARY KEY, payload TEXT NOT NULL);
+                CREATE TABLE IF NOT EXISTS prediction_inputs(key TEXT PRIMARY KEY, family TEXT NOT NULL,
+                    prices BLOB NOT NULL);
+                CREATE INDEX IF NOT EXISTS prediction_inputs_family ON prediction_inputs(family);
             ''')
 
     def connect(self):
@@ -141,6 +147,24 @@ class CandidateStore:
         with self.connect() as db:
             return db.execute('SELECT 1 FROM decisions WHERE campaign=? AND key=?',
                               (campaign_id, key)).fetchone() is not None
+
+    def lookup_prediction(self, key, family, values):
+        values = np.asarray(values, dtype='<f8')
+        with self.connect() as db:
+            exact = db.execute('SELECT payload FROM predictions WHERE key=?', (key,)).fetchone()
+            if exact:
+                # Legacy exact hits can safely acquire their missing input provenance.
+                db.execute('INSERT OR IGNORE INTO prediction_inputs VALUES (?,?,?)',
+                           (key, family, values.tobytes()))
+                return json.loads(exact[0]), False
+            matches = db.execute('SELECT i.prices,p.payload FROM prediction_inputs i JOIN predictions p '
+                                 'ON i.key=p.key WHERE i.family=? ORDER BY i.rowid', (family,)).fetchall()
+        for raw, payload in matches:
+            original = np.frombuffer(raw, dtype='<f8')
+            if original.shape == values.shape and np.allclose(values, original,
+                    rtol=PRICE_CACHE_RTOL, atol=PRICE_CACHE_ATOL, equal_nan=False):
+                return json.loads(payload), True
+        return None, False
 
     def prepare(self, prices, holdings, policy=None, *, method, horizon, train_window,
                 forecast, campaign_id=None, required=(), cancel_event=None, progress=None, batch_forecast=None):
@@ -177,7 +201,7 @@ class CandidateStore:
             return Prepared(self, campaign_id, fingerprint, revision, state, key, json.loads(previous[0]), replay=True)
         if state.get('last_as_of') and state['last_as_of'] > as_of:
             raise CandidateSearchError('Cannot rewind a campaign; use a new campaign for historical analysis')
-        counts = dict(prediction_calls=0, cache_hits=0, failures=0)
+        counts = dict(prediction_calls=0, cache_hits=0, compatible_cache_hits=0, failures=0)
         started = time.monotonic()
         predictions = {}
         batch_values = {}
@@ -185,11 +209,17 @@ class CandidateStore:
             series = prices[ticker].tail(train_window)
             return _digest(dict(ticker=ticker, method=method, horizon=horizon,
                 model=MODEL_VERSION, history=hashlib.sha256(series.to_numpy().tobytes() + series.index.asi8.tobytes()).hexdigest()))
+        cached_predictions = {}
+        def lookup(ticker):
+            if ticker not in cached_predictions:
+                series = prices[ticker].tail(train_window)
+                family = _digest(dict(ticker=ticker, method=method, horizon=horizon, model=MODEL_VERSION,
+                                      dates=series.index.asi8.tolist()))
+                cached_predictions[ticker] = (family, *self.lookup_prediction(cache_key(ticker), family, series.to_numpy()))
+            return cached_predictions[ticker]
         def predict_many(tickers):
             if batch_forecast is not None:
-                with self.connect() as db:
-                    missing = [t for t in tickers if t not in predictions and
-                               db.execute('SELECT 1 FROM predictions WHERE key=?', (cache_key(t),)).fetchone() is None]
+                missing = [t for t in tickers if t not in predictions and lookup(t)[1] is None]
                 if missing:
                     batch_values.update(batch_forecast(prices[missing].tail(train_window), horizon))
             for ticker in tickers:
@@ -200,10 +230,11 @@ class CandidateStore:
                 return predictions[ticker]
             series = prices[ticker].tail(train_window)
             prediction_key = cache_key(ticker)
-            with self.connect() as db:
-                cached = db.execute('SELECT payload FROM predictions WHERE key=?', (prediction_key,)).fetchone()
-            if cached:
-                value = json.loads(cached[0]); counts['cache_hits'] += 1
+            family, cached, compatible = lookup(ticker)
+            if cached is not None:
+                value = cached
+                counts['cache_hits'] += 1
+                counts['compatible_cache_hits'] += int(compatible)
             else:
                 if progress:
                     progress(ticker, counts['prediction_calls'] + counts['cache_hits'], len(universe))
@@ -212,6 +243,8 @@ class CandidateStore:
                     raise CandidateSearchError('Forecast returned an invalid result')
                 with self.connect() as db:
                     db.execute('INSERT OR IGNORE INTO predictions VALUES (?,?)', (prediction_key, _dump(value)))
+                    db.execute('INSERT OR IGNORE INTO prediction_inputs VALUES (?,?,?)',
+                               (prediction_key, family, np.asarray(series.to_numpy(), dtype='<f8').tobytes()))
                 counts['prediction_calls'] += 1
             if value.get('expected_return') is None:
                 counts['failures'] += 1
@@ -279,7 +312,7 @@ class Prepared:
     def report(self):
         value = dict(self.payload['report'])
         if self.replay:
-            value.update(prediction_calls=0, cache_hits=0, failures=0, elapsed_seconds=0., replayed=True)
+            value.update(prediction_calls=0, cache_hits=0, compatible_cache_hits=0, failures=0, elapsed_seconds=0., replayed=True)
         return value
 
     @property
