@@ -218,3 +218,10 @@ LLM 단독, production GMV, 뉴스 보정 GMV의 고정 비중 forward 비교 �
 ## F. 레거시 에이전트 문서
 
 이전 `agent-os/` 문서 아카이브는 더 이상 저장소에서 추적하지 않습니다. 새 작업의 기본 진입점은 `AGENTS.md`와 `docs/`이며, 과거 작업 기록은 `docs/reports/`, 후속 작업은 `docs/todo/`에서 관리합니다.
+
+### 후보 갱신 정책 (2026-11-13)
+
+- `src/backend/candidate_search.py`: as-of 후보 지도, 보유/유사/랜덤 선정, SQLite 원시 예측 캐시와 완료 단계 트랜잭션. 가격 특징과 예측 지도는 비중 계산용 현재 예측과 분리한다.
+- `src/backend/strategy_job_checkpoint.py`: 전략 백테스트 요청 및 전략별 campaign ID를 원자적으로 저장한다. 재시작 시 완료 단계는 동일 거래 엔진으로 재생하고 원시 예측을 재사용한다.
+- `src/frontend/CandidateSearchSettings.jsx`, `candidateSearchDefaults.js`: Optimizer/Manager/전략 백테스트의 공통 설정과 선정 내역 표시.
+- 기본 상태 파일은 `logs/candidate_search/state.sqlite3`, 작업 요청은 `logs/strategy_backtest_jobs/`다. 배포 시 이 경로를 보존한다. 환경 변수 `ANTIFIER_CANDIDATE_DB`, `ANTIFIER_BACKTEST_CHECKPOINT_DIR`로 위치를 변경할 수 있다.

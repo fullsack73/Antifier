@@ -1251,6 +1251,15 @@ def get_optimization_job_endpoint(request_id):
             "result": saved_result,
         })
 
+    if request_id.startswith('backtest_'):
+        from strategy_job_checkpoint import load
+        try:
+            checkpoint = load(request_id)
+        except ValueError:
+            checkpoint = None
+        if checkpoint is not None:
+            return jsonify({'request_id': request_id, 'status': 'interrupted', 'progress': 0,
+                            'message': 'Backtest interrupted; resume from saved decisions'})
     return jsonify({"error": f"Optimization job {request_id} not found"}), 404
 
 
@@ -1321,12 +1330,18 @@ def background_optimization(req_id, params):
             min_holding_weight=params.get('min_holding_weight', 0.0),
             asset_constraints=params.get('asset_constraints'),
             group_constraints=params.get('group_constraints'),
+            _defer_candidate_commit=True,
+            candidate_search=params.get('candidate_search'),
+            campaign_id=params.get('campaign_id'),
             cancel_event=job.cancel_event,
         )
 
+        candidate_decision = result.pop('_candidate_prepared', None)
         if job.cancel_event.is_set():
             raise OptimizationCancelled("Optimization cancelled")
 
+        if candidate_decision is not None and 'error' not in result:
+            candidate_decision.commit({'weights': result.get('weights', {})}, cancel_event=job.cancel_event)
         if "error" in result:
             push_progress(
                 req_id,
@@ -1507,6 +1522,12 @@ def optimize_portfolio_endpoint():
     if not request_id:
         return jsonify({"error": "request_id is required"}), 400
 
+    from candidate_search import normalize_policy
+    try:
+        search_policy = normalize_policy(data.get('candidate_search'))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+
     portfolio_id = portfolio_id or request_id
 
     try:
@@ -1517,6 +1538,7 @@ def optimize_portfolio_endpoint():
         return jsonify({"error": str(e)}), 429
 
     params = {
+        'candidate_search': search_policy, 'campaign_id': data.get('campaign_id'),
         'ticker_group': ticker_group, 'tickers': tickers, 'start_date': start_date, 
         'end_date': end_date, 'risk_free_rate': risk_free_rate, 'target_return': target_return,
         'risk_tolerance': risk_tolerance, 'portfolio_id': portfolio_id, 
@@ -1864,7 +1886,12 @@ def manage_portfolio_endpoint():
         except ValueError as e:
             return jsonify({'error': str(e)}), 400
 
-        result = manage_portfolio_logic(
+        from candidate_search import normalize_policy
+        try:
+            search_policy = normalize_policy(data.get('candidate_search'))
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        manager_params = dict(
             current_holdings=current_holdings,
             cash_injection=cash_injection,
             start_date=start_date,
@@ -1891,8 +1918,19 @@ def manage_portfolio_endpoint():
             calculation_mode=calculation_mode,
             target_weights=target_weights,
             imported_target=imported_target,
+            candidate_search=search_policy, campaign_id=data.get("campaign_id"),
         )
         
+        if data.get('async') is True and calculation_mode == 'REOPTIMIZE':
+            from uuid import uuid4
+            request_id = data.get('request_id') or 'manage_' + uuid4().hex
+            job, created = ensure_optimization_job(request_id)
+            if created:
+                job.thread = threading.Thread(target=background_manager, args=(request_id, manager_params), daemon=True)
+                job.thread.start()
+            return jsonify(job.snapshot()), 202
+        result = manage_portfolio_logic(**manager_params)
+
         if "error" in result:
             return jsonify(result), 400
             
@@ -1903,6 +1941,73 @@ def manage_portfolio_endpoint():
             "error": "Portfolio management could not be completed.",
             "error_code": "MANAGE_PORTFOLIO_FAILED",
         }), 500
+
+def background_manager(request_id, params):
+    job = get_optimization_job(request_id)
+    try:
+        result = manage_portfolio_logic(**params, _defer_candidate_commit=True, cancel_event=job.cancel_event,
+            progress_callback=lambda done, total, message: push_progress(request_id, done, total, message))
+        candidate_decision = result.pop('_candidate_prepared', None)
+        if job.cancel_event.is_set():
+            raise OptimizationCancelled('Portfolio management cancelled')
+        if 'error' in result:
+            push_progress(request_id, 0, 0, result['error'], status='error', error_details=result)
+        else:
+            from portfolio_optimization import save_portfolio_result
+            save_portfolio_result(request_id, result)
+            if candidate_decision is not None:
+                candidate_decision.commit({'weights': result.get('weights', {})}, cancel_event=job.cancel_event)
+            push_progress(request_id, 100, 100, 'Portfolio management complete', status='completed', result=result)
+    except OptimizationCancelled as exc:
+        push_progress(request_id, 0, 0, str(exc), status='cancelled')
+    except Exception:
+        app.logger.exception('Background portfolio management failed')
+        push_progress(request_id, 0, 0, 'Portfolio management failed', status='error')
+
+
+@app.route('/api/candidate-search/preview', methods=['POST'])
+def candidate_search_preview():
+    from candidate_search import normalize_policy, CandidateStore
+    from ticker_lists import get_ticker_group
+    try:
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            raise ValueError('Expected JSON object')
+        policy = normalize_policy(data.get('candidate_search'))
+        holdings = data.get('holdings', {})
+        if not isinstance(holdings, dict):
+            raise ValueError('holdings must be an object')
+        held = [str(t) for t, value in holdings.items() if float(value) > 0]
+        tickers = data.get('tickers') or (get_ticker_group(data['ticker_group']) if data.get('ticker_group') not in (None,'CUSTOM','CURRENT_HOLDINGS') else [])
+        if not isinstance(tickers, list):
+            raise ValueError('tickers must be a list')
+        count = len(set(tickers) | set(held))
+        context = CandidateStore().inspect(data.get('campaign_id'))
+        identity = context[2].get('identity', {}) if context else {}
+        method = data.get('forecast_method')
+        reset_required = bool(context and (identity.get('policy') != policy
+            or (method and identity.get('method') != method)
+            or (data.get('forecast_horizon') and identity.get('horizon') != data['forecast_horizon'])
+            or (data.get('min_history') and identity.get('train_window') != data['min_history'])
+            or sorted(set(tickers) | set(held)) != identity.get('universe')))
+        initial = context is None or not held or reset_required
+        age = context[2].get('map_age_sessions', 0) if context else None
+        if context and data.get('end_date'):
+            as_of = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
+            previous = datetime.strptime(context[2]['last_as_of'], '%Y-%m-%d').date()
+            age += max(0, int(np.busday_count(previous, as_of)))
+        effective_mode = 'price_features' if method == 'RISK_ONLY' else policy['mode']
+        refresh_expected = bool(initial or not policy['enabled'] or
+            (effective_mode == 'forecast_profile' and age is not None and age >= policy['refresh_interval']))
+        selected = count if refresh_expected else min(count, len(held)+policy['similar_count']+policy['explore_count'])
+        return jsonify({'initial': initial, 'reset_required': reset_required, 'universe_count': count, 'holding_count': len(held),
+            'estimated_selected_count': selected, 'map_age_sessions': age, 'full_refresh_expected': refresh_expected, 'map_as_of': context[2].get('map_as_of') if context else None,
+            'refresh_interval': policy['refresh_interval'], 'limited_savings': bool(count and selected >= .8*count),
+            'estimated_cycle_steps': __import__('math').ceil(max(0,count-len(held))/policy['explore_count']) if policy['explore_count'] else None,
+            'mode_effective': 'price_features' if data.get('forecast_method') == 'RISK_ONLY' else policy['mode']})
+    except (ValueError, TypeError) as exc:
+        return jsonify({'error': str(exc)}), 400
+
 
 @app.route('/api/strategy-backtests/universe', methods=['POST'])
 def inspect_strategy_universe():
@@ -1930,9 +2035,10 @@ def background_strategy_backtest(request_id, settings):
     from portfolio_optimization import save_portfolio_result
     job = get_optimization_job(request_id)
     try:
+        from strategy_job_checkpoint import save
         result = run_comparison(settings,
             lambda current, total, message: push_progress(request_id, current, total, message),
-            job.cancel_event)
+            job.cancel_event, checkpoint=lambda value: save(request_id, value))
         if job.cancel_event.is_set():
             raise OptimizationCancelled('Backtest cancelled')
         save_portfolio_result(request_id, result, metadata={'result_type': 'strategy_backtest'})
@@ -1956,6 +2062,8 @@ def create_strategy_backtest():
                 return jsonify({'error': 'A strategy backtest is already running'}), 409
             request_id = 'backtest_' + uuid4().hex
             job, _ = ensure_optimization_job(request_id)
+            from strategy_job_checkpoint import save
+            save(request_id, settings)
             job.thread = threading.Thread(target=background_strategy_backtest,
                                           args=(request_id, settings), daemon=True)
             job.thread.start()
@@ -1964,6 +2072,28 @@ def create_strategy_backtest():
         return jsonify({'error': str(exc)}), 400
     except RuntimeError as exc:
         return jsonify({'error': str(exc)}), 429
+
+
+@app.route('/api/strategy-backtests/<request_id>/resume', methods=['POST'])
+def resume_strategy_backtest(request_id):
+    from strategy_job_checkpoint import load
+    try:
+        settings = load(request_id)
+        if settings is None:
+            return jsonify({'error': 'Backtest checkpoint not found'}), 404
+        with OPTIMIZATION_JOBS_LOCK:
+            old = OPTIMIZATION_JOBS.get(request_id)
+            if old is not None and old.status == 'running':
+                return jsonify(old.snapshot()), 202
+            if any(j.status == 'running' and j.request_id.startswith('backtest_') for j in OPTIMIZATION_JOBS.values()):
+                return jsonify({'error': 'A strategy backtest is already running'}), 409
+            OPTIMIZATION_JOBS.pop(request_id, None)
+            job, _ = ensure_optimization_job(request_id)
+            job.thread = threading.Thread(target=background_strategy_backtest, args=(request_id, settings), daemon=True)
+            job.thread.start()
+        return jsonify(job.snapshot()), 202
+    except (ValueError, TypeError) as exc:
+        return jsonify({'error': str(exc)}), 400
 
 
 @app.route('/api/strategy-backtest-results', methods=['GET'])

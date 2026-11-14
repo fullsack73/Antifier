@@ -72,7 +72,8 @@ def test_future_changes_do_not_change_first_forecast_inputs(history, monkeypatch
     first = sb.run_comparison(s, lambda *args: None, threading.Event())
     history.loc[history.index >= '2024-01-02'] *= 1.2
     second = sb.run_comparison(s, lambda *args: None, threading.Event())
-    assert first['forecast_records'][0] == second['forecast_records'][0]
+    assert first['forecast_records'][0]['annual_log_forecasts'] == second['forecast_records'][0]['annual_log_forecasts']
+    assert first['forecast_records'][0]['candidate_search']['model_mpt']['selected'] == second['forecast_records'][0]['candidate_search']['model_mpt']['selected']
     assert first['strategies']['model_mpt']['rebalance_records'][0]['weights'] == second['strategies']['model_mpt']['rebalance_records'][0]['weights']
 
 
@@ -114,7 +115,7 @@ def test_job_persists_result_and_api_restores_it(tmp_path, monkeypatch):
     import uuid
     monkeypatch.setattr(po, 'RESULTS_DIR', tmp_path)
     expected = {'result_type': 'strategy_backtest', 'strategies': {}, 'settings': config()}
-    monkeypatch.setattr(sb, 'run_comparison', lambda *args: expected)
+    monkeypatch.setattr(sb, 'run_comparison', lambda *args, **kwargs: expected)
     request_id = 'backtest_' + uuid.uuid4().hex
     job, _ = app.ensure_optimization_job(request_id)
     try:
@@ -134,7 +135,7 @@ def test_cancellation_job_does_not_save(tmp_path, monkeypatch):
     import portfolio_optimization as po
     import uuid
     monkeypatch.setattr(po, 'RESULTS_DIR', tmp_path)
-    monkeypatch.setattr(sb, 'run_comparison', lambda *args: (_ for _ in ()).throw(OptimizationCancelled()))
+    monkeypatch.setattr(sb, 'run_comparison', lambda *args, **kwargs: (_ for _ in ()).throw(OptimizationCancelled()))
     request_id = 'backtest_' + uuid.uuid4().hex
     job, _ = app.ensure_optimization_job(request_id)
     try:
@@ -201,7 +202,7 @@ def test_selected_methods_share_forecasts_and_have_distinct_results(history, mon
     assert len(calls) == 2 * len(history.columns) * len(result['forecast_records'])
     for record in result['forecast_records']:
         assert set(record['forecasts_by_method']) == {'TRANSFORMER', 'ARIMA_TRANSFORMER'}
-        bl = record['strategy_diagnostics']['bl_transformer']
+        bl = next(value for key, value in record['strategy_diagnostics'].items() if key.startswith('bl_transformer'))
         assert bl['prior_source'] == 'equal_weight_market_proxy'
         assert bl['fallback_reason'] is None
         assert len(bl['posterior_returns']) == len(history.columns)
@@ -222,7 +223,7 @@ def test_gmv_only_does_not_call_any_forecast(history, monkeypatch):
     monkeypatch.setattr(sb, 'forecast_for_method', forbidden)
     s = config(strategy_configs=[{'optimization_method': 'MIN_VARIANCE'}])
     result = sb.run_comparison(s, lambda *args: None, threading.Event())
-    assert list(result['strategies']) == ['min_variance_risk_only']
+    assert list(result['strategies']) == ['min_variance_risk_only_price_features']
     assert s['estimated_forecasts'] == 0
 
 
@@ -249,3 +250,60 @@ def test_universe_inspection_is_independent_of_dates_and_models():
     response = app.app.test_client().post('/api/strategy-backtests/universe', json={'csv':'Symbol\nAAPL\nMSFT\nAAPL'})
     assert response.status_code == 200
     assert response.json == {'tickers':['AAPL','MSFT'],'duplicates':['AAPL']}
+
+
+def test_checkpoint_resume_reuses_committed_predictions(history, monkeypatch):
+    from strategy_job_checkpoint import save, load
+    import uuid
+    calls=[]
+    monkeypatch.setattr(sb,'_transformer_forecast_single_ticker',
+        lambda ticker,series,horizon:(calls.append(ticker) or ticker,{'expected_return':.05,'uncertainty':.1}))
+    settings=config(strategies=['model_mpt'])
+    request_id='backtest_'+uuid.uuid4().hex
+    first=sb.run_comparison(settings,lambda *a:None,threading.Event(),checkpoint=lambda s:save(request_id,s))
+    count=len(calls)
+    again=sb.run_comparison(load(request_id),lambda *a:None,threading.Event())
+    assert len(calls)==count
+    assert again['strategies']['model_mpt']['equity']==first['strategies']['model_mpt']['equity']
+    assert all(d['replayed'] for d in again['strategies']['model_mpt']['candidate_decisions'])
+
+
+def test_manager_async_uses_existing_job_protocol(monkeypatch):
+    import uuid
+    result={'weights':{'AAPL':1},'prices':{'AAPL':100}}
+    monkeypatch.setattr(app,'manage_portfolio_logic',lambda **kwargs:dict(result))
+    monkeypatch.setattr('portfolio_optimization.save_portfolio_result',lambda *a:None)
+    request_id='manage_'+uuid.uuid4().hex
+    try:
+        response=app.app.test_client().post('/api/manage-portfolio',json={
+            'async':True,'request_id':request_id,'current_holdings':{'AAPL':1},
+            'start_date':'2024-01-01','end_date':'2024-04-30'})
+        assert response.status_code==202
+        app.OPTIMIZATION_JOBS[request_id].thread.join(timeout=5)
+        status=app.app.test_client().get('/api/optimization-jobs/'+request_id).json
+        assert status['status']=='completed' and status['result']==result
+    finally:app.OPTIMIZATION_JOBS.pop(request_id,None)
+
+
+@pytest.mark.parametrize('mode,enabled', [('forecast_profile',True),('price_features',True),('frozen_forecast',True),('forecast_profile',False)])
+def test_workload_separates_initial_full_and_partial_forecasts(mode, enabled):
+    s=config(csv='ticker\n'+'\n'.join(f'T{i:03}' for i in range(513)),rebalance_frequency=8,
+        strategy_configs=[{'optimization_method':'MPT','forecast_method':'TRANSFORMER',
+            'candidate_search':{'mode':mode,'enabled':enabled,'refresh_interval':16}}])
+    row=s['forecast_workloads'][0]; steps=s['estimated_rebalances']
+    full=steps if not enabled else 1+(steps-1)//2 if mode=='forecast_profile' else 1
+    assert row['initial_forecasts_upper_bound']==513
+    assert row['full_rebalances']==full and row['partial_rebalances']==steps-full
+    assert row['total_before_cache']==(None if enabled else 513*steps)
+    assert row['total_upper_bound']==513*steps
+    assert s['initial_forecasts_upper_bound']==513
+
+
+def test_workload_gmv_has_zero_forecasts_and_shared_methods_are_not_added():
+    s=config(strategy_configs=[{'optimization_method':'MIN_VARIANCE'},
+        *[{'optimization_method':'MPT','forecast_method':'TRANSFORMER','candidate_search':{'mode':mode}}
+          for mode in ['forecast_profile','price_features','frozen_forecast']]])
+    row=s['forecast_workloads'][0]
+    assert row['total_before_cache']==row['initial_forecasts_upper_bound']==row['total_upper_bound']==0
+    assert s['estimated_forecasts']==len(s['tickers'])*s['estimated_rebalances']
+    assert s['initial_forecasts_upper_bound']==len(s['tickers'])

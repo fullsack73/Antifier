@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
+import CandidateSearchSettings, { CandidateSearchSummary } from "./CandidateSearchSettings.jsx"
+import { DEFAULT_CANDIDATE_SEARCH } from "./candidateSearchDefaults.js"
 import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
 import { apiUrl } from "./apiClient.js"
 import { clearOptimizerJob, readOptimizerJob, writeOptimizerJob } from "./optimizerJobStorage.js"
@@ -12,6 +14,15 @@ const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "cancelled"])
 
 const Optimizer = () => {
   const { t } = useTranslation()
+  const [candidateSearch, setCandidateSearch] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("optimizer-candidate-state"))?.policy || { ...DEFAULT_CANDIDATE_SEARCH } }
+    catch { return { ...DEFAULT_CANDIDATE_SEARCH } }
+  })
+  const [campaignId, setCampaignId] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("optimizer-candidate-state"))?.campaignId || null }
+    catch { return null }
+  })
+  useEffect(() => { localStorage.setItem("optimizer-candidate-state", JSON.stringify({ policy: candidateSearch, campaignId })) }, [candidateSearch, campaignId])
   const [tickerGroup, setTickerGroup] = useState("SP500")
   const [forecastMethod, setForecastMethod] = useState("LIGHTWEIGHT")
   const [optimizationMethod, setOptimizationMethod] = useState("MIN_VARIANCE")
@@ -337,6 +348,7 @@ const Optimizer = () => {
     })
     if (status.result) {
       setOptimizedPortfolio(status.result)
+      if (status.result.campaign_id) setCampaignId(status.result.campaign_id)
     }
     setAllocation(null)
     setError(null)
@@ -670,6 +682,7 @@ const Optimizer = () => {
           ? "RISK_ONLY"
           : forecastMethod,
         optimization_method: optimizationMethod,
+        candidate_search: candidateSearch, campaign_id: campaignId,
         forecast_horizon: Number.parseInt(forecastHorizon),
         min_history: Number.parseInt(minHistory),
         bl_tau: Number.parseFloat(blTau),
@@ -933,6 +946,10 @@ const Optimizer = () => {
               </div>
             </section>
 
+            <CandidateSearchSettings value={candidateSearch} onChange={next => { setCandidateSearch(next); setCampaignId(null) }}
+              riskOnly={riskOnlyOptimization} campaignId={campaignId} onReset={() => setCampaignId(null)}
+              idPrefix="optimizer-search" previewInput={{ tickers: customTickers, ticker_group: tickerGroup,
+                holdings: currentWeights || {}, end_date: endDate, forecast_method: forecastMethod, forecast_horizon: Number(forecastHorizon), min_history: Number(minHistory) }} />
             <section className="optimizer-form-section">
               <div className="optimizer-form-section-heading">
                 <span>03</span>
@@ -1413,6 +1430,7 @@ const Optimizer = () => {
 
       {!loading && optimizedPortfolio && (
         <>
+          <CandidateSearchSummary value={optimizedPortfolio.candidate_search} />
           <section className="optimizer-results-container" aria-labelledby="optimizer-results-title">
             <div className="optimizer-results-header">
               <div>

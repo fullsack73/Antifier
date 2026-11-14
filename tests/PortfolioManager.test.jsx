@@ -127,3 +127,14 @@ it("keeps the previous imported target when replacement JSON is invalid", async 
   expect(screen.getByText("valid")).toBeInTheDocument()
   expect(screen.getByText("1")).toBeInTheDocument()
 })
+
+it('reconnects to an asynchronous manager job after a page reload', async () => {
+  window.localStorage.setItem('manager-active-job', 'manage_fixture')
+  const fetchMock=vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok:true, json:async()=>({
+    status:'completed', result:{ weights:{AAPL:1}, prices:{AAPL:100}, campaign_id:'saved-campaign' },
+  }) })
+  render(<PortfolioManager />)
+  await waitFor(()=>expect(window.localStorage.getItem('manager-active-job')).toBeNull())
+  expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/api/optimization-jobs/manage_fixture'))
+  expect(screen.getByText(/saved-campaign/)).toBeInTheDocument()
+})

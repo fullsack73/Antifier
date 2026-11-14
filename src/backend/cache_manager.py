@@ -367,7 +367,7 @@ def get_cache() -> MultiLevelCache:
         _global_cache = MultiLevelCache()
     return _global_cache
 
-def cached(l1_ttl: int = 900, l2_ttl: int = 3600, key_func=None):
+def cached(l1_ttl: int = 900, l2_ttl: int = 3600, key_func=None, cache_if=None):
     """Decorator for automatic caching of function results"""
     def decorator(func):
         @wraps(func)
@@ -382,7 +382,7 @@ def cached(l1_ttl: int = 900, l2_ttl: int = 3600, key_func=None):
             
             # Try to get from cache
             result = cache.get(cache_key)
-            if result is not None:
+            if result is not None and (cache_if is None or cache_if(result)):
                 logger.debug(f"Cache HIT for {func.__name__}")
                 return result
                 
@@ -391,7 +391,8 @@ def cached(l1_ttl: int = 900, l2_ttl: int = 3600, key_func=None):
             result = func(*args, **kwargs)
             
             # Store in cache
-            cache.set(cache_key, result, l1_ttl, l2_ttl)
+            if cache_if is None or cache_if(result):
+                cache.set(cache_key, result, l1_ttl, l2_ttl)
             return result
             
         return wrapper

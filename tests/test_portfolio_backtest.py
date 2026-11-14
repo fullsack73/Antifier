@@ -2768,3 +2768,27 @@ def test_holdout_preset_is_isolated_from_validation_cases():
     assert all(case["regime"] != "locked_holdout_2024_2025" for case in standard_cases)
     assert module._evaluation_split("candidate") == "validation"
     assert module._evaluation_split("holdout") == "locked_holdout"
+
+
+def test_step_provider_reuses_accounting_and_receives_executed_holdings():
+    prices = _synthetic_prices(85)
+    kwargs = dict(models=('equal_weight',), train_window=20, rebalance_frequency=10,
+                  max_asset_weight=.6, max_turnover=.1, transaction_cost_bps=25,
+                  include_daily_returns=True)
+    targets = portfolio_backtest.build_rebalance_targets(prices, target_turnover_limit=.1, **{
+        k: v for k, v in kwargs.items() if k not in {'max_turnover', 'transaction_cost_bps', 'include_daily_returns'}})
+    expected = portfolio_backtest.run_portfolio_model_backtest(prices, rebalance_targets=targets, **kwargs)
+    records = {r['rebalance_date']: r for r in targets['records']}
+    observed, completed = [], []
+    def provider(train, date, states):
+        assert train.index[-1] < pd.Timestamp(date)
+        if observed:
+            pd.testing.assert_series_equal(states['equal_weight']['shares'], completed[-1]['shares'])
+            assert states['equal_weight']['cash'] == completed[-1]['cash']
+        observed.append(states)
+        return records[date]
+    actual = portfolio_backtest.run_portfolio_model_backtest(prices, target_provider=provider,
+        step_callback=lambda date, states: completed.append(states['equal_weight']), **kwargs)
+    assert len(observed) > 1 and not (observed[0]['equal_weight']['shares'] > 0).any()
+    for key in ['summary_by_model', 'rebalance_records', 'daily_returns_by_model']:
+        assert actual[key] == expected[key]

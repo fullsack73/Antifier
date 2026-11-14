@@ -2,6 +2,10 @@
 
 `docs/todo`에 있는 후속 작업을 한 줄씩 요약합니다. 작업 시작 전 이 파일을 먼저 확인하고, 관련 항목이 있으면 해당 TODO 문서를 함께 읽습니다.
 
+- [backtest-ui-taste-redesign.md](backtest-ui-taste-redesign.md): taste skill을 활용해 백테스트 설정·진행률·결과 UI의 배치와 가독성, 반응형 스타일을 개선합니다.
+
+- [candidate-search-progress-denominator.md](candidate-search-progress-denominator.md): 후보 부분 갱신의 진행 분모를 실제 평가 집합으로 보정하고 전체 갱신·신규 예측·캐시 적중을 구분합니다.
+
 - [backtest-daily-initial-cost.md](backtest-daily-initial-cost.md): 공통 백테스트 일수익률 export의 최초 비용을 summary 순자산과 일치시키고 호출자의 이중 차감을 방지합니다.
 
 - [forecast-failure-missing-controls.md](forecast-failure-missing-controls.md): 완료된 예측 원인 진단의 예산 미실행 통제 7개와 target/feedback·수렴·일반화의 미해결 질문을 보존합니다.

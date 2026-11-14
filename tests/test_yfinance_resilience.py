@@ -391,3 +391,48 @@ def test_raw_history_preserves_gaps_and_uses_separate_cache_key(monkeypatch):
     assert standard['AAPL'].iloc[-1] == 100.
     assert np.isnan(untouched['AAPL'].iloc[-1])
     assert portfolio_optimization._stock_data_key_func(['AAPL'], '2024-01-01', '2024-02-01') != portfolio_optimization._stock_data_key_func(['AAPL'], '2024-01-01', '2024-02-01', preserve_missing=True)
+
+
+def test_empty_history_cache_is_ignored_and_offline_results_are_not_saved(monkeypatch):
+    from unittest.mock import MagicMock
+    cache=MagicMock(); stored={}
+    cache.get.side_effect=stored.get
+    cache.set.side_effect=lambda key,value,*args:stored.update({key:value})
+    monkeypatch.setattr(cache_manager,'get_cache',lambda:cache)
+    monkeypatch.setattr(portfolio_optimization,'_configure_yfinance_runtime',lambda:None)
+    monkeypatch.setattr(portfolio_optimization,'_create_yfinance_session',FakeSession)
+    monkeypatch.setattr(portfolio_optimization,'YFINANCE_INDIVIDUAL_RETRY_ATTEMPTS',0)
+    online=False;calls=[]
+    def download(tickers,**kwargs):
+        calls.append(tickers)
+        return _multi_ticker_close_frame({'AAPL':[100.,101.]}) if online else pd.DataFrame()
+    monkeypatch.setattr(portfolio_optimization.yf,'download',download)
+    args=(['AAPL'],'2024-01-01','2024-02-01')
+    key=portfolio_optimization._stock_data_key_func(*args,preserve_missing=True)
+    stored[key]=pd.DataFrame()  # An empty entry left by the previous release.
+    assert portfolio_optimization.get_stock_data(*args,preserve_missing=True).empty
+    cache.set.assert_not_called()
+    online=True
+    result=portfolio_optimization.get_stock_data(*args,preserve_missing=True)
+    assert not result.empty and len(calls)==2
+    pd.testing.assert_frame_equal(portfolio_optimization.get_stock_data(*args,preserve_missing=True),result)
+    assert len(calls)==2 and cache.set.call_count==1
+
+
+def test_pipeline_failure_cache_is_ignored_until_history_recovers(monkeypatch):
+    from unittest.mock import MagicMock
+    cache=MagicMock();stored={}
+    cache.get.side_effect=stored.get
+    cache.set.side_effect=lambda key,value,*args:stored.update({key:value})
+    monkeypatch.setattr(cache_manager,'get_cache',lambda:cache)
+    args=('2024-01-01','2024-02-01','CUSTOM',['AAPL'],'RISK_ONLY')
+    key=portfolio_optimization._pipeline_key_func(*args)
+    stored[key]={'error':'old offline failure'}
+    fetch=MagicMock(return_value=pd.DataFrame())
+    monkeypatch.setattr(portfolio_optimization,'get_stock_data',fetch)
+    result=portfolio_optimization.data_and_forecast_pipeline(*args)
+    assert 'error' in result and result['error']!='old offline failure'
+    assert fetch.call_count==1
+    cache.set.assert_not_called()
+    portfolio_optimization.data_and_forecast_pipeline(*args)
+    assert fetch.call_count==2

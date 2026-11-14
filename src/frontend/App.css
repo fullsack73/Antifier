@@ -6939,3 +6939,16 @@ body::before {
   .strategy-file-row button, .strategy-backtest button[type="submit"] { width: 100%; }
   .strategy-config-row { gap: .75rem; margin: 1rem 0; padding-bottom: 1rem; border-bottom: 1px solid var(--color-divider); }
 }
+.candidate-settings, .candidate-summary { margin: .8rem 0; padding: .8rem; border: 1px solid var(--color-divider); border-radius: 6px; min-width: 0; }
+.candidate-settings summary, .candidate-summary summary { cursor: pointer; font-weight: 600; }
+.candidate-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,180px),1fr)); gap: .8rem; }
+.candidate-settings label { display: flex; flex-direction: column; gap: .4rem; }
+.candidate-settings .candidate-enabled { display: flex; flex-direction: row; align-items: center; margin: .8rem 0; }
+.candidate-enabled input { width: auto !important; }
+.candidate-settings input, .candidate-settings select { max-width: 100%; width: 100%; box-sizing: border-box; }
+.candidate-symbols { max-height: 200px; overflow: auto; overflow-wrap: anywhere; }
+.strategy-config-row > .candidate-settings { grid-column: 1 / -1; width: 100%; }
+.candidate-settings input:not([type="checkbox"]), .candidate-settings select { padding: .6rem; border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary); background: var(--color-bg-secondary); min-height: 40px; }
+.candidate-settings button { margin: .5rem .5rem .5rem 0; padding: .5rem .8rem; border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text-primary); background: var(--color-bg-tertiary); cursor: pointer; }
+
+.candidate-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }

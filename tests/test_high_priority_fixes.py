@@ -289,7 +289,8 @@ def test_ml_pipeline_converts_annual_log_return_to_annual_simple_return(monkeypa
     assert result["uncertainties"]["MSFT"] == pytest.approx(0.95 * 0.05)
 
 
-def test_mpt_uses_confidence_adjusted_expected_returns(monkeypatch):
+@pytest.mark.parametrize('candidate_search', [None, {'enabled': False}])
+def test_mpt_uses_confidence_adjusted_expected_returns(monkeypatch, candidate_search):
     captured = {}
     pipeline_result = {
         "mu": pd.Series({"AAPL": 0.40, "MSFT": 0.08}),
@@ -335,7 +336,10 @@ def test_mpt_uses_confidence_adjusted_expected_returns(monkeypatch):
         tickers=["AAPL", "MSFT"],
         optimization_method="MPT",
         forecast_method="ARIMA_TRANSFORMER",
+        candidate_search=candidate_search,
     )
+    if candidate_search is not None:
+        assert result['candidate_search']['mode_effective'] == 'full'
 
     assert captured["mu"]["AAPL"] == pytest.approx(0.24)
     assert captured["mu"]["MSFT"] == pytest.approx(0.08)

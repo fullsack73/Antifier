@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import DateInput from "./DateInput.jsx"
 import Plot from "./LazyPlot.jsx"
+import CandidateSearchSettings, { CandidateSearchSummary } from "./CandidateSearchSettings.jsx"
+import { DEFAULT_CANDIDATE_SEARCH } from "./candidateSearchDefaults.js"
 import { apiUrl } from "./apiClient.js"
 
 const JOB_KEY = "antifier.strategyBacktest.job"
@@ -24,7 +26,7 @@ async function request(path, options) {
 
 export default function StrategyBacktest() {
   const { t } = useTranslation()
-  const label = (key) => t(`strategyBacktest.${key}`)
+  const label = (key, options) => t(`strategyBacktest.${key}`, options)
   const [csv, setCsv] = useState("")
   const [filename, setFilename] = useState("")
   const [universe, setUniverse] = useState(null)
@@ -33,12 +35,13 @@ export default function StrategyBacktest() {
   const [fields, setFields] = useState(DEFAULTS)
   const [dates, setDates] = useState({})
   const [strategies, setStrategies] = useState([
-    { rowId: 0, optimization_method: "MIN_VARIANCE", forecast_method: "RISK_ONLY" },
+    { rowId: 0, optimization_method: "MIN_VARIANCE", forecast_method: "RISK_ONLY", candidate_search: { ...DEFAULT_CANDIDATE_SEARCH } },
   ])
   const nextRowId = useRef(1)
   const [preview, setPreview] = useState(null)
   const [jobId, setJobId] = useState(() => localStorage.getItem(JOB_KEY) || "")
   const [job, setJob] = useState(null)
+  const [pollGeneration, setPollGeneration] = useState(0)
   const [result, setResult] = useState(null)
   const [saved, setSaved] = useState([])
   const [error, setError] = useState("")
@@ -57,11 +60,11 @@ export default function StrategyBacktest() {
         const data = await request(`/api/optimization-jobs/${jobId}`)
         if (disposed) return
         setJob(data)
-        if (data.status === "running") timer = setTimeout(poll, 2000)
+        if (data.status === "running") { setError(""); timer = setTimeout(poll, 2000) }
         else {
           localStorage.removeItem(JOB_KEY)
           if (data.status === "completed") {
-            setResult(data.result)
+            setError(""); setResult(data.result)
             refreshSaved().catch(() => {})
           } else setError(data.error || data.message)
         }
@@ -77,14 +80,14 @@ export default function StrategyBacktest() {
     }
     poll()
     return () => { disposed = true; clearTimeout(timer) }
-  }, [jobId])
+  }, [jobId, pollGeneration])
 
   const changeDates = useCallback((start_date, end_date) => {
     setDates({ start_date, end_date }); setPreview(null)
   }, [])
   const change = (key, value) => { setFields(old => ({ ...old, [key]: value })); setPreview(null) }
   const payload = () => ({ csv, ...dates, ...fields,
-    strategy_configs: strategies.map(({ optimization_method, forecast_method }) => ({ optimization_method, forecast_method })),
+    strategy_configs: strategies.map(({ optimization_method, forecast_method, candidate_search, campaign_id }) => ({ optimization_method, forecast_method, candidate_search, campaign_id })),
     max_asset_weight: Number(fields.max_asset_weight) / 100,
     rebalance_band: Number(fields.rebalance_band) / 100,
     max_turnover: Number(fields.max_turnover) / 100,
@@ -164,7 +167,7 @@ export default function StrategyBacktest() {
     const next = candidates.find(c => !strategies.some(row =>
       row.optimization_method === c.optimization_method && row.forecast_method === c.forecast_method))
     if (next) {
-      const row = { ...next, rowId: nextRowId.current++ }
+      const row = { ...next, rowId: nextRowId.current++, candidate_search: { ...DEFAULT_CANDIDATE_SEARCH } }
       setStrategies(old => [...old, row])
     }
     setPreview(null)
@@ -174,8 +177,9 @@ export default function StrategyBacktest() {
     if (!config) return label(name)
     const optimizer = config.optimization_method === "GMV_MODEL" ? label("gmv_model")
       : t(`optimizer.${OPTIMIZERS.find(([value]) => value === config.optimization_method)[1]}`)
-    if (config.optimization_method === "MIN_VARIANCE") return optimizer
-    return `${optimizer} · ${t(`optimizer.${FORECASTS.find(([value]) => value === config.forecast_method)[1]}`)}`
+    if (config.optimization_method === "MIN_VARIANCE") return optimizer + (config.candidate_search ? ` · ${t(`candidateSearch.${config.candidate_search.enabled ? "price_features" : "full"}`)}` : "")
+    return `${optimizer} · ${t(`optimizer.${FORECASTS.find(([value]) => value === config.forecast_method)[1]}`)}` +
+      (config.candidate_search ? ` · ${t(`candidateSearch.${config.candidate_search.enabled ? (config.optimization_method === "MIN_VARIANCE" ? "price_features" : config.candidate_search.mode) : "full"}`)}` : "")
   }
   const names = result ? Object.keys(result.strategies) : []
   const plot = (key, percent = false) => <Plot data={names.map(name => ({
@@ -238,17 +242,42 @@ export default function StrategyBacktest() {
             aria-label={`${label("removeStrategy")} ${index+1}`} onClick={() => {
               setStrategies(old => old.filter(item => item.rowId !== row.rowId)); setPreview(null)
             }}>{label("removeStrategy")}</button>
+          <CandidateSearchSettings value={row.candidate_search} onChange={next => changeStrategy(row.rowId, "candidate_search", next)}
+            riskOnly={row.optimization_method === "MIN_VARIANCE"} idPrefix={`search-${row.rowId}`} />
         </div>)}
         <button type="button" disabled={strategies.length >= 10} onClick={addStrategy}>{label("addStrategy")}</button>
         {strategies.some(row => row.optimization_method === "BL") && <p className="strategy-note">{label("blPriorNote")}</p>}
         <button type="submit" disabled={!csv || !universe || !dates.start_date || !strategies.length || readingCsv}>{label("preview")}</button>
         {preview && <div role="status">
-          <p>{label("workload")} {preview.tickers.length} / {preview.estimated_rebalances} / {preview.estimated_forecasts}</p>
+          <p>{label("workload")}: {preview.tickers.length} / {preview.estimated_rebalances}</p>
+          <p>{label("forecastUpperBound")}: {preview.estimated_forecasts}</p>
+          {preview.initial_forecasts_upper_bound != null && <p>{label("sharedInitialForecasts")}: {preview.initial_forecasts_upper_bound}</p>}
+          {preview.forecast_workloads?.map(row => <div key={row.id} className="candidate-summary">
+            <strong>{row.optimization_method} / {row.forecast_method} / {t(`candidateSearch.${row.mode}`)}</strong>
+            {row.forecast_method === "RISK_ONLY" ? <p>{label("noModelForecasts")}</p> : <>
+              <p>{label("initialForecasts")}: {row.initial_forecasts_upper_bound}</p>
+              <p>{label("fullForecastSteps")}: {row.full_rebalances} · {label("partialForecastSteps")}: {row.partial_rebalances}</p>
+              {row.mode === "full" ? <p>{label("fullForecastTotal")}: {row.total_before_cache}</p> : <>
+                <p>{label("partialForecastFormula", { universe: preview.tickers.length, similar: row.similar_count, explore: row.explore_count })}</p>
+                <p>{label("forecastTotalUnknown")}</p>
+                <p>{label(row.mode === "frozen_forecast" ? "frozenWorkload" : row.mode === "price_features" ? "priceWorkload" : "periodicWorkload", { interval: row.refresh_interval })}</p>
+              </>}
+            </>}
+            {row.mode !== "full" && row.explore_count > 0 && <p>{t("candidateSearch.cycleEstimate")}: {Math.ceil(preview.tickers.length / row.explore_count)}</p>}
+          </div>)}
+          <p className="strategy-note">{label("workloadEstimateNote")}</p>
+          <p className="strategy-note">{label("sharedForecastNote")}</p>
           <p>{label("duplicates")}: {preview.duplicates.join(", ") || "—"}</p>
           <button type="button" onClick={start}>{label("run")}</button>
         </div>}
       </fieldset>
     </form>
+    {job && ["interrupted", "failed", "error", "cancelled"].includes(job.status) && <button type="button" onClick={async () => {
+      try {
+        const value = await request(`/api/strategy-backtests/${jobId}/resume`, post({}))
+        localStorage.setItem(JOB_KEY, jobId); setJob(value); setError(""); setPollGeneration(old => old+1)
+      } catch (err) { setError(err.message) }
+    }}>{t("candidateSearch.resume", "Resume saved backtest")}</button>}
     {error && <p role="alert">{error}</p>}
     {running && <div role="status"><progress value={job?.progress || 0} max="100" />
       <p>{job?.message || label("queued")}</p>
@@ -284,11 +313,12 @@ export default function StrategyBacktest() {
           const record = result.strategies[name].rebalance_records.find(r => r.rebalance_date === selectedDate)
           const forecast = result.forecast_records.find(r => r.date === selectedDate)
           const config = result.settings.strategy_configs?.find(c => c.id === name)
-          const predictions = forecast.forecasts_by_method?.[config?.forecast_method] ||
+          const predictions = forecast.forecasts_by_strategy?.[name] || forecast.forecasts_by_method?.[config?.forecast_method] ||
             (config?.forecast_method === "RISK_ONLY" ? { annual_log_forecasts: {}, no_view_tickers: [] } : forecast)
           const diagnostic = forecast.strategy_diagnostics?.[name]
           const fallback = diagnostic?.fallback_reason ?? (name === "model_mpt" ? forecast.mpt_fallback : null)
           return <div key={name}><h4>{strategyLabel(name)}</h4>
+            <CandidateSearchSummary value={forecast.candidate_search?.[name]} />
             <p>{label("fallback")}: {fallback || "—"}</p>
             <p>{label("noView")}: {predictions.no_view_tickers.join(", ") || "—"}</p>
             {diagnostic?.prior_source && <p className="strategy-note">{label("blPriorNote")}</p>}

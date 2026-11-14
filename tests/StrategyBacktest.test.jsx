@@ -39,7 +39,7 @@ describe("Strategy comparison", () => {
     expect(payload.max_asset_weight).toBe(.5)
     expect(payload.max_turnover).toBe(.35)
     expect(payload.csv).toContain("MSFT")
-    expect(payload.strategy_configs).toEqual([
+    expect(payload.strategy_configs.map(({ optimization_method, forecast_method }) => ({ optimization_method, forecast_method }))).toEqual([
       { optimization_method: "MIN_VARIANCE", forecast_method: "RISK_ONLY" },
       { optimization_method: "BL", forecast_method: "ARIMA_TRANSFORMER" },
     ])
@@ -118,4 +118,48 @@ it("explains an outdated backend rather than claiming the CSV is unreadable", as
     { name: 'symbols.csv', size: 24, text: async () => 'Symbol\nAAPL\nMSFT' },
   ] } }))
   expect(await screen.findByRole('alert')).toHaveTextContent('strategyBacktest.restartBackend')
+})
+
+it('shows frozen-map workload as initial plus dynamic partial forecasts, with GMV at zero', async () => {
+  const tickers=Array.from({length:513},(_,i)=>`T${i}`)
+  vi.stubGlobal('fetch',vi.fn(async url=>{
+    if(url.includes('/universe')) return reply({tickers,duplicates:[]})
+    if(url.includes('/preview')) return reply({tickers,duplicates:[],estimated_rebalances:11,estimated_forecasts:5643,initial_forecasts_upper_bound:513,
+      forecast_workloads:[
+        {id:'gmv',optimization_method:'MIN_VARIANCE',forecast_method:'RISK_ONLY',mode:'full',total_before_cache:0},
+        {id:'frozen',optimization_method:'MPT',forecast_method:'TRANSFORMER',mode:'frozen_forecast',
+          initial_forecasts_upper_bound:513,full_rebalances:1,partial_rebalances:10,similar_count:10,explore_count:10},
+      ]})
+    return reply({ids:[]})
+  }))
+  render(<StrategyBacktest />)
+  await act(async()=>fireEvent.change(document.querySelector('input[type="file"]'),{target:{files:[
+    {name:'symbols.csv',size:3000,text:async()=>`ticker\n${tickers.join('\n')}`},
+  ]}}))
+  fireEvent.click(screen.getByText('Dates'))
+  fireEvent.click(screen.getByText('strategyBacktest.preview'))
+  await screen.findByText('strategyBacktest.run')
+  expect(screen.getByText('strategyBacktest.forecastUpperBound: 5643')).toBeInTheDocument()
+  expect(screen.getByText('strategyBacktest.initialForecasts: 513')).toBeInTheDocument()
+  expect(screen.getByText(/strategyBacktest.fullForecastSteps: 1/)).toHaveTextContent('strategyBacktest.partialForecastSteps: 10')
+  expect(screen.getByText('strategyBacktest.sharedInitialForecasts: 513')).toBeInTheDocument()
+  expect(screen.getByText('strategyBacktest.forecastTotalUnknown')).toBeInTheDocument()
+  expect(screen.getByText('strategyBacktest.frozenWorkload')).toBeInTheDocument()
+  expect(screen.getByText('strategyBacktest.noModelForecasts')).toBeInTheDocument()
+  expect(screen.queryByText('strategyBacktest.fullForecastTotal: 5643')).not.toBeInTheDocument()
+})
+
+it('offers resume for backend error status and clears the old failure after retry',async()=>{
+  localStorage.setItem('antifier.strategyBacktest.job','backtest_offline')
+  let resumed=false
+  vi.stubGlobal('fetch',vi.fn(async url=>{
+    if(url.includes('strategy-backtest-results')) return reply({ids:[]})
+    if(url.endsWith('/resume')) {resumed=true;return reply({status:'running'},202)}
+    return reply(resumed ? {status:'running',message:'Recovered'} : {status:'error',error:'No price history available'})
+  }))
+  render(<StrategyBacktest />)
+  expect(await screen.findByRole('alert')).toHaveTextContent('No price history available')
+  fireEvent.click(screen.getByText('candidateSearch.resume'))
+  await screen.findByText('Recovered')
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })

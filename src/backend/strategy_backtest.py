@@ -1,5 +1,4 @@
 """User-configured, fixed-universe walk-forward comparisons on the shared engine."""
-import copy
 import csv
 import io
 import json
@@ -25,6 +24,7 @@ from portfolio_backtest import (
 from portfolio_signals import confidence_gated_gmv_overlay
 from ticker_symbols import normalize_yahoo_ticker
 from lightweight_forecast import lightweight_ensemble_forecast
+from candidate_search import CandidateStore, normalize_policy
 
 STRATEGIES = ('gmv', 'model_mpt', 'gmv_model')
 
@@ -42,12 +42,11 @@ def normalize_strategies(payload):
         names = payload.get('strategies', list(STRATEGIES))
         if not isinstance(names, list) or not names or any(not isinstance(n, str) or n not in LEGACY_CONFIGS for n in names):
             raise ValueError('Select supported strategies')
-        return [dict(LEGACY_CONFIGS[n]) for n in dict.fromkeys(names)]
+        return [dict(LEGACY_CONFIGS[n], candidate_search=normalize_policy(payload.get('candidate_search'))) for n in dict.fromkeys(names)]
     entries = payload['strategy_configs']
     if not isinstance(entries, list) or not 1 <= len(entries) <= 10:
         raise ValueError('Select 1–10 distinct strategy combinations')
     result = []
-    seen = set()
     for entry in entries:
         if not isinstance(entry, dict):
             raise ValueError('Each strategy must specify optimization and forecast methods')
@@ -59,10 +58,14 @@ def normalize_strategies(payload):
         elif forecast not in FORECAST_METHODS:
             raise ValueError('Unsupported forecast method')
         key = method.lower() + '_' + forecast.lower()
-        if key in seen:
+        policy = normalize_policy(entry.get('candidate_search', payload.get('candidate_search')))
+        if method == 'MIN_VARIANCE':
+            policy['mode'] = 'price_features'
+        key += '_' + (policy['mode'] if policy['enabled'] else 'full')
+        if key in {c['id'] for c in result}:
             raise ValueError('Duplicate strategy combination')
-        seen.add(key)
-        result.append({'id': key, 'optimization_method': method, 'forecast_method': forecast})
+        result.append({'id': key, 'optimization_method': method, 'forecast_method': forecast, 'candidate_search': policy,
+                       'campaign_id': entry.get('campaign_id')})
     return result
 
 
@@ -207,12 +210,37 @@ def validate_settings(payload):
     settings['estimated_rebalances'] = max(1, math.ceil(days / settings['rebalance_frequency']))
     settings['estimated_forecasts'] = (len(tickers) * settings['estimated_rebalances']
                                        * len({c['forecast_method'] for c in configs if c['forecast_method'] != 'RISK_ONLY'}))
+    settings['initial_forecasts_upper_bound'] = len(tickers) * len({
+        c['forecast_method'] for c in configs if c['forecast_method'] != 'RISK_ONLY'})
+    workloads = []
+    for config in configs:
+        policy = config['candidate_search']
+        risk_only = config['forecast_method'] == 'RISK_ONLY'
+        mode = ('price_features' if risk_only else policy['mode']) if policy['enabled'] else 'full'
+        rebalances = settings['estimated_rebalances']
+        if mode == 'full':
+            full = rebalances
+        elif mode == 'forecast_profile':
+            refresh_steps = math.ceil(policy['refresh_interval'] / settings['rebalance_frequency'])
+            full = 1 + (rebalances - 1) // refresh_steps
+        else:
+            full = 1
+        workloads.append(dict(id=config['id'], optimization_method=config['optimization_method'],
+            forecast_method=config['forecast_method'], mode=mode,
+            initial_forecasts_upper_bound=0 if risk_only else len(tickers),
+            full_rebalances=0 if risk_only else full,
+            partial_rebalances=0 if risk_only else rebalances - full,
+            similar_count=policy['similar_count'], explore_count=policy['explore_count'],
+            refresh_interval=policy['refresh_interval'],
+            total_before_cache=(0 if risk_only else len(tickers) * rebalances) if risk_only or mode == 'full' else None,
+            total_upper_bound=0 if risk_only else len(tickers) * rebalances))
+    settings['forecast_workloads'] = workloads
     if settings['estimated_forecasts'] > 50000:
         raise ValueError('More than 50,000 forecasts; increase rebalance interval or shorten dates')
     return settings
 
 
-def run_comparison(settings, progress, cancel_event):
+def run_comparison(settings, progress, cancel_event, checkpoint=None):
     s = settings
     check = lambda: _raise_if_cancelled(cancel_event)
     check()
@@ -252,51 +280,7 @@ def run_comparison(settings, progress, cancel_event):
     if prices.isna().any().any() or (prices <= 0).any().any():
         raise ValueError('Missing/invalid prices during evaluation; refusing a retrospectively filtered universe')
     origins = list(range(s['train_window'], len(prices)-1, s['rebalance_frequency']))
-    targets = {name: [] for name in s['strategies']}
     forecast_records = []
-    for number, i in enumerate(origins):
-        check()
-        train = prices.iloc[i-s['train_window']:i]
-        covariance = _safe_covariance(train)
-        gmv = _efficient_frontier_weights(pd.Series(0., index=eligible), covariance,
-                                          s['max_asset_weight'], 'min_volatility', s['risk_free_rate'])
-        methods = list(dict.fromkeys(c['forecast_method'] for c in s['strategy_configs']
-                                     if c['forecast_method'] != 'RISK_ONLY'))
-        by_method = {}
-        for method_index, method in enumerate(methods):
-            raw, uncertainty, missing = {}, {}, []
-            for j, ticker in enumerate(eligible):
-                check()
-                fraction = (method_index + j / len(eligible)) / len(methods)
-                progress(5 + 75 * (number + fraction) / len(origins), 100,
-                         f'{prices.index[i].date()}: {method} {ticker} ({j+1}/{len(eligible)})')
-                prediction = forecast_for_method(method, ticker, train[ticker], s['forecast_horizon'])
-                if (_is_no_view_prediction(prediction) or not isinstance(prediction, dict)
-                        or not np.isfinite(float(prediction.get('expected_return', np.nan)))):
-                    missing.append(ticker)
-                else:
-                    raw[ticker] = float(prediction['expected_return'])
-                    value = prediction.get('uncertainty', MAX_FORECAST_UNCERTAINTY)
-                    uncertainty[ticker] = (float(value) if value is not None and np.isfinite(float(value))
-                                          else MAX_FORECAST_UNCERTAINTY)
-            by_method[method] = {'annual_log_forecasts': raw, 'no_view_tickers': missing,
-                                 'uncertainties': uncertainty}
-        date = str(prices.index[i].date())
-        diagnostics = {}
-        for config in s['strategy_configs']:
-            data = by_method.get(config['forecast_method'], {})
-            weights, diag = allocate_strategy(config, data, covariance, gmv, s)
-            diagnostics[config['id']] = diag
-            targets[config['id']].append({'rebalance_date': date, 'models': {'min_variance': {
-                'weights': weights, 'diagnostics': {'construction_method': config['id'],
-                    'signal_scores': data.get('annual_log_forecasts', {})}}}})
-        # Keep legacy fields readable in existing saved-result consumers.
-        first_forecast = next(iter(by_method.values()), {'annual_log_forecasts': {}, 'no_view_tickers': []})
-        forecast_records.append({'date': date, 'train_end_date': str(train.index[-1].date()),
-            **first_forecast, 'forecasts_by_method': by_method, 'strategy_diagnostics': diagnostics,
-            'mpt_fallback': diagnostics.get('model_mpt', {}).get('fallback_reason'),
-            'overlay_fallback': bool(diagnostics.get('gmv_model', {}).get('fallback_reason'))})
-        progress(5 + 75 * (number+1)/len(origins), 100, f'Targets {number+1}/{len(origins)}')
     result = {'result_type': 'strategy_backtest', 'settings': s, 'eligible_tickers': eligible,
               'exclusions': exclusions, 'universe_policy': 'fixed_csv_initial_history_eligibility',
               'experimental_strategies': [c['id'] for c in s['strategy_configs'] if c['optimization_method'] == 'GMV_MODEL'], 'overlay_active_share': .025,
@@ -306,13 +290,73 @@ def run_comparison(settings, progress, cancel_event):
     signature = _rebalance_target_signature(prices, ['min_variance'], s['train_window'],
         s['rebalance_frequency'], s['forecast_horizon'], s['max_asset_weight'], 0., None,
         s['risk_free_rate'], None, None, None)
-    for number, name in enumerate(targets):
+    store = CandidateStore()
+    for number, config in enumerate(s['strategy_configs']):
+        name = config['id']
+        method = config['forecast_method']
+        campaign = config.get('campaign_id')
+        pending = {}
+        decisions = []
+        def provide(train, date, states):
+            nonlocal campaign
+            check()
+            held = states['min_variance']['shares'].to_dict()
+            decision = store.prepare(train, held, config['candidate_search'], method=method,
+                horizon=s['forecast_horizon'], train_window=s['train_window'],
+                forecast=lambda ticker, series, horizon: forecast_for_method(method, ticker, series, horizon),
+                campaign_id=campaign, cancel_event=cancel_event,
+                progress=lambda ticker, done, total: progress(5 + 90 * (number + len(decisions)/len(origins))/len(s['strategies']),
+                    100, f'{date}: {method} {ticker} ({done+1}/{total})'))
+            campaign = decision.campaign_id
+            selected = decision.report['selected']
+            if len(selected) * s['max_asset_weight'] < 1-1e-9:
+                raise ValueError('Candidate set cannot satisfy the maximum asset weight; increase candidate budgets')
+            subset = train[selected]
+            covariance = _safe_covariance(subset)
+            gmv = _efficient_frontier_weights(pd.Series(0., index=selected), covariance,
+                s['max_asset_weight'], 'min_volatility', s['risk_free_rate'])
+            raw, uncertainties, missing = {}, {}, []
+            for ticker, prediction in decision.predictions.items():
+                if _is_no_view_prediction(prediction):
+                    missing.append(ticker)
+                else:
+                    raw[ticker] = prediction['expected_return']
+                    value = prediction.get('uncertainty')
+                    uncertainties[ticker] = value if value is not None else MAX_FORECAST_UNCERTAINTY
+            forecasts = {'annual_log_forecasts': raw, 'uncertainties': uncertainties, 'no_view_tickers': missing}
+            weights, diagnostic = allocate_strategy(config, forecasts, covariance, gmv, s)
+            record = next((r for r in forecast_records if r['date'] == date), None)
+            if record is None:
+                record = {'date': date, 'train_end_date': str(train.index[-1].date()),
+                    **forecasts, 'forecasts_by_method': {}, 'forecasts_by_strategy': {}, 'strategy_diagnostics': {},
+                    'candidate_search': {}, 'mpt_fallback': None, 'overlay_fallback': False}
+                forecast_records.append(record)
+            if method != 'RISK_ONLY':
+                record['forecasts_by_method'][method] = forecasts
+                record.update(forecasts)
+            record['forecasts_by_strategy'][name] = forecasts
+            record['strategy_diagnostics'][name] = diagnostic
+            record['candidate_search'][name] = decision.report
+            if name == 'model_mpt': record['mpt_fallback'] = diagnostic['fallback_reason']
+            if name == 'gmv_model': record['overlay_fallback'] = bool(diagnostic['fallback_reason'])
+            pending['decision'] = decision
+            return {'rebalance_date': date, 'models': {'min_variance': {'weights': weights,
+                'diagnostics': {'construction_method': name, 'signal_scores': raw}}}}
+        def completed(date, states):
+            check()
+            state = states['min_variance']
+            pending['decision'].commit({'as_of': date, 'shares': state['shares'].to_dict(), 'cash': state['cash']})
+            decisions.append(pending['decision'].report)
+            config['campaign_id'] = campaign
+            if checkpoint is not None:
+                checkpoint(s)
+
         check()
         kwargs = {k: s[k] for k in ('train_window', 'rebalance_frequency', 'forecast_horizon',
                   'max_asset_weight', 'transaction_cost_bps', 'rebalance_band', 'max_turnover',
                   'risk_free_rate', 'initial_value')}
         run = run_portfolio_model_backtest(prices, models=['min_variance'],
-            rebalance_targets={'signature': copy.deepcopy(signature), 'records': targets[name], 'warnings': []},
+            target_provider=provide, step_callback=completed,
             include_daily_returns=True, cancel_event=cancel_event, **kwargs)
         summary = run['summary_by_model']['min_variance']
         daily = pd.Series(run['daily_returns_by_model']['min_variance'], dtype=float).sort_index()
@@ -335,8 +379,9 @@ def run_comparison(settings, progress, cancel_event):
         result['strategies'][name] = {'summary': summary, 'equity': curve,
             'drawdown': (values / values.cummax() - 1).to_dict(),
             'daily_returns': {str(pd.Timestamp(d).date()): float(v) for d, v in daily.items()},
-            'rebalance_records': run['rebalance_records']}
-        progress(80 + 20*(number+1)/len(targets), 100, f'Completed {name}')
+            'rebalance_records': run['rebalance_records'], 'candidate_decisions': decisions, 'campaign_id': campaign}
+        progress(80 + 20*(number+1)/len(s['strategies']), 100, f'Completed {name}')
     check()
+    forecast_records.sort(key=lambda r: r['date'])
     result['price_digest'] = signature['price_digest']
     return json.loads(json.dumps(result, default=lambda value: value.item() if isinstance(value, np.generic) else str(value)))
