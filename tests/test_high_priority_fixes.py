@@ -289,7 +289,8 @@ def test_ml_pipeline_converts_annual_log_return_to_annual_simple_return(monkeypa
     assert result["uncertainties"]["MSFT"] == pytest.approx(0.95 * 0.05)
 
 
-def test_mpt_uses_confidence_adjusted_expected_returns(monkeypatch):
+@pytest.mark.parametrize('candidate_search', [None, {'enabled': False}])
+def test_mpt_uses_confidence_adjusted_expected_returns(monkeypatch, candidate_search):
     captured = {}
     pipeline_result = {
         "mu": pd.Series({"AAPL": 0.40, "MSFT": 0.08}),
@@ -335,7 +336,10 @@ def test_mpt_uses_confidence_adjusted_expected_returns(monkeypatch):
         tickers=["AAPL", "MSFT"],
         optimization_method="MPT",
         forecast_method="ARIMA_TRANSFORMER",
+        candidate_search=candidate_search,
     )
+    if candidate_search is not None:
+        assert result['candidate_search']['mode_effective'] == 'full'
 
     assert captured["mu"]["AAPL"] == pytest.approx(0.24)
     assert captured["mu"]["MSFT"] == pytest.approx(0.08)
@@ -904,3 +908,23 @@ def test_optimization_cancel_event_stops_before_fetch(monkeypatch):
             "2024-02-01",
             cancel_event=cancel_event,
         )
+
+
+@pytest.mark.parametrize("include_coverage", [False, True])
+def test_stock_screener_coverage_is_opt_in(monkeypatch, include_coverage):
+    import stock_screener
+
+    monkeypatch.setattr(stock_screener, "get_ticker_group", lambda _group: ["AAPL", "MSFT"])
+    monkeypatch.setattr(stock_screener, "get_universe_dataframe", lambda _group: pd.DataFrame([
+        {"Ticker": "AAPL", "Financial Score": 80},
+    ]))
+    payload = {"filters": {"Index": "S&P 500"}}
+    if include_coverage:
+        payload["include_coverage"] = True
+    response = app_module.app.test_client().post("/api/stock-screener", json=payload)
+    assert response.status_code == 200
+    rows = [{"Ticker": "AAPL", "Financial Score": 80}]
+    assert response.get_json() == (
+        {"results": rows, "coverage": {"requested": 2, "fetched": 1, "missing": 1}}
+        if include_coverage else rows
+    )

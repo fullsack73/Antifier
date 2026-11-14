@@ -3,7 +3,7 @@ import hashlib
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from cache_manager import cached, get_cache
+from cache_manager import get_cache
 from financial_statement import build_financial_decision_summary
 from ticker_lists import get_ticker_group
 from ticker_symbols import normalize_yahoo_ticker
@@ -16,9 +16,9 @@ logger = logging.getLogger(__name__)
 import concurrent.futures
 
 
-YFINANCE_BATCH_MAX_WORKERS = 6
+YFINANCE_BATCH_MAX_WORKERS = 2
 YFINANCE_BATCH_LOGGERS = ("yfinance",)
-CUSTOM_UNIVERSE_CACHE_NAMESPACE = "stock_screener_custom_universe"
+CUSTOM_UNIVERSE_CACHE_NAMESPACE = "stock_screener_custom_universe_health_value_v2"
 CUSTOM_UNIVERSE_L1_TTL = 3600
 CUSTOM_UNIVERSE_L2_TTL = 86400
 
@@ -187,6 +187,8 @@ def fetch_single_stock_data(ticker_symbol):
         info = score_summary.get("info") or {}
         company = score_summary.get("company") or {}
         decision = score_summary.get("decision") or {}
+        if decision.get("available_metrics") == 0:
+            return None
         metrics_by_key = {
             metric.get("key"): metric
             for metric in score_summary.get("metrics", [])
@@ -206,6 +208,8 @@ def fetch_single_stock_data(ticker_symbol):
             'Price': info.get('currentPrice') or info.get('regularMarketPrice'),
             'Market Cap': company.get('market_cap'),
             'Financial Score': decision.get('score'),
+            'Financial Health': (decision.get('components') or {}).get('health', {}).get('score'),
+            'Relative Value': (decision.get('components') or {}).get('valuation', {}).get('score'),
             'Financial Signal': decision.get('label'),
             'Score Confidence': decision.get('confidence'),
             'Available Metrics': decision.get('available_metrics'),
@@ -258,20 +262,17 @@ def fetch_universe_data(tickers):
             "The upstream financial data source may be unavailable or rejecting requests.",
             len(tickers),
         )
+    missing = sorted(set(tickers) - {row['Ticker'] for row in data})
+    if missing:
+        logger.warning(
+            "Incomplete screener coverage: %s/%s fetched; missing examples: %s",
+            len(data), len(tickers), ", ".join(missing[:10]),
+        )
     return pd.DataFrame(data)
 
-@cached(l1_ttl=3600, l2_ttl=86400) # Only cache the UNIVERSE data, not the filtered result
 def get_universe_dataframe(group_name):
-    """
-    Gets the dataframe for a whole ticker group (e.g. SP500).
-    Values are cached.
-    """
-    tickers = get_ticker_group(group_name)
-    if not tickers:
-        logger.warning(f"No tickers found for group {group_name}")
-        return pd.DataFrame() # Empty
-        
-    return fetch_universe_data(tickers)
+    """Use the same resumable universe cache for predefined and custom groups."""
+    return get_custom_universe_dataframe(get_ticker_group(group_name))
 
 
 def get_custom_universe_dataframe(tickers):
@@ -286,19 +287,20 @@ def get_custom_universe_dataframe(tickers):
     cache = get_cache()
     cache_key = _ticker_list_cache_key(normalized_tickers)
     cached_df = cache.get(cache_key)
-    if isinstance(cached_df, pd.DataFrame) and not cached_df.empty:
-        logger.debug("Cache HIT for get_custom_universe_dataframe")
-        return cached_df.copy()
-    if isinstance(cached_df, pd.DataFrame) and cached_df.empty:
-        logger.warning("Ignoring empty cached custom screener universe and refetching.")
+    df = cached_df.copy() if isinstance(cached_df, pd.DataFrame) else pd.DataFrame()
+    if not df.empty:
+        df = df[df['Ticker'].isin(normalized_tickers)].copy()
+        # Old caches may contain rows whose upstream data was empty.
+        df = df[df['Financial Score'].notna()]
+    fetched = set(df['Ticker']) if not df.empty else set()
+    missing = [ticker for ticker in normalized_tickers if ticker not in fetched]
+    if not missing:
+        return df.copy()
 
-    logger.debug("Cache MISS for get_custom_universe_dataframe")
-    df = fetch_universe_data(list(normalized_tickers))
-    if df.empty:
-        logger.warning("Custom screener universe fetch returned 0 rows; empty result was not cached.")
-        return df
-
-    cache.set(cache_key, df, CUSTOM_UNIVERSE_L1_TTL, CUSTOM_UNIVERSE_L2_TTL)
+    fresh = fetch_universe_data(missing)
+    if not fresh.empty:
+        df = pd.concat([df, fresh], ignore_index=True)
+        cache.set(cache_key, df, CUSTOM_UNIVERSE_L1_TTL, CUSTOM_UNIVERSE_L2_TTL)
     return df.copy()
 
 def apply_filters(df, filters):
@@ -366,7 +368,7 @@ def apply_filters(df, filters):
             
     return filtered_df
 
-def search_stocks(filters):
+def search_stocks(filters, include_coverage=False):
     """
     Main entry point for screening.
     """
@@ -399,8 +401,12 @@ def search_stocks(filters):
         # Get universe data (Cached)
         df_universe = get_universe_dataframe(ticker_group)
     
+    requested = len(_normalize_ticker_list(custom_tickers if custom_tickers and isinstance(custom_tickers, list)
+                                            else get_ticker_group(ticker_group)))
+    coverage = {'requested': requested, 'fetched': len(df_universe),
+                'missing': requested - len(df_universe)}
     if df_universe.empty:
-        return []
+        return {'results': [], 'coverage': coverage} if include_coverage else []
         
     # Convert 'filters' dict to list of operations if it's the old style, 
     # OR if my frontend passes a list, use that.
@@ -438,4 +444,5 @@ def search_stocks(filters):
     # Clean up for JSON
     results_df = results_df.replace({np.nan: None})
     
-    return results_df.to_dict('records')
+    results = results_df.to_dict('records')
+    return {'results': results, 'coverage': coverage} if include_coverage else results

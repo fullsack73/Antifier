@@ -5,10 +5,12 @@ import DateInput from "./DateInput.jsx"
 import BenchmarkChart from "./BenchmarkChart.jsx"
 import BenchmarkResultsTable from "./BenchmarkResultsTable.jsx"
 import { apiUrl } from "./apiClient.js"
+import StrategyBacktest from "./StrategyBacktest.jsx"
 import { BenchmarkSkeleton } from "./SkeletonScreens.jsx"
 
 const PortfolioBenchmark = () => {
   const { t } = useTranslation()
+  const [mode, setMode] = useState("portfolio")
   const [portfolio, setPortfolio] = useState(null)
   const [portfolioFileName, setPortfolioFileName] = useState("")
   const [budget, setBudget] = useState("")
@@ -113,17 +115,23 @@ const PortfolioBenchmark = () => {
   const assetCount = portfolio?.weights ? Object.keys(portfolio.weights).length : 0
   const isReady = Boolean(portfolio && budget && startDate && endDate)
 
+  const modes = <nav className="benchmark-mode-switch" aria-label={t("strategyBacktest.mode")}>
+    <button type="button" aria-pressed={mode === "portfolio"} onClick={() => setMode("portfolio")}>{t("strategyBacktest.portfolioMode")}</button>
+    <button type="button" aria-pressed={mode === "strategy"} onClick={() => setMode("strategy")}>{t("strategyBacktest.strategyMode")}</button>
+  </nav>
+  if (mode === "strategy") return <div>{modes}<StrategyBacktest /></div>
+
   return (
     <section
       className="benchmark-page"
       aria-busy={loading}
       aria-labelledby="benchmark-page-title"
     >
+      {modes}
       <header className="benchmark-hero" aria-labelledby="benchmark-page-title">
         <div className="benchmark-hero-copy">
           <span className="page-kicker">{t("benchmark.kicker")}</span>
           <h1 id="benchmark-page-title">{t("benchmark.title")}</h1>
-          <p>{t("benchmark.subtitle")}</p>
         </div>
         <dl className="benchmark-comparison-set" aria-label={t("benchmark.comparisonSet")}>
           <div>

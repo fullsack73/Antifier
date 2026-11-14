@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
+import CandidateSearchSettings, { CandidateSearchSummary } from "./CandidateSearchSettings.jsx"
+import { DEFAULT_CANDIDATE_SEARCH } from "./candidateSearchDefaults.js"
 import { fetchSecurityNames, formatSecurityDisplay, getSecurityDisplayName } from "./securityDisplay"
 import { apiUrl } from "./apiClient.js"
 import { clearOptimizerJob, readOptimizerJob, writeOptimizerJob } from "./optimizerJobStorage.js"
@@ -12,6 +14,15 @@ const TERMINAL_JOB_STATUSES = new Set(["completed", "failed", "cancelled"])
 
 const Optimizer = () => {
   const { t } = useTranslation()
+  const [candidateSearch, setCandidateSearch] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("optimizer-candidate-state"))?.policy || { ...DEFAULT_CANDIDATE_SEARCH } }
+    catch { return { ...DEFAULT_CANDIDATE_SEARCH } }
+  })
+  const [campaignId, setCampaignId] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("optimizer-candidate-state"))?.campaignId || null }
+    catch { return null }
+  })
+  useEffect(() => { localStorage.setItem("optimizer-candidate-state", JSON.stringify({ policy: candidateSearch, campaignId })) }, [candidateSearch, campaignId])
   const [tickerGroup, setTickerGroup] = useState("SP500")
   const [forecastMethod, setForecastMethod] = useState("LIGHTWEIGHT")
   const [optimizationMethod, setOptimizationMethod] = useState("MIN_VARIANCE")
@@ -337,6 +348,7 @@ const Optimizer = () => {
     })
     if (status.result) {
       setOptimizedPortfolio(status.result)
+      if (status.result.campaign_id) setCampaignId(status.result.campaign_id)
     }
     setAllocation(null)
     setError(null)
@@ -670,6 +682,7 @@ const Optimizer = () => {
           ? "RISK_ONLY"
           : forecastMethod,
         optimization_method: optimizationMethod,
+        candidate_search: candidateSearch, campaign_id: campaignId,
         forecast_horizon: Number.parseInt(forecastHorizon),
         min_history: Number.parseInt(minHistory),
         bl_tau: Number.parseFloat(blTau),
@@ -787,12 +800,6 @@ const Optimizer = () => {
         <div className="page-title-block optimizer-title-block">
           <span className="page-kicker">{t("optimizer.kicker")}</span>
           <h1 className="page-header">{t("optimizer.title")}</h1>
-          <p className="optimizer-page-intro">
-            {t(
-              "optimizer.intro",
-              "Build a model-led allocation from a defined universe, historical window, and risk objective.",
-            )}
-          </p>
         </div>
         <div className="optimizer-context-strip" aria-label={t("optimizer.runContext", "Current run context")}>
           <div>
@@ -939,6 +946,10 @@ const Optimizer = () => {
               </div>
             </section>
 
+            <CandidateSearchSettings value={candidateSearch} onChange={next => { setCandidateSearch(next); setCampaignId(null) }}
+              riskOnly={riskOnlyOptimization} campaignId={campaignId} onReset={() => setCampaignId(null)}
+              idPrefix="optimizer-search" previewInput={{ tickers: customTickers, ticker_group: tickerGroup,
+                holdings: currentWeights || {}, end_date: endDate, forecast_method: forecastMethod, forecast_horizon: Number(forecastHorizon), min_history: Number(minHistory) }} />
             <section className="optimizer-form-section">
               <div className="optimizer-form-section-heading">
                 <span>03</span>
@@ -1419,12 +1430,12 @@ const Optimizer = () => {
 
       {!loading && optimizedPortfolio && (
         <>
+          <CandidateSearchSummary value={optimizedPortfolio.candidate_search} />
           <section className="optimizer-results-container" aria-labelledby="optimizer-results-title">
             <div className="optimizer-results-header">
               <div>
                 <span className="optimizer-section-eyebrow">{t("optimizer.resultKicker", "Model output")}</span>
                 <h2 id="optimizer-results-title">{t("optimizer.results")}</h2>
-                <p>{t("optimizer.resultHelp", "Review the modeled tradeoff first, then inspect the target weights.")}</p>
               </div>
               <button
                 className="optimizer-secondary-button"
@@ -1583,7 +1594,6 @@ const Optimizer = () => {
               <div>
                 <span className="optimizer-section-eyebrow">{t("optimizer.executionPlan", "Execution plan")}</span>
                 <h2 id="optimizer-allocation-title">{t("optimizer.investmentAllocation")}</h2>
-                <p>{t("optimizer.allocationHelp", "Convert target weights into a budget-aware share plan.")}</p>
               </div>
             </div>
             <div className="investment-allocation-form">

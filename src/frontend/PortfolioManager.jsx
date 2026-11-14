@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import axios from "axios"
+import CandidateSearchSettings, { CandidateSearchSummary } from "./CandidateSearchSettings.jsx"
+import { DEFAULT_CANDIDATE_SEARCH } from "./candidateSearchDefaults.js"
 import Plot from "./LazyPlot.jsx"
 import {
   buildExportBaseName,
@@ -21,6 +23,10 @@ const DEFAULT_HOLDINGS = [{ ticker: "", quantity: "" }]
 const PortfolioManager = () => {
   const { t } = useTranslation()
 
+  const [candidateSearch, setCandidateSearch] = useState({ ...DEFAULT_CANDIDATE_SEARCH })
+  const [campaignId, setCampaignId] = useState(null)
+  const [managerJobId, setManagerJobId] = useState(() => localStorage.getItem("manager-active-job") || "")
+  const [managerProgress, setManagerProgress] = useState(null)
   // Holdings state: array of { ticker, quantity }
   const [holdings, setHoldings] = useState(DEFAULT_HOLDINGS)
   const [cashInjection, setCashInjection] = useState("")
@@ -60,6 +66,35 @@ const PortfolioManager = () => {
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (!managerJobId) return
+    let disposed = false
+    let timer
+    setLoading(true)
+    const poll = async () => {
+      try {
+        const response = await fetch(apiUrl(`/api/optimization-jobs/${managerJobId}`))
+        const job = await response.json()
+        if (disposed) return
+        if (!response.ok) throw new Error(job.error || `HTTP ${response.status}`)
+        setManagerProgress(job)
+        if (["running", "pending"].includes(job.status)) timer = setTimeout(poll, 2000)
+        else {
+          localStorage.removeItem("manager-active-job")
+          setManagerJobId(""); setLoading(false)
+          if (job.status === "completed") {
+            setResults(job.result)
+            if (job.result.campaign_id) setCampaignId(job.result.campaign_id)
+          } else setError(job.error || job.message)
+        }
+      } catch (err) {
+        if (!disposed) { setError(err.message); timer = setTimeout(poll, 5000) }
+      }
+    }
+    poll()
+    return () => { disposed = true; clearTimeout(timer) }
+  }, [managerJobId])
 
   // CSV upload
   const csvFileInputRef = useRef(null)
@@ -167,11 +202,14 @@ const PortfolioManager = () => {
     const reader = new FileReader()
     reader.onload = (loadEvent) => {
       try {
+        const raw = JSON.parse(loadEvent.target.result)
         const parsed = parseImportedTarget(
-          JSON.parse(loadEvent.target.result),
+          raw,
           file.name,
         )
         setImportedTarget(parsed)
+        if (typeof raw.campaign_id === "string") setCampaignId(raw.campaign_id)
+        if (raw.candidate_search?.policy) setCandidateSearch(raw.candidate_search.policy)
         setTargetImportError(null)
         setResults(null)
       } catch (uploadError) {
@@ -198,6 +236,7 @@ const PortfolioManager = () => {
     holdings,
     cashInjection,
     calculationMode,
+    candidateSearch, campaignId,
     importedTarget,
     forecastMethod,
     optimizationMethod,
@@ -260,6 +299,8 @@ const PortfolioManager = () => {
 
       setHoldings(savedHoldings.length > 0 ? savedHoldings : DEFAULT_HOLDINGS)
       setCashInjection(String(parsed.cashInjection || ""))
+      setCandidateSearch(parsed.candidateSearch || { ...DEFAULT_CANDIDATE_SEARCH })
+      setCampaignId(parsed.campaignId || null)
       const restoredTarget = parsed.importedTarget && typeof parsed.importedTarget === "object"
         ? parseImportedTarget({
             weights: parsed.importedTarget.weights,
@@ -512,6 +553,7 @@ const PortfolioManager = () => {
           start_date: startDate,
           end_date: endDate,
           risk_free_rate: Number.parseFloat(riskFreeRate) / 100,
+          async: true, candidate_search: candidateSearch, campaign_id: campaignId,
           forecast_method: optimizationMethod === "MIN_VARIANCE"
             ? "RISK_ONLY"
             : forecastMethod,
@@ -537,7 +579,14 @@ const PortfolioManager = () => {
         apiUrl("/api/manage-portfolio"),
         payload
       )
-      setResults(response.data)
+      if (response.status === 202 && response.data.request_id) {
+        localStorage.setItem("manager-active-job", response.data.request_id)
+        setManagerJobId(response.data.request_id)
+        setManagerProgress(response.data)
+      } else {
+        setResults(response.data)
+        if (response.data.campaign_id) setCampaignId(response.data.campaign_id)
+      }
     } catch (err) {
       if (err.response && err.response.data) {
         setError(err.response.data.error || "An error occurred")
@@ -1281,11 +1330,21 @@ const PortfolioManager = () => {
         </div>
       )}
 
+      {!fixedTargetMode && <fieldset disabled={loading} className="candidate-fieldset"><CandidateSearchSettings value={candidateSearch}
+        onChange={next => { setCandidateSearch(next); setCampaignId(null) }} riskOnly={riskOnlyOptimization}
+        campaignId={campaignId} onReset={() => setCampaignId(null)} idPrefix="manager-search"
+        previewInput={{ holdings: buildHoldingsDict(), end_date: endDate, tickers: customTickers, ticker_group: tickerGroup, forecast_method: forecastMethod, forecast_horizon: Number(forecastHorizon), min_history: Number(minHistory) }} /></fieldset>}
+      {managerJobId && <div role="status"><progress max="100" value={managerProgress?.progress || 0} />
+        <p>{managerProgress?.message}</p><button type="button" onClick={async () => {
+          try { await fetch(apiUrl(`/api/optimization-jobs/${managerJobId}/cancel`), { method: "POST" }) }
+          catch (err) { setError(err.message) }
+        }}>{t("candidateSearch.cancel", "Cancel")}</button></div>}
       {loading && <ManagerSkeleton />}
 
       {/* Results */}
       {!loading && results && (
         <div className="manager-results" ref={resultsPrintRef}>
+          {results.calculation_mode !== "FIXED_TARGET" && <CandidateSearchSummary value={results.candidate_search} />}
           <h3 className="manager-results-title">
             {t("manager.resultsTitle", "Rebalancing Results")}
           </h3>

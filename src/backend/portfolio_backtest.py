@@ -202,7 +202,7 @@ _FORECAST_RANK_CACHE_STATS = {
 }
 _FORECAST_RANK_PERSISTENT_CACHE = None
 _FORECAST_RANK_CACHE_NAMESPACE = "default"
-FORECAST_RANK_CACHE_SCHEMA_VERSION = "2026-07-23-v2-diagnostics"
+FORECAST_RANK_CACHE_SCHEMA_VERSION = "2026-11-09-direct-horizon-v1"
 DEFAULT_FORECAST_RANK_WORKERS = 2
 FORECAST_RANK_DETERMINISTIC_SEED = 42
 FORECAST_RANK_MODELS = frozenset(
@@ -2609,6 +2609,9 @@ def run_portfolio_model_backtest(
     market_caps_as_of_date=None,
     point_in_time_market_caps=None,
     factor_data=None,
+    cancel_event=None,
+    target_provider=None,
+    step_callback=None,
 ):
     train_window = int(train_window)
     rebalance_frequency = max(1, int(rebalance_frequency))
@@ -2636,7 +2639,9 @@ def run_portfolio_model_backtest(
         factor_data,
     )
     reused_rebalance_targets = rebalance_targets is not None
-    if rebalance_targets is None:
+    if target_provider is not None:
+        rebalance_targets = {"records": [], "warnings": []}
+    elif rebalance_targets is None:
         with _forecast_rank_executor(
             (
                 ("conditional_volatility_minimum_variance",)
@@ -2709,7 +2714,372 @@ def run_portfolio_model_backtest(
     rebalance_records = []
     warnings = list(rebalance_targets.get("warnings", []))
 
+    def execute_step(model, train_prices, current_prices, period_prices,
+                     diagnostic_covariance, target_record, current_date, next_index):
+        model_target = target_record.get("models", {}).get(model)
+        if model_target is None:
+            raise ValueError(f"rebalance_targets are missing {model} at {current_date_key}")
+        diagnostics = dict(model_target.get("diagnostics", {}))
+        target_risky_exposure = (
+            float(
+                np.clip(
+                    diagnostics.get("target_risky_exposure", 1.0),
+                    0.0,
+                    1.0,
+                )
+            )
+            if diagnostics.get("allow_cash_reserve", False)
+            else 1.0
+        )
+        weights = _normalize_weights(
+            model_target.get("weights", {}),
+            train_prices.columns,
+            gross_exposure=target_risky_exposure,
+        )
+        state = states[model]
+        shares = state["shares"].reindex(train_prices.columns).fillna(0.0)
+        current_values = (shares * current_prices).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        portfolio_value = float(current_values.sum() + state["cash"])
+        if portfolio_value <= 0:
+            warnings.append(f"Skipped {model} at {current_date.date()}: non-positive portfolio value")
+            return
+
+        target_values_pre_control = pd.Series(weights, index=train_prices.columns).fillna(0.0) * portfolio_value
+        initial_allocation = not bool(state["initialized"])
+        controlled_target_values, controls = apply_trade_controls(
+            current_values,
+            target_values_pre_control,
+            portfolio_value=portfolio_value,
+            rebalance_band=(
+                0.0 if initial_allocation else rebalance_band
+            ),
+            max_turnover=(
+                None if initial_allocation else max_turnover
+            ),
+        )
+        controls["initial_allocation"] = initial_allocation
+        pre_cost_controlled_target_values = (
+            controlled_target_values.copy()
+        )
+        (
+            controlled_target_values,
+            cost,
+            investable_value,
+            controlled_cash,
+            cost_diagnostics,
+        ) = _fund_transaction_cost(
+            current_values,
+            controlled_target_values,
+            portfolio_value,
+            transaction_cost_bps,
+        )
+        controls.update(cost_diagnostics)
+        controlled_target_values = (
+            controlled_target_values
+            .reindex(train_prices.columns)
+            .fillna(0.0)
+        )
+
+        state["shares"] = (controlled_target_values / current_prices).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        state["cash"] = controlled_cash
+        turnover = controls["turnover"]
+        controlled_turnover = controls["controlled_turnover"]
+        state["turnovers"].append(turnover)
+        state["controlled_turnovers"].append(controlled_turnover)
+        state["transaction_costs"].append(cost)
+        state["skipped_trade_count"] += int(controls["skipped_trade_count"])
+        state["turnover_cap_hit_count"] += int(bool(controls["turnover_cap_hit"]))
+        state["failed_forecast_count"] += int(diagnostics.get("failed_forecast_count", 0))
+        state["market_cap_available_count"] += int(bool(diagnostics.get("market_caps_available")))
+        if diagnostics.get("avg_forecast_confidence") is not None:
+            state["forecast_confidences"].append(float(diagnostics["avg_forecast_confidence"]))
+        signal_scores = pd.Series(
+            diagnostics.get(
+                "signal_scores",
+                diagnostics.get("forecast_rank_scores", {}),
+            ),
+            dtype=float,
+        ).reindex(train_prices.columns)
+        realized_period_returns = (
+            period_prices.iloc[-1].reindex(train_prices.columns) / current_prices - 1.0
+        ).replace([np.inf, -np.inf], np.nan)
+        signal_rank_ic = _safe_rank_correlation(signal_scores, realized_period_returns)
+        if signal_rank_ic is not None:
+            state["forecast_rank_ics"].append(signal_rank_ic)
+        top_bottom_spread = _top_bottom_spread(signal_scores, realized_period_returns)
+        if top_bottom_spread is not None:
+            state["top_bottom_spreads"].append(top_bottom_spread)
+
+        signal_weight_rank_correlation = _safe_rank_correlation(signal_scores, weights)
+        if signal_weight_rank_correlation is not None:
+            state["signal_weight_rank_correlations"].append(signal_weight_rank_correlation)
+        signal_persistence = _safe_rank_correlation(
+            state["previous_signal_scores"],
+            signal_scores,
+        ) if state["previous_signal_scores"] is not None else None
+        if signal_persistence is not None:
+            state["signal_persistence"].append(signal_persistence)
+        if signal_scores.notna().any():
+            state["previous_signal_scores"] = signal_scores.copy()
+
+        horizon_rank_ic = {}
+        for diagnostic_horizon in sorted({21, int(forecast_horizon)}):
+            horizon_end = rebalance_index + max(1, diagnostic_horizon)
+            if horizon_end >= len(data):
+                continue
+            horizon_returns = (
+                data.iloc[horizon_end].reindex(train_prices.columns) / current_prices - 1.0
+            ).replace([np.inf, -np.inf], np.nan)
+            rank_ic = _safe_rank_correlation(signal_scores, horizon_returns)
+            if rank_ic is not None:
+                horizon_key = str(int(diagnostic_horizon))
+                horizon_rank_ic[horizon_key] = rank_ic
+                state["horizon_rank_ics"].setdefault(horizon_key, []).append(rank_ic)
+
+        equal_weights = pd.Series(
+            1.0 / len(train_prices.columns),
+            index=train_prices.columns,
+            dtype=float,
+        )
+        pre_control_weights = pd.Series(weights, dtype=float).reindex(train_prices.columns).fillna(0.0)
+        controlled_weights = (
+            controlled_target_values / portfolio_value
+        ).reindex(train_prices.columns).fillna(0.0)
+        controlled_weight_total = float(controlled_weights.sum())
+        controlled_signal_weights = (
+            controlled_weights / controlled_weight_total
+            if controlled_weight_total > 0
+            else controlled_weights
+        )
+        active_share = float(0.5 * (pre_control_weights - equal_weights).abs().sum())
+        controlled_active_share = float(
+            0.5 * (controlled_signal_weights - equal_weights).abs().sum()
+        )
+        execution_signal_retention = (
+            None
+            if active_share <= 1e-12
+            else float(controlled_active_share / active_share)
+        )
+        execution_weight_l1 = float(
+            (pre_control_weights - controlled_signal_weights).abs().sum()
+        )
+        state["active_shares"].append(active_share)
+        state["controlled_active_shares"].append(controlled_active_share)
+        state["execution_weight_l1"].append(execution_weight_l1)
+        if execution_signal_retention is not None:
+            state["execution_signal_retention"].append(execution_signal_retention)
+        for key, state_key in (
+            ("concentration_hhi", "concentrations"),
+            ("predicted_annual_volatility", "predicted_volatilities"),
+            ("signal_coverage_rate", "signal_coverage_rates"),
+            ("view_signal_retention", "view_signal_retentions"),
+        ):
+            value = diagnostics.get(key)
+            if value is not None and np.isfinite(_to_float(value, np.nan)):
+                state[state_key].append(float(value))
+
+        cash_values = _cash_value_path(
+            state["cash"],
+            period_prices.index,
+            risk_free_rate,
+            risk_free_daily_returns=risk_free_daily_returns,
+        )
+        daily_values = (
+            period_prices.mul(state["shares"], axis=1).sum(axis=1)
+            + cash_values
+        )
+        gross_shares = (
+            pre_cost_controlled_target_values
+            .reindex(train_prices.columns)
+            .fillna(0.0)
+            / current_prices
+        ).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        gross_cash_values = _cash_value_path(
+            max(
+                0.0,
+                portfolio_value
+                - float(pre_cost_controlled_target_values.sum()),
+            ),
+            period_prices.index,
+            risk_free_rate,
+            risk_free_daily_returns=risk_free_daily_returns,
+        )
+        gross_daily_values = (
+            period_prices.mul(gross_shares, axis=1).sum(axis=1)
+            + gross_cash_values
+        )
+        execution_variance = float(
+            controlled_weights.values
+            @ pd.DataFrame(
+                diagnostics.get("risk_model", {}).get(
+                    "annual_covariance",
+                    diagnostic_covariance,
+                )
+            ).reindex(
+                index=train_prices.columns,
+                columns=train_prices.columns,
+            ).values
+            @ controlled_weights.values
+        )
+        execution_predicted_volatility = float(
+            np.sqrt(max(0.0, execution_variance))
+        )
+        realized_daily_returns = (
+            daily_values.pct_change()
+            .replace([np.inf, -np.inf], np.nan)
+            .dropna()
+        )
+        realized_period_volatility = (
+            None
+            if realized_daily_returns.empty
+            else float(
+                realized_daily_returns.std(ddof=0)
+                * np.sqrt(TRADING_DAYS_PER_YEAR)
+            )
+        )
+        risk_forecast_error = (
+            None
+            if realized_period_volatility is None
+            else float(
+                realized_period_volatility
+                - execution_predicted_volatility
+            )
+        )
+        risk_forecast_ratio = (
+            None
+            if realized_period_volatility is None
+            or execution_predicted_volatility <= 1e-12
+            else float(
+                realized_period_volatility
+                / execution_predicted_volatility
+            )
+        )
+        state["execution_predicted_volatilities"].append(
+            execution_predicted_volatility
+        )
+        state["risky_exposures"].append(
+            float(controlled_weights.sum())
+        )
+        if realized_period_volatility is not None:
+            state["realized_period_volatilities"].append(
+                realized_period_volatility
+            )
+            state["risk_forecast_errors"].append(risk_forecast_error)
+        if risk_forecast_ratio is not None:
+            state["risk_forecast_ratios"].append(risk_forecast_ratio)
+        for date, value in daily_values.items():
+            state["values"][date.strftime("%Y-%m-%d")] = float(value)
+        if not cash_values.empty:
+            state["cash"] = float(cash_values.iloc[-1])
+        state["initialized"] = True
+        end_value = float(daily_values.iloc[-1]) if not daily_values.empty else investable_value
+        net_period_return = float(end_value / portfolio_value - 1.0)
+        gross_end_value = (
+            float(gross_daily_values.iloc[-1])
+            if not gross_daily_values.empty
+            else portfolio_value
+        )
+        gross_period_return = float(
+            gross_end_value / portfolio_value - 1.0
+        )
+        state["net_period_returns"].append(net_period_return)
+        state["gross_period_returns"].append(gross_period_return)
+
+        rebalance_records.append({
+            "model": model,
+            "rebalance_date": current_date.strftime("%Y-%m-%d"),
+            "train_start_date": train_prices.index[0].strftime("%Y-%m-%d"),
+            "train_end_date": train_prices.index[-1].strftime("%Y-%m-%d"),
+            "period_end_date": data.index[next_index].strftime("%Y-%m-%d"),
+            "weights": {ticker: float(weight) for ticker, weight in weights.items()},
+            "pre_control_weights": {ticker: float(weight) for ticker, weight in weights.items()},
+            "controlled_weights": _finite_series_dict(controlled_weights),
+            "target_risky_exposure": float(sum(weights.values())),
+            "target_cash_weight": float(
+                max(0.0, 1.0 - sum(weights.values()))
+            ),
+            "controlled_risky_exposure": float(
+                controlled_weights.sum()
+            ),
+            "controlled_cash_weight": float(
+                max(
+                    0.0,
+                    1.0 - float(controlled_weights.sum()),
+                )
+            ),
+            "initial_allocation": bool(initial_allocation),
+            "rebalance_controls": controls,
+            "turnover": float(turnover),
+            "controlled_turnover": float(controlled_turnover),
+            "skipped_trade_count": int(controls["skipped_trade_count"]),
+            "turnover_cap_hit": bool(controls["turnover_cap_hit"]),
+            "transaction_cost": float(cost),
+            "portfolio_value_before_cost": float(portfolio_value),
+            "portfolio_value_after_cost": float(investable_value),
+            "failed_forecast_count": int(diagnostics.get("failed_forecast_count", 0)),
+            "avg_forecast_confidence": diagnostics.get("avg_forecast_confidence"),
+            "signal_scores": _finite_series_dict(signal_scores),
+            "raw_forecasts": diagnostics.get("raw_forecasts", {}),
+            "forecast_uncertainties": diagnostics.get("forecast_uncertainties", {}),
+            "forecast_distribution_diagnostics": diagnostics.get(
+                "forecast_distribution_diagnostics"
+            ),
+            "alpha_component_scores": diagnostics.get("alpha_component_scores", {}),
+            "alpha_component_weights": diagnostics.get("alpha_component_weights", {}),
+            "alpha_calibration": diagnostics.get("alpha_calibration"),
+            "realized_forward_returns": _finite_series_dict(realized_period_returns),
+            "signal_rank_ic": signal_rank_ic,
+            "forecast_rank_ic": signal_rank_ic,
+            "top_bottom_spread": top_bottom_spread,
+            "top_bottom_direction_hit": (
+                None if top_bottom_spread is None else bool(top_bottom_spread > 0.0)
+            ),
+            "horizon_rank_ic": horizon_rank_ic,
+            "signal_persistence": signal_persistence,
+            "signal_weight_rank_correlation": signal_weight_rank_correlation,
+            "equal_weight_l1_distance": float(2.0 * active_share),
+            "active_share": active_share,
+            "controlled_active_share": controlled_active_share,
+            "execution_signal_retention": execution_signal_retention,
+            "execution_weight_l1": execution_weight_l1,
+            "concentration_hhi": diagnostics.get("concentration_hhi"),
+            "predicted_annual_volatility": diagnostics.get("predicted_annual_volatility"),
+            "execution_predicted_annual_volatility": (
+                execution_predicted_volatility
+            ),
+            "realized_period_annual_volatility": (
+                realized_period_volatility
+            ),
+            "risk_forecast_error": risk_forecast_error,
+            "risk_forecast_ratio": risk_forecast_ratio,
+            "prior_returns": diagnostics.get("prior_returns", {}),
+            "raw_views": diagnostics.get("raw_views", {}),
+            "adjusted_views": diagnostics.get("adjusted_views", {}),
+            "posterior_returns": diagnostics.get("posterior_returns", {}),
+            "view_signal_retention": diagnostics.get("view_signal_retention"),
+            "lightweight_uncertainty_calibration": diagnostics.get(
+                "lightweight_uncertainty_calibration"
+            ),
+            "mean_estimator": diagnostics.get("mean_estimator"),
+            "uncertainty_estimator": diagnostics.get(
+                "uncertainty_estimator"
+            ),
+            "gross_period_return": gross_period_return,
+            "net_period_return": net_period_return,
+            "gross_period_end_value": gross_end_value,
+            "net_period_end_value": end_value,
+            "transaction_cost_return_drag": float(gross_period_return - net_period_return),
+            "market_caps_available": diagnostics.get("market_caps_available"),
+            "market_caps_as_of_date": diagnostics.get(
+                "market_caps_as_of_date"
+            ),
+            "risk_model": diagnostics.get("risk_model"),
+        })
+
     for rebalance_index in range(train_window, len(data) - 1, rebalance_frequency):
+        if cancel_event is not None and cancel_event.is_set():
+            from portfolio_optimization import OptimizationCancelled
+            raise OptimizationCancelled("Backtest cancelled")
         current_date = data.index[rebalance_index]
         current_date_key = current_date.strftime("%Y-%m-%d")
         next_index = min(rebalance_index + rebalance_frequency, len(data) - 1)
@@ -2719,370 +3089,21 @@ def run_portfolio_model_backtest(
         if train_prices.empty or current_prices.dropna().empty:
             continue
         diagnostic_covariance = _safe_covariance(train_prices)
+        if target_provider is not None:
+            live = {name: {"shares": state["shares"].copy(), "cash": state["cash"]}
+                    for name, state in states.items()}
+            supplied = target_provider(train_prices.copy(), current_date_key, live)
+            target_records[current_date_key] = supplied
         target_record = target_records.get(current_date_key)
         if target_record is None:
             raise ValueError(f"rebalance_targets are missing {current_date_key}")
 
         for model in models:
-            model_target = target_record.get("models", {}).get(model)
-            if model_target is None:
-                raise ValueError(f"rebalance_targets are missing {model} at {current_date_key}")
-            diagnostics = dict(model_target.get("diagnostics", {}))
-            target_risky_exposure = (
-                float(
-                    np.clip(
-                        diagnostics.get("target_risky_exposure", 1.0),
-                        0.0,
-                        1.0,
-                    )
-                )
-                if diagnostics.get("allow_cash_reserve", False)
-                else 1.0
-            )
-            weights = _normalize_weights(
-                model_target.get("weights", {}),
-                train_prices.columns,
-                gross_exposure=target_risky_exposure,
-            )
-            state = states[model]
-            shares = state["shares"].reindex(train_prices.columns).fillna(0.0)
-            current_values = (shares * current_prices).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-            portfolio_value = float(current_values.sum() + state["cash"])
-            if portfolio_value <= 0:
-                warnings.append(f"Skipped {model} at {current_date.date()}: non-positive portfolio value")
-                continue
-
-            target_values_pre_control = pd.Series(weights, index=train_prices.columns).fillna(0.0) * portfolio_value
-            initial_allocation = not bool(state["initialized"])
-            controlled_target_values, controls = apply_trade_controls(
-                current_values,
-                target_values_pre_control,
-                portfolio_value=portfolio_value,
-                rebalance_band=(
-                    0.0 if initial_allocation else rebalance_band
-                ),
-                max_turnover=(
-                    None if initial_allocation else max_turnover
-                ),
-            )
-            controls["initial_allocation"] = initial_allocation
-            pre_cost_controlled_target_values = (
-                controlled_target_values.copy()
-            )
-            (
-                controlled_target_values,
-                cost,
-                investable_value,
-                controlled_cash,
-                cost_diagnostics,
-            ) = _fund_transaction_cost(
-                current_values,
-                controlled_target_values,
-                portfolio_value,
-                transaction_cost_bps,
-            )
-            controls.update(cost_diagnostics)
-            controlled_target_values = (
-                controlled_target_values
-                .reindex(train_prices.columns)
-                .fillna(0.0)
-            )
-
-            state["shares"] = (controlled_target_values / current_prices).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-            state["cash"] = controlled_cash
-            turnover = controls["turnover"]
-            controlled_turnover = controls["controlled_turnover"]
-            state["turnovers"].append(turnover)
-            state["controlled_turnovers"].append(controlled_turnover)
-            state["transaction_costs"].append(cost)
-            state["skipped_trade_count"] += int(controls["skipped_trade_count"])
-            state["turnover_cap_hit_count"] += int(bool(controls["turnover_cap_hit"]))
-            state["failed_forecast_count"] += int(diagnostics.get("failed_forecast_count", 0))
-            state["market_cap_available_count"] += int(bool(diagnostics.get("market_caps_available")))
-            if diagnostics.get("avg_forecast_confidence") is not None:
-                state["forecast_confidences"].append(float(diagnostics["avg_forecast_confidence"]))
-            signal_scores = pd.Series(
-                diagnostics.get(
-                    "signal_scores",
-                    diagnostics.get("forecast_rank_scores", {}),
-                ),
-                dtype=float,
-            ).reindex(train_prices.columns)
-            realized_period_returns = (
-                period_prices.iloc[-1].reindex(train_prices.columns) / current_prices - 1.0
-            ).replace([np.inf, -np.inf], np.nan)
-            signal_rank_ic = _safe_rank_correlation(signal_scores, realized_period_returns)
-            if signal_rank_ic is not None:
-                state["forecast_rank_ics"].append(signal_rank_ic)
-            top_bottom_spread = _top_bottom_spread(signal_scores, realized_period_returns)
-            if top_bottom_spread is not None:
-                state["top_bottom_spreads"].append(top_bottom_spread)
-
-            signal_weight_rank_correlation = _safe_rank_correlation(signal_scores, weights)
-            if signal_weight_rank_correlation is not None:
-                state["signal_weight_rank_correlations"].append(signal_weight_rank_correlation)
-            signal_persistence = _safe_rank_correlation(
-                state["previous_signal_scores"],
-                signal_scores,
-            ) if state["previous_signal_scores"] is not None else None
-            if signal_persistence is not None:
-                state["signal_persistence"].append(signal_persistence)
-            if signal_scores.notna().any():
-                state["previous_signal_scores"] = signal_scores.copy()
-
-            horizon_rank_ic = {}
-            for diagnostic_horizon in sorted({21, int(forecast_horizon)}):
-                horizon_end = rebalance_index + max(1, diagnostic_horizon)
-                if horizon_end >= len(data):
-                    continue
-                horizon_returns = (
-                    data.iloc[horizon_end].reindex(train_prices.columns) / current_prices - 1.0
-                ).replace([np.inf, -np.inf], np.nan)
-                rank_ic = _safe_rank_correlation(signal_scores, horizon_returns)
-                if rank_ic is not None:
-                    horizon_key = str(int(diagnostic_horizon))
-                    horizon_rank_ic[horizon_key] = rank_ic
-                    state["horizon_rank_ics"].setdefault(horizon_key, []).append(rank_ic)
-
-            equal_weights = pd.Series(
-                1.0 / len(train_prices.columns),
-                index=train_prices.columns,
-                dtype=float,
-            )
-            pre_control_weights = pd.Series(weights, dtype=float).reindex(train_prices.columns).fillna(0.0)
-            controlled_weights = (
-                controlled_target_values / portfolio_value
-            ).reindex(train_prices.columns).fillna(0.0)
-            controlled_weight_total = float(controlled_weights.sum())
-            controlled_signal_weights = (
-                controlled_weights / controlled_weight_total
-                if controlled_weight_total > 0
-                else controlled_weights
-            )
-            active_share = float(0.5 * (pre_control_weights - equal_weights).abs().sum())
-            controlled_active_share = float(
-                0.5 * (controlled_signal_weights - equal_weights).abs().sum()
-            )
-            execution_signal_retention = (
-                None
-                if active_share <= 1e-12
-                else float(controlled_active_share / active_share)
-            )
-            execution_weight_l1 = float(
-                (pre_control_weights - controlled_signal_weights).abs().sum()
-            )
-            state["active_shares"].append(active_share)
-            state["controlled_active_shares"].append(controlled_active_share)
-            state["execution_weight_l1"].append(execution_weight_l1)
-            if execution_signal_retention is not None:
-                state["execution_signal_retention"].append(execution_signal_retention)
-            for key, state_key in (
-                ("concentration_hhi", "concentrations"),
-                ("predicted_annual_volatility", "predicted_volatilities"),
-                ("signal_coverage_rate", "signal_coverage_rates"),
-                ("view_signal_retention", "view_signal_retentions"),
-            ):
-                value = diagnostics.get(key)
-                if value is not None and np.isfinite(_to_float(value, np.nan)):
-                    state[state_key].append(float(value))
-
-            cash_values = _cash_value_path(
-                state["cash"],
-                period_prices.index,
-                risk_free_rate,
-                risk_free_daily_returns=risk_free_daily_returns,
-            )
-            daily_values = (
-                period_prices.mul(state["shares"], axis=1).sum(axis=1)
-                + cash_values
-            )
-            gross_shares = (
-                pre_cost_controlled_target_values
-                .reindex(train_prices.columns)
-                .fillna(0.0)
-                / current_prices
-            ).replace([np.inf, -np.inf], np.nan).fillna(0.0)
-            gross_cash_values = _cash_value_path(
-                max(
-                    0.0,
-                    portfolio_value
-                    - float(pre_cost_controlled_target_values.sum()),
-                ),
-                period_prices.index,
-                risk_free_rate,
-                risk_free_daily_returns=risk_free_daily_returns,
-            )
-            gross_daily_values = (
-                period_prices.mul(gross_shares, axis=1).sum(axis=1)
-                + gross_cash_values
-            )
-            execution_variance = float(
-                controlled_weights.values
-                @ pd.DataFrame(
-                    diagnostics.get("risk_model", {}).get(
-                        "annual_covariance",
-                        diagnostic_covariance,
-                    )
-                ).reindex(
-                    index=train_prices.columns,
-                    columns=train_prices.columns,
-                ).values
-                @ controlled_weights.values
-            )
-            execution_predicted_volatility = float(
-                np.sqrt(max(0.0, execution_variance))
-            )
-            realized_daily_returns = (
-                daily_values.pct_change()
-                .replace([np.inf, -np.inf], np.nan)
-                .dropna()
-            )
-            realized_period_volatility = (
-                None
-                if realized_daily_returns.empty
-                else float(
-                    realized_daily_returns.std(ddof=0)
-                    * np.sqrt(TRADING_DAYS_PER_YEAR)
-                )
-            )
-            risk_forecast_error = (
-                None
-                if realized_period_volatility is None
-                else float(
-                    realized_period_volatility
-                    - execution_predicted_volatility
-                )
-            )
-            risk_forecast_ratio = (
-                None
-                if realized_period_volatility is None
-                or execution_predicted_volatility <= 1e-12
-                else float(
-                    realized_period_volatility
-                    / execution_predicted_volatility
-                )
-            )
-            state["execution_predicted_volatilities"].append(
-                execution_predicted_volatility
-            )
-            state["risky_exposures"].append(
-                float(controlled_weights.sum())
-            )
-            if realized_period_volatility is not None:
-                state["realized_period_volatilities"].append(
-                    realized_period_volatility
-                )
-                state["risk_forecast_errors"].append(risk_forecast_error)
-            if risk_forecast_ratio is not None:
-                state["risk_forecast_ratios"].append(risk_forecast_ratio)
-            for date, value in daily_values.items():
-                state["values"][date.strftime("%Y-%m-%d")] = float(value)
-            if not cash_values.empty:
-                state["cash"] = float(cash_values.iloc[-1])
-            state["initialized"] = True
-            end_value = float(daily_values.iloc[-1]) if not daily_values.empty else investable_value
-            net_period_return = float(end_value / portfolio_value - 1.0)
-            gross_end_value = (
-                float(gross_daily_values.iloc[-1])
-                if not gross_daily_values.empty
-                else portfolio_value
-            )
-            gross_period_return = float(
-                gross_end_value / portfolio_value - 1.0
-            )
-            state["net_period_returns"].append(net_period_return)
-            state["gross_period_returns"].append(gross_period_return)
-
-            rebalance_records.append({
-                "model": model,
-                "rebalance_date": current_date.strftime("%Y-%m-%d"),
-                "train_start_date": train_prices.index[0].strftime("%Y-%m-%d"),
-                "train_end_date": train_prices.index[-1].strftime("%Y-%m-%d"),
-                "period_end_date": data.index[next_index].strftime("%Y-%m-%d"),
-                "weights": {ticker: float(weight) for ticker, weight in weights.items()},
-                "pre_control_weights": {ticker: float(weight) for ticker, weight in weights.items()},
-                "controlled_weights": _finite_series_dict(controlled_weights),
-                "target_risky_exposure": float(sum(weights.values())),
-                "target_cash_weight": float(
-                    max(0.0, 1.0 - sum(weights.values()))
-                ),
-                "controlled_risky_exposure": float(
-                    controlled_weights.sum()
-                ),
-                "controlled_cash_weight": float(
-                    max(
-                        0.0,
-                        1.0 - float(controlled_weights.sum()),
-                    )
-                ),
-                "initial_allocation": bool(initial_allocation),
-                "rebalance_controls": controls,
-                "turnover": float(turnover),
-                "controlled_turnover": float(controlled_turnover),
-                "skipped_trade_count": int(controls["skipped_trade_count"]),
-                "turnover_cap_hit": bool(controls["turnover_cap_hit"]),
-                "transaction_cost": float(cost),
-                "portfolio_value_before_cost": float(portfolio_value),
-                "portfolio_value_after_cost": float(investable_value),
-                "failed_forecast_count": int(diagnostics.get("failed_forecast_count", 0)),
-                "avg_forecast_confidence": diagnostics.get("avg_forecast_confidence"),
-                "signal_scores": _finite_series_dict(signal_scores),
-                "raw_forecasts": diagnostics.get("raw_forecasts", {}),
-                "forecast_uncertainties": diagnostics.get("forecast_uncertainties", {}),
-                "forecast_distribution_diagnostics": diagnostics.get(
-                    "forecast_distribution_diagnostics"
-                ),
-                "alpha_component_scores": diagnostics.get("alpha_component_scores", {}),
-                "alpha_component_weights": diagnostics.get("alpha_component_weights", {}),
-                "alpha_calibration": diagnostics.get("alpha_calibration"),
-                "realized_forward_returns": _finite_series_dict(realized_period_returns),
-                "signal_rank_ic": signal_rank_ic,
-                "forecast_rank_ic": signal_rank_ic,
-                "top_bottom_spread": top_bottom_spread,
-                "top_bottom_direction_hit": (
-                    None if top_bottom_spread is None else bool(top_bottom_spread > 0.0)
-                ),
-                "horizon_rank_ic": horizon_rank_ic,
-                "signal_persistence": signal_persistence,
-                "signal_weight_rank_correlation": signal_weight_rank_correlation,
-                "equal_weight_l1_distance": float(2.0 * active_share),
-                "active_share": active_share,
-                "controlled_active_share": controlled_active_share,
-                "execution_signal_retention": execution_signal_retention,
-                "execution_weight_l1": execution_weight_l1,
-                "concentration_hhi": diagnostics.get("concentration_hhi"),
-                "predicted_annual_volatility": diagnostics.get("predicted_annual_volatility"),
-                "execution_predicted_annual_volatility": (
-                    execution_predicted_volatility
-                ),
-                "realized_period_annual_volatility": (
-                    realized_period_volatility
-                ),
-                "risk_forecast_error": risk_forecast_error,
-                "risk_forecast_ratio": risk_forecast_ratio,
-                "prior_returns": diagnostics.get("prior_returns", {}),
-                "raw_views": diagnostics.get("raw_views", {}),
-                "adjusted_views": diagnostics.get("adjusted_views", {}),
-                "posterior_returns": diagnostics.get("posterior_returns", {}),
-                "view_signal_retention": diagnostics.get("view_signal_retention"),
-                "lightweight_uncertainty_calibration": diagnostics.get(
-                    "lightweight_uncertainty_calibration"
-                ),
-                "mean_estimator": diagnostics.get("mean_estimator"),
-                "uncertainty_estimator": diagnostics.get(
-                    "uncertainty_estimator"
-                ),
-                "gross_period_return": gross_period_return,
-                "net_period_return": net_period_return,
-                "gross_period_end_value": gross_end_value,
-                "net_period_end_value": end_value,
-                "transaction_cost_return_drag": float(gross_period_return - net_period_return),
-                "market_caps_available": diagnostics.get("market_caps_available"),
-                "market_caps_as_of_date": diagnostics.get(
-                    "market_caps_as_of_date"
-                ),
-                "risk_model": diagnostics.get("risk_model"),
-            })
+            execute_step(model, train_prices, current_prices, period_prices,
+                         diagnostic_covariance, target_record, current_date, next_index)
+        if step_callback is not None:
+            step_callback(current_date_key, {name: {"shares": state["shares"].copy(), "cash": state["cash"]}
+                                            for name, state in states.items()})
 
     summary_by_model = {}
     for model, state in states.items():
@@ -3324,18 +3345,13 @@ def run_portfolio_model_backtest(
         "warnings": warnings,
     }
     if include_daily_returns:
-        result["daily_returns_by_model"] = {
-            model: {
-                str(date): float(value)
-                for date, value in (
-                    pd.Series(state["values"], dtype=float)
-                    .sort_index()
-                    .pct_change()
-                    .replace([np.inf, -np.inf], np.nan)
-                    .dropna()
-                    .items()
-                )
-            }
-            for model, state in states.items()
-        }
+        result["daily_returns_include_initial_cost"] = True
+        result["daily_returns_by_model"] = {}
+        for model, state in states.items():
+            values = pd.Series(state["values"], dtype=float).sort_index()
+            returns = values.pct_change(fill_method=None).replace([np.inf, -np.inf], np.nan).dropna()
+            # Keep the observation calendar while anchoring the first interval before fees.
+            if not returns.empty:
+                returns.iloc[0] = float(values.iloc[1]) / float(initial_value) - 1
+            result["daily_returns_by_model"][model] = {str(date): float(value) for date, value in returns.items()}
     return result

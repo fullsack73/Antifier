@@ -1,5 +1,67 @@
 # 2) Specs
 
+## Production 직접 예측 경로 (사용자 요청, 2026-11-09)
+
+서비스의 `Transformer` 선택은 `direct_horizon_forecast.py`의 기간 누적 로그수익률
+직접 학습을 사용한다. `ARIMA + Transformer`는 기존 ARIMA와 직접 예측 head를
+기존 동일가중 계약으로 결합한다. API의 `expected_return`은 연율 로그수익률로
+유지하고, 기간값은 요청 horizon으로 학습한다. 기존 ±0.69 연율 포화를 적용하지 않는다.
+학습/검증 목표가 겹치지 않게 purge하고 두 scaler는 학습 partition으로만 맞춘다.
+불확실성은 검증 기간 RMSE를 같은 연율 단위로 변환한 진단 값이며 calibrated
+prediction interval이라고 주장하지 않는다. 기간별 완료 target이 부족하거나
+입력의 날짜에 결측/비정상 값이 있으면 no-view로 처리한다.
+
+GMV/RISK_ONLY 기본값과 opt-in MPT/BL 선택은 유지한다. 이는 사용자 요청의
+서비스 예측 경로 변경이며 독립 alpha 승격 판정이 아니다. 과거 연구용 legacy
+`forecast_models.TransformerForecastModel`은 그대로 보존한다. 연구와 production이
+같은 model builder/target split helper를 사용한다. Forecast-rank cache schema는
+`2026-11-09-direct-horizon-v1`로 분리해 예전 예측 재사용을 방지한다.
+
+## Yahoo 공유 연결과 BL 캐시 (2026-11-10)
+
+yfinance는 가격·메타데이터 조회가 process-wide session을 공유한다. 최적화의
+`_managed_yfinance_session`은 lock으로 지연 생성한 프로세스 소유 curl session을
+빌려 쓰며, 개별 조회 종료·실패·취소 때 닫지 않는다. 프로세스 종료 시 atexit으로
+정리한다. ML worker는 기존 spawn 방식이므로 각 프로세스가 자체 session을 만든다.
+따라서 최적화 이후 차트·회귀·재무 조회에도 닫힌 session이 전달되지 않는다.
+명시적 CA bundle과 기존 가격 조회 timeout/concurrency 제한을 유지한다.
+
+BL 시가총액과 시장 위험회피계수도 같은 session을 사용한다. 시가총액의 빈 응답은
+캐시하지 않고 종목별 실패 사유를 기록한다. 두 조회의 session-v2 cache key로
+기존 빈 시가총액·대체 delta 캐시를 우회한다. Historical PIT 제한과 데이터
+실패 시 MPT fallback 계약은 유지한다.
+
+## Forecast failure attribution diagnostic
+
+`tools/diagnose_forecast_failures.py`는 기존 로컬 Nasdaq 자료만 사용하는
+research-only 원인 분리 도구입니다. 63거래일을 주 대상으로 현재 경로 재현,
+합성 양성/음성 대조군, Transformer 2×2 통제, ARIMA 대체 경로 및 혼합 오차
+분해, PIT 정보 추가를 조사합니다. 모든 산출물은 `diagnostic_only`,
+`promotion_eligible=false`이며 소비된 historical evidence를 승격에 재사용하지 않습니다.
+사전 manifest와 작업별 checkpoint를 고정하고, 실행 예산 8시간 중 마지막
+1시간은 집계에 확보합니다. 미실행·실패·불충분 표본을 성공과 구분합니다.
+Production forecast/API/default allocation은 변경하지 않습니다.
+
+`tools/compare_improved_forecast_portfolios.py`는 사용자 요청의 diagnostic 비교로
+63일 직접 예측을 넣은 MPT, 기존 Ledoit-Wolf GMV, GMV+고정 rank overlay를
+같은 504/63일 학습·실행 계약에서 비교합니다. 모델·seed·gamma는 결과 전에
+고정하며 동일한 covariance/cap/비용/거래 제어를 사용합니다. MPT의 GMV 대체는
+별도 표시합니다. 소비된 과거 자료의 명시적 성과 진단이며 signal gate를 통과한
+승격 후보나 독립 holdout으로 취급하지 않습니다.
+
+`tools/compare_forecast_mpt_before_after.py`는 위 비교의 고정된 개선 MPT 결과를
+재사용하고 동일 가격/학습 창에 기존 Transformer `predict()`의 연율 제한 후
+예측을 생성해 MPT 전후 차이를 계산합니다. 양쪽의 MPT objective, covariance,
+수익률 변환, 실패 시 GMV 대체와 비용 회계는 같습니다. 부모 산출물과 입력 hash를
+검증하며 원래 결과를 덮어쓰지 않습니다.
+
+`tools/compare_forecast_bl_before_after.py`는 기존/개선의 저장된 예측과 불확실성을
+공통 BL 백테스트에 적용한다. 실제 서비스의 historical 시가총액 미확보 시
+MPT 대체 경로와 구분해 동일비중 시장 prior, delta 2.5, tau 0.05를 사용한다.
+현재 시가총액을 과거에 소급하지 않고, raw/adjusted/posterior view와 fallback을
+기록한다. 개선 불확실성은 purged 목표 scaler와 저장된 최저 검증 MSE에서
+재구성하며 보정된 OOS 신뢰구간으로 취급하지 않는다. Production 변경은 없다.
+
 본 문서는 Antifier 구현에 사용하는 기술 스택과 운영 규칙을 정의합니다.
 
 ## A. Runtime / Core
@@ -82,7 +144,7 @@
 
 - `GET /api/get-data`: ticker price, regression, future prediction, currency metadata
 - `GET /api/analyze-hedge`: 두 ticker의 pairs/correlation/regression 분석. 단정적인 hedge 성립 여부를 반환하지 않고, 상관계수, p-value, 회귀 alpha/beta/R-squared, 관측치 수, 비단정적 correlation signal을 반환합니다.
-- `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
+- `GET /api/financial-statement`: 기본 요청은 재무 지표 대시보드, Finviz/yfinance benchmark 비교, 규칙 기반 건전성·저평가 평가, 전체 재무제표 묶음을 조회하고, `type=income|balance|cash` 요청은 기존 단일 표 조회를 유지
 - `POST /api/optimize-portfolio`: 포트폴리오 최적화 job 시작. 같은 `request_id` 재요청은 기존 job 상태를 반환합니다. 완료/데이터 오류 결과의 `data_eligibility`는 `minimum_observations`, 14일 staleness, no-leading-fill alignment 정책과 ticker별 `no_price_data`, `insufficient_history`, `stale_price`, `fx_unavailable`, `invalid_price`, `forecast_output_missing`, `alignment_missing` 사유를 제공합니다.
   - 비율 입력은 모두 decimal입니다. 기존 요청 호환을 위해 `max_asset_weight` 생략 시 20%를 목표로 하되 적격 종목이 5개 미만이면 기존과 같이 `1/N`까지의 feasible cap을 사용합니다. 사용자가 `max_asset_weight`를 명시하면 자동 완화하지 않습니다. `l2_gamma=0`, `min_holding_weight=0`, `turnover_penalty=0`이며 `rebalance_band`, `max_turnover`, `current_weights`는 선택 입력입니다. `turnover_penalty`는 `current_weights`가 있을 때만 L1 objective로 적용합니다.
   - 종목별 hard constraint는 `asset_constraints: [{"ticker":"AAPL","min_weight":0.05,"max_weight":0.20}]`, 그룹 hard constraint는 `group_constraints: [{"dimension":"sector|industry|country","group":"Technology","min_weight":0.10,"max_weight":0.40}]` 형식을 사용합니다. 생략한 bound는 적용하지 않으며 기존 요청 shape는 그대로 유효합니다. 전체 공통 cap은 `max_asset_weight`를 사용합니다.
@@ -99,7 +161,7 @@
 - `GET /api/progress-stream/<request_id>`: 최적화 진행률 SSE. 연결 시 현재 상태를 먼저 전송하고 이후 이벤트를 구독합니다.
 - `GET /api/portfolio-results`: 저장된 최적화 결과 목록
 - `GET /api/portfolio-results/<portfolio_id>`: 특정 최적화 결과 조회
-- `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening
+- `POST /api/stock-screener`: ticker universe와 Financial Statement 대시보드의 0-100 종합 점수 기반 screening. 기본 응답은 기존 결과 배열이며, top-level `include_coverage=true` 요청은 `{results, coverage: {requested, fetched, missing}}`를 반환합니다. Coverage는 필터 적용 전 고유 종목 기준입니다. 부분 조회 캐시는 성공한 종목을 보존하고 다음 검색에서 누락 종목만 다시 조회하며, UI는 불완전한 조회를 경고합니다.
 - `POST /api/asset-names`: ticker display name 조회
 - `POST /api/benchmark-portfolio`: 포트폴리오 benchmark 계산
 - `POST /api/manage-portfolio`: 현 보유/현금 주입 기준 리밸런싱 주문 계산. `calculation_mode`를 생략한 `REOPTIMIZE` 요청은 기존처럼 최신 데이터로 새 목표를 최적화하고, `FIXED_TARGET`은 top-level `target_weights`를 검증한 뒤 optimizer를 호출하지 않고 실행 시점 최신 USD 가격으로만 주문을 계산합니다. Imported JSON의 과거 holdings, prices와 buy/sell list는 계산 입력이 아닙니다. Weight 합계가 1 미만이면 차이를 비용 전 목표 cash로 유지하며, 미세 부동소수점 오차를 제외한 1 초과는 거부합니다. 기본 `rebalance_band=0.02`, `max_turnover=0.35`, `transaction_cost_bps=10`과 fractional-share 정책은 두 모드에 동일하게 적용합니다. Turnover는 매수와 매도의 절대 거래금액을 합한 gross L1 방식이며 A 20% 매도와 B 20% 매수는 40%입니다. 거래비용은 목표 cash에서 먼저 사용하고 부족분만 매수를 축소합니다. 응답은 mode, target hash/cash/provenance, 가격 coverage, `execution_target_weights`, gross traded value/turnover, 비용과 회계 진단을 포함합니다. 필수 최신 가격이 하나라도 누락되면 부분 주문 없이 HTTP 400과 coverage를 반환합니다. 결과는 분석용 제안이며 주문이나 broker 호출을 수행하지 않습니다.
@@ -271,3 +333,153 @@ PYTHONPATH=src/backend python -m pytest tests
 - 백엔드 CI: Python 3.11, `requirements-ci.txt`, `python -m pytest tests`
 - installer build: Linux/Windows/macOS matrix, PyInstaller, artifact upload, release creation
 - 상세 빌드 문서: `tools/BUILD.md`
+
+### Financial Score: 건전성·저평가 평가
+
+- 건전성 60점: ROE 10, ROA 8, 순이익률 8, 영업이익률 4, Debt/Equity 10, 부채/자산 10, 유동비율 6, 당좌비율 4. 절대 기준만 적용합니다.
+- 저평가 40점: trailing P/E 20, P/B 12, P/S 8. 유효한 산업/섹터 benchmark를 우선하고 없으면 절대 기준을 사용합니다. 상대 점수는 업종 대비 가격 수준이며 내재가치를 추정하지 않습니다.
+- 성장률, 베타, 예상 P/E, PEG는 가중치 0의 참고 지표입니다. 현금흐름과 금융회사/리츠 전용 건전성 지표는 현재 포함하지 않으며 해당 업종 점수는 제한적으로 해석합니다.
+- 각 영역은 가중 데이터 충족률 70% 이상이어야 합니다. 건전성에는 부채/자산, 수익성 지표 1개 이상, 유동/당좌비율 1개 이상이 필수이고 저평가에는 trailing P/E가 필수입니다. 한 영역이라도 불충족하면 종합 점수는 null입니다. 결측 영역의 가중치를 다른 영역으로 이전하지 않습니다.
+- `decision.components.health|valuation`은 score와 coverage를 제공합니다. `confidence`는 기존 API 호환 필드이며 통계적 신뢰도가 아닌 데이터 충족률입니다. 종합 점수는 반올림한 영역 점수의 60/40 합입니다.
+- Yahoo Debt/Equity는 percentage point를 100으로 나눕니다. 무차입 0은 정상 값입니다. 대표 peer 평균은 대상 종목 제외 후 지표별 3개 이상일 때만 사용하고, 캐시는 업종과 제외 대상 ticker를 함께 키로 사용합니다. 스크리너 캐시는 계산 버전별 namespace로 분리합니다.
+
+- 부채/자산 1 이상 또는 유동비율 0.75 미만이면 건전성 점수 상한은 35점입니다. 대표 종목 원자료도 24시간 공유 캐시해 제외 대상별 평균 계산이 외부 호출 수를 증폭시키지 않도록 합니다.
+
+## 사용자 전략 백테스트 (2026-11-12)
+
+벤치마크의 고정 비중 모드를 유지하며 CSV ticker 목록으로 GMV, production 직접
+Transformer 예측 MPT, 실험 GMV+고정 2.5% rank overlay를 비교하는 모드를 제공한다.
+각 origin 이전 학습 창만 사용하고 모든 전략의 종목, 실행 달력, 비용과 제어 조건은 같다.
+재조정 간격과 예측 horizon은 독립 설정이다. 후보 풀은 시작 시점 학습 자료로만
+확정하며 이후 가격 누락은 사후 종목 제거 대신 실패로 처리한다. 현재 CSV의
+고정 풀 진단이며 historical universe 전체 재현, 미래 성과 또는 자동 승격을 주장하지 않는다.
+
+API: POST `/api/strategy-backtests/preview`, POST `/api/strategy-backtests`,
+GET `/api/strategy-backtest-results`. 실행은 기존 optimization job 상태/진행률/취소
+endpoint를 재사용하고 결과는 `backtest_` prefix로 기존 JSON 저장소에 보존한다.
+최대 2,000종목/CSV 1MB, 예상 50,000 forecast, 동시 비교 job 1개를 제한한다.
+조회 오류와 no-view/MPT solver fallback을 기록하고 일수익률은 최초 비용을
+포함한 순자산에 검산한다. 기존 공통 일수익률 export TODO는 별도로 유지한다.
+
+### 비교 항목별 모델 선택 (2026-11-12)
+
+전략 백테스트는 고정 체크박스 대신 1~10개의 서로 다른 조합을 등록한다.
+`strategy_configs`의 `optimization_method`는 MIN_VARIANCE/MPT/BL/GMV_MODEL,
+`forecast_method`는 LIGHTWEIGHT/ARIMA_TRANSFORMER/TRANSFORMER이며 GMV는
+RISK_ONLY로 정규화한다. 화면은 Optimizer와 같은 예측·최적화 선택지를 사용하며
+GMV_MODEL은 기존 실험 overlay의 추가 선택지다. GMV 1개로 시작해 사용자가
+조합을 추가·제거한다. 기존 `strategies` 요청과 저장 결과는 계속 읽을 수 있다.
+
+동일 origin·예측 방식은 구성요소 전략들이 공유하고 예상 작업량도 중복을 제외한다.
+각 결과의 조합과 모델별 예측/불확실성/대체 사유를 저장하며 결과 이름은 저장된
+설정에서 결정한다. 경량 예측의 기간 단순수익률은 연 로그수익률로 변환한다.
+과거 BL은 기존 백테스트의 동일비중 시장 prior(delta 2.5, tau .05)를 사용하며
+현재 시가총액을 과거에 적용하지 않는다. BL 가정을 화면과 결과 진단에 명시한다.
+
+### CSV 인식 및 업로드 UI 보정 (2026-11-12)
+
+`Symbol`/`Ticker` 열은 대소문자·주변 공백·BOM과 무관하게 인식한다. 헤더 없는
+줄바꿈/쉼표 목록, 세미콜론·탭 CSV도 지원하며 이름 등 부가 열은 종목으로 해석하지
+않는다. 최대 2,000종목으로 저장소의 S&P 500(503종목)·NYSE 목록을 잘라내지 않고
+인식한다. 예측 50,000회 상한과 실행 전 작업량 확인은 유지한다.
+
+POST `/api/strategy-backtests/universe`는 날짜·모델 설정과 무관하게 업로드한 CSV를
+검증하고 종목/중복 목록을 반환한다. UI는 업로드 직후 파일명과 인식 종목 수를
+표시한다. UTF-8, BOM이 있는 UTF-16, UTF-8 실패 시 EUC-KR 텍스트를 읽는다.
+구버전 백엔드의 404는 파일 손상이 아닌 서버 재시작 안내로 표시한다.
+
+### 보유·유사·랜덤 후보 갱신 (2026-11-13)
+
+신규 요청은 `candidate_search={enabled:true, mode:"forecast_profile", similar_count:10,
+explore_count:10, seed:42, refresh_interval:252}`가 기본이다. `enabled:false`는 기존
+전체 갱신이다. 다른 모드는 `price_features`, `frozen_forecast`다. 설정 변경은 새
+campaign을 만든다. 기존 저장 결과에 정책 기록이 없으면 기존 결과로 표시한다.
+
+최초에는 유효 풀 전체, 이후에는 실제 양수 보유 전부 + 비보유 유사 후보 총 10개 +
+seed 순환 큐의 탐색 최대 10개를 평가한다. 명시적 자산 제약도 포함하며 제약을
+맞출 수 없으면 실패한다. 보유 수에 상한을 두지 않아 거의 전 종목을 평가할 수도 있다.
+원시 예측은 모델/입력/기간/버전으로 공유하고, 지도·큐·보유 상태는 campaign별로
+분리한다. 완료 전에는 후보 상태를 확정하지 않으며 결과 파일도 SQLite 완료 기록이
+없으면 조회하지 않는다. DB와 결과 파일을 함께 보존해야 한다.
+
+예측 지도는 동일 시점의 연 로그수익률/uncertainty를 중앙값/IQR로 표준화한다.
+IQR 0 축과 실패 예측은 이웃 검색에서 제외한다. 부분 예측은 지도에 덮어쓰지 않는다.
+가격 특징은 60일 상관과 21/63일 모멘텀·63일 변동성·126일 동일가중 시장 beta의
+코사인 유사도를 절반씩 사용한다. 동점은 ticker 순서다. 기본 지도는 누적 252거래일
+후 첫 재조정에 갱신하고, 고정 지도는 명시적 초기화/설정 변경까지 유지한다.
+uncertainty는 주가 변동성이나 보정된 확률분포를 뜻하지 않는다.
+
+GMV는 `RISK_ONLY`로 ML 호출 없이 가격 특징을 사용한다. `FIXED_TARGET`은 탐색을
+거치지 않는다. Optimizer 추천은 자동으로 실제 보유가 되지 않는다. Manager는 입력한
+실제 보유를 사용하고 결과의 `campaign_id`를 다음 요청에 전달한다.
+
+- 기존 최적화/Manager 요청: `candidate_search`, 선택적 `campaign_id` 추가.
+- `POST /api/candidate-search/preview`: 네트워크/ML 없이 풀 크기, 초기 전체 계산 여부,
+  부분 평가 상한, 지도 기준일, 탐색 순환 예상 횟수, 설정 변경 여부를 표시한다.
+  실시간 유효성/거래 달력을 확인하지 않은 사전 추정이다. 제약 추가와 예정 전체 갱신으로
+  실제 작업량이 늘 수 있으며, 결과의 실제 선정 수/지도 나이/호출 수를 확인한다.
+- Manager `async:true` + `REOPTIMIZE`: 202와 작업 ID 반환. 기존
+  `/api/optimization-jobs/<id>` 진행률/취소/재연결 사용. 동기 호출도 호환한다.
+- `POST /api/strategy-backtests/<id>/resume`: 저장 요청으로 재개. 완료 구간을 재생하고
+  동일 예측 캐시를 재사용한다. 정책 버전 변경 시 새 작업이 필요하다.
+
+백테스트는 실제 모의 보유량 → 후보 선정 → 현재 예측 → 목표 비중 → 기존 비용/현금/
+밴드/회전율 실행 → 다음 보유량 순으로 진행한다. 기존 전체 갱신도 동일 회계 단계를
+사용한다. 전략별 보유가 달라 이후 후보도 달라지는 운용 전체의 비교다. 가격은 전체
+풀에서 확보하며 평가 구간 누락 가격은 조용히 제거하지 않고 실패한다.
+
+
+### 전략 백테스트 작업량 표시 보정 (2026-11-13)
+
+미리보기의 `estimated_forecasts`는 호환성과 50,000회 예산 검증용 전체 갱신 상한이다.
+화면은 이를 확정된 예측 횟수로 표시하지 않는다. `forecast_workloads`로 조합별 초기
+전체 계산 상한, 예상 전체/부분 갱신 횟수, 이후 계산 규칙을 반환한다. 고정 지도는
+초기 지도만 재사용하고 선정 종목의 현재 예측은 재계산한다. 주기 지도는 설정된
+거래일 간격 후 첫 재조정에서 전체 계산한다. 가격 특징 모드의 지도 계산에는 모델
+예측이 필요 없으나 선정 종목의 비중 계산 예측은 필요하다. GMV 모델 예측은 항상 0이다.
+
+후보 모드의 총횟수는 실제 보유 수와 후보 중복이 결정되기 전에는 미정이다. 부분
+갱신은 min(유효 풀, 실제 보유 + 유사 수 + 탐색 수) 이하이며, 탐색 큐 잔여 수에
+따라 더 작아진다. 최초/전체 갱신 수는 가격 유효성 확인 전 상한, 재조정/주기 수는
+실제 거래 달력 확보 전 추정이다. 같은 모델의 원시 예측 공유와 기존 캐시는 실제 신규
+계산을 줄이므로 조합별 수를 합산하지 않는다. 기존 전체 갱신 예산 상한은 유지한다.
+
+
+### 외부 가격 연결 복구와 실패 캐시 (2026-11-13)
+
+가격 조회는 빈 DataFrame을 캐시하지 않으며 이전 버전에서 남긴 빈 캐시도 무시하고
+다시 조회한다. 최적화 전처리 역시 `error` 결과를 저장하거나 재사용하지 않는다.
+정상 캐시의 키·TTL과 다른 캐시 사용처의 기본 동작은 유지한다.
+전략 백테스트 화면은 서버의 `error` 상태에도 저장된 작업 재개를 제공한다. 진행 중/
+완료 응답에서는 이전 실패 알림을 지운다. 온라인 복귀만으로 실패 작업이나 대규모
+학습을 자동 재실행하지 않는다. 변경 적용에는 백엔드 코드 재시작이 필요하다.
+
+
+### 예측 캐시의 미세 가격 차이와 ML 작업 격리 (2026-11-14)
+
+후보 선정 공유 캐시는 원시 입력의 정확 일치를 우선한다. 같은 ticker·모델 버전·예측
+기간·학습 창·날짜 배열에 한해 저장 당시 입력과 현재 입력을 직접 비교하고,
+모든 가격 차이가 `1e-8 + 5e-7 * abs(원가격)` 이하면 호환 적중으로 재사용한다.
+날짜/모델 변경, 이 기준을 넘는 가격 수정은 재계산한다. 호환 적중으로 원가격을
+덮어쓰지 않아 작은 변화를 연쇄적으로 허용하지 않는다. 실제 학습 입력은 반올림하지
+않고 호환 적중 수를 별도 기록한다. 날짜에 묶인 과거 원가격이 없는 기존 캐시는
+정확 키 일치 시에만 재사용하며 원가격을 등록한다. 검증 불가한 항목은 한 번 재계산한다.
+
+전략 백테스트의 ML 캐시 미스는 spawn 작업 프로세스 하나에서 순차 실행한다.
+기존 native thread 제한을 사용하고 10개 작업마다 프로세스를 교체한다. 캐시 조회/
+저장과 운용 상태는 서버가 담당한다. 모든 예측이 캐시에 있으면 ML 프로세스를 만들지
+않는다. 취소 시 작업 프로세스를 종료하고 완료 전 운용 상태는 확정하지 않는다.
+모델·학습 가중치·수익률 단위·포트폴리오 계산은 변경하지 않는다.
+
+### 백테스트 진행률과 최초 비용 (2026-11-15)
+
+후보 예측 진행 콜백은 단계(`initial_map`, `full_refresh`, `partial_refresh`,
+`current_forecasts`)별 실제 대상의 `done/total`, 별도 전체 풀 `universe_count`,
+신규 `prediction_calls`와 `cache_hits`를 전달한다. 캐시 적중도 처리 수에 포함하고
+전부 적중한 단계도 완료를 알린다. 지도에서 이미 처리한 종목은 현재 예측 단계에
+중복 집계하지 않는다. 전략 비교 화면은 이 메시지를 한국어/영어로 표시한다.
+
+`include_daily_returns`는 기존 관측 날짜를 유지하고 첫 일수익률을 첫 다음날
+순자산/최초 자금-1로 계산해 최초 비용을 포함하며 `daily_returns_include_initial_cost=true`를 함께 제공한다. 이후는 전일
+순자산 대비 변화다. 복리 수익은 summary 순자산과 일치한다. 기존 결과의 비용
+보정은 이 표시가 없는 과거 export에만 적용한다. 이미 소비한 연구는 재채점하지 않는다.

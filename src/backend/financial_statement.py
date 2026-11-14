@@ -43,16 +43,17 @@ TICKER_SUFFIX_CURRENCIES = {
 
 TOTAL_SCORE_WEIGHT = 100
 DECISION_THRESHOLDS = (
-    (80, "STRONG BUY"),
-    (65, "BUY"),
-    (50, "HOLD"),
-    (35, "REDUCE"),
-    (0, "SELL"),
+    (80, "STRONG"),
+    (65, "FAVORABLE"),
+    (50, "MIXED"),
+    (35, "WEAK"),
+    (0, "VERY WEAK"),
 )
 
 BENCHMARK_CACHE_TTL_SECONDS = 24 * 60 * 60
 _BENCHMARK_TABLE_CACHE = {}
 _PEER_BENCHMARK_CACHE = {}
+_PEER_INFO_CACHE = {}
 _FX_RATE_CACHE = {}
 
 BENCHMARK_FIELD_MAP = {
@@ -526,9 +527,7 @@ def _normalize_debt_to_equity(value):
     if number is None:
         return None
     # yfinance often returns this as percentage points, e.g. 98.5 for 0.985x.
-    if abs(number) > 10:
-        return number / 100
-    return number
+    return number / 100
 
 
 def _score_lower_better(value, good, fair, weak):
@@ -614,6 +613,8 @@ def _score_with_benchmark(key, value, direction, absolute_score_result, absolute
 
 def _score_metric(key, value, absolute_score_result, absolute_threshold_label, benchmarks):
     direction = BENCHMARK_SCORE_DIRECTIONS.get(key)
+    if key not in {"per", "pbr", "psr"}:
+        return absolute_score_result, absolute_threshold_label
     if not direction:
         return absolute_score_result, absolute_threshold_label
     return _score_with_benchmark(
@@ -643,7 +644,7 @@ def _score_debt_ratio(value):
     number = _safe_number(value)
     if number is None:
         return None
-    if number <= 0:
+    if number < 0:
         return 0, "negative"
     if number <= 0.5:
         return 100, "positive"
@@ -879,7 +880,8 @@ def _fetch_representative_peer_benchmarks(info, ticker_symbol):
         return {}
 
     now = time.time()
-    cached = _PEER_BENCHMARK_CACHE.get(dataset["cache_key"])
+    cache_key = (dataset["cache_key"], str(ticker_symbol or "").upper())
+    cached = _PEER_BENCHMARK_CACHE.get(cache_key)
     if cached and now - cached["fetched_at"] < BENCHMARK_CACHE_TTL_SECONDS:
         return cached["data"]
 
@@ -889,7 +891,13 @@ def _fetch_representative_peer_benchmarks(info, ticker_symbol):
 
     for peer_ticker in peer_tickers[:10]:
         try:
-            peer_info = yf.Ticker(peer_ticker).info or {}
+            cached_info = _PEER_INFO_CACHE.get(peer_ticker)
+            if cached_info and now - cached_info["fetched_at"] < BENCHMARK_CACHE_TTL_SECONDS:
+                peer_info = cached_info["data"]
+            else:
+                peer_info = yf.Ticker(peer_ticker).info or {}
+                if isinstance(peer_info, dict) and peer_info:
+                    _PEER_INFO_CACHE[peer_ticker] = {"data": peer_info, "fetched_at": now}
         except Exception:
             continue
         if not isinstance(peer_info, dict):
@@ -903,7 +911,7 @@ def _fetch_representative_peer_benchmarks(info, ticker_symbol):
 
     for metric_key, values in peer_values.items():
         average = _average(values, positive_only=metric_key not in ALLOW_NEGATIVE_PEER_AVERAGE_METRICS)
-        if average is not None:
+        if average is not None and len(values) >= 3:
             benchmarks[metric_key] = {
                 "basis": dataset["basis"],
                 "name": dataset["name"],
@@ -913,7 +921,7 @@ def _fetch_representative_peer_benchmarks(info, ticker_symbol):
             }
 
     if benchmarks:
-        _PEER_BENCHMARK_CACHE[dataset["cache_key"]] = {
+        _PEER_BENCHMARK_CACHE[cache_key] = {
             "data": benchmarks,
             "fetched_at": now,
         }
@@ -945,7 +953,7 @@ def _build_investment_metrics(info, debt_ratio, benchmarks=None):
     debt_to_equity = _normalize_debt_to_equity(info.get("debtToEquity"))
     roe = _safe_number(info.get("returnOnEquity"))
     roa = _safe_number(info.get("returnOnAssets"))
-    profit_margin = _safe_number(info.get("profitMargins") or info.get("profitMargin"))
+    profit_margin = _safe_number(info.get("profitMargins") if info.get("profitMargins") is not None else info.get("profitMargin"))
     operating_margin = _safe_number(info.get("operatingMargins"))
     revenue_growth = _safe_number(info.get("revenueGrowth"))
     earnings_growth = _safe_number(info.get("earningsGrowth"))
@@ -962,6 +970,8 @@ def _build_investment_metrics(info, debt_ratio, benchmarks=None):
         absolute_score_result,
         absolute_threshold_label,
     ):
+        if key == "debt_to_equity" and value == 0:
+            absolute_score_result = (100, "positive")
         score_result, threshold_label = _score_metric(
             key,
             value,
@@ -984,76 +994,86 @@ def _build_investment_metrics(info, debt_ratio, benchmarks=None):
         )
 
     return [
-        scored_metric("per", "P/E", "valuation", pe_ratio, _format_number(pe_ratio), "ratio", 8,
+        scored_metric("per", "P/E", "valuation", pe_ratio, _format_number(pe_ratio), "ratio", 20,
                       _score_lower_better(pe_ratio, 15, 25, 40), "<=15 attractive, 15-25 fair, >40 expensive"),
-        scored_metric("forward_pe", "Forward P/E", "valuation", forward_pe, _format_number(forward_pe), "ratio", 6,
+        scored_metric("forward_pe", "Forward P/E", "valuation", forward_pe, _format_number(forward_pe), "ratio", 0,
                       _score_lower_better(forward_pe, 15, 25, 40), "<=15 attractive, 15-25 fair, >40 expensive"),
-        scored_metric("pbr", "P/B", "valuation", pb_ratio, _format_number(pb_ratio), "ratio", 7,
+        scored_metric("pbr", "P/B", "valuation", pb_ratio, _format_number(pb_ratio), "ratio", 12,
                       _score_lower_better(pb_ratio, 1.5, 3, 6), "<=1.5 attractive, 1.5-3 fair, >6 expensive"),
-        scored_metric("psr", "P/S", "valuation", ps_ratio, _format_number(ps_ratio), "ratio", 5,
+        scored_metric("psr", "P/S", "valuation", ps_ratio, _format_number(ps_ratio), "ratio", 8,
                       _score_lower_better(ps_ratio, 2, 5, 10), "<=2 attractive, 2-5 fair, >10 expensive"),
-        scored_metric("peg", "PEG", "valuation", peg_ratio, _format_number(peg_ratio), "ratio", 7,
+        scored_metric("peg", "PEG", "valuation", peg_ratio, _format_number(peg_ratio), "ratio", 0,
                       _score_lower_better(peg_ratio, 1, 2, 3), "<=1 attractive, 1-2 fair, >3 expensive"),
-        scored_metric("roe", "ROE", "profitability", roe, _format_percent(roe), "percent", 9,
+        scored_metric("roe", "ROE", "profitability", roe, _format_percent(roe), "percent", 10,
                       _score_higher_better(roe, 0.15, 0.08, 0), ">=15% strong, 8-15% fair, <0% weak"),
-        scored_metric("roa", "ROA", "profitability", roa, _format_percent(roa), "percent", 5,
+        scored_metric("roa", "ROA", "profitability", roa, _format_percent(roa), "percent", 8,
                       _score_higher_better(roa, 0.07, 0.03, 0), ">=7% strong, 3-7% fair, <0% weak"),
         scored_metric("profit_margin", "Profit Margin", "profitability", profit_margin, _format_percent(profit_margin), "percent", 8,
                       _score_higher_better(profit_margin, 0.15, 0.05, 0), ">=15% strong, 5-15% fair, <0% weak"),
-        scored_metric("operating_margin", "Operating Margin", "profitability", operating_margin, _format_percent(operating_margin), "percent", 5,
+        scored_metric("operating_margin", "Operating Margin", "profitability", operating_margin, _format_percent(operating_margin), "percent", 4,
                       _score_higher_better(operating_margin, 0.15, 0.05, 0), ">=15% strong, 5-15% fair, <0% weak"),
-        scored_metric("revenue_growth", "Revenue Growth", "growth", revenue_growth, _format_percent(revenue_growth), "percent", 7,
+        scored_metric("revenue_growth", "Revenue Growth", "growth", revenue_growth, _format_percent(revenue_growth), "percent", 0,
                       _score_higher_better(revenue_growth, 0.10, 0, -0.05), ">=10% strong, 0-10% fair, <-5% weak"),
-        scored_metric("earnings_growth", "Earnings Growth", "growth", earnings_growth, _format_percent(earnings_growth), "percent", 7,
+        scored_metric("earnings_growth", "Earnings Growth", "growth", earnings_growth, _format_percent(earnings_growth), "percent", 0,
                       _score_higher_better(earnings_growth, 0.10, 0, -0.05), ">=10% strong, 0-10% fair, <-5% weak"),
-        scored_metric("debt_to_equity", "Debt/Equity", "stability", debt_to_equity, _format_number(debt_to_equity), "ratio", 7,
+        scored_metric("debt_to_equity", "Debt/Equity", "stability", debt_to_equity, _format_number(debt_to_equity), "ratio", 10,
                       _score_lower_better(debt_to_equity, 0.8, 1.5, 3), "<=0.8 conservative, 0.8-1.5 fair, >3 stretched"),
-        scored_metric("debt_ratio", "Debt Ratio", "stability", debt_ratio, _format_number(debt_ratio), "ratio", 6,
+        scored_metric("debt_ratio", "Debt Ratio", "stability", debt_ratio, _format_number(debt_ratio), "ratio", 10,
                       _score_debt_ratio(debt_ratio), "<=0.5 conservative, 0.5-0.75 fair, >1 stretched"),
-        scored_metric("current_ratio", "Current Ratio", "stability", current_ratio, _format_number(current_ratio), "ratio", 5,
+        scored_metric("current_ratio", "Current Ratio", "stability", current_ratio, _format_number(current_ratio), "ratio", 6,
                       _score_current_ratio(current_ratio), "1.5-3 healthy, <1 liquidity risk, >4 potential idle capital"),
         scored_metric("quick_ratio", "Quick Ratio", "stability", quick_ratio, _format_number(quick_ratio), "ratio", 4,
                       _score_current_ratio(quick_ratio), "1.5-3 healthy, <1 liquidity risk, >4 potential idle capital"),
-        scored_metric("beta", "Beta", "risk", beta, _format_number(beta), "ratio", 4,
+        scored_metric("beta", "Beta", "risk", beta, _format_number(beta), "ratio", 0,
                       _score_beta(beta), "0.7-1.2 balanced, >1.5 volatile, <0 defensive"),
     ]
 
 
-def _decision_from_score(score, confidence):
-    if score is None or confidence < 20:
+def _decision_from_score(score):
+    if score is None:
         return "INSUFFICIENT DATA"
     for minimum, label in DECISION_THRESHOLDS:
         if score >= minimum:
             return label
-    return "SELL"
+    return "VERY WEAK"
 
 
 def _score_dashboard_metrics(metrics):
-    available = [metric for metric in metrics if metric["score"] is not None]
-    possible_weight = sum(metric["weight"] for metric in metrics)
-    available_weight = sum(metric["weight"] for metric in available)
-
-    if not available or not available_weight:
-        return {
-            "score": None,
-            "max_score": TOTAL_SCORE_WEIGHT,
-            "available_metrics": 0,
-            "total_metrics": len(metrics),
-            "confidence": 0,
-            "label": "INSUFFICIENT DATA",
+    # Fixed 60/40 health/value weights; missing data never changes that balance.
+    scored = [m for m in metrics if m["weight"] > 0]
+    available = [m for m in scored if m["score"] is not None]
+    by_key = {m["key"]: m for m in available}
+    components = {}
+    for name, categories in (("health", {"profitability", "stability"}), ("valuation", {"valuation"})):
+        group = [m for m in scored if m["category"] in categories]
+        present = [m for m in group if m["score"] is not None]
+        total = sum(m["weight"] for m in group)
+        weight = sum(m["weight"] for m in present)
+        coverage = round(100 * weight / total) if total else 0
+        required = ("debt_ratio" in by_key and any(k in by_key for k in ("roe", "roa", "profit_margin"))
+                    and any(k in by_key for k in ("current_ratio", "quick_ratio"))) if name == "health" else "per" in by_key
+        components[name] = {
+            "score": round(sum(m["score"] * m["weight"] for m in present) / weight) if weight and coverage >= 70 and required else None,
+            "coverage": coverage,
         }
-
-    weighted_score = sum(metric["score"] * metric["weight"] for metric in available)
-    score = round(weighted_score / available_weight)
-    confidence = round((available_weight / possible_weight) * 100) if possible_weight else 0
-
+    # Severe solvency/liquidity risk cannot be offset by profitability or cheapness.
+    debt = by_key.get("debt_ratio", {}).get("value")
+    current = by_key.get("current_ratio", {}).get("value")
+    if ((debt is not None and debt >= 1) or (current is not None and current < .75)) and components["health"]["score"] is not None:
+        components["health"]["score"] = min(35, components["health"]["score"])
+    health = components["health"]["score"]
+    valuation = components["valuation"]["score"]
+    score = round(health * .6 + valuation * .4) if health is not None and valuation is not None else None
+    coverage = round(sum(m["weight"] for m in available))
     return {
         "score": score,
         "max_score": TOTAL_SCORE_WEIGHT,
         "available_metrics": len(available),
-        "total_metrics": len(metrics),
-        "confidence": confidence,
-        "label": _decision_from_score(score, confidence),
+        "total_metrics": len(scored),
+        "confidence": coverage,
+        "coverage": coverage,
+        "components": components,
+        "label": _decision_from_score(score),
     }
 
 

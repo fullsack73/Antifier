@@ -38,3 +38,9 @@
 
 - 관련 문서: `docs/02-specs.md`, `docs/03-product-plan.md`, `docs/reports/260830-1825-01-three-portfolio-performance.md`, `docs/reports/260830-1844-02-three-portfolio-forward-foundation.md`
 - todo-list 한 줄 요약: 2026-08-30에 고정한 LLM 단독, GMV, 뉴스 보정 GMV를 63/126/252 공통 거래일에 calendar-forward로 재평가합니다.
+
+## 2026-11-15 선행조건 점검
+
+현재 구성 이후 2026-11-13까지 평일만 계산해도 수익 관측은 최대 54개(실제 공통 거래일은 이보다 적을 수 있음)다. 첫 63개 milestone이 미성숙이므로 평가·완료 처리하지 않았다.
+
+점검 기록: `docs/reports/261115-0127-01-todo-completion.md`.

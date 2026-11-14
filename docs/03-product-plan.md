@@ -2,6 +2,11 @@
 
 본 문서는 Antifier의 제품 범위, 사용자, 핵심 기능, 현재 로드맵을 정리합니다.
 
+Transformer·ARIMA·동일가중 혼합 예측의 실패 원인은 별도 offline diagnostic
+campaign으로 조사합니다. 합성 대조군과 시간 정보/직접 예측/학습량/입력 정보의
+통제 실험 결과를 구분하며, 소비된 과거 데이터의 개선을 새 alpha 검증이나
+production 승격으로 해석하지 않습니다.
+
 ## A. 서비스 개요
 
 Antifier는 개인 투자자, 트레이더, 금융 분석가가 주식 데이터 분석, 예측, 재무제표 확인, 포트폴리오 최적화를 한 곳에서 수행하도록 돕는 금융 분석 웹앱입니다. 이름은 소액 개인 투자자를 뜻하는 한국어 표현인 "개미"에서 출발했습니다.
@@ -31,7 +36,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 - Stock Analysis: ticker, 기간, 모델, forecast horizon을 선택하고 가격/회귀/미래 예측 차트를 확인
 - Pairs Analysis: 두 종목의 상관관계와 회귀 기반 관계 분석
-- Financial Statement: ticker별 주요 재무 지표, Finviz/yfinance benchmark 비교, 규칙 기반 투자 신호, 점수화 결과를 대시보드로 확인하고 전체 재무제표는 팝업에서 확인
+- Financial Statement: ticker별 주요 재무 지표, Finviz/yfinance benchmark 비교, 규칙 기반 건전성·저평가 평가, 점수화 결과를 대시보드로 확인하고 전체 재무제표는 팝업에서 확인
 - Optimizer: MPT 또는 Black-Litterman 기반 포트폴리오 최적화
 - Benchmark: 포트폴리오 성과를 S&P 500과 risk-free asset 기준으로 비교
 - Portfolio Manager: 현재 보유 종목과 현금 주입을 바탕으로 리밸런싱 주문 계산
@@ -43,7 +48,8 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 인터랙티브 주가 차트와 기간 선택
 - LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, lightweight ensemble 계열 forecast/회귀 흐름
 - 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
-- 재무제표, 주요 재무 지표, 규칙 기반 투자 신호 대시보드 조회
+- 사용자 요청으로 Transformer 및 ARIMA+Transformer 서비스 경로에 직접 기간 예측 적용. GMV 기본값은 유지하며 production 수익률 일반화 승격과는 구분
+- 재무제표, 주요 재무 지표, 규칙 기반 건전성·저평가 평가 대시보드 조회
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - Ledoit-Wolf global minimum-variance 기본 최적화와 opt-in MPT/Black-Litterman
 - 종목별 및 sector/industry/country별 최소·최대 비중 hard constraint, 사전 feasibility 검사, 구조화된 오류
@@ -127,7 +133,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 
 - predefined universe는 CSV와 helper 모듈을 통해 관리합니다.
 - Stock Screener의 기본 검색 기준은 Financial Statement 대시보드와 같은 0-100 종합 점수이며, raw 재무 지표가 비어 있거나 외부 데이터 호출이 실패해도 방어적으로 처리해야 합니다.
-- Financial Statement의 STRONG BUY/BUY/HOLD 등 신호는 데이터 기반 분석 보조 신호이며 투자 자문이나 자동 매매 지시로 표현하지 않습니다.
+- Financial Statement는 건전성 60%와 저평가 정도 40%를 합산합니다. 매수·매도 대신 STRONG/FAVORABLE/MIXED/WEAK/VERY WEAK 평가 등급을 사용하며 수익률 예측으로 해석하지 않습니다.
 - 업종/섹터 평균 비교는 Finviz group valuation의 산업 평균을 우선 사용하고, Finviz가 제공하지 않는 수익성/성장성/안정성/위험 지표는 yfinance 기반 산업별 대표 대형주 단순 평균으로 보완합니다.
 - Finviz 산업/섹터 평균을 찾지 못하면 yfinance 기반 산업별 대표 대형주 단순 평균을 전체 benchmark fallback으로 사용합니다.
 - 산업별 대표 ticker dataset이 없는 경우에는 섹터 대표 대형주 단순 평균을 마지막 benchmark fallback으로 사용합니다.
@@ -166,3 +172,38 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - 수익률 보장, 투자 자문, 자동 주문 실행은 현재 범위가 아닙니다.
 - 계좌 연동, 실거래 broker API, 결제/구독 시스템은 현재 범위가 아닙니다.
 - 대규모 멀티테넌트 서버 배포와 사용자별 데이터베이스 운영은 인증/저장 기능 결정 전까지 범위 밖입니다.
+
+### Financial Score: 건전성·저평가 평가
+
+- 건전성 60점: ROE 10, ROA 8, 순이익률 8, 영업이익률 4, Debt/Equity 10, 부채/자산 10, 유동비율 6, 당좌비율 4. 절대 기준만 적용합니다.
+- 저평가 40점: trailing P/E 20, P/B 12, P/S 8. 유효한 산업/섹터 benchmark를 우선하고 없으면 절대 기준을 사용합니다. 상대 점수는 업종 대비 가격 수준이며 내재가치를 추정하지 않습니다.
+- 성장률, 베타, 예상 P/E, PEG는 가중치 0의 참고 지표입니다. 현금흐름과 금융회사/리츠 전용 건전성 지표는 현재 포함하지 않으며 해당 업종 점수는 제한적으로 해석합니다.
+- 각 영역은 가중 데이터 충족률 70% 이상이어야 합니다. 건전성에는 부채/자산, 수익성 지표 1개 이상, 유동/당좌비율 1개 이상이 필수이고 저평가에는 trailing P/E가 필수입니다. 한 영역이라도 불충족하면 종합 점수는 null입니다. 결측 영역의 가중치를 다른 영역으로 이전하지 않습니다.
+- `decision.components.health|valuation`은 score와 coverage를 제공합니다. `confidence`는 기존 API 호환 필드이며 통계적 신뢰도가 아닌 데이터 충족률입니다. 종합 점수는 반올림한 영역 점수의 60/40 합입니다.
+- Yahoo Debt/Equity는 percentage point를 100으로 나눕니다. 무차입 0은 정상 값입니다. 대표 peer 평균은 대상 종목 제외 후 지표별 3개 이상일 때만 사용하고, 캐시는 업종과 제외 대상 ticker를 함께 키로 사용합니다. 스크리너 캐시는 계산 버전별 namespace로 분리합니다.
+
+- 부채/자산 1 이상 또는 유동비율 0.75 미만이면 건전성 점수 상한은 35점입니다. 대표 종목 원자료도 24시간 공유 캐시해 제외 대상별 평균 계산이 외부 호출 수를 증폭시키지 않도록 합니다.
+
+## 전략 비교 도구 확장 (2026-11-12)
+
+사용자가 CSV 후보 종목, 평가 날짜, 학습 기간, 재조정 간격, 예측 기간과 공통
+거래 조건을 지정해 전략들을 비교한다. 벤치마크 고정 비중 평가와 전략 백테스트를
+구분하며 결과에는 비용 후 자산·낙폭 곡선, 성과 표, 재조정별 실행 비중과 예측,
+실패 대체 기록을 제공한다. 실험 전략을 제공하는 것이 기본 전략 승격을 뜻하지 않는다.
+가격 CSV 업로드, 자동 파라미터 탐색, 실제 주문 실행은 이 기능 범위에 포함하지 않는다.
+
+전략 비교의 각 항목은 사용자가 Optimizer와 같은 최적화 방식·예측 모델 조합으로
+설정한다. 고정 3전략 선택에 한정하지 않으며 같은 최적화 방식에서도 여러 예측
+모델을 비교할 수 있다. 과거 BL 시장 prior 가정과 실패 대체를 명시한다.
+
+### 후보 갱신 운용 기본값 (2026-11-13)
+
+Optimizer, Portfolio Manager REOPTIMIZE, CSV 전략 백테스트에 보유·유사·랜덤 후보
+갱신을 기본 제공한다. 초기 전체 평가 후 양수 실제 보유 전부와 유사 10개/탐색 최대
+10개를 갱신한다. 기본 예측 지도 갱신은 252거래일, seed 42이며 가격 특징/고정 지도/
+기존 전체 갱신을 선택할 수 있다. GMV의 risk-only 계약과 기존 거래 제어는 유지한다.
+
+이 기능의 목적은 운용 과정과 계산량을 명시적으로 제어하는 것이다. 수익률 개선,
+항상 40종목 이하 평가, 보정된 예측 확률을 보장하지 않는다. 모델 가중치 저장이나
+공동 학습 모델, 새로운 현금 규칙은 포함하지 않는다. 기존 실행은 유지하고 새 코드가
+로드된 신규 작업부터 적용한다. 실행 중인 작업을 끝낸 뒤 서버 재시작이 필요하다.

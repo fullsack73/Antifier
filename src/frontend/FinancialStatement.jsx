@@ -6,6 +6,11 @@ import { MetricCardsSkeleton } from './SkeletonScreens.jsx';
 import './App.css';
 
 const DECISION_LABEL_KEYS = {
+    STRONG: 'strong_buy',
+    FAVORABLE: 'buy',
+    MIXED: 'hold',
+    WEAK: 'reduce',
+    'VERY WEAK': 'sell',
     'STRONG BUY': 'strong_buy',
     BUY: 'buy',
     HOLD: 'hold',
@@ -155,6 +160,12 @@ const FinancialStatement = () => {
                 <div className="financial-score-summary">
                     <span className="financial-decision-label">{label}</span>
                     <strong>{scoreText}</strong>
+                    {['health', 'valuation'].map((key) => (
+                        <span key={key}>
+                            {t(`financial.component_${key}`)}: {decision.components?.[key]?.score ?? '—'}/100
+                            {' · '}{t('financial.component_coverage', { coverage: decision.components?.[key]?.coverage ?? 0 })}
+                        </span>
+                    ))}
                     <span>
                         {t('financial.confidence', {
                             confidence: decision.confidence ?? 0,
@@ -199,7 +210,7 @@ const FinancialStatement = () => {
             <article className={`financial-insight-card signal-${metric.signal}`} key={metric.key}>
                 <div className="financial-insight-card-header">
                     <span className="financial-metric-category">{category}</span>
-                    <span className="financial-metric-score">{score}/100</span>
+                    <span className="financial-metric-score">{metric.weight > 0 ? `${score}/100` : t('financial.reference_only')}</span>
                 </div>
                 <h4>{metricLabel}</h4>
                 <p className="financial-metric-value">{metric.display_value || t('financial.not_available')}</p>

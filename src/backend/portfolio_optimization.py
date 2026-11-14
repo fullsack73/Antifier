@@ -1,3 +1,4 @@
+import atexit
 import json
 import logging
 import hashlib
@@ -34,10 +35,13 @@ from cache_manager import (
 )
 from ticker_lists import get_ticker_group
 from forecast_models import (
-    ARIMATransformerPredictor,
-    TransformerForecastModel,
     NO_VIEW_FORECAST_UNCERTAINTY,
     no_view_prediction,
+)
+from direct_horizon_forecast import (
+    MODEL_VERSION as DIRECT_FORECAST_VERSION,
+    DirectHorizonTransformerForecastModel as TransformerForecastModel,
+    DirectARIMATransformerPredictor as ARIMATransformerPredictor,
 )
 from lightweight_forecast import lightweight_ensemble_forecast
 from portfolio_signals import cap_and_normalize_weights
@@ -81,6 +85,7 @@ YFINANCE_RETRY_BACKOFF_SECONDS = 1.0
 
 _YFINANCE_RUNTIME_LOCK = threading.Lock()
 _YFINANCE_RUNTIME_CONFIGURED = False
+_YFINANCE_SESSION = None
 
 DIRECT_USD_QUOTE_CURRENCIES = {"AUD", "EUR", "GBP", "NZD"}
 TICKER_SUFFIX_CURRENCIES = {
@@ -138,25 +143,36 @@ def _configure_yfinance_runtime():
 
 
 def _create_yfinance_session():
-    """Create a bounded-lifetime curl session with an explicit CA bundle."""
+    """Create the process-owned curl session with an explicit CA bundle."""
     return curl_requests.Session(
         impersonate="chrome",
         verify=certifi.where(),
     )
 
 
-@contextmanager
-def _managed_yfinance_session():
-    """Close Yahoo sockets after one logical fetch instead of leaking them across a long run."""
-    _configure_yfinance_runtime()
-    session = _create_yfinance_session()
-    try:
-        yield session
-    finally:
+def _close_yfinance_session():
+    """Release the process-owned Yahoo session only at process shutdown."""
+    if _YFINANCE_SESSION is not None:
         try:
-            session.close()
+            _YFINANCE_SESSION.close()
         except Exception as exc:
             logger.warning(f"YFINANCE: Failed to close download session: {exc}")
+
+
+atexit.register(_close_yfinance_session)
+
+
+@contextmanager
+def _managed_yfinance_session():
+    """Borrow one process-owned session; yfinance shares it across all modules."""
+    global _YFINANCE_SESSION
+    _configure_yfinance_runtime()
+    with _YFINANCE_RUNTIME_LOCK:
+        if _YFINANCE_SESSION is None:
+            _YFINANCE_SESSION = _create_yfinance_session()
+        session = _YFINANCE_SESSION
+    # Closing here would also break unrelated Ticker/history/info requests.
+    yield session
 
 
 def worker_initializer():
@@ -1606,6 +1622,11 @@ def load_portfolio_result(portfolio_id):
         payload = json.load(file)
 
     result = payload.get("result", {})
+    decision = result.get('candidate_search') or {}
+    if decision.get('decision_key'):
+        from candidate_search import CandidateStore
+        if not CandidateStore().is_committed(decision['campaign_id'], decision['decision_key']):
+            return None
     result["metadata"] = payload.get("metadata", {})
     result["saved_at"] = payload.get("saved_at")
     result["portfolio_id"] = payload.get("portfolio_id", portfolio_id)
@@ -1613,20 +1634,22 @@ def load_portfolio_result(portfolio_id):
     return result
 
 
-def list_saved_portfolios():
+def list_saved_portfolios(include_backtests=False):
     """Return available saved portfolio identifiers."""
     if not RESULTS_DIR.exists():
         return []
-    return sorted(p.stem for p in RESULTS_DIR.glob("*.json"))
+    return sorted(p.stem for p in RESULTS_DIR.glob("*.json")
+                  if include_backtests or not p.stem.startswith("backtest_"))
 
 
-def _stock_data_key_func(tickers, start_date, end_date, progress_callback=None, cancel_event=None):
+def _stock_data_key_func(tickers, start_date, end_date, progress_callback=None, cancel_event=None, preserve_missing=False):
     tickers_str = ",".join(tickers or [])
-    key_str = f"{tickers_str}|{start_date}|{end_date}|stock_data_v3"
+    version = "stock_data_raw_v1" if preserve_missing else "stock_data_v3"
+    key_str = f"{tickers_str}|{start_date}|{end_date}|{version}"
     return f"stock_data_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 
-def _extract_yfinance_close_frame(raw_data, requested_tickers):
+def _extract_yfinance_close_frame(raw_data, requested_tickers, preserve_missing=False):
     """Return usable Close columns only, excluding yfinance's all-NaN failure placeholders."""
     requested_tickers = list(requested_tickers or [])
     if raw_data is None or not isinstance(raw_data, pd.DataFrame) or raw_data.empty:
@@ -1672,7 +1695,9 @@ def _extract_yfinance_close_frame(raw_data, requested_tickers):
 
     close_frame = close_frame.apply(pd.to_numeric, errors="coerce")
     close_frame = close_frame.replace([np.inf, -np.inf], np.nan)
-    close_frame = close_frame.ffill().dropna(how="all").dropna(axis=1, how="all")
+    if not preserve_missing:
+        close_frame = close_frame.ffill()
+    close_frame = close_frame.dropna(how="all").dropna(axis=1, how="all")
     ordered_columns = [
         ticker
         for ticker in requested_tickers
@@ -1681,7 +1706,7 @@ def _extract_yfinance_close_frame(raw_data, requested_tickers):
     return close_frame.loc[:, ordered_columns]
 
 
-def _download_yfinance_close(tickers, start_date, end_date, session, threads):
+def _download_yfinance_close(tickers, start_date, end_date, session, threads, preserve_missing=False):
     raw_data = yf.download(
         tickers,
         start=start_date,
@@ -1692,11 +1717,12 @@ def _download_yfinance_close(tickers, start_date, end_date, session, threads):
         timeout=YFINANCE_REQUEST_TIMEOUT_SECONDS,
         session=session,
     )
-    return _extract_yfinance_close_frame(raw_data, tickers)
+    return _extract_yfinance_close_frame(raw_data, tickers, preserve_missing=preserve_missing)
 
 
-@cached(l1_ttl=900, l2_ttl=14400, key_func=_stock_data_key_func)  # 15 min L1, 4 hour L2 cache
-def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel_event=None):
+@cached(l1_ttl=900, l2_ttl=14400, key_func=_stock_data_key_func,
+        cache_if=lambda result: isinstance(result, pd.DataFrame) and not result.empty)  # 15 min L1, 4 hour L2 cache
+def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel_event=None, preserve_missing=False):
     """Fetch stock data with bounded Yahoo concurrency and explicit missing-ticker retries."""
     _raise_if_cancelled(cancel_event)
     logger.info(f"GET_STOCK_DATA: Starting fetch for {len(tickers)} tickers")
@@ -1740,6 +1766,7 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
                     end_date,
                     session=session,
                     threads=False,
+                    preserve_missing=preserve_missing,
                 )
                 if chunk_data.empty:
                     fetch_diagnostics["empty_response_count"] += 1
@@ -1772,6 +1799,7 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
                             end_date,
                             session=session,
                             threads=False,
+                            preserve_missing=preserve_missing,
                         )
                     except Exception as exc:
                         fetch_diagnostics["request_error_count"] += 1
@@ -1817,7 +1845,9 @@ def get_stock_data(tickers, start_date, end_date, progress_callback=None, cancel
     logger.info(f"GET_STOCK_DATA: Combining {len(all_series)} chunks")
     try:
         final_data = pd.concat(all_series, axis=1)
-        final_data = final_data.ffill().dropna(how='all').dropna(axis=1, how='all')
+        if not preserve_missing:
+            final_data = final_data.ffill()
+        final_data = final_data.dropna(how='all').dropna(axis=1, how='all')
         missing_tickers = [ticker for ticker in tickers if ticker not in final_data.columns]
         logger.info(
             f"GET_STOCK_DATA: Final shape: {final_data.shape}; "
@@ -1860,7 +1890,7 @@ def _generate_arima_transformer_prediction(ticker, ticker_data, horizon=252):
         
         start_time = time.time()
         predictor = ARIMATransformerPredictor()
-        predictor.train_all(valid_prices)
+        predictor.train_all(prices)
         prediction = predictor.predict(horizon=horizon)
         elapsed = time.time() - start_time
         
@@ -1899,7 +1929,7 @@ def _generate_transformer_prediction(ticker, ticker_data, horizon=252):
 
         start_time = time.time()
         model = TransformerForecastModel()
-        model.train(valid_prices)
+        model.train(prices)
         prediction = model.predict(horizon=horizon)
         elapsed = time.time() - start_time
 
@@ -1981,7 +2011,14 @@ def forecast_single_ticker_with_transformer(ticker, ticker_data, horizon=252):
     return prediction
 
 
-@cached(l1_ttl=900, l2_ttl=14400)  # 15 min L1, 4 hour L2 cache for predictions
+def _direct_forecast_cache_key(method, ticker, ticker_data, horizon=252):
+    prices = np.asarray(ticker_data, dtype=float)
+    price_hash = hashlib.sha256(str(prices.shape).encode() + prices.tobytes()).hexdigest()
+    return f"forecast_{DIRECT_FORECAST_VERSION}_{method}_{ticker}_{int(horizon)}_{price_hash}"
+
+
+@cached(l1_ttl=900, l2_ttl=14400, key_func=lambda ticker, ticker_data, horizon=252:
+        _direct_forecast_cache_key("arima_transformer", ticker, ticker_data, horizon))
 def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
     """Forecast returns for single ticker using ARIMA + Transformer with caching.
 
@@ -2008,7 +2045,8 @@ def _ml_forecast_single_ticker(ticker, ticker_data, horizon=252):
         gc.collect()
 
 
-@cached(l1_ttl=900, l2_ttl=14400)
+@cached(l1_ttl=900, l2_ttl=14400, key_func=lambda ticker, ticker_data, horizon=252:
+        _direct_forecast_cache_key("transformer", ticker, ticker_data, horizon))
 def _transformer_forecast_single_ticker(ticker, ticker_data, horizon=252):
     """Forecast returns for one ticker using the Transformer model with caching."""
     try:
@@ -2232,50 +2270,71 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
-@cached(l1_ttl=86400, l2_ttl=604800)  # 24 hours L1, 7 days L2 (Market caps change slowly)
 def get_market_caps(tickers):
-    """Fetch market capitalizations for tickers using yfinance."""
+    """Fetch USD market caps with a live session; cache only non-empty results."""
+    cache = get_cache()
+    # Version the key to bypass empty results saved by the closed-session path.
+    cache_key = "get_market_caps_session_v2_" + hashlib.md5(str(tickers).encode()).hexdigest()
+    cached_caps = cache.get(cache_key)
+    if cached_caps:
+        return cached_caps
     mcaps = {}
     try:
         logger.info(f"Fetching market caps for {len(tickers)} tickers")
         batch_size = 50
-        for i in range(0, len(tickers), batch_size):
-            batch = tickers[i:i+batch_size]
-            try:
-                tickers_str = " ".join(batch)
-                yf_tickers = yf.Tickers(tickers_str)
-                for ticker in batch:
-                    try:
-                        # info access can be slow.
-                        info = yf_tickers.tickers[ticker].info
-                        mc = info.get("marketCap") or info.get("totalAssets")
-                        if mc:
-                            currency = _normalize_currency(info.get("currency") or info.get("financialCurrency"))
-                            currency = currency or _get_ticker_currency(ticker)
-                            if currency != BASE_CURRENCY:
-                                conversion_factor = _fetch_latest_usd_conversion_scalar(currency)
-                                if conversion_factor:
-                                    mc = float(mc) * conversion_factor
-                                else:
-                                    logger.warning(f"Skipping market cap for {ticker}: cannot convert {currency} to {BASE_CURRENCY}")
-                                    continue
-                            mcaps[ticker] = float(mc)
-                    except Exception:
-                        pass
-            except Exception as e:
-                logger.error(f"Batch info fetch failed: {e}")
+        with _managed_yfinance_session() as session:
+            for i in range(0, len(tickers), batch_size):
+                batch = tickers[i:i+batch_size]
+                try:
+                    tickers_str = " ".join(batch)
+                    yf_tickers = yf.Tickers(tickers_str, session=session)
+                    for ticker in batch:
+                        try:
+                            # info access can be slow.
+                            info = yf_tickers.tickers[ticker].info
+                            mc = info.get("marketCap") or info.get("totalAssets")
+                            if mc:
+                                currency = _normalize_currency(info.get("currency") or info.get("financialCurrency"))
+                                currency = currency or _get_ticker_currency(ticker)
+                                if currency != BASE_CURRENCY:
+                                    conversion_factor = _fetch_latest_usd_conversion_scalar(currency)
+                                    if conversion_factor:
+                                        mc = float(mc) * conversion_factor
+                                    else:
+                                        logger.warning(f"Skipping market cap for {ticker}: cannot convert {currency} to {BASE_CURRENCY}")
+                                        continue
+                                mcaps[ticker] = float(mc)
+                        except Exception as e:
+                            logger.warning("Market cap fetch failed for %s: %s", ticker, e)
+                except Exception as e:
+                    logger.error(f"Batch info fetch failed: {e}")
     except Exception as e:
         logger.error(f"Market cap fetch failed: {e}")
+    if mcaps:
+        cache.set(cache_key, mcaps, l1_ttl=86400, l2_ttl=604800)
+    else:
+        logger.warning("No market caps fetched; leaving result uncached for retry")
     return mcaps
 
 
-@cached(l1_ttl=3600, l2_ttl=86400)
+@cached(
+    l1_ttl=3600,
+    l2_ttl=86400,
+    key_func=lambda *args, **kwargs: "bl_delta_session_v2_" + hashlib.md5(
+        str(args + tuple(kwargs.items())).encode()
+    ).hexdigest(),
+)
 def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate):
     """Calculate market implied risk aversion (delta) for S&P 500."""
     market_ticker = "^GSPC"
     try:
         # Use simple caching for standard S&P500 fetch
-        market_data = yf.download(market_ticker, start=start_date, end=end_date, progress=False, auto_adjust=True)
+        with _managed_yfinance_session() as session:
+            market_data = yf.download(
+                market_ticker, start=start_date, end=end_date, progress=False,
+                auto_adjust=True, session=session,
+                timeout=YFINANCE_REQUEST_TIMEOUT_SECONDS,
+            )
         
         if isinstance(market_data.columns, pd.MultiIndex): 
             if 'Close' in market_data.columns.get_level_values(0):
@@ -2300,8 +2359,6 @@ def get_market_implied_risk_aversion_cached(start_date, end_date, risk_free_rate
         return 2.5
 
 
-@cached(l1_ttl=600, l2_ttl=3600)  # 10 min L1, 1 hour L2 cache for portfolio optimization
-
 def _pipeline_key_func(
     start_date,
     end_date,
@@ -2318,10 +2375,11 @@ def _pipeline_key_func(
         tickers_str = ",".join(sorted(tickers))
     else:
         tickers_str = "None"
-    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v3_eligibility"
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v3_eligibility|{DIRECT_FORECAST_VERSION}"
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
-@cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func)
+@cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func,
+        cache_if=lambda result: isinstance(result, dict) and 'error' not in result)
 def data_and_forecast_pipeline(
     start_date,
     end_date,
@@ -2332,6 +2390,7 @@ def data_and_forecast_pipeline(
     min_history=504,
     progress_callback=None,
     cancel_event=None,
+    candidate_hook=None,
 ):
     """
     Pipeline for Data Fetching, Cleaning, and Forecasting.
@@ -2359,7 +2418,8 @@ def data_and_forecast_pipeline(
     def fetch_callback(current, total, message):
         _weighted_progress(0, 30, current, total, message)
         
-    data = get_stock_data(tickers, start_date, end_date, progress_callback=fetch_callback, cancel_event=cancel_event)
+    extra = {"preserve_missing": True} if candidate_hook is not None else {}
+    data = get_stock_data(tickers, start_date, end_date, progress_callback=fetch_callback, cancel_event=cancel_event, **extra)
     fetch_diagnostics = dict(data.attrs.get("fetch_diagnostics", {}))
     _raise_if_cancelled(cancel_event)
     data_eligibility = _initialize_data_eligibility(
@@ -2507,6 +2567,9 @@ def data_and_forecast_pipeline(
         reason="invalid_price",
         stage="sanitization",
     )
+    candidate_predictions = None
+    if candidate_hook is not None:
+        data, candidate_predictions = candidate_hook(data)
     final_tickers = data.columns.tolist()
     
     def ml_callback(current, total, message):
@@ -2516,7 +2579,17 @@ def data_and_forecast_pipeline(
     uncertainties = None
     no_view_tickers = []
     
-    if forecast_method in [
+    if candidate_predictions and forecast_method != "RISK_ONLY":
+        mu_log_forecast = pd.Series({t: value.get("expected_return") for t, value in candidate_predictions.items()}, dtype=float)
+        no_view_tickers = mu_log_forecast[mu_log_forecast.isna()].index.tolist()
+        mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
+        uncertainties = pd.Series({t: value.get("uncertainty", MAX_FORECAST_UNCERTAINTY)
+                                   for t, value in candidate_predictions.items()}, dtype=float)
+        if forecast_method in {"TRANSFORMER", "ARIMA_TRANSFORMER"}:
+            uncertainties = _annual_log_uncertainty_series_to_simple(mu_log_forecast, uncertainties)
+        if no_view_tickers:
+            uncertainties.loc[no_view_tickers] = MAX_FORECAST_UNCERTAINTY
+    elif forecast_method in [
         "HISTORICAL",
         "MPT",
         "CLASSIC_MPT",
@@ -2776,7 +2849,8 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                        turnover_penalty=0.0, min_holding_weight=0.0,
                        asset_constraints=None, group_constraints=None,
                        current_holdings=None,
-                       cancel_event=None, include_observation_context=False):
+                       cancel_event=None, include_observation_context=False,
+                       candidate_search=None, campaign_id=None, _defer_candidate_commit=False):
     """Optimize portfolio and optionally persist or reuse saved results."""
     _raise_if_cancelled(cancel_event)
     classification_metadata = {
@@ -2887,19 +2961,38 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         optimization_method,
     )
 
+    from candidate_search import normalize_policy, live_hook, CandidateSearchError
+    try:
+        search_policy = normalize_policy(candidate_search)
+    except ValueError as exc:
+        return {"error": str(exc), "error_code": "INVALID_CANDIDATE_POLICY"}
+    prepared_context = {}
+    selection_hook = None
+    canonical_method = {"Transformer": "TRANSFORMER", "Ensemble": "ARIMA_TRANSFORMER", "DEEP_LEARNING": "ARIMA_TRANSFORMER",
+                        "ARIMA + Transformer": "ARIMA_TRANSFORMER", "Lightweight": "LIGHTWEIGHT"}.get(effective_forecast_method, effective_forecast_method)
+    if search_policy['enabled']:
+        holding_basis = current_holdings or current_weights or {}
+        selection_hook, prepared_context = live_hook(search_policy, canonical_method, forecast_horizon,
+            min_history, holding_basis, campaign_id, [c['ticker'] for c in asset_constraints], cancel_event, progress_callback)
+
     # 2. Run Cached Pipeline (Data & Forecasting)
     try:
-        pipeline_result = data_and_forecast_pipeline(
+        pipeline_runner = getattr(data_and_forecast_pipeline, "__wrapped__", data_and_forecast_pipeline) if selection_hook else data_and_forecast_pipeline
+        pipeline_options = {"candidate_hook": selection_hook} if selection_hook else {}
+        pipeline_result = pipeline_runner(
             start_date,
             end_date,
             ticker_group,
             tickers,
-            effective_forecast_method,
+            canonical_method if selection_hook else effective_forecast_method,
             forecast_horizon=forecast_horizon,
             min_history=min_history,
             progress_callback=progress_callback,
             cancel_event=cancel_event,
+            **pipeline_options,
         )
+    except CandidateSearchError as exc:
+        return exc.to_dict()
     except OptimizationCancelled:
         raise
     except Exception:
@@ -3410,6 +3503,19 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 "group_constraints": group_constraints,
             },
         }
+        decision = prepared_context.get('decision')
+        if decision is not None:
+            result_payload['candidate_search'] = decision.report
+            result_payload['campaign_id'] = decision.campaign_id
+        elif not search_policy['enabled']:
+            result_payload['candidate_search'] = {
+                'policy': search_policy, 'mode_effective': 'full',
+                'selected': list(S.columns), 'selected_count': len(S), 'universe_count': len(S),
+                'held': [t for t, value in (current_holdings or current_weights or {}).items() if value > 0],
+                'similar': [], 'random': [], 'required': [c['ticker'] for c in asset_constraints],
+                'full_refresh': True, 'prediction_calls': None, 'cache_hits': None,
+                'limited_savings': True, 'as_of': str((pipeline_result.get('observation_dates') or [end_date])[-1])[:10],
+            }
         result_payload.update(control_payload)
         if include_observation_context:
             result_payload["_observation_context"] = {
@@ -3451,6 +3557,12 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             save_portfolio_result(portfolio_id, result_payload, metadata)
             result_payload["portfolio_id"] = portfolio_id
         
+        if decision is not None:
+            _raise_if_cancelled(cancel_event)
+            if _defer_candidate_commit:
+                result_payload['_candidate_prepared'] = decision
+            else:
+                decision.commit({'weights': final_weights}, cancel_event=cancel_event)
         return result_payload
 
     except ConstraintValidationError as e:
@@ -3954,6 +4066,7 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
                            calculation_mode="REOPTIMIZE",
                            target_weights=None,
                            imported_target=None,
+                           _defer_candidate_commit=False,
                            **kwargs):
 
     calculation_mode = str(calculation_mode or "REOPTIMIZE").strip().upper()
@@ -4032,9 +4145,11 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
         forecast_method=forecast_method,
         optimization_method=optimization_method,
         current_holdings=current_holdings,
+        _defer_candidate_commit=True,
         **kwargs
     )
     
+    prepared_decision = opt_result.pop('_candidate_prepared', None)
     if "error" in opt_result:
         return opt_result
 
@@ -4064,6 +4179,12 @@ def manage_portfolio_logic(current_holdings, cash_injection, start_date, end_dat
     except ValueError as exc:
         return {"error": str(exc)}
     opt_result.update(rebalance_data)
+    if prepared_decision is not None:
+        _raise_if_cancelled(kwargs.get('cancel_event'))
+        if _defer_candidate_commit:
+            opt_result['_candidate_prepared'] = prepared_decision
+        else:
+            prepared_decision.commit({'weights': target_weights, 'orders': rebalance_data}, cancel_event=kwargs.get('cancel_event'))
     opt_result["calculation_mode"] = calculation_mode
     opt_result["current_holdings"] = current_holdings
     opt_result["cash_injection"] = cash_injection

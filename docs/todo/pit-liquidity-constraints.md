@@ -30,3 +30,9 @@
 
 - 관련 문서: `docs/02-specs.md`, `docs/03-product-plan.md`
 - todo-list 한 줄 요약: point-in-time ADV와 corporate-action-adjusted 가격 데이터로 liquidity/participation 제약을 검증합니다.
+
+## 2026-11-15 선행조건 점검
+
+기존 Nasdaq OHLCV/provenance는 있으나 누락 22종목과 corporate action·거래정지 coverage 정책, notional/participation 계약 및 impact calibration이 미확정이다.
+
+점검 기록: `docs/reports/261115-0127-01-todo-completion.md`.

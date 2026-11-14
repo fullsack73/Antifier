@@ -28,3 +28,9 @@
 
 - 관련 문서: `docs/02-specs.md`, `docs/03-product-plan.md`
 - todo-list 한 줄 요약: hard constraint와 구분되는 penalty 단위·우선순위·slack 설명 계약을 연구합니다.
+
+## 2026-11-15 선행조건 점검
+
+penalty 단위 정규화·calibration dataset·tie-breaking 정책이 미확정이다. 임의 penalty로 구현하지 않았다.
+
+점검 기록: `docs/reports/261115-0127-01-todo-completion.md`.

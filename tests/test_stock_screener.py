@@ -160,8 +160,8 @@ def test_fetch_universe_data_quiets_and_restores_yfinance_logger(monkeypatch):
 
 def test_custom_ticker_universe_reuses_cached_raw_data(monkeypatch):
     suffix = uuid.uuid4().hex
-    first = f"CACHEA{suffix}"
-    second = f"CACHEB{suffix}"
+    first = f"CACHEA{suffix}".upper()
+    second = f"CACHEB{suffix}".upper()
     fetch_calls = []
 
     def fake_fetch_universe_data(tickers):
@@ -195,7 +195,7 @@ def test_custom_ticker_universe_reuses_cached_raw_data(monkeypatch):
 
 def test_custom_ticker_universe_does_not_cache_empty_fetch(monkeypatch):
     suffix = uuid.uuid4().hex
-    ticker = f"EMPTY{suffix}"
+    ticker = f"EMPTY{suffix}".upper()
     fetch_calls = []
 
     def fake_fetch_universe_data(tickers):
@@ -229,3 +229,65 @@ def test_fetch_universe_data_warns_when_all_tickers_fail(monkeypatch, caplog):
 
     assert result.empty
     assert "No stock screener data could be fetched for 2 tickers" in caplog.text
+
+
+def test_partial_cached_universe_retries_only_missing_tickers(monkeypatch):
+    cached = stock_screener.pd.DataFrame([
+        {"Ticker": "AAPL", "Financial Score": 80},
+        {"Ticker": "MSFT", "Financial Score": None},
+    ])
+    writes = []
+    calls = []
+
+    class FakeCache:
+        def get(self, _key):
+            return writes[-1].copy() if writes else cached.copy()
+
+        def set(self, _key, value, *_ttls):
+            writes.append(value.copy())
+
+    def fetch(tickers):
+        calls.append(tickers)
+        return stock_screener.pd.DataFrame([
+            {"Ticker": "MSFT", "Financial Score": 90},
+            {"Ticker": "ZTS", "Financial Score": 40},
+        ])
+
+    monkeypatch.setattr(stock_screener, "get_cache", FakeCache)
+    monkeypatch.setattr(stock_screener, "fetch_universe_data", fetch)
+    filters = {"tickers": ["ZTS", "AAPL", "MSFT", "aapl"],
+               "criteria": [{"metric": "Financial Score", "operator": "Over", "value": 65}]}
+    result = stock_screener.search_stocks(filters, include_coverage=True)
+    assert result["coverage"] == {"requested": 3, "fetched": 3, "missing": 0}
+    assert [row["Ticker"] for row in result["results"]] == ["MSFT", "AAPL"]
+    assert stock_screener.search_stocks(filters) == result["results"]
+    assert calls == [["MSFT", "ZTS"]]
+    assert cached["Ticker"].tolist() == ["AAPL", "MSFT"]
+
+
+def test_predefined_partial_universe_preserves_successes_and_reports_coverage(monkeypatch):
+    cached = stock_screener.pd.DataFrame([{"Ticker": "AAPL", "Financial Score": 80}])
+
+    class FakeCache:
+        def get(self, _key):
+            return cached
+
+        def set(self, *_args):
+            raise AssertionError("A failed retry must not overwrite cached successes")
+
+    calls = []
+    monkeypatch.setattr(stock_screener, "get_cache", FakeCache)
+    monkeypatch.setattr(stock_screener, "get_ticker_group", lambda _group: ["AAPL", "ZTS"])
+    monkeypatch.setattr(stock_screener, "fetch_universe_data",
+                        lambda tickers: calls.append(tickers) or stock_screener.pd.DataFrame())
+    for _ in range(2):
+        result = stock_screener.search_stocks({"Index": "S&P 500"}, include_coverage=True)
+        assert result["coverage"] == {"requested": 2, "fetched": 1, "missing": 1}
+        assert result["results"] == cached.to_dict("records")
+    assert calls == [["ZTS"], ["ZTS"]]
+
+
+def test_empty_upstream_metrics_are_not_successful_rows(monkeypatch):
+    monkeypatch.setattr(stock_screener.yf, "Ticker", lambda _ticker: FakeTicker())
+    monkeypatch.setattr(stock_screener, "build_financial_decision_summary", _fake_score_summary)
+    assert stock_screener.fetch_single_stock_data("NODATA") is None
