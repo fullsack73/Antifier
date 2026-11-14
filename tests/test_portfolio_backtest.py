@@ -2792,3 +2792,26 @@ def test_step_provider_reuses_accounting_and_receives_executed_holdings():
     assert len(observed) > 1 and not (observed[0]['equal_weight']['shares'] > 0).any()
     for key in ['summary_by_model', 'rebalance_records', 'daily_returns_by_model']:
         assert actual[key] == expected[key]
+
+
+@pytest.mark.parametrize('model,exposure', [('equal_weight', 1.), ('min_variance', 1.), ('min_variance', .5), ('min_variance', 0.)])
+def test_daily_export_includes_initial_cost_and_cash(model, exposure):
+    prices = _synthetic_prices(65)
+    def target(train, date, states):
+        return {'rebalance_date': date, 'models': {model: {
+            'weights': {ticker: exposure / len(train.columns) for ticker in train.columns},
+            'diagnostics': {}}}}
+    result = portfolio_backtest.run_portfolio_model_backtest(prices, models=[model],
+        train_window=20, rebalance_frequency=10, max_asset_weight=1.,
+        target_provider=target, transaction_cost_bps=25, include_daily_returns=True)
+    daily = pd.Series(result['daily_returns_by_model'][model])
+    first = result['rebalance_records'][0]
+    assert result['daily_returns_include_initial_cost'] is True
+    assert daily.index[0] == prices.index[21].strftime('%Y-%m-%d')
+    no_fee = portfolio_backtest.run_portfolio_model_backtest(prices, models=[model],
+        train_window=20, rebalance_frequency=10, max_asset_weight=1.,
+        target_provider=target, transaction_cost_bps=0, include_daily_returns=True)
+    no_fee_first = next(iter(no_fee['daily_returns_by_model'][model].values()))
+    initial_ratio = first['portfolio_value_after_cost'] / first['portfolio_value_before_cost']
+    assert daily.iloc[0] == pytest.approx((1 + no_fee_first) * initial_ratio - 1)
+    assert (1 + daily).prod() == pytest.approx(1 + result['summary_by_model'][model]['net_cumulative_return'])

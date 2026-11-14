@@ -181,6 +181,14 @@ export default function StrategyBacktest() {
     return `${optimizer} · ${t(`optimizer.${FORECASTS.find(([value]) => value === config.forecast_method)[1]}`)}` +
       (config.candidate_search ? ` · ${t(`candidateSearch.${config.candidate_search.enabled ? (config.optimization_method === "MIN_VARIANCE" ? "price_features" : config.candidate_search.mode) : "full"}`)}` : "")
   }
+  const progressMessage = message => {
+    const match = message?.match(/^(.*): (\S+) (\{.*\})$/)
+    if (!match) return message || label("queued")
+    try {
+      const event = JSON.parse(match[3])
+      return `${match[1]} · ${match[2]} · ${t(`candidateSearch.${event.stage}`)} · ${event.done}/${event.total} · ${t("candidateSearch.calls")}: ${event.prediction_calls} · ${t("candidateSearch.cacheHits")}: ${event.cache_hits} · ${t("candidateSearch.pool")}: ${event.universe_count}`
+    } catch { return message }
+  }
   const names = result ? Object.keys(result.strategies) : []
   const plot = (key, percent = false) => <Plot data={names.map(name => ({
     x: Object.keys(result.strategies[name][key]), y: Object.values(result.strategies[name][key]),
@@ -195,11 +203,9 @@ export default function StrategyBacktest() {
   const records = names.length ? result.strategies[names[0]].rebalance_records : []
   return <section className="strategy-backtest" aria-labelledby="strategy-backtest-title">
     <h2 id="strategy-backtest-title">{label("title")}</h2>
-    <p>{label("description")}</p>
-    <details className="strategy-limitations"><summary>{label("conditions")}</summary><p className="strategy-note">{label("limitations")}</p></details>
     <form onSubmit={inspect}>
       <fieldset disabled={running || busy || readingCsv}>
-        <legend>{label("setup")}</legend>
+        <legend className="strategy-sr-only">{label("setup")}</legend>
         <div className="strategy-source">
           <label htmlFor="strategy-csv-file">{label("csv")}</label>
           <input ref={csvInput} id="strategy-csv-file" className="hidden-file-input" type="file"
@@ -215,13 +221,27 @@ export default function StrategyBacktest() {
             {universe.duplicates.length > 0 && <small>{label("duplicates")}: {universe.duplicates.join(", ")}</small>}
           </div>}
         </div>
-        <DateInput inputIdPrefix="strategy-dates" onDateRangeChange={changeDates} />
-        <div className="strategy-fields">{Object.entries(fields).map(([key, value]) => <label key={key}>
-          {label(key)}<input type="number" required step={key === "initial_value" || key.includes("window") || key.includes("frequency") || key.includes("horizon") ? "1" : "0.01"}
-            value={value} onChange={e => change(key, e.target.value)} />
-        </label>)}</div>
+        <div className="strategy-period">
+          <h3>{label("periodSettings")}</h3>
+          <DateInput inputIdPrefix="strategy-dates" onDateRangeChange={changeDates} />
+        </div>
+        <div className="strategy-setting-group">
+          <h3>{label("periodParameters")}</h3>
+          <div className="strategy-fields">{["train_window", "rebalance_frequency", "forecast_horizon"].map(key => <label key={key}>
+            {label(key)}<input type="number" required step="1" value={fields[key]} onChange={e => change(key, e.target.value)} />
+          </label>)}</div>
+        </div>
+        <details className="strategy-trading">
+          <summary>{label("executionSettings")}</summary>
+          <div className="strategy-fields">{["initial_value", "max_asset_weight", "transaction_cost_bps", "rebalance_band", "max_turnover", "risk_free_rate"].map(key => <label key={key}>
+            {label(key)}<input type="number" required step={key === "initial_value" ? "1" : "0.01"} value={fields[key]}
+              onInvalid={e => { e.currentTarget.closest("details").open = true }} onChange={e => change(key, e.target.value)} />
+          </label>)}</div>
+        </details>
+        <div className="strategy-comparisons">
         <h3>{label("comparisonItems")}</h3>
         {strategies.map((row, index) => <div className="strategy-config-row" key={row.rowId}>
+          <h4>{label("strategy")} {index + 1}</h4>
           <label htmlFor={`strategy-optimizer-${row.rowId}`}>{t("optimizer.optimizationMethod")}
             <select id={`strategy-optimizer-${row.rowId}`} value={row.optimization_method}
               onChange={e => changeStrategy(row.rowId, "optimization_method", e.target.value)}>
@@ -247,8 +267,11 @@ export default function StrategyBacktest() {
         </div>)}
         <button type="button" disabled={strategies.length >= 10} onClick={addStrategy}>{label("addStrategy")}</button>
         {strategies.some(row => row.optimization_method === "BL") && <p className="strategy-note">{label("blPriorNote")}</p>}
+        </div>
+        <div className="strategy-actions">
         <button type="submit" disabled={!csv || !universe || !dates.start_date || !strategies.length || readingCsv}>{label("preview")}</button>
-        {preview && <div role="status">
+        </div>
+        {preview && <div role="status" className="strategy-workload">
           <p>{label("workload")}: {preview.tickers.length} / {preview.estimated_rebalances}</p>
           <p>{label("forecastUpperBound")}: {preview.estimated_forecasts}</p>
           {preview.initial_forecasts_upper_bound != null && <p>{label("sharedInitialForecasts")}: {preview.initial_forecasts_upper_bound}</p>}
@@ -267,11 +290,12 @@ export default function StrategyBacktest() {
           </div>)}
           <p className="strategy-note">{label("workloadEstimateNote")}</p>
           <p className="strategy-note">{label("sharedForecastNote")}</p>
-          <p>{label("duplicates")}: {preview.duplicates.join(", ") || "—"}</p>
-          <button type="button" onClick={start}>{label("run")}</button>
+          {preview.duplicates.length > 0 && <p>{label("duplicates")}: {preview.duplicates.join(", ")}</p>}
+          <button type="button" className="strategy-run" onClick={start}>{label("run")}</button>
         </div>}
       </fieldset>
     </form>
+    <details className="strategy-limitations"><summary>{label("conditions")}</summary><p className="strategy-note">{label("limitations")}</p></details>
     {job && ["interrupted", "failed", "error", "cancelled"].includes(job.status) && <button type="button" onClick={async () => {
       try {
         const value = await request(`/api/strategy-backtests/${jobId}/resume`, post({}))
@@ -279,8 +303,8 @@ export default function StrategyBacktest() {
       } catch (err) { setError(err.message) }
     }}>{t("candidateSearch.resume", "Resume saved backtest")}</button>}
     {error && <p role="alert">{error}</p>}
-    {running && <div role="status"><progress value={job?.progress || 0} max="100" />
-      <p>{job?.message || label("queued")}</p>
+    {running && <div role="status" className="strategy-progress"><progress aria-label={label("progress")} value={job?.progress || 0} max="100" />
+      <p>{progressMessage(job?.message)}</p>
       <button type="button" onClick={async () => {
         try { await request(`/api/optimization-jobs/${jobId}/cancel`, post({})) }
         catch (err) { setError(err.message) }
@@ -292,14 +316,19 @@ export default function StrategyBacktest() {
     {result && <section className="strategy-results">
       <h3>{label("results")}</h3><button type="button" onClick={download}>{label("download")}</button>
       <p>{label("effectiveDates")}: {result.effective_start_date} ~ {result.effective_end_date}</p>
-      <p>{label("eligible")}: {result.eligible_tickers.join(", ")}</p>
-      <p>{label("excluded")}: {Object.keys(result.exclusions).join(", ") || "—"}</p>
+      <div className="strategy-symbol-lists">
+        {[["eligible", result.eligible_tickers], ["excluded", Object.keys(result.exclusions)]].map(([key, symbols]) =>
+          symbols.length > 0 ? <details key={key}>
+            <summary>{label(key)} ({symbols.length})</summary>
+            <p className="strategy-symbol-list">{symbols.join(", ")}</p>
+          </details> : <p key={key}>{label(key)} (0)</p>)}
+      </div>
       <details><summary>{label("conditions")}</summary><dl>{Object.keys(DEFAULTS).map(key =>
         <div key={key}><dt>{label(key)}</dt><dd>{["max_asset_weight", "rebalance_band", "max_turnover", "risk_free_rate"].includes(key)
           ? (result.settings[key] * 100).toFixed(2) : result.settings[key]}</dd></div>)}</dl></details>
       <h3>{label("equity")}</h3>{plot("equity")}
       <h3>{label("drawdown")}</h3>{plot("drawdown", true)}
-      <div className="strategy-table"><table><thead><tr><th>{label("strategy")}</th>
+      <div className="strategy-table" tabIndex="0" role="region" aria-label={label("results")}><table><thead><tr><th>{label("strategy")}</th>
         {metrics.map(key => <th key={key}>{label(key)}</th>)}</tr></thead><tbody>{names.map(name => <tr key={name}>
           <th scope="row">{strategyLabel(name)}</th>{metrics.map(key => <td key={key}>{format(key, result.strategies[name].summary[key])}</td>)}
         </tr>)}</tbody></table></div>
@@ -322,11 +351,11 @@ export default function StrategyBacktest() {
             <p>{label("fallback")}: {fallback || "—"}</p>
             <p>{label("noView")}: {predictions.no_view_tickers.join(", ") || "—"}</p>
             {diagnostic?.prior_source && <p className="strategy-note">{label("blPriorNote")}</p>}
-            <div className="strategy-table"><table><thead><tr><th>{label("ticker")}</th><th>{label("forecast")}</th></tr></thead>
+            <div className="strategy-table" tabIndex="0" role="region" aria-label={label("results")}><table><thead><tr><th>{label("ticker")}</th><th>{label("forecast")}</th></tr></thead>
               <tbody>{Object.entries(predictions.annual_log_forecasts).map(([ticker, value]) =>
                 <tr key={ticker}><td>{ticker}</td><td>{format("forecast", value)}</td></tr>)}</tbody></table></div>
             <p>{label("periodReturn")}: {format("return", record.net_period_return)} ({record.rebalance_date} ~ {record.period_end_date})</p>
-            <div className="strategy-table"><table><thead><tr><th>{label("ticker")}</th><th>{label("weight")}</th></tr></thead>
+            <div className="strategy-table" tabIndex="0" role="region" aria-label={label("results")}><table><thead><tr><th>{label("ticker")}</th><th>{label("weight")}</th></tr></thead>
               <tbody>{Object.entries(record.controlled_weights).filter(([, w]) => w > 0).map(([ticker, w]) =>
                 <tr key={ticker}><td>{ticker}</td><td>{format("weight", w)}</td></tr>)}</tbody></table></div>
           </div>

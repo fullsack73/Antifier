@@ -3345,18 +3345,13 @@ def run_portfolio_model_backtest(
         "warnings": warnings,
     }
     if include_daily_returns:
-        result["daily_returns_by_model"] = {
-            model: {
-                str(date): float(value)
-                for date, value in (
-                    pd.Series(state["values"], dtype=float)
-                    .sort_index()
-                    .pct_change()
-                    .replace([np.inf, -np.inf], np.nan)
-                    .dropna()
-                    .items()
-                )
-            }
-            for model, state in states.items()
-        }
+        result["daily_returns_include_initial_cost"] = True
+        result["daily_returns_by_model"] = {}
+        for model, state in states.items():
+            values = pd.Series(state["values"], dtype=float).sort_index()
+            returns = values.pct_change(fill_method=None).replace([np.inf, -np.inf], np.nan).dropna()
+            # Keep the observation calendar while anchoring the first interval before fees.
+            if not returns.empty:
+                returns.iloc[0] = float(values.iloc[1]) / float(initial_value) - 1
+            result["daily_returns_by_model"][model] = {str(date): float(value) for date, value in returns.items()}
     return result

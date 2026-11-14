@@ -28,3 +28,9 @@
 
 - 관련 문서: `docs/02-specs.md`, `docs/03-product-plan.md`, `tools/BUILD.md`
 - todo-list 한 줄 요약: mixed-integer solver 지원성과 재현 가능한 fallback 정책이 확보되면 exact max-names를 검토합니다.
+
+## 2026-11-15 선행조건 점검
+
+재배포 가능한 solver 선정, 세 플랫폼 build 및 runtime/timeout/fallback 정책이 미검증이다. 기존 heuristic을 exact로 표시하지 않았다.
+
+점검 기록: `docs/reports/261115-0127-01-todo-completion.md`.

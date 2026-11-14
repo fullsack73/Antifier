@@ -336,8 +336,8 @@ def _run_comparison(settings, progress, cancel_event, checkpoint, forecast):
                 horizon=s['forecast_horizon'], train_window=s['train_window'],
                 forecast=lambda ticker, series, horizon: forecast(method, ticker, series, horizon),
                 campaign_id=campaign, cancel_event=cancel_event,
-                progress=lambda ticker, done, total: progress(5 + 90 * (number + len(decisions)/len(origins))/len(s['strategies']),
-                    100, f'{date}: {method} {ticker} ({done+1}/{total})'))
+                progress=lambda event: progress(5 + 90 * (number + len(decisions)/len(origins))/len(s['strategies']),
+                    100, f'{date}: {method} ' + json.dumps(event)))
             campaign = decision.campaign_id
             selected = decision.report['selected']
             if len(selected) * s['max_asset_weight'] < 1-1e-9:
@@ -392,15 +392,14 @@ def _run_comparison(settings, progress, cancel_event, checkpoint, forecast):
         summary = run['summary_by_model']['min_variance']
         daily = pd.Series(run['daily_returns_by_model']['min_variance'], dtype=float).sort_index()
         expected = 1 + summary['net_cumulative_return']
+        if not np.isclose((1+daily).prod(), expected, rtol=1e-9, atol=1e-9):
+            raise ValueError('Daily returns do not reconcile with net wealth')
         first_trade = run['rebalance_records'][0]
         first_date = first_trade['rebalance_date']
-        if not np.isclose((1+daily).prod(), expected, rtol=1e-9, atol=1e-9):
-            if first_date in daily.index:
-                raise ValueError('Unexpected daily return accounting')
-            daily = pd.concat([pd.Series({first_date: first_trade['portfolio_value_after_cost'] /
-                                           first_trade['portfolio_value_before_cost'] - 1}), daily])
-        elif first_date not in daily.index:
-            daily = pd.concat([pd.Series({first_date: 0.}), daily])
+        initial_ratio = first_trade['portfolio_value_after_cost'] / first_trade['portfolio_value_before_cost']
+        # Split the combined first interval to show the actual initial cost date.
+        daily.iloc[0] = (1 + daily.iloc[0]) / initial_ratio - 1
+        daily = pd.concat([pd.Series({first_date: initial_ratio - 1}), daily])
         wealth = s['initial_value'] * (1+daily).cumprod()
         if not np.isclose(wealth.iloc[-1], s['initial_value'] * expected, rtol=1e-9, atol=1e-7):
             raise ValueError('Daily returns do not reconcile with net wealth')
@@ -411,7 +410,7 @@ def _run_comparison(settings, progress, cancel_event, checkpoint, forecast):
             'drawdown': (values / values.cummax() - 1).to_dict(),
             'daily_returns': {str(pd.Timestamp(d).date()): float(v) for d, v in daily.items()},
             'rebalance_records': run['rebalance_records'], 'candidate_decisions': decisions, 'campaign_id': campaign}
-        progress(80 + 20*(number+1)/len(s['strategies']), 100, f'Completed {name}')
+        progress(5 + 90*(number+1)/len(s['strategies']), 100, f'Completed {name}')
     check()
     forecast_records.sort(key=lambda r: r['date'])
     result['price_digest'] = signature['price_digest']

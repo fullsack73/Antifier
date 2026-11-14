@@ -217,13 +217,24 @@ class CandidateStore:
                                       dates=series.index.asi8.tolist()))
                 cached_predictions[ticker] = (family, *self.lookup_prediction(cache_key(ticker), family, series.to_numpy()))
             return cached_predictions[ticker]
-        def predict_many(tickers):
+        def predict_many(tickers, stage):
+            tickers = [t for t in tickers if t not in predictions]
+            if not tickers:
+                return
+            before = counts.copy()
+            def notify(ticker, done):
+                if progress:
+                    progress(dict(stage=stage, ticker=ticker, done=done, total=len(tickers),
+                        universe_count=len(universe), prediction_calls=counts['prediction_calls'] - before['prediction_calls'],
+                        cache_hits=counts['cache_hits'] - before['cache_hits']))
+            notify(None, 0)
             if batch_forecast is not None:
                 missing = [t for t in tickers if t not in predictions and lookup(t)[1] is None]
                 if missing:
                     batch_values.update(batch_forecast(prices[missing].tail(train_window), horizon))
-            for ticker in tickers:
+            for done, ticker in enumerate(tickers, 1):
                 predict(ticker)
+                notify(ticker, done)
         def predict(ticker):
             _raise_if_cancelled(cancel_event)
             if ticker in predictions:
@@ -236,8 +247,6 @@ class CandidateStore:
                 counts['cache_hits'] += 1
                 counts['compatible_cache_hits'] += int(compatible)
             else:
-                if progress:
-                    progress(ticker, counts['prediction_calls'] + counts['cache_hits'], len(universe))
                 value = _safe(batch_values[ticker] if ticker in batch_values else forecast(ticker, series, horizon))
                 if not isinstance(value, dict):
                     raise CandidateSearchError('Forecast returned an invalid result')
@@ -260,7 +269,7 @@ class CandidateStore:
         refresh = initial or (mode == 'forecast_profile' and (elapsed >= policy['refresh_interval'] or calendar_gap))
         full = not policy['enabled'] or refresh
         if method != 'RISK_ONLY' and (full or (mode != 'price_features' and not state['snapshot'])):
-            predict_many(universe)
+            predict_many(universe, 'initial_map' if initial else 'full_refresh')
             if mode != 'price_features':
                 state['snapshot'] = copy.deepcopy(predictions)
                 state['map_as_of'] = as_of
@@ -285,7 +294,7 @@ class CandidateStore:
         if not selected:
             raise CandidateSearchError('No candidates available')
         if method != 'RISK_ONLY':
-            predict_many(selected)
+            predict_many(selected, 'current_forecasts' if full else 'partial_refresh')
         state['map_age_sessions'] = 0 if state['map_as_of'] == as_of else elapsed
         state['last_as_of'] = as_of
         state['identity'] = identity

@@ -190,7 +190,7 @@ def net_daily_returns(run):
     """Anchor exported daily returns to starting wealth including initial fees."""
     daily = pd.Series(run["daily_returns_by_model"]["min_variance"], dtype=float).copy()
     expected = 1 + run["summary_by_model"]["min_variance"]["net_cumulative_return"]
-    if not np.isclose((1 + daily).prod(), expected, rtol=1e-10, atol=1e-10):
+    if not run.get("daily_returns_include_initial_cost") and not np.isclose((1 + daily).prod(), expected, rtol=1e-10, atol=1e-10):
         first = run["rebalance_records"][0]
         daily.iloc[0] = ((1 + daily.iloc[0]) * first["portfolio_value_after_cost"] /
                          first["portfolio_value_before_cost"] - 1)

@@ -30,3 +30,9 @@
 
 - 관련 문서: `docs/02-specs.md`, `docs/03-product-plan.md`
 - todo-list 한 줄 요약: point-in-time factor exposure와 검증된 hedge instrument를 확보한 뒤 factor hedge 제약을 연구합니다.
+
+## 2026-11-15 선행조건 점검
+
+versioned PIT exposure dataset과 hedge instrument 정책이 없어 완료할 수 없다. 현재 분류값으로 소급 대체하지 않았다.
+
+점검 기록: `docs/reports/261115-0127-01-todo-completion.md`.

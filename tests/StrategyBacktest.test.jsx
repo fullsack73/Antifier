@@ -76,7 +76,7 @@ it("labels saved results with the recorded optimizer and forecast combination", 
     settings: { strategy_configs: [
       { id: "mpt_lightweight", optimization_method: "MPT", forecast_method: "LIGHTWEIGHT" },
       { id: "mpt_transformer", optimization_method: "MPT", forecast_method: "TRANSFORMER" },
-    ] }, eligible_tickers: ["AAPL"], exclusions: {},
+    ] }, eligible_tickers: Array.from({ length: 457 }, (_, i) => `T${i}`), exclusions: {},
     strategies: Object.fromEntries(["mpt_lightweight", "mpt_transformer"].map(id => [id,
       { summary: {}, equity: {}, drawdown: {}, rebalance_records: [record] }])),
     forecast_records: [{ date: "2024-01-02", train_end_date: "2024-01-01", forecasts_by_method: {
@@ -89,6 +89,13 @@ it("labels saved results with the recorded optimizer and forecast combination", 
   render(<StrategyBacktest />)
   await screen.findByRole("rowheader", { name: "optimizer.mpt · optimizer.lightweight" })
   expect(screen.getByRole("rowheader", { name: "optimizer.mpt · optimizer.transformer" })).toBeInTheDocument()
+  const symbolsToggle = screen.getByText("strategyBacktest.eligible (457)")
+  expect(symbolsToggle.closest("details").open).toBe(false)
+  fireEvent.click(symbolsToggle)
+  expect(symbolsToggle.closest("details").open).toBe(true)
+  expect(screen.getByText(/T0, T1, T2/)).toHaveTextContent("T456")
+  fireEvent.click(symbolsToggle)
+  expect(symbolsToggle.closest("details").open).toBe(false)
   fireEvent.change(screen.getByLabelText("strategyBacktest.rebalanceDetail"), { target: { value: "2024-01-02" } })
   expect(screen.getByRole("cell", { name: "10.00%" })).toBeInTheDocument()
   expect(screen.getByRole("cell", { name: "20.00%" })).toBeInTheDocument()
@@ -162,4 +169,32 @@ it('offers resume for backend error status and clears the old failure after retr
   fireEvent.click(screen.getByText('candidateSearch.resume'))
   await screen.findByText('Recovered')
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+})
+
+it('renders actual partial progress and cache counts without using the full pool as denominator', async () => {
+  localStorage.setItem('antifier.strategyBacktest.job', 'backtest_progress')
+  const event = { stage: 'partial_refresh', done: 40, total: 40, universe_count: 457, prediction_calls: 5, cache_hits: 35 }
+  vi.stubGlobal('fetch', vi.fn(async url => url.includes('strategy-backtest-results') ? reply({ ids: [] })
+    : reply({ status: 'running', progress: 30, message: `2024-11-15: TRANSFORMER ${JSON.stringify(event)}` })))
+  render(<StrategyBacktest />)
+  const message = await screen.findByText(/40\/40/)
+  expect(message).toHaveTextContent('candidateSearch.partial_refresh')
+  expect(message).toHaveTextContent('candidateSearch.calls: 5')
+  expect(message).toHaveTextContent('candidateSearch.cacheHits: 35')
+  expect(message).toHaveTextContent('candidateSearch.pool: 457')
+  expect(message).not.toHaveTextContent('/457')
+  expect(screen.getByRole('progressbar')).toHaveAccessibleName('strategyBacktest.progress')
+})
+
+
+it('keeps trading settings collapsed and reveals invalid fields for correction', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => reply({ ids: [] })))
+  await act(async () => { render(<StrategyBacktest />) })
+  const capital = screen.getByLabelText('strategyBacktest.initial_value')
+  const settings = capital.closest('details')
+  expect(settings.open).toBe(false)
+  expect(capital).toHaveValue(10000)
+  fireEvent.invalid(capital)
+  expect(settings.open).toBe(true)
+  expect(capital).toHaveValue(10000)
 })

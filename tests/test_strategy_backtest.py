@@ -359,3 +359,11 @@ def test_native_pool_uses_spawn_thread_limits_and_worker_recycling(inline_foreca
     monkeypatch.setattr(mp,'get_context',context)
     assert inline_forecast_pool()=='pool'
     assert observed==dict(processes=1,initializer=po.worker_initializer,maxtasksperchild=10)
+
+
+def test_progress_never_rewinds_between_strategy_phases(history, monkeypatch):
+    monkeypatch.setattr(sb, '_transformer_forecast_single_ticker',
+        lambda ticker, series, horizon: (ticker, {'expected_return': .05, 'uncertainty': .1}))
+    updates = []
+    sb.run_comparison(config(), lambda done, total, message: updates.append(done), threading.Event())
+    assert updates == sorted(updates)

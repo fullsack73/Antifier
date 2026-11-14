@@ -239,3 +239,41 @@ def test_batch_cache_lookup_does_not_train_compatible_inputs(setup):
     d=store.prepare(frame*(1+1e-7),{},method='TRANSFORMER',horizon=63,train_window=126,
                     forecast=forbidden,batch_forecast=forbidden)
     assert d.report['compatible_cache_hits']==3 and d.report['prediction_calls']==0
+
+
+@pytest.mark.parametrize('mode', ['frozen_forecast', 'forecast_profile'])
+def test_progress_tracks_actual_phase_and_all_cache_hits(setup, mode):
+    store, prices, calls, forecast = setup
+    prices = prices.iloc[:, :457]
+    events = []
+    def run(end, holdings, campaign=None):
+        return store.prepare(prices.iloc[:end], holdings, {'mode': mode}, method='TRANSFORMER',
+            horizon=63, train_window=126, forecast=forecast, campaign_id=campaign, progress=events.append)
+    first = run(200, {})
+    assert events[0]['stage'] == 'initial_map'
+    assert events[-1]['done'] == events[-1]['total'] == 457
+    first.commit()
+    events.clear()
+    held = {f'T{i:03}': 1 for i in range(20)}
+    partial = run(221, held, first.campaign_id)
+    assert partial.report['selected_count'] == 40
+    assert {e['total'] for e in events} == {40}
+    assert {e['universe_count'] for e in events} == {457}
+    assert {e['stage'] for e in events} == {'partial_refresh'}
+    assert events[-1]['prediction_calls'] == events[-1]['done'] == 40
+    # Retrying an uncommitted step must also emit a completed, entirely cached phase.
+    events.clear()
+    run(221, held, first.campaign_id)
+    assert events[-1]['cache_hits'] == events[-1]['done'] == 40
+    assert events[-1]['prediction_calls'] == 0
+    # Mixed cache: removing one selected forecast causes exactly one new call.
+    with store.connect() as db:
+        db.execute("DELETE FROM predictions WHERE key IN (SELECT key FROM prediction_inputs WHERE family IN "
+                   "(SELECT family FROM prediction_inputs) ORDER BY rowid DESC LIMIT 1)")
+    events.clear()
+    run(221, held, first.campaign_id)
+    assert events[-1]['cache_hits'] == 39 and events[-1]['prediction_calls'] == 1
+    events.clear()
+    run(452, held, first.campaign_id)
+    assert events[-1]['stage'] == ('full_refresh' if mode == 'forecast_profile' else 'partial_refresh')
+    assert events[-1]['total'] == (457 if mode == 'forecast_profile' else 40)

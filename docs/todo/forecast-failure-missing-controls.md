@@ -29,3 +29,9 @@
 과거 diagnostic을 새 holdout으로 부르거나 production 선택에 재사용하지 않는다.
 원래 manifest의 source drift 보호를 우회하지 않으며 후속 실행은 독립적인
 계약과 명시적인 checkpoint provenance를 사용한다.
+
+## 2026-11-15 선행조건 점검
+
+원래 예산은 종료됐다. 새 실행 시간 상한과 후속 진단 계약이 필요하다. 원본 task ID/checkpoint는 보존하고 source drift 보호를 우회하지 않았다.
+
+점검 기록: `docs/reports/261115-0127-01-todo-completion.md`.
