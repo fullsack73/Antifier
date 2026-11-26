@@ -1,11 +1,37 @@
 # 2) Specs
 
+## 공동 Transformer의 프로덕션 적용 (사용자 승인, 2026-11-24)
+
+사용자가 과거 2년 비교 결과를 수용해 프로덕션 적용을 명시적으로 요청했다.
+포트폴리오의 `Transformer` 최종 예측은 `cross_stock_transformer.py`의 시간/종목
+attention, 0.5 표준화 MSE + 0.5 (1-횡단면 Pearson 상관), seed 42/43/44 평균을
+사용한다. 기본 기간 63일과 GMV 기본 선택은 유지한다. 종목 차트/ARIMA 혼합의
+단일종목 경로와 후보 탐색의 단일종목 지도는 별도이며, 최종 선정 풀을 공동 재예측한다.
+최근 504개 공통 가격, train-only scaler, horizon별 purge, 5 epoch를 사용한다.
+공동 캐시는 모델 버전·전체 풀/순서·전체 가격/날짜·horizon으로 분리하고 실패는
+재사용하지 않는다. 학습은 spawn 프로세스 하나에 격리하며 취소 시 종료한다.
+큰 풀에서는 날짜 batch 크기를 줄여 메모리 사용을 제한한다.
+출력 `expected_return`은 연율 로그 단위를 유지하고 기존 변환으로 MPT에 넣는다.
+공동 Transformer MPT는 비교 실험과 같이 유효 예측을 추가 confidence 수축 없이
+사용하며 BL의 불확실성 처리는 유지한다. 실패/데이터 부족은 no-view로 명시한다.
+검증 RMSE는 불확실성 진단이며 보정된 예측구간이 아니다. 이는 사용자가 승인한
+서비스 모델 적용으로 독립 holdout 검증 통과나 미래 성능 보장을 뜻하지 않는다.
+진행 중인 예측 기간 실험과 기존 연구 코드는 변경하지 않는다.
+
 ## Production 직접 예측 경로 (사용자 요청, 2026-11-09)
 
-서비스의 `Transformer` 선택은 `direct_horizon_forecast.py`의 기간 누적 로그수익률
-직접 학습을 사용한다. `ARIMA + Transformer`는 기존 ARIMA와 직접 예측 head를
-기존 동일가중 계약으로 결합한다. API의 `expected_return`은 연율 로그수익률로
+단일종목 차트와 후보 탐색 지도의 `Transformer`는 `direct_horizon_forecast.py`의
+기간 누적 로그수익률 직접 학습을 사용한다. 포트폴리오 최종 공동 예측은 위
+2026-11-24 적용 계약을 따른다. `ARIMA + Transformer`는 완료된 과거 3개 비중복 기간의
+각 구성요소 예측 오차로 혼합 비율을 정하고, 동일가중 방향으로 절반 수축한다.
+현재와 과거 모델의 학습 창 길이는 같아야 한다. 별도 과거 이력의 마지막 가격
+배열이 현재 학습 창과 정확히 일치해야 하며, 504개 학습/63일 예측에는 현재까지
+최소 693개 가격이 필요하다. 추가 이력이 없는 서비스 호출이나 세 기간의 양쪽
+예측을 모두 얻지 못한 경우에는 동일가중을 유지한다. 과거 예측 재학습으로
+계산 시간이 증가한다. API의 `expected_return`은 연율 로그수익률로
 유지하고, 기간값은 요청 horizon으로 학습한다. 기존 ±0.69 연율 포화를 적용하지 않는다.
+직접 Transformer는 60일 입력의 순서를 표현하기 위해 위치 인코딩을 사용한다.
+이 변경은 구조적 순서 불변성을 해소하며 예측 정확도 향상을 보장하지 않는다.
 학습/검증 목표가 겹치지 않게 purge하고 두 scaler는 학습 partition으로만 맞춘다.
 불확실성은 검증 기간 RMSE를 같은 연율 단위로 변환한 진단 값이며 calibrated
 prediction interval이라고 주장하지 않는다. 기간별 완료 target이 부족하거나
@@ -14,8 +40,8 @@ prediction interval이라고 주장하지 않는다. 기간별 완료 target이 
 GMV/RISK_ONLY 기본값과 opt-in MPT/BL 선택은 유지한다. 이는 사용자 요청의
 서비스 예측 경로 변경이며 독립 alpha 승격 판정이 아니다. 과거 연구용 legacy
 `forecast_models.TransformerForecastModel`은 그대로 보존한다. 연구와 production이
-같은 model builder/target split helper를 사용한다. Forecast-rank cache schema는
-`2026-11-09-direct-horizon-v1`로 분리해 예전 예측 재사용을 방지한다.
+같은 단일종목 model builder/target split helper를 사용한다. 단일종목 forecast-rank cache schema는
+`2026-11-20-direct-horizon-equal-window-v4`로 분리해 예전 예측 재사용을 방지한다.
 
 ## Yahoo 공유 연결과 BL 캐시 (2026-11-10)
 
@@ -32,6 +58,104 @@ BL 시가총액과 시장 위험회피계수도 같은 session을 사용한다. 
 실패 시 MPT fallback 계약은 유지한다.
 
 ## Forecast failure attribution diagnostic
+
+`tools/evaluate_direct_forecast_oos.py`는 날짜 인덱스와 ticker별 가격 열을 갖는
+CSV에서 직접 Transformer를 각 평가일 이전 가격으로 학습하고, 완료된 겹치지
+않는 미래 기간의 예측 오차를 기록하는 diagnostic-only 도구다. 기간 로그수익률
+단위의 RMSE/MAE/편향과 예측별 내부 검증 RMSE, 실패 사유, 입력 hash를 저장한다.
+미완료 기간은 점수화하지 않는다. 이 도구는 서비스의 불확실성이나 기본 전략을
+변경하지 않으며 사용한 과거 자료는 독립 승격 근거로 간주하지 않는다.
+
+예: `python tools/evaluate_direct_forecast_oos.py --csv prices.csv --ticker AAPL --output forecast-oos.json`
+
+`tools/compare_adaptive_hybrid.py`는 공통 완료 표본에서 ARIMA, Transformer,
+동일가중, 과거 완료 예측의 오차 기반 혼합을 기간 로그수익률 RMSE/MAE와
+시점별 rank IC로 비교한다. 원시 예측과 가중치 및 완료 이력 수를 기록한다.
+결측 구성요소가 있는 행은 공통 성능 비교에서 제외하고 건수를 별도로 기록한다.
+과거 자료의 재사용 결과는 diagnostic-only이며 자동 승격 근거가 아니다.
+
+동 도구의 `--cross-error`는 같은 과거 오차를 사용해 교차오차
+`mean(e_ARIMA * e_Transformer)`를 반영한 연구용 가중치를 추가로 비교한다.
+원시 비중을 0~1로 제한한 뒤 동일하게 50% 수축해 최종 25~75%로 맞춘다.
+편향을 포함하는 비중 계산이므로 중심화한 공분산으로 대체하지 않는다.
+`--evaluation-start`로 추가 이력을 학습에만 사용하고 평가일은 고정할 수 있다.
+서비스의 기존 가중치 공식은 변경하지 않으며, 과거 오차는 진단에 기록한다.
+
+`tools/compare_hybrid_history.py`는 같은 22종목·8개 평가 시점을 유지하면서
+완료된 과거 예측 이력 3회와 12회를 비교하는 연구용 도구다. 모든 구성요소는
+504개 가격으로 학습하고, 63거래일 간격의 동일 과거 예측을 한 번만 계산해
+각 이력 길이와 교차오차 반영 여부에서 공유한다. 가중치에는 현재 outcome을
+사용하지 않는다. 서비스의 이력 수와 혼합 방식은 변경하지 않는다.
+
+`tools/tune_direct_forecast.py`는 최대 epoch 5/20/50, 학습률 0.001/0.0003,
+조기 종료 patience 2/5의 12개 조합을 비교한다. 각 종목·평가 시점의 과거
+504개 가격에서 완료 target의 마지막 10%를 내부 검증으로 사용하고 경계의
+target 중복을 purge한다. 내부 검증 RMSE로 조합을 고른 후, 선택에 쓰지 않은
+다음 63일로 기본값 대비 오차를 측정한다. 내부 검증은 조기 종료와 조합 선택에
+공유되지만 다음 63일은 양쪽 모두에 사용하지 않는다. 원시 예측·실제 epoch·
+선택 조합을 저장하고, 입력·소스·의존성이 같을 때만 checkpoint를 재사용한다.
+이미 확인한 과거 자료의 진단이며 서비스 설정과 모델 승격을 변경하지 않는다.
+
+`tools/benchmark_stock_attention.py`는 10종목 공동 시간 attention 모델과
+시간 요약 이후 종목 간 attention을 한 층 추가한 모델의 시간 측정 도구다.
+학습 504개 가격/예측 63일의 한 평가 시점에서 두 모델을 5 epoch 고정으로
+seed 42/43/44 각각 실행한다. Train-only scaler와 purged split을 사용하고
+학습, epoch, 최초 추론과 준비 완료 후 추론 시간 및 장치 정보를 기록한다.
+이는 MASTER 전체 재현이나 성과 승격 실험이 아니며 서비스 모델은 변경하지 않는다.
+
+`tools/evaluate_stock_attention.py`는 같은 소형 공동 모델 두 개를 기존 가격 풀의
+8개 walk-forward 시점에서 seed 42/43/44로 평가한다. 종목 간 attention 추가
+여부 외에는 5 epoch·학습률·입력·scaler·purge·batch를 동일하게 유지한다.
+Seed 반복은 동일 미래 outcome을 다시 사용하므로 독립 표본으로 세지 않는다.
+전체·seed별 RMSE/MAE/rank IC/상하위 spread, 날짜별 paired MSE 차이와
+설명용 bootstrap 구간을 기록한다. 0 수익률도 참고 기준으로 제공한다.
+완료 fit은 자료·코드·의존성 일치 시 재사용한다. 서비스 설정은 변경하지 않는다.
+
+`tools/backtest_stock_losses.py`는 시간 attention 공동 모델의 구조를 고정하고
+날짜별 횡단면 표준화 63일 로그수익률에 MSE, 0.5 MSE + 0.5 (1-Pearson 상관),
+0.5 MSE + 0.5 pairwise softplus 순위 손실을 비교한다. 22종목·8개 시점·3개 seed·
+5 epoch를 공유한다. 점수 상위 5종목을 각 20%로 구성하며 다음 거래일 종가에
+체결한다. 같은 기존 거래 엔진으로 63일 리밸런싱, 비용 10 bps, band 2%,
+회전율 상한 35%를 적용하고 GMV/22종목 동일 비중도 대조한다. 주 지표는
+seed별 비용 차감 일수익률 Sharpe의 평균이며 무위험 연 2%를 일별 환산한다.
+63일 블록 paired bootstrap은 설명용이며 반복 seed는 독립 미래 표본이 아니다.
+이미 소비된 과거 가격의 진단으로 서비스 반영·승격 근거로 사용하지 않는다.
+
+`tools/backtest_attention_mpt.py`는 사용자 요청으로 종목 간 attention과 MSE+상관
+손실을 함께 적용한 공동 Transformer MPT를 GMV와 2년 비교한다. MPT 입력 단위를
+맞추기 위해 날짜별 상대 표준화 대신 절대 63일 로그수익률을 train-only 전역
+표준화해 학습하고 역변환한다. 손실은 0.5 MSE + 0.5 (1-Pearson 상관),
+시점별 504일 학습/5 epoch다. 시드 42/43/44의 로그예측 평균으로 구성한
+MPT를 주 비교로 사전 고정하고 개별 시드도 기록한다. `expm1(log예측*252/63)`은
+기하 연수익률 proxy이며 보정된 조건부 산술 평균이라는 주장은 하지 않는다.
+동일 Ledoit-Wolf covariance, 최대비중 20%, max-Sharpe MPT/GMV, 63거래일
+재계산, 10 bps 비용, 2% band, 회전율 35%, 무위험 연 3%를 사용한다.
+MPT 최적화 실패 시 같은 시점의 GMV 목표로 대체하고 사유/횟수를 보존한다.
+63일 블록 bootstrap은 설명용이며 서비스 모델과 기존 결과는 변경하지 않는다.
+
+`tools/compare_attention_horizons.py`는 위 결합 Transformer MPT의 예측 기간을
+21/42/63/126거래일로 바꾸고, 63일 재계산·무위험 연 3%·동일 거래 제약을 고정한다.
+각 기간은 같은 과거 504일에서 해당 기간의 완료 target과 purge/train-only scaler로
+학습하고, MPT 연율 변환의 분모도 실제 예측 기간을 사용한다. 기본 63일 helper는
+호환 기본값을 유지한다. 63일 모델부터 재학습해 이전 결과의 Sharpe 재현을 확인한
+뒤 다른 후보를 실행하며 과거 checkpoint를 우회 재사용하지 않는다.
+8개 시점·3개 seed·4개 기간으로 96 fit, 같은 2년 일수익률의 ensemble MPT
+순 Sharpe를 주 지표로 삼고 개별 seed와 GMV 대체 횟수도 기록한다. 예측 오차는
+모든 기간 outcome이 완료된 공통 7개 시점으로 비교한다. 기간별 원시 RMSE의
+크기로 최적 기간을 고르지 않고 기간별 0/과거평균 기준 MSE skill과 rank IC를
+함께 기록한다. 가장 높은 과거 Sharpe는 탐색 결과이며 독립 검증 최적값이 아니다.
+
+`tools/compare_matched_rebalancing.py`는 같은 2년/22종목의 예측 기간과 재계산
+간격을 각각 21/42/63/126거래일로 맞춰 비교한다. 504일 학습/3 seed/5 epoch,
+무위험 연 3%, 비용 10 bps, 최대비중 20%, band 2%, 회전율 상한 35%는 공유한다.
+리밸런싱은 각각 24/12/8/4회이며, GMV도 각 후보와 같은 일정으로 재계산한다.
+주 지표는 공통 503개 일수익률의 ensemble MPT 순 Sharpe다. 기존의 모든 후보
+63일 재계산 결과와도 paired 비교해 재계산 주기의 효과를 구분한다.
+기존 실행의 입력/소스/의존성/설정과 개별 checkpoint hash를 검증한 72 fit를
+재사용하고 추가 72 fit만 실행한다. 이전 결과는 덮어쓰지 않는다.
+회전율 35%는 회당 상한이므로 짧은 주기는 연간 매매 예산도 달라진다.
+성과와 함께 실제 매매 회전율/비용/GMV 대체 횟수를 기록하며, 결과로 서비스
+예측 기간이나 리밸런싱 기본값을 자동 변경하지 않는다.
 
 `tools/diagnose_forecast_failures.py`는 기존 로컬 Nasdaq 자료만 사용하는
 research-only 원인 분리 도구입니다. 63거래일을 주 대상으로 현재 경로 재현,

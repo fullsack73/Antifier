@@ -43,6 +43,7 @@ from direct_horizon_forecast import (
     DirectHorizonTransformerForecastModel as TransformerForecastModel,
     DirectARIMATransformerPredictor as ARIMATransformerPredictor,
 )
+from cross_stock_transformer import MODEL_VERSION as JOINT_FORECAST_VERSION
 from lightweight_forecast import lightweight_ensemble_forecast
 from portfolio_signals import cap_and_normalize_weights
 from portfolio_constraints import (
@@ -2270,6 +2271,23 @@ def transformer_forecast_returns(data, batch_size=20, progress_callback=None, ho
         return pd.Series(forecasts), pd.Series(uncertainties)
 
 
+def joint_transformer_forecast_returns(data, progress_callback=None, horizon=63, cancel_event=None):
+    from cross_stock_transformer import forecast_panel, SEEDS
+    predictions = forecast_panel(data, horizon=horizon, progress_callback=progress_callback,
+                                 cancel_event=cancel_event)
+    means = pd.Series({t: p.get("expected_return") for t, p in predictions.items()}, dtype=float)
+    uncertainty = pd.Series({t: p.get("uncertainty", MAX_FORECAST_UNCERTAINTY)
+                             for t, p in predictions.items()}, dtype=float)
+    means.attrs["forecast_model"] = {
+        "model_version": JOINT_FORECAST_VERSION, "kind": "cross_stock_transformer",
+        "joint": True, "seeds": list(SEEDS), "horizon": int(horizon),
+        "cohort_tickers": [t for t, p in predictions.items() if not _is_no_view_prediction(p)],
+        "loss": "0.5 MSE + 0.5 (1 - cross-sectional Pearson correlation)",
+        "uncertainty_is_calibrated": False,
+    }
+    return means, uncertainty
+
+
 def get_market_caps(tickers):
     """Fetch USD market caps with a live session; cache only non-empty results."""
     cache = get_cache()
@@ -2372,14 +2390,17 @@ def _pipeline_key_func(
 ):
     """Generate cache key for pipeline, excluding progress callback."""
     if tickers:
-        tickers_str = ",".join(sorted(tickers))
+        ordered = tickers if forecast_method in {"TRANSFORMER", "Transformer"} else sorted(tickers)
+        tickers_str = ",".join(ordered)
     else:
         tickers_str = "None"
-    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v3_eligibility|{DIRECT_FORECAST_VERSION}"
+    joint_version = JOINT_FORECAST_VERSION if forecast_method in {"TRANSFORMER", "Transformer"} else ""
+    key_str = f"{start_date}|{end_date}|{ticker_group}|{tickers_str}|{forecast_method}|{forecast_horizon}|{min_history}|usd_fx_mu_conf_v3_eligibility|{DIRECT_FORECAST_VERSION}|{joint_version}"
     return f"pipeline_{hashlib.md5(key_str.encode()).hexdigest()}"
 
 @cached(l1_ttl=3600, l2_ttl=86400, key_func=_pipeline_key_func,
-        cache_if=lambda result: isinstance(result, dict) and 'error' not in result)
+        cache_if=lambda result: isinstance(result, dict) and 'error' not in result and not (
+            (result.get("forecast_model") or {}).get("joint") and result.get("no_view_tickers")))
 def data_and_forecast_pipeline(
     start_date,
     end_date,
@@ -2578,8 +2599,9 @@ def data_and_forecast_pipeline(
     mu_forecast = None
     uncertainties = None
     no_view_tickers = []
+    forecast_model = None
     
-    if candidate_predictions and forecast_method != "RISK_ONLY":
+    if candidate_predictions and forecast_method not in {"RISK_ONLY", "TRANSFORMER", "Transformer"}:
         mu_log_forecast = pd.Series({t: value.get("expected_return") for t, value in candidate_predictions.items()}, dtype=float)
         no_view_tickers = mu_log_forecast[mu_log_forecast.isna()].index.tolist()
         mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
@@ -2643,14 +2665,15 @@ def data_and_forecast_pipeline(
             uncertainties.loc[no_view_tickers] = MAX_FORECAST_UNCERTAINTY
 
     elif forecast_method in ["TRANSFORMER", "Transformer"]:
-        logger.info(f"Using Transformer Forecast (Horizon={forecast_horizon})")
+        logger.info(f"Using joint stock-attention Transformer Forecast (Horizon={forecast_horizon})")
         mu_log_forecast, uncertainties = _call_forecast_function(
-            transformer_forecast_returns,
+            joint_transformer_forecast_returns,
             data,
             ml_callback,
             forecast_horizon,
             cancel_event,
         )
+        forecast_model = getattr(mu_log_forecast, "attrs", {}).get("forecast_model")
         mu_log_forecast = pd.Series(mu_log_forecast)
         no_view_tickers = mu_log_forecast[mu_log_forecast.isna()].index.tolist()
         mu_forecast = mu_log_forecast.apply(_annual_log_return_to_simple_return)
@@ -2822,6 +2845,7 @@ def data_and_forecast_pipeline(
         "tickers": final_tickers,
         "uncertainties": uncertainties,
         "no_view_tickers": no_view_tickers,
+        "forecast_model": forecast_model,
         "latest_prices": latest_prices,
         "price_currency": BASE_CURRENCY,
         "source_currencies": {
@@ -3021,6 +3045,9 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
         uncertainties.loc[no_view_tickers] = MAX_FORECAST_UNCERTAINTY
     confidence = _confidence_from_uncertainty(uncertainties)
     adjusted_mu = _shrink_expected_returns(raw_mu, prior_mu, confidence)
+    joint_mpt = bool((pipeline_result.get("forecast_model") or {}).get("joint")) and optimization_method == "MPT"
+    if joint_mpt:
+        adjusted_mu = raw_mu.copy()
     mu = adjusted_mu.copy()
     final_tickers = pipeline_result["tickers"]
     latest_prices = pipeline_result.get("latest_prices", {})
@@ -3318,9 +3345,18 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
                 _, weights, ef = best
                 solver_objective = "regularized_max_sharpe_grid"
         else:
-            ef.max_sharpe(risk_free_rate=risk_free_rate)
+            try:
+                if joint_mpt and len(no_view_tickers) == len(mu):
+                    raise ValueError("No usable joint Transformer forecasts")
+                ef.max_sharpe(risk_free_rate=risk_free_rate)
+                solver_objective = "max_sharpe"
+            except (OptimizationError, ValueError):
+                if not joint_mpt:
+                    raise
+                ef = build_frontier()
+                ef.min_volatility()
+                solver_objective = "joint_transformer_min_variance_fallback"
             weights = extract_weights(ef)
-            solver_objective = "max_sharpe"
 
         if asset_constraints or group_constraints:
             thresholded_weights = project_thresholded_weights(
@@ -3473,6 +3509,7 @@ def optimize_portfolio(start_date, end_date, risk_free_rate, ticker_group=None, 
             "optimization_method": optimization_method,
             "forecast_method_requested": requested_forecast_method,
             "forecast_method_effective": effective_forecast_method,
+            "forecast_model": pipeline_result.get("forecast_model"),
             "forecast_bypassed": bool(risk_only_optimization),
             "expected_return_role": (
                 "historical_diagnostic_not_optimization_input"

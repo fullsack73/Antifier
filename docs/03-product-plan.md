@@ -49,6 +49,7 @@ Antifier는 투자 판단을 자동으로 대신하는 서비스가 아니라 �
 - LSTM, LightGBM, ARIMA, ARIMA + Transformer, Transformer, lightweight ensemble 계열 forecast/회귀 흐름
 - 미래 가격 예측과 Monte Carlo 스타일 future prediction 응답
 - 사용자 요청으로 Transformer 및 ARIMA+Transformer 서비스 경로에 직접 기간 예측 적용. GMV 기본값은 유지하며 production 수익률 일반화 승격과는 구분
+- 사용자 승인으로 포트폴리오 Transformer 최종 예측에 종목 간 attention·MSE/상관 손실·3 seed 평균 적용. 과거 연구 검증과 사용자 승인 적용을 구분하며 기본 예측 기간은 63일 유지
 - 재무제표, 주요 재무 지표, 규칙 기반 건전성·저평가 평가 대시보드 조회
 - Financial Statement 종합 점수와 predefined ticker universe 기반 screening
 - Ledoit-Wolf global minimum-variance 기본 최적화와 opt-in MPT/Black-Litterman

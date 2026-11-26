@@ -42,6 +42,13 @@ def inline_forecast_pool(monkeypatch):
         def terminate(self): pass
         def join(self): pass
     monkeypatch.setattr(sb, '_create_forecast_pool', Pool)
+    joint_cache = {}
+    def joint(prices, horizon, cancel_event, progress):
+        key = (tuple(prices.columns), prices.to_numpy().tobytes(), horizon)
+        if key not in joint_cache:
+            joint_cache[key] = {t: sb.forecast_for_method('TRANSFORMER', t, prices[t], horizon) for t in prices}
+        return joint_cache[key]
+    monkeypatch.setattr(sb, 'joint_forecast_panel', joint)
     return original
 
 
@@ -195,6 +202,7 @@ def test_gmv_disables_forecasts_and_workload_counts_unique_methods():
 
 def test_selected_methods_share_forecasts_and_have_distinct_results(history, monkeypatch):
     calls = []
+    joint_computations = {}
     def transformer(ticker, series, horizon):
         calls.append(('TRANSFORMER', ticker, series.index[-1]))
         return ticker, {'expected_return': .04 + list(history.columns).index(ticker)*.03, 'uncertainty': .1}
@@ -203,6 +211,13 @@ def test_selected_methods_share_forecasts_and_have_distinct_results(history, mon
         return ticker, {'expected_return': .2 - list(history.columns).index(ticker)*.03, 'uncertainty': .2}
     monkeypatch.setattr(sb, '_transformer_forecast_single_ticker', transformer)
     monkeypatch.setattr(sb, '_ml_forecast_single_ticker', ensemble)
+    def joint(prices, horizon, cancel_event, progress):
+        key = (tuple(prices.columns), prices.to_numpy().tobytes(), horizon)
+        if key not in joint_computations:
+            joint_computations[key] = {t: {'expected_return': .04 + list(history.columns).index(t)*.03,
+                                         'uncertainty': .1} for t in prices}
+        return joint_computations[key]
+    monkeypatch.setattr(sb, 'joint_forecast_panel', joint)
     s = config(strategy_configs=[
         {'optimization_method': 'MIN_VARIANCE', 'forecast_method': 'RISK_ONLY'},
         {'optimization_method': 'MPT', 'forecast_method': 'TRANSFORMER'},
@@ -213,6 +228,7 @@ def test_selected_methods_share_forecasts_and_have_distinct_results(history, mon
     result = sb.run_comparison(s, lambda *args: None, threading.Event())
     assert set(result['strategies']) == set(s['strategies'])
     assert len(calls) == 2 * len(history.columns) * len(result['forecast_records'])
+    assert len(joint_computations) == len(result['forecast_records'])
     for record in result['forecast_records']:
         assert set(record['forecasts_by_method']) == {'TRANSFORMER', 'ARIMA_TRANSFORMER'}
         bl = next(value for key, value in record['strategy_diagnostics'].items() if key.startswith('bl_transformer'))

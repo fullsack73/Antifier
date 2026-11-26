@@ -82,6 +82,11 @@ def forecast_for_method(method, ticker, series, horizon):
             'source': 'lightweight'}
 
 
+def joint_forecast_panel(prices, horizon, cancel_event, progress):
+    from cross_stock_transformer import forecast_panel
+    return forecast_panel(prices, horizon=horizon, cancel_event=cancel_event, progress_callback=progress)
+
+
 def allocate_strategy(config, forecasts, covariance, gmv, settings):
     method = config['optimization_method']
     diagnostic = {'fallback_reason': None, 'prior_source': None}
@@ -347,7 +352,12 @@ def _run_comparison(settings, progress, cancel_event, checkpoint, forecast):
             gmv = _efficient_frontier_weights(pd.Series(0., index=selected), covariance,
                 s['max_asset_weight'], 'min_volatility', s['risk_free_rate'])
             raw, uncertainties, missing = {}, {}, []
-            for ticker, prediction in decision.predictions.items():
+            predictions = decision.predictions
+            if method == 'TRANSFORMER':
+                predictions = joint_forecast_panel(subset, s['forecast_horizon'], cancel_event,
+                    lambda done, total, message: progress(5 + 90 * (number + len(decisions)/len(origins))/len(s['strategies']),
+                                                          100, f'{date}: {message}'))
+            for ticker, prediction in predictions.items():
                 if _is_no_view_prediction(prediction):
                     missing.append(ticker)
                 else:
