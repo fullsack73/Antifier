@@ -5,6 +5,9 @@ from pathlib import Path
 import re
 import tempfile
 from candidate_search import POLICY_VERSION
+from cross_stock_transformer import MODEL_VERSION
+
+EXECUTION_VERSION = f"{POLICY_VERSION}:{MODEL_VERSION}"
 
 
 def _path(request_id):
@@ -18,7 +21,7 @@ def _path(request_id):
 def save(request_id, settings):
     path = _path(request_id)
     with tempfile.NamedTemporaryFile('w', dir=path.parent, delete=False) as file:
-        json.dump({'version': POLICY_VERSION, 'settings': settings}, file)
+        json.dump({'version': EXECUTION_VERSION, 'settings': settings}, file)
         temporary = file.name
     os.replace(temporary, path)
 
@@ -28,6 +31,6 @@ def load(request_id):
     if not path.exists():
         return None
     value = json.loads(path.read_text())
-    if value.get('version') != POLICY_VERSION:
+    if value.get('version') != EXECUTION_VERSION:
         raise ValueError('Backtest policy version changed; start a new run')
     return value['settings']

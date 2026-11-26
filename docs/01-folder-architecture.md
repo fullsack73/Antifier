@@ -73,6 +73,7 @@ src/backend/
 ├─ universe_manifest.py               # 날짜별 universe membership와 생존편향 정책 검증
 ├─ forecast_models.py                # LSTM, LightGBM, ARIMA, Transformer 계열 모델
 ├─ direct_horizon_forecast.py          # 서비스 직접 기간 수익률 예측, purged 학습/검증과 hybrid adapter
+├─ cross_stock_transformer.py          # 공동 시간/종목 attention 예측, 풀 단위 캐시와 취소 가능한 worker
 ├─ lightweight_forecast.py           # 경량 통계 forecast fallback
 ├─ strategy_backtest.py             # CSV 고정 종목군의 GMV/직접 예측 MPT/실험 overlay 비교
 ├─ portfolio_benchmark.py            # 포트폴리오 벤치마크 계산
@@ -165,6 +166,16 @@ tools/
 ├─ compare_improved_forecast_portfolios.py # GMV / direct-horizon MPT / GMV rank overlay 동일 실행 비교
 ├─ compare_forecast_mpt_before_after.py # 동일 MPT에서 기존 반복/저장된 직접 예측의 전후 비교
 ├─ compare_forecast_bl_before_after.py # 저장 예측/불확실성을 공통 historical BL에 넣은 전후 비교
+├─ evaluate_direct_forecast_oos.py      # 직접 Transformer의 완료된 미래 예측 오차 진단
+├─ compare_adaptive_hybrid.py           # 단독·동일가중·과거 오차 기반 혼합 예측 비교
+├─ compare_hybrid_history.py            # 완료 오차 3회·12회로 혼합 비중과 예측 오차 비교
+├─ tune_direct_forecast.py              # 과거 검증으로 12개 학습 설정을 선택하는 직접 예측 진단
+├─ benchmark_stock_attention.py         # 10종목 공동 모델의 종목 간 attention 추가 시간 측정
+├─ evaluate_stock_attention.py          # 동일 공동 모델에 종목 관계 층을 추가한 22종목 비교
+├─ backtest_stock_losses.py             # 횡단면 MSE/상관/순위 목표의 비용 차감 포트폴리오 Sharpe 비교
+├─ backtest_attention_mpt.py            # 종목 attention+MSE/상관 절대수익률 MPT와 GMV의 2년 비교
+├─ compare_attention_horizons.py        # 예측 21/42/63/126일, 분기 실행 고정 MPT 비교
+├─ compare_matched_rebalancing.py       # 예측 기간과 재계산 간격을 21/42/63/126일로 맞춘 비교
 ├─ benchmark_kronos_forecasts.py       # pinned Kronos-small과 기존 ML rank signal 비교
 ├─ research_cross_sectional_forecasts.py # research-only pooled objective 비교
 ├─ research_pooled_patch_transformer.py # frozen origin 기반 Patch/ARIMA/Transformer signal과 GMV tilt 비교

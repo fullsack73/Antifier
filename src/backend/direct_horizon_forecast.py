@@ -9,7 +9,7 @@ from sklearn.preprocessing import StandardScaler
 from forecast_models import ARIMATransformerPredictor, no_view_prediction
 
 logger = logging.getLogger(__name__)
-MODEL_VERSION = "direct-horizon-v1"
+MODEL_VERSION = "direct-horizon-equal-window-v4"
 
 
 def supervised_returns(prices, horizon=1, lookback=60):
@@ -90,7 +90,7 @@ class DirectHorizonTransformerForecastModel:
         ys = StandardScaler().fit(y[tr, None])
         scaled_x = xs.transform(x.reshape(-1, 1)).reshape(x.shape).astype("float32")
         scaled_y = ys.transform(y[:, None]).astype("float32")
-        model = build_transformer(False, self.random_state)
+        model = build_transformer(True, self.random_state)
         try:
             fitted = model.fit(scaled_x[tr], scaled_y[tr], validation_data=(scaled_x[va], scaled_y[va]),
                                epochs=self.epochs, batch_size=32, shuffle=False, verbose=0,
@@ -142,9 +142,62 @@ class DirectARIMATransformerPredictor(ARIMATransformerPredictor):
     def __init__(self, transformer_kwargs=None):
         super().__init__()
         self.transformer = DirectHorizonTransformerForecastModel(**(transformer_kwargs or {}))
+        self.calibration_history = None
 
-    def train_all(self, prices):
+    def train_all(self, prices, calibration_prices=None):
         self.history = None
+        self.calibration_history = None
         self.transformer.train(prices)
         if self.transformer.history is not None:
             self.history = self.transformer.history.copy()
+            if calibration_prices is not None:
+                values = np.asarray(calibration_prices, dtype=float)
+                if (values.ndim == 1 and len(values) >= len(self.history)
+                        and np.isfinite(values).all() and (values > 0).all()
+                        and np.array_equal(values[-len(self.history):], self.history)):
+                    self.calibration_history = values.copy()
+
+    def cleanup(self):
+        super().cleanup()
+        self.history = None
+        self.calibration_history = None
+
+    def predict(self, horizon=252):
+        result = super().predict(horizon)
+        components = result.get("components", {})
+        if set(components) != {"ARIMA", "Transformer"}:
+            return result
+
+        errors = []
+        calibration = self.calibration_history
+        window = len(self.history)
+        for lag in (3, 2, 1):
+            if calibration is None or len(calibration) < window + 3 * horizon:
+                break
+            origin = len(calibration) - 1 - lag * horizon
+            probe = DirectARIMATransformerPredictor(transformer_kwargs={
+                "epochs": self.transformer.epochs, "random_state": self.transformer.random_state})
+            try:
+                probe.train_all(calibration[origin - window + 1:origin + 1])
+                past = ARIMATransformerPredictor.predict(probe, horizon).get("components", {})
+            except Exception as exc:
+                logger.warning("Hybrid weighting fell back to equal weights: %s", exc)
+                break
+            finally:
+                probe.cleanup()
+            if set(past) != {"ARIMA", "Transformer"}:
+                break
+            realized = np.log(calibration[origin + horizon] / calibration[origin]) * 252 / horizon
+            errors.append([past["ARIMA"] - realized, past["Transformer"] - realized])
+
+        weight = .5
+        if len(errors) == 3:
+            losses = np.mean(np.square(errors), axis=0)
+            if np.isfinite(losses).all() and losses.sum() > 1e-12:
+                weight = .25 + .5 * losses[1] / losses.sum()
+        result["expected_return"] = float(weight * components["ARIMA"] + (1 - weight) * components["Transformer"])
+        result["diagnostics"].update({"arima_weight": float(weight), "completed_weight_periods": len(errors),
+                                      "completed_weight_errors": errors,
+                                      "weight_train_window": window,
+                                      "weight_history_sufficient": calibration is not None and len(calibration) >= window + 3 * horizon})
+        return result
