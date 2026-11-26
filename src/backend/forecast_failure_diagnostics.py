@@ -133,7 +133,6 @@ def original_transformer(prices, horizon=63, seed=42, trained_model=None):
 def arima_forecast(prices, horizon=63, fixed=False, loader=None):
     """Trace the actual house ARIMA, including its otherwise silent fallbacks."""
     import forecast_models
-    from statsmodels.tsa.arima.model import ARIMA as StatsARIMA
 
     prices = np.asarray(prices, dtype=float)
     info = {"path": "short_input_constant" if len(prices) < 10 else "arima", "warnings": []}
@@ -167,6 +166,8 @@ def arima_forecast(prices, horizon=63, fixed=False, loader=None):
             raise
 
     if fixed:
+        from statsmodels.tsa.arima.model import ARIMA as StatsARIMA
+
         r = np.diff(np.log(prices))
         fitted = StatsARIMA(r, order=(1, 0, 0), trend="c").fit()
         path = np.asarray(fitted.forecast(horizon))
